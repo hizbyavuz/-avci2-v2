@@ -664,6 +664,8 @@ price_usd = num(
                 liquidity,
             "price_usd":
                 price_usd,
+            "decimals":
+    base_token.get("decimals", 0),
             "volume_24h":
                 volume_24h,
 
