@@ -12,6 +12,12 @@ NETWORKS = {
     "arbitrum": "Arbitrum",
 }
 
+# -------------------------------------------------
+# AVCI 2 V2.1 CONFIG
+# -------------------------------------------------
+
+CONFIG_VERSION = "v2.1-age-veto-live"
+
 MIN_LIQUIDITY = 15000
 MAX_LIQUIDITY = 500000
 
@@ -20,7 +26,20 @@ MIN_VOLUME_24H = 30000
 MIN_CHANGE_24H = 5
 MAX_CHANGE_24H = 40
 
-MAX_RESULTS_PER_NETWORK = 20
+# Canli aktivite
+MIN_VOLUME_1H = 1000
+MIN_VOLUME_5M = 100
+
+MIN_TX_1H = 15
+MIN_TX_5M = 3
+
+# Sert dusus veto
+VETO_CHANGE_1H = -12
+VETO_CHANGE_6H = -25
+VETO_CHANGE_5M = -8
+
+# Pool yasi
+NEW_LAUNCH_MINUTES = 60
 
 HEADERS = {
     "accept": "application/json;version=20230203"
@@ -32,6 +51,32 @@ def num(value):
         return float(value or 0)
     except (TypeError, ValueError):
         return 0.0
+
+
+def parse_time(value):
+    if not value:
+        return None
+
+    try:
+        return datetime.fromisoformat(
+            value.replace("Z", "+00:00")
+        )
+    except Exception:
+        return None
+
+
+def pool_age_minutes(created_at):
+    dt = parse_time(created_at)
+
+    if not dt:
+        return None
+
+    now = datetime.now(timezone.utc)
+
+    return max(
+        0,
+        (now - dt).total_seconds() / 60
+    )
 
 
 def api_get(path):
@@ -46,28 +91,36 @@ def api_get(path):
             )
 
             if r.status_code == 429:
-                print("Rate limit -> bekleniyor...")
+                print("Rate limit -> 15 saniye bekleniyor...")
                 time.sleep(15)
                 continue
 
             r.raise_for_status()
+
             return r.json()
 
         except Exception as e:
-            print(f"API hata: {url}")
+            print("API HATA:", url)
             print(e)
 
             if attempt < 2:
                 time.sleep(5)
 
-    return {"data": [], "included": []}
+    return {
+        "data": [],
+        "included": []
+    }
 
 
 def included_map(payload):
     result = {}
 
     for obj in payload.get("included", []):
-        key = (obj.get("type"), obj.get("id"))
+        key = (
+            obj.get("type"),
+            obj.get("id")
+        )
+
         result[key] = obj
 
     return result
@@ -76,75 +129,225 @@ def included_map(payload):
 def relation_id(pool, relation):
     try:
         return (
-            pool["relationships"][relation]
-            ["data"]["id"]
+            pool["relationships"]
+            [relation]
+            ["data"]
+            ["id"]
         )
     except Exception:
         return None
 
 
 def token_from_included(pool, inc, relation):
-    rid = relation_id(pool, relation)
+    rid = relation_id(
+        pool,
+        relation
+    )
 
     if not rid:
         return {}
 
-    obj = inc.get(("token", rid))
+    obj = inc.get(
+        ("token", rid)
+    )
 
     if not obj:
         return {}
 
-    attrs = obj.get("attributes", {})
+    attrs = obj.get(
+        "attributes",
+        {}
+    )
 
     return {
         "id": rid,
-        "address": attrs.get("address", ""),
-        "name": attrs.get("name", ""),
-        "symbol": attrs.get("symbol", ""),
+        "address": attrs.get(
+            "address",
+            ""
+        ),
+        "name": attrs.get(
+            "name",
+            ""
+        ),
+        "symbol": attrs.get(
+            "symbol",
+            ""
+        ),
     }
 
 
-def scan_payload(payload, network_id, network_name, source):
+def classify_stage(
+    age_minutes,
+    change_1h,
+    change_5m,
+    acceleration_1h,
+    acceleration_5m,
+    buys_1h,
+    sells_1h,
+    buys_5m,
+    sells_5m,
+):
+    if (
+        age_minutes is not None
+        and age_minutes < NEW_LAUNCH_MINUTES
+    ):
+        return "NEW_LAUNCH"
+
+    if (
+        acceleration_1h >= 1.5
+        and buys_1h > sells_1h
+    ):
+        if (
+            acceleration_5m >= 1.3
+            and buys_5m > sells_5m
+            and change_5m >= 0
+        ):
+            return "RE_IGNITION"
+
+        return "WAKE_UP"
+
+    if (
+        buys_1h > sells_1h
+        and change_1h >= 0
+    ):
+        return "PERSISTENCE"
+
+    return "WATCH"
+
+
+def scan_payload(
+    payload,
+    network_id,
+    network_name,
+    source
+):
     inc = included_map(payload)
+
     found = []
 
     for pool in payload.get("data", []):
-        a = pool.get("attributes", {})
+        a = pool.get(
+            "attributes",
+            {}
+        )
 
-        pool_address = a.get("address", "")
+        pool_address = a.get(
+            "address",
+            ""
+        )
 
-        pool_name = a.get("name", "Unknown")
+        pool_name = a.get(
+            "name",
+            "Unknown"
+        )
 
-        liquidity = num(a.get("reserve_in_usd"))
+        created_at = a.get(
+            "pool_created_at"
+        )
 
-        volume = a.get("volume_usd", {})
-        volume_24h = num(volume.get("h24"))
-        volume_6h = num(volume.get("h6"))
-        volume_1h = num(volume.get("h1"))
-        volume_5m = num(volume.get("m5"))
+        age_minutes = pool_age_minutes(
+            created_at
+        )
 
-        changes = a.get("price_change_percentage", {})
-        change_24h = num(changes.get("h24"))
-        change_6h = num(changes.get("h6"))
-        change_1h = num(changes.get("h1"))
-        change_5m = num(changes.get("m5"))
+        liquidity = num(
+            a.get("reserve_in_usd")
+        )
 
-        tx = a.get("transactions", {})
+        volume = a.get(
+            "volume_usd",
+            {}
+        )
 
-        tx24 = tx.get("h24", {})
-        tx1 = tx.get("h1", {})
-        tx5 = tx.get("m5", {})
+        volume_24h = num(
+            volume.get("h24")
+        )
 
-        buys_24h = num(tx24.get("buys"))
-        sells_24h = num(tx24.get("sells"))
+        volume_6h = num(
+            volume.get("h6")
+        )
 
-        buys_1h = num(tx1.get("buys"))
-        sells_1h = num(tx1.get("sells"))
+        volume_1h = num(
+            volume.get("h1")
+        )
 
-        buys_5m = num(tx5.get("buys"))
-        sells_5m = num(tx5.get("sells"))
+        volume_5m = num(
+            volume.get("m5")
+        )
 
-        created_at = a.get("pool_created_at")
+        changes = a.get(
+            "price_change_percentage",
+            {}
+        )
+
+        change_24h = num(
+            changes.get("h24")
+        )
+
+        change_6h = num(
+            changes.get("h6")
+        )
+
+        change_1h = num(
+            changes.get("h1")
+        )
+
+        change_5m = num(
+            changes.get("m5")
+        )
+
+        tx = a.get(
+            "transactions",
+            {}
+        )
+
+        tx24 = tx.get(
+            "h24",
+            {}
+        )
+
+        tx1 = tx.get(
+            "h1",
+            {}
+        )
+
+        tx5 = tx.get(
+            "m5",
+            {}
+        )
+
+        buys_24h = num(
+            tx24.get("buys")
+        )
+
+        sells_24h = num(
+            tx24.get("sells")
+        )
+
+        buys_1h = num(
+            tx1.get("buys")
+        )
+
+        sells_1h = num(
+            tx1.get("sells")
+        )
+
+        buys_5m = num(
+            tx5.get("buys")
+        )
+
+        sells_5m = num(
+            tx5.get("sells")
+        )
+
+        tx_count_1h = (
+            buys_1h
+            + sells_1h
+        )
+
+        tx_count_5m = (
+            buys_5m
+            + sells_5m
+        )
 
         base_token = token_from_included(
             pool,
@@ -157,6 +360,17 @@ def scan_payload(payload, network_id, network_name, source):
             inc,
             "quote_token"
         )
+
+        token_contract = (
+            base_token.get(
+                "address",
+                ""
+            )
+        )
+
+        # ---------------------------------------
+        # TEMEL FILTRELER
+        # ---------------------------------------
 
         if liquidity < MIN_LIQUIDITY:
             continue
@@ -177,101 +391,276 @@ def scan_payload(payload, network_id, network_name, source):
         if buys_24h <= sells_24h:
             continue
 
+        # ---------------------------------------
+        # SHORT-TERM CRASH VETO
+        # DONATED tipi coinleri engeller
+        # ---------------------------------------
+
+        veto_reason = None
+
+        if change_1h <= VETO_CHANGE_1H:
+            veto_reason = "1H_CRASH"
+
+        if change_6h <= VETO_CHANGE_6H:
+            veto_reason = "6H_CRASH"
+
+        if change_5m <= VETO_CHANGE_5M:
+            veto_reason = "5M_CRASH"
+
+        if veto_reason:
+            continue
+
+        # ---------------------------------------
+        # YENI POOL AYRIMI
+        # MONA tipi sahte acceleration engeli
+        # ---------------------------------------
+
+        is_new_launch = (
+            age_minutes is not None
+            and age_minutes
+            < NEW_LAUNCH_MINUTES
+        )
+
+        # ---------------------------------------
+        # CANLI AKTIVITE
+        # ---------------------------------------
+
+        if is_new_launch:
+
+            # Yeni coinlerde 24h / 1h karsilastirmasi
+            # yapmiyoruz.
+            # Gercek 5m aktivitesine bakiyoruz.
+
+            if volume_5m < MIN_VOLUME_5M:
+                continue
+
+            if tx_count_5m < MIN_TX_5M:
+                continue
+
+            if buys_5m <= sells_5m:
+                continue
+
+        else:
+
+            # Eski poollarda son saat hala yasiyor mu?
+
+            if volume_1h < MIN_VOLUME_1H:
+                continue
+
+            if tx_count_1h < MIN_TX_1H:
+                continue
+
+            if volume_5m < MIN_VOLUME_5M:
+                continue
+
+            if tx_count_5m < MIN_TX_5M:
+                continue
+
+        # ---------------------------------------
+        # RATIOS
+        # ---------------------------------------
+
         volume_liquidity_ratio = (
-            volume_24h / liquidity
-            if liquidity > 0
-            else 0
+            volume_24h
+            / max(liquidity, 1)
         )
 
-        buy_sell_ratio = (
-            buys_24h / max(sells_24h, 1)
+        buy_sell_ratio_24h = (
+            buys_24h
+            / max(sells_24h, 1)
         )
 
-        acceleration_1h = (
-            volume_1h /
-            max(volume_24h / 24, 1)
+        buy_sell_ratio_1h = (
+            buys_1h
+            / max(sells_1h, 1)
         )
 
-        acceleration_5m = (
-            volume_5m /
-            max(volume_1h / 12, 1)
+        buy_sell_ratio_5m = (
+            buys_5m
+            / max(sells_5m, 1)
         )
+
+        # ---------------------------------------
+        # ACCELERATION
+        # ---------------------------------------
+
+        if is_new_launch:
+
+            # Yeterli gecmis olmadigi icin
+            # acceleration hesaplamiyoruz.
+
+            acceleration_1h = None
+            acceleration_5m = None
+
+        else:
+
+            expected_hour = max(
+                volume_24h / 24,
+                1
+            )
+
+            acceleration_1h = (
+                volume_1h
+                / expected_hour
+            )
+
+            expected_5m = max(
+                volume_1h / 12,
+                1
+            )
+
+            acceleration_5m = (
+                volume_5m
+                / expected_5m
+            )
+
+        # ---------------------------------------
+        # SCORE
+        # ---------------------------------------
 
         score = 0
 
-        if buy_sell_ratio >= 1.2:
+        if buy_sell_ratio_24h >= 1.2:
             score += 1
 
-        if buy_sell_ratio >= 2:
+        if buy_sell_ratio_1h >= 1.2:
+            score += 1
+
+        if buy_sell_ratio_5m >= 1.2:
             score += 1
 
         if volume_liquidity_ratio >= 1:
             score += 1
 
-        if volume_liquidity_ratio >= 3:
-            score += 1
+        if not is_new_launch:
 
-        if acceleration_1h >= 1.5:
-            score += 1
+            if (
+                acceleration_1h is not None
+                and acceleration_1h >= 1.5
+            ):
+                score += 1
 
-        if acceleration_5m >= 1.5:
-            score += 1
+            if (
+                acceleration_5m is not None
+                and acceleration_5m >= 1.3
+            ):
+                score += 1
 
-        if buys_1h > sells_1h:
-            score += 1
+            if change_1h >= 0:
+                score += 1
 
-        if buys_5m > sells_5m:
-            score += 1
+            if change_5m >= 0:
+                score += 1
+
+        else:
+
+            # Yeni launch icin skor ust siniri
+            # bilerek dusuk tutuluyor.
+
+            if buys_5m > sells_5m:
+                score += 1
+
+        # ---------------------------------------
+        # STAGE
+        # ---------------------------------------
+
+        stage = classify_stage(
+            age_minutes,
+            change_1h,
+            change_5m,
+            acceleration_1h or 0,
+            acceleration_5m or 0,
+            buys_1h,
+            sells_1h,
+            buys_5m,
+            sells_5m,
+        )
 
         found.append({
             "network": network_name,
             "network_id": network_id,
             "source": source,
 
-            "name": pool_name,
-
-            "pool": pool_address,
-
-            "base_symbol": base_token.get(
-                "symbol", ""
+            "name": (
+                base_token.get(
+                    "name"
+                )
+                or pool_name
             ),
 
-            "base_name": base_token.get(
-                "name", ""
+            "symbol": base_token.get(
+                "symbol",
+                ""
             ),
 
-            "token_contract": base_token.get(
-                "address", ""
-            ),
+            "token_contract":
+                token_contract,
 
-            "quote_symbol": quote_token.get(
-                "symbol", ""
-            ),
+            "pool":
+                pool_address,
 
-            "created_at": created_at,
+            "quote_symbol":
+                quote_token.get(
+                    "symbol",
+                    ""
+                ),
 
-            "liquidity": liquidity,
+            "created_at":
+                created_at,
 
-            "volume_24h": volume_24h,
-            "volume_6h": volume_6h,
-            "volume_1h": volume_1h,
-            "volume_5m": volume_5m,
+            "age_minutes":
+                age_minutes,
 
-            "change_24h": change_24h,
-            "change_6h": change_6h,
-            "change_1h": change_1h,
-            "change_5m": change_5m,
+            "stage":
+                stage,
 
-            "buys_24h": buys_24h,
-            "sells_24h": sells_24h,
+            "score":
+                score,
 
-            "buys_1h": buys_1h,
-            "sells_1h": sells_1h,
+            "liquidity":
+                liquidity,
 
-            "buys_5m": buys_5m,
-            "sells_5m": sells_5m,
+            "volume_24h":
+                volume_24h,
 
-            "buy_sell_ratio": buy_sell_ratio,
+            "volume_6h":
+                volume_6h,
+
+            "volume_1h":
+                volume_1h,
+
+            "volume_5m":
+                volume_5m,
+
+            "change_24h":
+                change_24h,
+
+            "change_6h":
+                change_6h,
+
+            "change_1h":
+                change_1h,
+
+            "change_5m":
+                change_5m,
+
+            "buys_24h":
+                buys_24h,
+
+            "sells_24h":
+                sells_24h,
+
+            "buys_1h":
+                buys_1h,
+
+            "sells_1h":
+                sells_1h,
+
+            "buys_5m":
+                buys_5m,
+
+            "sells_5m":
+                sells_5m,
 
             "volume_liquidity_ratio":
                 volume_liquidity_ratio,
@@ -282,7 +671,8 @@ def scan_payload(payload, network_id, network_name, source):
             "acceleration_5m":
                 acceleration_5m,
 
-            "score": score,
+            "is_new_launch":
+                is_new_launch,
         })
 
     return found
@@ -290,69 +680,98 @@ def scan_payload(payload, network_id, network_name, source):
 
 def deduplicate(candidates):
     result = {}
-    
+
     for c in candidates:
+
         key = (
             c["network_id"],
             c["token_contract"]
             or c["pool"]
         )
 
-        existing = result.get(key)
+        old = result.get(key)
 
-        if existing is None:
+        if old is None:
             result[key] = c
             continue
 
-        if c["liquidity"] > existing["liquidity"]:
+        if (
+            c["score"]
+            > old["score"]
+        ):
             result[key] = c
 
-    return list(result.values())
+        elif (
+            c["score"]
+            == old["score"]
+            and c["liquidity"]
+            > old["liquidity"]
+        ):
+            result[key] = c
+
+    return list(
+        result.values()
+    )
 
 
-print("=" * 70)
-print("AVCI 2 V2 — MULTI-CHAIN SCAN")
+print("=" * 72)
+print("AVCI 2 V2.1 — MULTI-CHAIN")
+print("CONFIG:", CONFIG_VERSION)
+
 print(
     "UTC:",
-    datetime.now(timezone.utc).isoformat()
+    datetime.now(
+        timezone.utc
+    ).isoformat()
 )
-print("=" * 70)
+
+print("=" * 72)
 
 all_candidates = []
 
+
 for network_id, network_name in NETWORKS.items():
 
-    print(f"\n[{network_name}] taraniyor...")
+    print()
+    print(
+        f"[{network_name}] taraniyor..."
+    )
 
     trending = api_get(
-        f"/networks/{network_id}/trending_pools"
-        "?include=base_token,quote_token"
+        f"/networks/"
+        f"{network_id}/"
+        f"trending_pools"
+        f"?include="
+        f"base_token,quote_token"
     )
 
-    candidates = scan_payload(
-        trending,
-        network_id,
-        network_name,
-        "TRENDING"
+    all_candidates.extend(
+        scan_payload(
+            trending,
+            network_id,
+            network_name,
+            "TRENDING"
+        )
     )
-
-    all_candidates.extend(candidates)
 
     time.sleep(7)
 
     new_pools = api_get(
-        f"/networks/{network_id}/new_pools"
-        "?include=base_token,quote_token"
+        f"/networks/"
+        f"{network_id}/"
+        f"new_pools"
+        f"?include="
+        f"base_token,quote_token"
     )
 
-    candidates = scan_payload(
-        new_pools,
-        network_id,
-        network_name,
-        "NEW"
+    all_candidates.extend(
+        scan_payload(
+            new_pools,
+            network_id,
+            network_name,
+            "NEW"
+        )
     )
-
-    all_candidates.extend(candidates)
 
     time.sleep(7)
 
@@ -364,14 +783,15 @@ all_candidates = deduplicate(
 all_candidates.sort(
     key=lambda x: (
         x["score"],
-        x["acceleration_1h"],
         x["volume_liquidity_ratio"]
     ),
     reverse=True
 )
 
 
-print("\n" + "=" * 70)
+print()
+print("=" * 72)
+
 
 if not all_candidates:
 
@@ -383,10 +803,11 @@ if not all_candidates:
 else:
 
     print(
-        f"{len(all_candidates)} ADAY BULUNDU"
+        f"{len(all_candidates)} "
+        "ADAY BULUNDU"
     )
 
-    print("=" * 70)
+    print("=" * 72)
 
     for i, c in enumerate(
         all_candidates[:20],
@@ -394,24 +815,39 @@ else:
     ):
 
         print()
+
         print(
             f"{i}. "
-            f"{c['base_name']} "
-            f"({c['base_symbol']})"
+            f"{c['name']} "
+            f"({c['symbol']})"
         )
 
         print(
-            f"   Network: {c['network']}"
+            "   Network:",
+            c["network"]
         )
 
         print(
-            f"   Kaynak: {c['source']}"
+            "   Stage:",
+            c["stage"]
+        )
+
+        print(
+            "   Source:",
+            c["source"]
         )
 
         print(
             f"   Avci score: "
             f"{c['score']}/8"
         )
+
+        if c["age_minutes"] is not None:
+
+            print(
+                f"   Pool age: "
+                f"{c['age_minutes']:.1f} dk"
+            )
 
         print(
             f"   24H fiyat: "
@@ -454,21 +890,24 @@ else:
         )
 
         print(
-            f"   Buy/Sell 24H: "
-            f"{int(c['buys_24h'])}/"
-            f"{int(c['sells_24h'])}"
+            "   Buy/Sell 24H:",
+            int(c["buys_24h"]),
+            "/",
+            int(c["sells_24h"])
         )
 
         print(
-            f"   Buy/Sell 1H: "
-            f"{int(c['buys_1h'])}/"
-            f"{int(c['sells_1h'])}"
+            "   Buy/Sell 1H:",
+            int(c["buys_1h"]),
+            "/",
+            int(c["sells_1h"])
         )
 
         print(
-            f"   Buy/Sell 5M: "
-            f"{int(c['buys_5m'])}/"
-            f"{int(c['sells_5m'])}"
+            "   Buy/Sell 5M:",
+            int(c["buys_5m"]),
+            "/",
+            int(c["sells_5m"])
         )
 
         print(
@@ -476,38 +915,43 @@ else:
             f"{c['volume_liquidity_ratio']:.2f}x"
         )
 
+        if c["is_new_launch"]:
+
+            print(
+                "   Hacim ivmesi: "
+                "YENI POOL - hesaplanmadi"
+            )
+
+        else:
+
+            print(
+                f"   1H hacim ivmesi: "
+                f"{c['acceleration_1h']:.2f}x"
+            )
+
+            print(
+                f"   5M hacim ivmesi: "
+                f"{c['acceleration_5m']:.2f}x"
+            )
+
         print(
-            f"   1H hacim ivmesi: "
-            f"{c['acceleration_1h']:.2f}x"
+            "   Token kontrati:"
         )
 
         print(
-            f"   5M hacim ivmesi: "
-            f"{c['acceleration_5m']:.2f}x"
+            "  ",
+            c["token_contract"]
         )
 
         print(
-            f"   Token kontrati:"
+            "   Pool:"
         )
 
         print(
-            f"   {c['token_contract']}"
+            "  ",
+            c["pool"]
         )
 
         print(
-            f"   Pool:"
+            "-" * 72
         )
-
-        print(
-            f"   {c['pool']}"
-        )
-
-        print(
-            f"   Pool created:"
-        )
-
-        print(
-            f"   {c['created_at']}"
-        )
-
-        print("-" * 70)
