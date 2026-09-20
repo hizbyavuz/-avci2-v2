@@ -1,7 +1,7 @@
 import requests
 import time
 from datetime import datetime, timezone
-
+from snapshot_deposu import snapshot_kaydet, son_snapshot, snapshot_sayisi
 BASE_URL = "https://api.geckoterminal.com/api/v2"
 
 NETWORKS = {
