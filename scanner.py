@@ -992,7 +992,33 @@ else:
             "  ",
             c["token_contract"]
         )
+            if c.get("network") == "solana":
+                quote = jupiter_quote(
+                    c["token_contract"],
+                    USDC_MINT,
+                    1_000_000
+                )
 
+                print("   Jupiter:")
+
+                if quote["ok"]:
+                    print(
+                        "   Route:",
+                        "VAR" if quote["route_plan"] else "YOK"
+                    )
+                    print(
+                        "   Price impact:",
+                        quote["price_impact_pct"]
+                    )
+                    print(
+                        "   Out amount:",
+                        quote["out_amount"]
+                    )
+                else:
+                    print(
+                        "   Jupiter hata:",
+                        quote["error"]
+                    )
         print(
             "   Pool:"
         )
