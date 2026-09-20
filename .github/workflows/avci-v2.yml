@@ -29,6 +29,8 @@ jobs:
         run: pip install requests
 
       - name: Run Avci 2 V2
+        env:
+         JUPITER_API_KEY: ${{ secrets.JUPITER_API_KEY }}
         run: python scanner.py
       - name: Save Avci DB
         if: always()
