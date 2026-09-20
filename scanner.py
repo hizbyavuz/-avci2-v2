@@ -1,3 +1,4 @@
+import os
 import requests
 import time
 from datetime import datetime, timezone
@@ -11,7 +12,11 @@ NETWORKS = {
     "eth": "Ethereum",
     "arbitrum": "Arbitrum",
 }
+JUPITER_API_KEY = os.getenv("JUPITER_API_KEY", "")
+JUPITER_QUOTE_URL = "https://api.jup.ag/swap/v1/quote"
 
+SOL_MINT = "So11111111111111111111111111111111111111112"
+USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
 # -------------------------------------------------
 # AVCI 2 V2.1 CONFIG
 # -------------------------------------------------
@@ -110,7 +115,43 @@ def api_get(path):
         "data": [],
         "included": []
     }
+def jupiter_quote(input_mint, output_mint, amount):
+    if not JUPITER_API_KEY:
+        return {
+            "ok": False,
+            "error": "JUPITER_API_KEY yok"
+        }
 
+    try:
+        r = requests.get(
+            JUPITER_QUOTE_URL,
+            params={
+                "inputMint": input_mint,
+                "outputMint": output_mint,
+                "amount": str(amount),
+            },
+            headers={
+                "x-api-key": JUPITER_API_KEY,
+                "accept": "application/json",
+            },
+            timeout=20,
+        )
+
+        r.raise_for_status()
+        data = r.json()
+
+        return {
+            "ok": True,
+            "out_amount": data.get("outAmount"),
+            "price_impact_pct": data.get("priceImpactPct"),
+            "route_plan": data.get("routePlan", []),
+        }
+
+    except Exception as e:
+        return {
+            "ok": False,
+            "error": str(e),
+        }
 
 def included_map(payload):
     result = {}
