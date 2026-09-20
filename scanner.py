@@ -293,7 +293,9 @@ def scan_payload(
         liquidity = num(
             a.get("reserve_in_usd")
         )
-
+price_usd = num(
+    a.get("base_token_price_usd")
+)
         volume = a.get(
             "volume_usd",
             {}
@@ -660,7 +662,8 @@ def scan_payload(
 
             "liquidity":
                 liquidity,
-
+            "price_usd":
+                price_usd,
             "volume_24h":
                 volume_24h,
 
@@ -992,7 +995,7 @@ else:
             "  ",
             c["token_contract"]
         )
-            if c.get("network") == "solana":
+            if c.get("network_id") == "solana":
                 quote = jupiter_quote(
                     c["token_contract"],
                     USDC_MINT,
