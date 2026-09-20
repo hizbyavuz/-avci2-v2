@@ -779,7 +779,16 @@ for network_id, network_name in NETWORKS.items():
 all_candidates = deduplicate(
     all_candidates
 )
+for candidate in all_candidates:
+    snapshot_kaydet(
+        candidate,
+        CONFIG_VERSION
+    )
 
+print(
+    "Snapshot toplam:",
+    snapshot_sayisi()
+)
 all_candidates.sort(
     key=lambda x: (
         x["score"],
