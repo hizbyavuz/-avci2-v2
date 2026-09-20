@@ -214,8 +214,8 @@ def token_from_included(pool, inc, relation):
             "symbol",
             ""
         ),
+ "decimals": int(attrs.get("decimals") or 0),
     }
-
 
 def classify_stage(
     age_minutes,
