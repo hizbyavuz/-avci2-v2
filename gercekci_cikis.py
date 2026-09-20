@@ -1,5 +1,6 @@
 from dataclasses import dataclass, asdict
-
+import os
+import requests
 
 # Avci 2 - Gercekci Cikis Motoru
 # Amaç:
@@ -118,3 +119,78 @@ def exit_summary(candidate):
         ).to_dict()
 
     return results
+JUPITER_BASE_URL = "https://api.jup.ag/swap/v2"
+USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+
+
+def jupiter_sell_quote(
+    token_mint,
+    amount_atomic,
+):
+    """
+    Solana tokenini USDC'ye satmak için gerçek Jupiter quote'u alır.
+
+    amount_atomic:
+    Token miktarının en küçük birimdeki hali.
+    Örn. decimals=6 ise 1 token = 1_000_000.
+    """
+
+    api_key = os.getenv("JUPITER_API_KEY")
+
+    if not api_key:
+        return {
+            "ok": False,
+            "reason": "JUPITER_API_KEY bulunamadi"
+        }
+
+    try:
+        response = requests.get(
+            f"{JUPITER_BASE_URL}/order",
+            params={
+                "inputMint": token_mint,
+                "outputMint": USDC_MINT,
+                "amount": str(int(amount_atomic)),
+            },
+            headers={
+                "x-api-key": api_key
+            },
+            timeout=20,
+        )
+
+        if response.status_code != 200:
+            return {
+                "ok": False,
+                "reason": f"Jupiter HTTP {response.status_code}",
+                "body": response.text[:300],
+            }
+
+        data = response.json()
+
+        out_amount = data.get("outAmount")
+
+        if not out_amount:
+            return {
+                "ok": False,
+                "reason": data.get(
+                    "errorMessage",
+                    "Jupiter quote yok"
+                ),
+                "router": data.get("router"),
+            }
+
+        # USDC 6 decimal
+        expected_usd = float(out_amount) / 1_000_000
+
+        return {
+            "ok": True,
+            "expected_usd": expected_usd,
+            "router": data.get("router"),
+            "out_amount": out_amount,
+            "request_id": data.get("requestId"),
+        }
+
+    except Exception as e:
+        return {
+            "ok": False,
+            "reason": str(e),
+        }
