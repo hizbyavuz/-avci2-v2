@@ -280,9 +280,7 @@ def scan_payload(
         pool_name = a.get(
             "name",
             "Unknown"
-        )
-
-        created_at = a.get(
+                created_at = a.get(
             "pool_created_at"
         )
 
@@ -290,8 +288,8 @@ def scan_payload(
             created_at
         )
 
-         liquidity = num(
-         a.get("reserve_in_usd")
+        liquidity = num(
+            a.get("reserve_in_usd")
         )
 
         price_usd = num(
@@ -318,7 +316,6 @@ def scan_payload(
         volume_5m = num(
             volume.get("m5")
         )
-
         changes = a.get(
             "price_change_percentage",
             {}
