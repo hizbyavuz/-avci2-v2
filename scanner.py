@@ -49,6 +49,7 @@ VETO_CHANGE_5M = -8
 
 # Pool yasi
 NEW_LAUNCH_MINUTES = 60
+MAX_POOL_AGE_MINUTES = 43200  # 30 gun
 
 HEADERS = {
     "accept": "application/json;version=20230203"
@@ -441,6 +442,12 @@ def scan_payload(
             continue
 
         if buys_24h <= sells_24h:
+            continue
+
+        if (
+            age_minutes is not None
+            and age_minutes > MAX_POOL_AGE_MINUTES
+        ):
             continue
 
         # ---------------------------------------
