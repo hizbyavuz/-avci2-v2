@@ -3,6 +3,7 @@
 
 import json
 import sqlite3
+import statistics
 import time
 from datetime import datetime, timezone, timedelta
 
@@ -12,6 +13,27 @@ DB_TIMEOUT_SECONDS = 60
 DB_BUSY_TIMEOUT_MS = 60000
 DB_RETRY_COUNT = 8
 DB_RETRY_SLEEP = 0.25
+
+FEATURE_RAW_EXTRA_KEYS = (
+    "quote_volume_24h",
+    "quote_volume_15m",
+    "quote_volume_1h",
+    "quote_volume_3h",
+    "futures_change_24h",
+    "futures_taker_ratio_1h",
+    "wake_components",
+    "trigger_components",
+    "data_staleness_minutes",
+    "impulse_start_ms",
+    "impulse_low",
+    "impulse_high",
+    "impulse_return_pct",
+    "impulse_volume_multiple",
+    "near_miss_distance",
+    "manipulation_risk",
+    "catalyst_status",
+    "coin_age_days",
+)
 
 
 def utc_now():
@@ -445,6 +467,11 @@ def init_db():
                 data_mode TEXT,
                 universe_size INTEGER,
                 btc_change_24h REAL,
+                btc_regime TEXT,
+                health_status TEXT,
+                config_hash TEXT,
+                git_sha TEXT,
+                clock_skew_seconds REAL,
                 created_at_utc TEXT
             );
 
@@ -459,6 +486,14 @@ def init_db():
                 score INTEGER,
                 is_signal INTEGER DEFAULT 0,
                 is_selected INTEGER DEFAULT 0,
+                selection_class TEXT DEFAULT 'NONE',
+                validation_tier TEXT DEFAULT 'OBSERVATIONAL',
+                btc_regime TEXT,
+                spread_bps REAL,
+                volume_rarity_pct REAL,
+                trade_rarity_pct REAL,
+                return_rarity_pct REAL,
+                cross_sectional_rarity_pct REAL,
                 price REAL,
                 signal_bar_open_ms INTEGER,
                 signal_bar_close_ms INTEGER,
@@ -510,7 +545,12 @@ def init_db():
                 engine TEXT,
                 score INTEGER,
                 signal_price REAL,
+                first_anomaly_time_utc TEXT,
+                first_anomaly_price REAL,
+                gain_before_signal_pct REAL,
+                minutes_from_first_anomaly REAL,
                 entry_open_time_ms INTEGER,
+                entry_delay_seconds INTEGER DEFAULT 120,
                 entry_status TEXT DEFAULT 'PENDING',
                 entry_time_utc TEXT,
                 entry_price_raw REAL,
@@ -520,6 +560,16 @@ def init_db():
                 outcome_status TEXT DEFAULT 'OPEN',
                 closed_at_utc TEXT,
                 cooldown_hours INTEGER,
+                event_class TEXT DEFAULT 'LEGACY_SIGNAL',
+                validation_tier TEXT DEFAULT 'LEGACY',
+                btc_regime TEXT,
+                near_miss_distance REAL,
+                manipulation_risk INTEGER DEFAULT 0,
+                spread_bps REAL,
+                buy_impact_1k_bps REAL,
+                sell_impact_1k_bps REAL,
+                buy_impact_5k_bps REAL,
+                sell_impact_5k_bps REAL,
                 raw_json TEXT,
                 created_at_utc TEXT
             );
@@ -544,6 +594,12 @@ def init_db():
                 universe_return_pct REAL,
                 excess_vs_btc_pct REAL,
                 excess_vs_universe_pct REAL,
+                primary_target_pct REAL,
+                primary_exit_reason TEXT,
+                primary_exit_time_utc TEXT,
+                primary_exit_return_pct REAL,
+                barrier_results_json TEXT,
+                horizon_metrics_json TEXT,
                 label_status TEXT,
                 updated_at_utc TEXT
             );
@@ -573,6 +629,89 @@ def init_db():
                 details TEXT,
                 created_at_utc TEXT
             );
+
+            CREATE TABLE IF NOT EXISTS raw_klines (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                symbol TEXT,
+                interval_value TEXT,
+                open_time_ms INTEGER,
+                close_time_ms INTEGER,
+                open_price REAL,
+                high_price REAL,
+                low_price REAL,
+                close_price REAL,
+                quote_volume REAL,
+                trade_count INTEGER,
+                taker_buy_quote REAL,
+                config_version TEXT,
+                created_at_utc TEXT,
+                UNIQUE(symbol, interval_value, open_time_ms)
+            );
+
+            CREATE TABLE IF NOT EXISTS raw_derivs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                scan_time_utc TEXT,
+                symbol TEXT,
+                oi_change_1h_pct REAL,
+                funding_rate REAL,
+                futures_taker_ratio_1h REAL,
+                data_mode TEXT,
+                config_version TEXT,
+                created_at_utc TEXT,
+                UNIQUE(scan_time_utc, symbol, config_version)
+            );
+
+            CREATE TABLE IF NOT EXISTS orderbook_snap (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                scan_time_utc TEXT,
+                symbol TEXT,
+                event_class TEXT,
+                best_bid REAL,
+                best_ask REAL,
+                spread_bps REAL,
+                buy_impact_1k_bps REAL,
+                sell_impact_1k_bps REAL,
+                buy_impact_5k_bps REAL,
+                sell_impact_5k_bps REAL,
+                visible_bid_capacity_usd REAL,
+                visible_ask_capacity_usd REAL,
+                raw_json TEXT,
+                config_version TEXT,
+                created_at_utc TEXT,
+                UNIQUE(scan_time_utc, symbol, event_class, config_version)
+            );
+
+            CREATE TABLE IF NOT EXISTS asset_metadata (
+                symbol TEXT PRIMARY KEY,
+                base_asset TEXT,
+                listing_time_ms INTEGER,
+                first_seen_utc TEXT,
+                last_seen_utc TEXT,
+                last_status TEXT,
+                quote_asset TEXT
+            );
+
+            CREATE TABLE IF NOT EXISTS universe_history (
+                scan_time_utc TEXT,
+                symbol TEXT,
+                status TEXT,
+                exclusion_reason TEXT,
+                config_version TEXT,
+                UNIQUE(scan_time_utc, symbol, config_version)
+            );
+
+            CREATE TABLE IF NOT EXISTS manual_trades (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                event_id TEXT,
+                action TEXT NOT NULL,
+                decision_time_utc TEXT,
+                execution_time_utc TEXT NOT NULL,
+                price REAL NOT NULL,
+                quantity REAL,
+                fee_quote REAL DEFAULT 0,
+                notes TEXT,
+                created_at_utc TEXT
+            );
             """
         )
 
@@ -582,6 +721,11 @@ def init_db():
             "data_mode TEXT",
             "universe_size INTEGER",
             "btc_change_24h REAL",
+            "btc_regime TEXT",
+            "health_status TEXT",
+            "config_hash TEXT",
+            "git_sha TEXT",
+            "clock_skew_seconds REAL",
             "created_at_utc TEXT",
         ):
             _add_column(
@@ -607,6 +751,14 @@ def init_db():
             "score INTEGER",
             "is_signal INTEGER DEFAULT 0",
             "is_selected INTEGER DEFAULT 0",
+            "selection_class TEXT DEFAULT 'NONE'",
+            "validation_tier TEXT DEFAULT 'OBSERVATIONAL'",
+            "btc_regime TEXT",
+            "spread_bps REAL",
+            "volume_rarity_pct REAL",
+            "trade_rarity_pct REAL",
+            "return_rarity_pct REAL",
+            "cross_sectional_rarity_pct REAL",
             "price REAL",
             "signal_bar_open_ms INTEGER",
             "signal_bar_close_ms INTEGER",
@@ -687,6 +839,59 @@ def init_db():
                 "daily_movers",
                 definition,
             )
+
+        for definition in (
+            "event_class TEXT DEFAULT 'LEGACY_SIGNAL'",
+            "entry_delay_seconds INTEGER DEFAULT 120",
+            "first_anomaly_time_utc TEXT",
+            "first_anomaly_price REAL",
+            "gain_before_signal_pct REAL",
+            "minutes_from_first_anomaly REAL",
+            "validation_tier TEXT DEFAULT 'LEGACY'",
+            "spread_bps REAL",
+            "buy_impact_1k_bps REAL",
+            "sell_impact_1k_bps REAL",
+            "buy_impact_5k_bps REAL",
+            "sell_impact_5k_bps REAL",
+            "btc_regime TEXT",
+            "near_miss_distance REAL",
+            "manipulation_risk INTEGER DEFAULT 0",
+        ):
+            _add_column(
+                conn,
+                "signal_events",
+                definition,
+            )
+
+        conn.execute(
+            """
+            UPDATE signal_events
+            SET event_class = 'LEGACY_SIGNAL'
+            WHERE event_class IS NULL
+               OR event_class = ''
+            """
+        )
+
+        for definition in (
+            "primary_target_pct REAL",
+            "primary_exit_reason TEXT",
+            "primary_exit_time_utc TEXT",
+            "primary_exit_return_pct REAL",
+            "barrier_results_json TEXT",
+            "horizon_metrics_json TEXT",
+        ):
+            _add_column(
+                conn,
+                "outcome_labels",
+                definition,
+            )
+
+        for definition in (
+            "visible_bid_capacity_usd REAL",
+            "visible_ask_capacity_usd REAL",
+            "raw_json TEXT",
+        ):
+            _add_column(conn, "orderbook_snap", definition)
 
         _drop_index(
             conn,
@@ -770,11 +975,30 @@ def init_db():
                 entry_status
             );
 
+            CREATE INDEX IF NOT EXISTS idx_signal_events_class
+            ON signal_events(
+                config_version,
+                event_class,
+                signal_time_utc
+            );
+
             CREATE UNIQUE INDEX IF NOT EXISTS idx_winner_anatomy_unique
             ON winner_anatomy(
                 trade_date,
                 symbol
             );
+
+            CREATE INDEX IF NOT EXISTS idx_raw_klines_symbol_time
+            ON raw_klines(symbol, interval_value, open_time_ms);
+
+            CREATE INDEX IF NOT EXISTS idx_raw_derivs_symbol_time
+            ON raw_derivs(symbol, scan_time_utc);
+
+            CREATE INDEX IF NOT EXISTS idx_orderbook_symbol_time
+            ON orderbook_snap(symbol, scan_time_utc);
+
+            CREATE INDEX IF NOT EXISTS idx_universe_history_symbol_time
+            ON universe_history(symbol, scan_time_utc);
             """
         )
 
@@ -783,12 +1007,86 @@ def init_db():
     )
 
 
+def get_asset_metadata(symbol):
+    def operation(conn):
+        row = conn.execute(
+            "SELECT * FROM asset_metadata WHERE symbol = ?", (symbol,)
+        ).fetchone()
+        return dict(row) if row else None
+    return _retry_read(operation)
+
+
+def save_asset_metadata(symbol, base_asset, quote_asset, status,
+                        listing_time_ms=None):
+    def operation(conn):
+        conn.execute(
+            """
+            INSERT INTO asset_metadata (
+                symbol, base_asset, listing_time_ms, first_seen_utc,
+                last_seen_utc, last_status, quote_asset
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(symbol) DO UPDATE SET
+                base_asset=excluded.base_asset,
+                listing_time_ms=COALESCE(asset_metadata.listing_time_ms,
+                                         excluded.listing_time_ms),
+                last_seen_utc=excluded.last_seen_utc,
+                last_status=excluded.last_status,
+                quote_asset=excluded.quote_asset
+            """,
+            (symbol, base_asset, listing_time_ms, utc_now(), utc_now(),
+             status, quote_asset),
+        )
+    _retry_write(operation)
+
+
+def save_universe_member(scan_time_utc, symbol, status, exclusion_reason,
+                         config_version):
+    def operation(conn):
+        conn.execute(
+            """
+            INSERT OR REPLACE INTO universe_history (
+                scan_time_utc, symbol, status, exclusion_reason, config_version
+            ) VALUES (?, ?, ?, ?, ?)
+            """,
+            (scan_time_utc, symbol, status, exclusion_reason, config_version),
+        )
+    _retry_write(operation)
+
+
+def save_manual_trade(event_id, action, execution_time_utc, price,
+                      quantity=None, fee_quote=0.0, notes=None,
+                      decision_time_utc=None):
+    action = str(action).upper()
+    if action not in {"ENTRY", "EXIT", "SKIP"}:
+        raise ValueError("action ENTRY, EXIT veya SKIP olmali")
+    if action != "SKIP" and float(price) <= 0:
+        raise ValueError("price pozitif olmali")
+
+    def operation(conn):
+        conn.execute(
+            """
+            INSERT INTO manual_trades (
+                event_id, action, decision_time_utc, execution_time_utc,
+                price, quantity, fee_quote, notes, created_at_utc
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (event_id, action, decision_time_utc, execution_time_utc,
+             float(price), quantity, fee_quote, notes, utc_now()),
+        )
+    _retry_write(operation)
+
+
 def save_scan(
     scan_time_utc,
     config_version,
     universe_size,
     btc_change_24h,
     data_mode="UNKNOWN",
+    btc_regime=None,
+    health_status=None,
+    config_hash=None,
+    git_sha=None,
+    clock_skew_seconds=None,
 ):
     def operation(
         conn,
@@ -801,9 +1099,14 @@ def save_scan(
                 data_mode,
                 universe_size,
                 btc_change_24h,
+                btc_regime,
+                health_status,
+                config_hash,
+                git_sha,
+                clock_skew_seconds,
                 created_at_utc
             )
-            VALUES (?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 scan_time_utc,
@@ -811,6 +1114,11 @@ def save_scan(
                 data_mode,
                 universe_size,
                 btc_change_24h,
+                btc_regime,
+                health_status,
+                config_hash,
+                git_sha,
+                clock_skew_seconds,
                 utc_now(),
             ),
         )
@@ -820,10 +1128,20 @@ def save_scan(
     )
 
 
+def update_scan_health(scan_time_utc, config_version, health_status):
+    def operation(conn):
+        conn.execute(
+            "UPDATE scans SET health_status=? WHERE scan_time_utc=? AND config_version=?",
+            (health_status, scan_time_utc, config_version),
+        )
+    _retry_write(operation)
+
+
 def save_feature(
     feature,
     is_selected=0,
     is_signal=None,
+    selection_class="NONE",
 ):
     if is_signal is None:
         is_signal = int(
@@ -839,7 +1157,10 @@ def save_feature(
         )
 
     raw_json = json.dumps(
-        feature,
+        {
+            key: feature.get(key)
+            for key in FEATURE_RAW_EXTRA_KEYS
+        },
         ensure_ascii=False,
         sort_keys=True,
     )
@@ -859,6 +1180,14 @@ def save_feature(
                 score,
                 is_signal,
                 is_selected,
+                selection_class,
+                validation_tier,
+                btc_regime,
+                spread_bps,
+                volume_rarity_pct,
+                trade_rarity_pct,
+                return_rarity_pct,
+                cross_sectional_rarity_pct,
                 price,
                 signal_bar_open_ms,
                 signal_bar_close_ms,
@@ -889,7 +1218,8 @@ def save_feature(
                 ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                 ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                 ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                ?, ?, ?, ?
+                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                ?, ?
             )
             ON CONFLICT(
                 scan_time_utc,
@@ -920,6 +1250,35 @@ def save_feature(
                         features.is_selected,
                         excluded.is_selected
                     ),
+
+                selection_class =
+                    CASE
+                        WHEN excluded.selection_class
+                            != 'NONE'
+                        THEN excluded.selection_class
+                        ELSE features.selection_class
+                    END,
+
+                validation_tier =
+                    excluded.validation_tier,
+
+                btc_regime =
+                    excluded.btc_regime,
+
+                spread_bps =
+                    excluded.spread_bps,
+
+                volume_rarity_pct =
+                    excluded.volume_rarity_pct,
+
+                trade_rarity_pct =
+                    excluded.trade_rarity_pct,
+
+                return_rarity_pct =
+                    excluded.return_rarity_pct,
+
+                cross_sectional_rarity_pct =
+                    excluded.cross_sectional_rarity_pct,
 
                 price =
                     excluded.price,
@@ -1028,6 +1387,29 @@ def save_feature(
                         is_selected
                     )
                 ),
+                selection_class,
+                feature.get(
+                    "validation_tier",
+                    "OBSERVATIONAL",
+                ),
+                feature.get(
+                    "btc_regime"
+                ),
+                feature.get(
+                    "spread_bps"
+                ),
+                feature.get(
+                    "volume_rarity_pct"
+                ),
+                feature.get(
+                    "trade_rarity_pct"
+                ),
+                feature.get(
+                    "return_rarity_pct"
+                ),
+                feature.get(
+                    "cross_sectional_rarity_pct"
+                ),
                 feature.get(
                     "price"
                 ),
@@ -1131,6 +1513,120 @@ def save_feature(
     )
 
 
+def save_raw_klines(
+    symbol,
+    rows,
+    config_version,
+    interval_value="5m",
+):
+    if not rows:
+        return
+
+    def operation(conn):
+        conn.executemany(
+            """
+            INSERT OR IGNORE INTO raw_klines (
+                symbol, interval_value, open_time_ms,
+                close_time_ms, open_price, high_price,
+                low_price, close_price, quote_volume,
+                trade_count, taker_buy_quote,
+                config_version, created_at_utc
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            [
+                (
+                    symbol,
+                    interval_value,
+                    int(row[0]),
+                    int(row[6]),
+                    float(row[1]),
+                    float(row[2]),
+                    float(row[3]),
+                    float(row[4]),
+                    float(row[7]),
+                    int(row[8]),
+                    float(row[10]),
+                    config_version,
+                    utc_now(),
+                )
+                for row in rows
+            ],
+        )
+
+    _retry_write(operation)
+
+
+def save_raw_deriv(feature):
+    def operation(conn):
+        conn.execute(
+            """
+            INSERT OR REPLACE INTO raw_derivs (
+                scan_time_utc, symbol, oi_change_1h_pct,
+                funding_rate, futures_taker_ratio_1h,
+                data_mode, config_version, created_at_utc
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                feature["ts_utc"],
+                feature["symbol"],
+                feature.get("oi_change_1h_pct"),
+                feature.get("funding_rate"),
+                feature.get("futures_taker_ratio_1h"),
+                feature.get("data_mode", "UNKNOWN"),
+                feature["config_version"],
+                utc_now(),
+            ),
+        )
+
+    _retry_write(operation)
+
+
+def save_orderbook_snapshot(
+    feature,
+    event_class,
+):
+    liquidity = feature.get("liquidity") or {}
+
+    def operation(conn):
+        conn.execute(
+            """
+            INSERT OR REPLACE INTO orderbook_snap (
+                scan_time_utc, symbol, event_class,
+                best_bid, best_ask, spread_bps,
+                buy_impact_1k_bps, sell_impact_1k_bps,
+                buy_impact_5k_bps, sell_impact_5k_bps,
+                visible_bid_capacity_usd,
+                visible_ask_capacity_usd,
+                raw_json,
+                config_version, created_at_utc
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                feature["ts_utc"],
+                feature["symbol"],
+                event_class,
+                liquidity.get("best_bid"),
+                liquidity.get("best_ask"),
+                liquidity.get("spread_bps"),
+                liquidity.get("buy_impact_1k_bps"),
+                liquidity.get("sell_impact_1k_bps"),
+                liquidity.get("buy_impact_5k_bps"),
+                liquidity.get("sell_impact_5k_bps"),
+                liquidity.get("visible_bid_capacity_usd"),
+                liquidity.get("visible_ask_capacity_usd"),
+                json.dumps(
+                    liquidity.get("depth_raw", {}),
+                    ensure_ascii=False,
+                    sort_keys=True,
+                ),
+                feature["config_version"],
+                utc_now(),
+            ),
+        )
+
+    _retry_write(operation)
+
+
 def save_daily_mover(
     trade_date,
     symbol,
@@ -1175,6 +1671,7 @@ def has_recent_event(
     symbol,
     signal_time_utc,
     cooldown_hours=24,
+    event_class="CANDIDATE",
 ):
     cutoff = (
         datetime.fromisoformat(
@@ -1194,12 +1691,14 @@ def has_recent_event(
             FROM signal_events
             WHERE symbol = ?
               AND signal_time_utc >= ?
+              AND event_class = ?
             ORDER BY signal_time_utc DESC
             LIMIT 1
             """,
             (
                 symbol,
                 cutoff,
+                event_class,
             ),
         ).fetchone()
 
@@ -1217,6 +1716,8 @@ def create_signal_event(
     cooldown_hours,
     fee_bps_per_side,
     slippage_bps_per_side,
+    event_class="CANDIDATE",
+    entry_delay_seconds=120,
 ):
     signal_time_utc = (
         feature[
@@ -1234,6 +1735,7 @@ def create_signal_event(
         symbol,
         signal_time_utc,
         cooldown_hours,
+        event_class,
     ):
         return None
 
@@ -1255,19 +1757,46 @@ def create_signal_event(
         * 1000
     )
 
+    signal_time_ms = int(
+        datetime.fromisoformat(
+            signal_time_utc
+        ).timestamp()
+        * 1000
+    )
+
+    delayed_entry_ms = (
+        signal_time_ms
+        + int(entry_delay_seconds)
+        * 1000
+    )
+
     entry_open_time_ms = (
-        signal_bar_open_ms
-        + interval_ms
+        (
+            delayed_entry_ms
+            + interval_ms
+            - 1
+        )
+        // interval_ms
+        * interval_ms
     )
 
     event_id = (
         f"{symbol}-"
         f"{signal_bar_close_ms}-"
-        f"{feature['config_version']}"
+        f"{feature['config_version']}-"
+        f"{event_class}"
     )
 
+    raw_payload = dict(
+        feature
+    )
+
+    raw_payload[
+        "event_class"
+    ] = event_class
+
     raw_json = json.dumps(
-        feature,
+        raw_payload,
         ensure_ascii=False,
         sort_keys=True,
     )
@@ -1275,6 +1804,51 @@ def create_signal_event(
     def operation(
         conn,
     ):
+        first_anomaly = conn.execute(
+            """
+            SELECT scan_time_utc, price
+            FROM features
+            WHERE symbol = ?
+              AND config_version = ?
+              AND is_signal = 1
+              AND scan_time_utc <= ?
+            ORDER BY scan_time_utc ASC
+            LIMIT 1
+            """,
+            (
+                symbol,
+                feature["config_version"],
+                signal_time_utc,
+            ),
+        ).fetchone()
+
+        first_anomaly_time_utc = None
+        first_anomaly_price = None
+        gain_before_signal_pct = None
+        minutes_from_first_anomaly = None
+
+        if first_anomaly is not None:
+            first_anomaly_time_utc = (
+                first_anomaly["scan_time_utc"]
+            )
+            first_anomaly_price = (
+                first_anomaly["price"]
+            )
+
+            if first_anomaly_price not in (None, 0):
+                gain_before_signal_pct = (
+                    feature["price"]
+                    / first_anomaly_price
+                    - 1.0
+                ) * 100.0
+
+            minutes_from_first_anomaly = (
+                datetime.fromisoformat(signal_time_utc)
+                - datetime.fromisoformat(
+                    first_anomaly_time_utc
+                )
+            ).total_seconds() / 60.0
+
         cursor = conn.execute(
             """
             INSERT OR IGNORE INTO signal_events (
@@ -1289,16 +1863,33 @@ def create_signal_event(
                 engine,
                 score,
                 signal_price,
+                first_anomaly_time_utc,
+                first_anomaly_price,
+                gain_before_signal_pct,
+                minutes_from_first_anomaly,
                 entry_open_time_ms,
+                entry_delay_seconds,
                 fee_bps_per_side,
                 slippage_bps_per_side,
                 cooldown_hours,
+                event_class,
+                validation_tier,
+                btc_regime,
+                near_miss_distance,
+                manipulation_risk,
+                spread_bps,
+                buy_impact_1k_bps,
+                sell_impact_1k_bps,
+                buy_impact_5k_bps,
+                sell_impact_5k_bps,
                 raw_json,
                 created_at_utc
             )
             VALUES (
                 ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                ?, ?, ?, ?, ?, ?, ?
+                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                ?, ?
             )
             """,
             (
@@ -1328,10 +1919,38 @@ def create_signal_event(
                 feature[
                     "price"
                 ],
+                first_anomaly_time_utc,
+                first_anomaly_price,
+                gain_before_signal_pct,
+                minutes_from_first_anomaly,
                 entry_open_time_ms,
+                entry_delay_seconds,
                 fee_bps_per_side,
                 slippage_bps_per_side,
                 cooldown_hours,
+                event_class,
+                feature.get(
+                    "validation_tier",
+                    "OBSERVATIONAL",
+                ),
+                feature.get("btc_regime"),
+                feature.get("near_miss_distance"),
+                int(bool(feature.get("manipulation_risk", False))),
+                (feature.get("liquidity") or {}).get(
+                    "spread_bps"
+                ),
+                (feature.get("liquidity") or {}).get(
+                    "buy_impact_1k_bps"
+                ),
+                (feature.get("liquidity") or {}).get(
+                    "sell_impact_1k_bps"
+                ),
+                (feature.get("liquidity") or {}).get(
+                    "buy_impact_5k_bps"
+                ),
+                (feature.get("liquidity") or {}).get(
+                    "sell_impact_5k_bps"
+                ),
                 raw_json,
                 utc_now(),
             ),
@@ -1375,6 +1994,63 @@ def get_pending_events():
     return _retry_read(
         operation
     )
+
+
+def get_universe_return(
+    config_version,
+    signal_time_utc,
+    end_time_utc,
+):
+    def operation(conn):
+        end_scan = conn.execute(
+            """
+            SELECT MAX(scan_time_utc) AS scan_time
+            FROM scans
+            WHERE config_version = ?
+              AND scan_time_utc <= ?
+            """,
+            (
+                config_version,
+                end_time_utc,
+            ),
+        ).fetchone()["scan_time"]
+
+        if end_scan is None:
+            return None
+
+        rows = conn.execute(
+            """
+            SELECT start.price AS start_price,
+                   finish.price AS end_price
+            FROM features start
+            JOIN features finish
+              ON finish.symbol = start.symbol
+             AND finish.config_version = start.config_version
+            WHERE start.config_version = ?
+              AND start.scan_time_utc = ?
+              AND finish.scan_time_utc = ?
+              AND start.price > 0
+              AND finish.price > 0
+            """,
+            (
+                config_version,
+                signal_time_utc,
+                end_scan,
+            ),
+        ).fetchall()
+
+        returns = [
+            (row["end_price"] / row["start_price"] - 1.0)
+            * 100.0
+            for row in rows
+        ]
+
+        if not returns:
+            return None
+
+        return statistics.median(returns)
+
+    return _retry_read(operation)
 
 
 def update_event_entry(
@@ -1460,12 +2136,19 @@ def save_outcome_label(
                 universe_return_pct,
                 excess_vs_btc_pct,
                 excess_vs_universe_pct,
+                primary_target_pct,
+                primary_exit_reason,
+                primary_exit_time_utc,
+                primary_exit_return_pct,
+                barrier_results_json,
+                horizon_metrics_json,
                 label_status,
                 updated_at_utc
             )
             VALUES (
                 ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                ?, ?, ?, ?, ?, ?
             )
             ON CONFLICT(event_id)
             DO UPDATE SET
@@ -1516,6 +2199,24 @@ def save_outcome_label(
 
                 excess_vs_universe_pct =
                     excluded.excess_vs_universe_pct,
+
+                primary_target_pct =
+                    excluded.primary_target_pct,
+
+                primary_exit_reason =
+                    excluded.primary_exit_reason,
+
+                primary_exit_time_utc =
+                    excluded.primary_exit_time_utc,
+
+                primary_exit_return_pct =
+                    excluded.primary_exit_return_pct,
+
+                barrier_results_json =
+                    excluded.barrier_results_json,
+
+                horizon_metrics_json =
+                    excluded.horizon_metrics_json,
 
                 label_status =
                     excluded.label_status,
@@ -1589,6 +2290,26 @@ def save_outcome_label(
                 ),
                 label.get(
                     "excess_vs_universe_pct"
+                ),
+                label.get(
+                    "primary_target_pct"
+                ),
+                label.get("primary_exit_reason"),
+                label.get("primary_exit_time_utc"),
+                label.get("primary_exit_return_pct"),
+                json.dumps(
+                    label.get(
+                        "barrier_results",
+                        {},
+                    ),
+                    sort_keys=True,
+                ),
+                json.dumps(
+                    label.get(
+                        "horizon_metrics",
+                        {},
+                    ),
+                    sort_keys=True,
                 ),
                 label.get(
                     "label_status",
