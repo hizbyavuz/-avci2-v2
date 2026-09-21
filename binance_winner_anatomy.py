@@ -13,10 +13,12 @@ from binance_snapshot_store import (
     save_data_issue,
 )
 
-SPOT_BASE = "https://api.binance.com"
+SPOT_BASES = (
+    "https://data-api.binance.vision",
+    "https://api.binance.com",
+)
 
 REQUEST_TIMEOUT = 20
-
 INTERVAL = "5m"
 
 BASELINE_BARS = 288
@@ -30,8 +32,7 @@ ANOMALY_RETURN_Z = 2.0
 session = requests.Session()
 
 session.headers.update({
-    "User-Agent":
-        "binance-avci2-winner-anatomy"
+    "User-Agent": "binance-avci2-winner-anatomy/1.1"
 })
 
 
@@ -39,20 +40,46 @@ def api_get(
     path,
     params=None,
 ):
-    response = session.get(
-        SPOT_BASE + path,
-        params=params,
-        timeout=REQUEST_TIMEOUT,
+    last_error = None
+
+    for base in SPOT_BASES:
+        try:
+            response = session.get(
+                base + path,
+                params=params,
+                timeout=REQUEST_TIMEOUT,
+            )
+
+            if response.status_code in (
+                403,
+                418,
+                429,
+                451,
+            ):
+                last_error = requests.HTTPError(
+                    f"{response.status_code} "
+                    f"from {base}{path}",
+                    response=response,
+                )
+                continue
+
+            response.raise_for_status()
+
+            return response.json()
+
+        except requests.RequestException as error:
+            last_error = error
+            continue
+
+    if last_error is not None:
+        raise last_error
+
+    raise RuntimeError(
+        "All Binance spot API endpoints failed"
     )
 
-    response.raise_for_status()
 
-    return response.json()
-
-
-def average(
-    values,
-):
+def average(values):
     if not values:
         return 0.0
 
@@ -61,12 +88,8 @@ def average(
     )
 
 
-def deviation(
-    values,
-):
-    if len(
-        values
-    ) < 2:
+def deviation(values):
+    if len(values) < 2:
         return 0.0
 
     return statistics.pstdev(
@@ -121,14 +144,9 @@ def fetch_klines(
     limit=1000,
 ):
     params = {
-        "symbol":
-            symbol,
-
-        "interval":
-            INTERVAL,
-
-        "limit":
-            limit,
+        "symbol": symbol,
+        "interval": INTERVAL,
+        "limit": limit,
     }
 
     if end_time is not None:
@@ -160,8 +178,7 @@ def fetch_history(
     earlier = fetch_klines(
         symbol,
         end_time=(
-            first_open_time
-            - 1
+            first_open_time - 1
         ),
         limit=1000,
     )
@@ -251,9 +268,7 @@ def parse_rows(
 def detect_first_anomaly(
     rows,
 ):
-    if len(
-        rows
-    ) < (
+    if len(rows) < (
         BASELINE_BARS
         + 20
     ):
