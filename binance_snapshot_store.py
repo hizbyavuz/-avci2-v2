@@ -24,9 +24,7 @@ def open_db():
 def _columns(conn, table):
     return {
         row["name"]
-        for row in conn.execute(
-            f"PRAGMA table_info({table})"
-        )
+        for row in conn.execute(f"PRAGMA table_info({table})")
     }
 
 
@@ -35,8 +33,31 @@ def _add_column(conn, table, definition):
 
     if name not in _columns(conn, table):
         conn.execute(
-            f"ALTER TABLE {table} "
-            f"ADD COLUMN {definition}"
+            f"ALTER TABLE {table} ADD COLUMN {definition}"
+        )
+
+
+def _backfill_column(
+    conn,
+    table,
+    new_column,
+    old_column,
+):
+    columns = _columns(
+        conn,
+        table,
+    )
+
+    if (
+        new_column in columns
+        and old_column in columns
+    ):
+        conn.execute(
+            f"""
+            UPDATE {table}
+            SET {new_column} = {old_column}
+            WHERE {new_column} IS NULL
+            """
         )
 
 
@@ -47,28 +68,25 @@ def init_db():
         """
         CREATE TABLE IF NOT EXISTS scans (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            scan_time_utc TEXT NOT NULL,
-            config_version TEXT NOT NULL,
+            scan_time_utc TEXT,
+            config_version TEXT,
             data_mode TEXT,
-            universe_size INTEGER NOT NULL,
+            universe_size INTEGER,
             btc_change_24h REAL,
-            created_at_utc TEXT NOT NULL
+            created_at_utc TEXT
         );
-
-        CREATE UNIQUE INDEX IF NOT EXISTS idx_scans_unique
-        ON scans(scan_time_utc, config_version);
 
         CREATE TABLE IF NOT EXISTS features (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            scan_time_utc TEXT NOT NULL,
-            config_version TEXT NOT NULL,
+            scan_time_utc TEXT,
+            config_version TEXT,
             data_mode TEXT,
-            symbol TEXT NOT NULL,
-            stage TEXT NOT NULL,
-            engine TEXT NOT NULL,
-            score INTEGER NOT NULL,
-            is_signal INTEGER NOT NULL DEFAULT 0,
-            is_selected INTEGER NOT NULL DEFAULT 0,
+            symbol TEXT,
+            stage TEXT,
+            engine TEXT,
+            score INTEGER,
+            is_signal INTEGER DEFAULT 0,
+            is_selected INTEGER DEFAULT 0,
             price REAL,
             signal_bar_open_ms INTEGER,
             signal_bar_close_ms INTEGER,
@@ -92,8 +110,191 @@ def init_db():
             reignition INTEGER,
             trigger INTEGER,
             climax_risk INTEGER,
-            raw_json TEXT NOT NULL,
-            created_at_utc TEXT NOT NULL
+            raw_json TEXT,
+            created_at_utc TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS daily_movers (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            trade_date TEXT,
+            symbol TEXT,
+            change_24h REAL,
+            quote_volume_24h REAL,
+            rank_value INTEGER,
+            config_version TEXT,
+            created_at_utc TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS signal_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            event_id TEXT UNIQUE,
+            symbol TEXT,
+            signal_time_utc TEXT,
+            signal_bar_open_ms INTEGER,
+            signal_bar_close_ms INTEGER,
+            config_version TEXT,
+            data_mode TEXT,
+            stage TEXT,
+            engine TEXT,
+            score INTEGER,
+            signal_price REAL,
+            entry_open_time_ms INTEGER,
+            entry_status TEXT DEFAULT 'PENDING',
+            entry_time_utc TEXT,
+            entry_price_raw REAL,
+            entry_price_exec REAL,
+            fee_bps_per_side REAL,
+            slippage_bps_per_side REAL,
+            outcome_status TEXT DEFAULT 'OPEN',
+            closed_at_utc TEXT,
+            cooldown_hours INTEGER,
+            raw_json TEXT,
+            created_at_utc TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS outcome_labels (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            event_id TEXT UNIQUE,
+            symbol TEXT,
+            entry_time_utc TEXT,
+            entry_price_exec REAL,
+            stop_pct REAL,
+            horizon_hours INTEGER,
+            first_touch_json TEXT,
+            reach_json TEXT,
+            hit_time_json TEXT,
+            mfe_pct REAL,
+            mae_pct REAL,
+            raw_mfe_pct REAL,
+            executable_mfe_pct REAL,
+            net_return_pct REAL,
+            btc_return_pct REAL,
+            universe_return_pct REAL,
+            excess_vs_btc_pct REAL,
+            excess_vs_universe_pct REAL,
+            label_status TEXT,
+            updated_at_utc TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS winner_anatomy (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            analyzed_at_utc TEXT,
+            trade_date TEXT,
+            symbol TEXT,
+            winner_change_24h REAL,
+            first_anomaly_time_utc TEXT,
+            first_anomaly_price REAL,
+            winner_reference_price REAL,
+            gain_before_first_anomaly REAL,
+            hours_before_reference REAL,
+            anomaly_volume_z REAL,
+            anomaly_trade_z REAL,
+            anomaly_return_z REAL,
+            anomaly_volume_mult REAL,
+            created_at_utc TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS data_issues (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            issue_time_utc TEXT,
+            issue_type TEXT,
+            details TEXT,
+            created_at_utc TEXT
+        );
+        """
+    )
+
+    for definition in (
+        "scan_time_utc TEXT",
+        "config_version TEXT",
+        "data_mode TEXT",
+        "universe_size INTEGER",
+        "btc_change_24h REAL",
+        "created_at_utc TEXT",
+    ):
+        _add_column(
+            conn,
+            "scans",
+            definition,
+        )
+
+    _backfill_column(
+        conn,
+        "scans",
+        "scan_time_utc",
+        "ts_utc",
+    )
+
+    for definition in (
+        "scan_time_utc TEXT",
+        "config_version TEXT",
+        "data_mode TEXT",
+        "symbol TEXT",
+        "stage TEXT",
+        "engine TEXT",
+        "score INTEGER",
+        "is_signal INTEGER DEFAULT 0",
+        "is_selected INTEGER DEFAULT 0",
+        "price REAL",
+        "signal_bar_open_ms INTEGER",
+        "signal_bar_close_ms INTEGER",
+        "change_15m REAL",
+        "change_1h REAL",
+        "change_3h REAL",
+        "change_24h REAL",
+        "btc_relative_24h REAL",
+        "volume_z_15m REAL",
+        "trade_z_15m REAL",
+        "return_z_15m REAL",
+        "volume_mult_15m REAL",
+        "volume_mult_1h REAL",
+        "retention_proxy REAL",
+        "taker_buy_ratio_15m REAL",
+        "oi_change_1h_pct REAL",
+        "funding_rate REAL",
+        "wakeup INTEGER",
+        "persistence INTEGER",
+        "retention INTEGER",
+        "reignition INTEGER",
+        "trigger INTEGER",
+        "climax_risk INTEGER",
+        "raw_json TEXT",
+        "created_at_utc TEXT",
+    ):
+        _add_column(
+            conn,
+            "features",
+            definition,
+        )
+
+    _backfill_column(
+        conn,
+        "features",
+        "scan_time_utc",
+        "ts_utc",
+    )
+
+    for definition in (
+        "trade_date TEXT",
+        "symbol TEXT",
+        "change_24h REAL",
+        "quote_volume_24h REAL",
+        "rank_value INTEGER",
+        "config_version TEXT",
+        "created_at_utc TEXT",
+    ):
+        _add_column(
+            conn,
+            "daily_movers",
+            definition,
+        )
+
+    conn.executescript(
+        """
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_scans_unique
+        ON scans(
+            scan_time_utc,
+            config_version
         );
 
         CREATE UNIQUE INDEX IF NOT EXISTS idx_features_unique
@@ -115,49 +316,11 @@ def init_db():
             scan_time_utc
         );
 
-        CREATE TABLE IF NOT EXISTS daily_movers (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            trade_date TEXT NOT NULL,
-            symbol TEXT NOT NULL,
-            change_24h REAL,
-            quote_volume_24h REAL,
-            rank_value INTEGER,
-            config_version TEXT NOT NULL,
-            created_at_utc TEXT NOT NULL
-        );
-
         CREATE UNIQUE INDEX IF NOT EXISTS idx_daily_movers_unique
         ON daily_movers(
             trade_date,
             symbol,
             config_version
-        );
-
-        CREATE TABLE IF NOT EXISTS signal_events (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            event_id TEXT NOT NULL UNIQUE,
-            symbol TEXT NOT NULL,
-            signal_time_utc TEXT NOT NULL,
-            signal_bar_open_ms INTEGER NOT NULL,
-            signal_bar_close_ms INTEGER NOT NULL,
-            config_version TEXT NOT NULL,
-            data_mode TEXT NOT NULL,
-            stage TEXT NOT NULL,
-            engine TEXT NOT NULL,
-            score INTEGER NOT NULL,
-            signal_price REAL NOT NULL,
-            entry_open_time_ms INTEGER NOT NULL,
-            entry_status TEXT NOT NULL DEFAULT 'PENDING',
-            entry_time_utc TEXT,
-            entry_price_raw REAL,
-            entry_price_exec REAL,
-            fee_bps_per_side REAL,
-            slippage_bps_per_side REAL,
-            outcome_status TEXT NOT NULL DEFAULT 'OPEN',
-            closed_at_utc TEXT,
-            cooldown_hours INTEGER NOT NULL,
-            raw_json TEXT NOT NULL,
-            created_at_utc TEXT NOT NULL
         );
 
         CREATE INDEX IF NOT EXISTS idx_signal_events_symbol_time
@@ -172,68 +335,12 @@ def init_db():
             entry_status
         );
 
-        CREATE TABLE IF NOT EXISTS outcome_labels (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            event_id TEXT NOT NULL UNIQUE,
-            symbol TEXT NOT NULL,
-            entry_time_utc TEXT,
-            entry_price_exec REAL,
-            stop_pct REAL,
-            horizon_hours INTEGER,
-            first_touch_json TEXT,
-            reach_json TEXT,
-            hit_time_json TEXT,
-            mfe_pct REAL,
-            mae_pct REAL,
-            raw_mfe_pct REAL,
-            executable_mfe_pct REAL,
-            net_return_pct REAL,
-            btc_return_pct REAL,
-            universe_return_pct REAL,
-            excess_vs_btc_pct REAL,
-            excess_vs_universe_pct REAL,
-            label_status TEXT NOT NULL,
-            updated_at_utc TEXT NOT NULL
-        );
-
-        CREATE TABLE IF NOT EXISTS winner_anatomy (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            analyzed_at_utc TEXT NOT NULL,
-            trade_date TEXT NOT NULL,
-            symbol TEXT NOT NULL,
-            winner_change_24h REAL,
-            first_anomaly_time_utc TEXT,
-            first_anomaly_price REAL,
-            winner_reference_price REAL,
-            gain_before_first_anomaly REAL,
-            hours_before_reference REAL,
-            anomaly_volume_z REAL,
-            anomaly_trade_z REAL,
-            anomaly_return_z REAL,
-            anomaly_volume_mult REAL,
-            created_at_utc TEXT NOT NULL
-        );
-
         CREATE UNIQUE INDEX IF NOT EXISTS idx_winner_anatomy_unique
         ON winner_anatomy(
             trade_date,
             symbol
         );
-
-        CREATE TABLE IF NOT EXISTS data_issues (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            issue_time_utc TEXT NOT NULL,
-            issue_type TEXT NOT NULL,
-            details TEXT,
-            created_at_utc TEXT NOT NULL
-        );
         """
-    )
-
-    _add_column(
-        conn,
-        "scans",
-        "data_mode TEXT",
     )
 
     conn.commit()
@@ -283,8 +390,7 @@ def save_feature(
     if is_signal is None:
         is_signal = int(
             feature.get("stage") != "OBSERVE"
-            and
-            not feature.get(
+            and not feature.get(
                 "climax_risk",
                 False,
             )
@@ -665,8 +771,8 @@ def create_signal_event(
             created_at_utc
         )
         VALUES (
-            ?, ?, ?, ?, ?, ?, ?, ?, ?,
-            ?, ?, ?, ?, ?, ?, ?, ?
+            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+            ?, ?, ?, ?, ?, ?, ?
         )
         """,
         (
@@ -943,8 +1049,8 @@ def save_winner_anatomy(
             created_at_utc
         )
         VALUES (
-            ?, ?, ?, ?, ?, ?, ?,
-            ?, ?, ?, ?, ?, ?, ?
+            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+            ?, ?, ?, ?
         )
         """,
         (
