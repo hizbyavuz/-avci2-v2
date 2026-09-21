@@ -15,43 +15,28 @@ from binance_snapshot_store import (
     save_data_issue,
 )
 
-CONFIG_VERSION = "binance-avci2-v1.2"
+CONFIG_VERSION = "binance-avci2-v1.3"
 
 SPOT_BASES = (
     "https://data-api.binance.vision",
     "https://api.binance.com",
 )
-
 FUTURES_BASE = "https://fapi.binance.com"
 
 REQUEST_TIMEOUT = 20
 SCAN_SLEEP_SECONDS = 0.10
 
 QUOTE_ASSET = "USDT"
-
-MIN_SPOT_VOLUME_24H = 3_000_000
-MIN_FUTURES_VOLUME_24H = 5_000_000
+MIN_SPOT_VOLUME_24H = 3_000_000.0
+MIN_FUTURES_VOLUME_24H = 5_000_000.0
 
 EXCLUDED_BASES = {
-    "USDC",
-    "FDUSD",
-    "USDP",
-    "TUSD",
-    "DAI",
-    "EUR",
-    "TRY",
+    "USDC", "FDUSD", "USDP", "TUSD", "DAI", "EUR", "TRY",
 }
-
-EXCLUDED_SUFFIXES = (
-    "UP",
-    "DOWN",
-    "BULL",
-    "BEAR",
-)
+EXCLUDED_SUFFIXES = ("UP", "DOWN", "BULL", "BEAR")
 
 KLINE_INTERVAL = "5m"
 KLINE_LIMIT = 300
-
 BASELINE_BARS = 144
 BARS_15M = 3
 BARS_1H = 12
@@ -64,7 +49,6 @@ WAKE_TRADE_Z = 2.0
 RETENTION_MIN = 0.50
 PERSISTENCE_VOLUME_MULT = 1.75
 REIGNITION_VOLUME_MULT = 1.80
-
 TRIGGER_MIN_COMPONENTS = 3
 
 CLIMAX_CHANGE_24H = 28.0
@@ -73,33 +57,19 @@ CLIMAX_FUNDING_ABS = 0.0015
 CLIMAX_OI_1H = 25.0
 
 MAX_SELECTED = 5
-
-WINNER_LEVELS = (
-    20,
-    30,
-    40,
-    50,
-)
+WINNER_LEVELS = (20, 30, 40, 50)
 
 FUTURES_AVAILABLE = True
 
 session = requests.Session()
-
-session.headers.update({
-    "User-Agent": "binance-avci2-v1.2"
-})
+session.headers.update({"User-Agent": "binance-avci2-v1.3"})
 
 
 def utc_now():
-    return datetime.now(
-        timezone.utc
-    ).isoformat()
+    return datetime.now(timezone.utc).isoformat()
 
 
-def spot_api_get(
-    path,
-    params=None,
-):
+def spot_api_get(path, params=None):
     last_error = None
 
     for base in SPOT_BASES:
@@ -110,12 +80,7 @@ def spot_api_get(
                 timeout=REQUEST_TIMEOUT,
             )
 
-            if response.status_code in (
-                403,
-                418,
-                429,
-                451,
-            ):
+            if response.status_code in (403, 418, 429, 451):
                 last_error = requests.HTTPError(
                     f"{response.status_code} from {base}{path}",
                     response=response,
@@ -123,25 +88,18 @@ def spot_api_get(
                 continue
 
             response.raise_for_status()
-
             return response.json()
 
         except requests.RequestException as error:
             last_error = error
-            continue
 
     if last_error is not None:
         raise last_error
 
-    raise RuntimeError(
-        "All Binance spot API endpoints failed"
-    )
+    raise RuntimeError("All Binance spot endpoints failed")
 
 
-def futures_api_get(
-    path,
-    params=None,
-):
+def futures_api_get(path, params=None):
     global FUTURES_AVAILABLE
 
     if not FUTURES_AVAILABLE:
@@ -154,132 +112,74 @@ def futures_api_get(
             timeout=REQUEST_TIMEOUT,
         )
 
-        if response.status_code in (
-            403,
-            418,
-            429,
-            451,
-        ):
+        if response.status_code in (403, 418, 429, 451):
             FUTURES_AVAILABLE = False
-
             print(
-                f"Futures unavailable "
-                f"({response.status_code}). "
-                f"Switching to SPOT-ONLY MODE."
+                f"Futures unavailable ({response.status_code}). "
+                "Switching to SPOT-ONLY MODE."
             )
-
             return None
 
         response.raise_for_status()
-
         return response.json()
 
     except requests.RequestException as error:
         FUTURES_AVAILABLE = False
-
-        print(
-            f"Futures request failed: {error}"
-        )
-
-        print(
-            "Switching to SPOT-ONLY MODE."
-        )
-
+        print(f"Futures request failed: {error}")
+        print("Switching to SPOT-ONLY MODE.")
         return None
 
 
 def average(values):
-    if not values:
-        return 0.0
-
-    return statistics.fmean(
-        values
-    )
+    return statistics.fmean(values) if values else 0.0
 
 
 def deviation(values):
-    if len(values) < 2:
-        return 0.0
-
-    return statistics.pstdev(
-        values
-    )
+    return statistics.pstdev(values) if len(values) >= 2 else 0.0
 
 
-def zscore(
-    value,
-    baseline,
-):
+def zscore(value, baseline):
     if not baseline:
         return 0.0
 
-    avg = average(
-        baseline
-    )
-
-    std = deviation(
-        baseline
-    )
-
+    std = deviation(baseline)
     if std <= 1e-12:
         return 0.0
 
-    return (
-        value - avg
-    ) / std
+    return (value - average(baseline)) / std
 
 
-def pct_change(
-    start,
-    end,
-):
-    if start in (
-        None,
-        0,
-    ):
+def pct_change(start, end):
+    if start in (None, 0) or end is None:
         return 0.0
 
-    return (
-        end / start
-        - 1.0
-    ) * 100.0
+    return (end / start - 1.0) * 100.0
 
 
-def recent_sum(
-    values,
-    count,
-):
-    if len(values) < count:
-        return sum(
-            values
-        )
+def recent_sum(values, count):
+    return sum(values[-count:]) if values else 0.0
 
-    return sum(
-        values[-count:]
-    )
+
+def grouped_sums(values, group_size):
+    result = []
+
+    for start in range(0, len(values) - group_size + 1, group_size):
+        result.append(sum(values[start:start + group_size]))
+
+    return result
 
 
 def fetch_spot_exchange_info():
-    return spot_api_get(
-        "/api/v3/exchangeInfo"
-    )
+    return spot_api_get("/api/v3/exchangeInfo")
 
 
 def fetch_spot_24h():
-    return spot_api_get(
-        "/api/v3/ticker/24hr"
-    )
+    return spot_api_get("/api/v3/ticker/24hr")
 
 
 def fetch_futures_24h():
-    data = futures_api_get(
-        "/fapi/v1/ticker/24hr"
-    )
-
-    if not data:
-        return {}
-
-    return data
+    data = futures_api_get("/fapi/v1/ticker/24hr")
+    return data if isinstance(data, list) else []
 
 
 def fetch_klines(symbol):
@@ -294,35 +194,21 @@ def fetch_klines(symbol):
 
 
 def fetch_funding(symbol):
-    if not FUTURES_AVAILABLE:
-        return None
-
     data = futures_api_get(
         "/fapi/v1/premiumIndex",
-        {
-            "symbol": symbol,
-        },
+        {"symbol": symbol},
     )
 
-    if not data:
+    if not isinstance(data, dict):
         return None
 
     try:
-        return float(
-            data.get(
-                "lastFundingRate",
-                0.0,
-            )
-        )
-
-    except Exception:
+        return float(data.get("lastFundingRate", 0.0))
+    except (TypeError, ValueError):
         return None
 
 
 def fetch_open_interest_history(symbol):
-    if not FUTURES_AVAILABLE:
-        return []
-
     data = futures_api_get(
         "/futures/data/openInterestHist",
         {
@@ -332,16 +218,10 @@ def fetch_open_interest_history(symbol):
         },
     )
 
-    if not data:
-        return []
-
-    return data
+    return data if isinstance(data, list) else []
 
 
 def fetch_taker_ratio(symbol):
-    if not FUTURES_AVAILABLE:
-        return []
-
     data = futures_api_get(
         "/futures/data/takerlongshortRatio",
         {
@@ -351,126 +231,82 @@ def fetch_taker_ratio(symbol):
         },
     )
 
-    if not data:
-        return []
-
-    return data
+    return data if isinstance(data, list) else []
 
 
 def build_universe():
     global FUTURES_AVAILABLE
 
-    exchange_info = (
-        fetch_spot_exchange_info()
-    )
-
+    exchange_info = fetch_spot_exchange_info()
     spot_list = fetch_spot_24h()
+    futures_list = fetch_futures_24h()
 
     spot_24h = {
         item["symbol"]: item
         for item in spot_list
+        if "symbol" in item
     }
 
-    futures_list = fetch_futures_24h()
+    futures_24h = {
+        item["symbol"]: item
+        for item in futures_list
+        if "symbol" in item
+    }
 
-    if futures_list:
-        futures_24h = {
-            item["symbol"]: item
-            for item in futures_list
-        }
+    futures_mode = bool(futures_24h) and FUTURES_AVAILABLE
 
-        futures_mode = True
-
-    else:
-        futures_24h = {}
-        futures_mode = False
+    if not futures_mode:
         FUTURES_AVAILABLE = False
 
     symbols = []
 
-    for item in exchange_info.get(
-        "symbols",
-        [],
-    ):
-        symbol = item.get(
-            "symbol"
-        )
+    for item in exchange_info.get("symbols", []):
+        symbol = item.get("symbol")
+        base = item.get("baseAsset")
+        quote = item.get("quoteAsset")
 
-        base = item.get(
-            "baseAsset"
-        )
-
-        quote = item.get(
-            "quoteAsset"
-        )
+        if not symbol or not base:
+            continue
 
         if quote != QUOTE_ASSET:
             continue
 
-        if item.get(
-            "status"
-        ) != "TRADING":
+        if item.get("status") != "TRADING":
             continue
 
         if base in EXCLUDED_BASES:
             continue
 
-        if any(
-            base.endswith(
-                suffix
-            )
-            for suffix
-            in EXCLUDED_SUFFIXES
-        ):
+        if any(base.endswith(suffix) for suffix in EXCLUDED_SUFFIXES):
             continue
 
-        if symbol not in spot_24h:
+        spot_row = spot_24h.get(symbol)
+        if not spot_row:
             continue
 
         spot_volume = float(
-            spot_24h[
-                symbol
-            ].get(
-                "quoteVolume",
-                0.0,
-            )
+            spot_row.get("quoteVolume", 0.0) or 0.0
         )
 
-        if (
-            spot_volume
-            < MIN_SPOT_VOLUME_24H
-        ):
+        if spot_volume < MIN_SPOT_VOLUME_24H:
             continue
 
         if futures_mode:
-            if symbol not in futures_24h:
+            futures_row = futures_24h.get(symbol)
+
+            if not futures_row:
                 continue
 
             futures_volume = float(
-                futures_24h[
-                    symbol
-                ].get(
-                    "quoteVolume",
-                    0.0,
-                )
+                futures_row.get("quoteVolume", 0.0) or 0.0
             )
 
-            if (
-                futures_volume
-                < MIN_FUTURES_VOLUME_24H
-            ):
+            if futures_volume < MIN_FUTURES_VOLUME_24H:
                 continue
 
-        symbols.append(
-            symbol
-        )
+        symbols.append(symbol)
 
-    return (
-        sorted(symbols),
-        spot_24h,
-        futures_24h,
-        futures_mode,
-    )
+    return sorted(symbols), spot_24h, futures_24h, futures_mode
 
 
 def parse_klines(rows):
@@ -483,40 +319,17 @@ def parse_klines(rows):
     taker_buy_quote = []
 
     for row in rows:
-        opens.append(
-            float(row[1])
-        )
-
-        highs.append(
-            float(row[2])
-        )
-
-        lows.append(
-            float(row[3])
-        )
-
-        closes.append(
-            float(row[4])
-        )
-
-        quote_volumes.append(
-            float(row[7])
-        )
-
-        trades.append(
-            float(row[8])
-        )
-
-        taker_buy_quote.append(
-            float(row[10])
-        )
+        opens.append(float(row[1]))
+        highs.append(float(row[2]))
+        lows.append(float(row[3]))
+        closes.append(float(row[4]))
+        quote_volumes.append(float(row[7]))
+        trades.append(float(row[8]))
+        taker_buy_quote.append(float(row[10]))
 
     returns = []
 
-    for index in range(
-        1,
-        len(closes),
-    ):
+    for index in range(1, len(closes)):
         returns.append(
             pct_change(
                 closes[index - 1],
@@ -536,104 +349,35 @@ def parse_klines(rows):
     }
 
 
-def grouped_sums(
-    values,
-    group_size,
-):
-    result = []
-
-    for end_index in range(
-        group_size,
-        len(values) + 1,
-        group_size,
-    ):
-        result.append(
-            sum(
-                values[
-                    end_index - group_size:
-                    end_index
-                ]
-            )
-        )
-
-    return result
-
-
 def calculate_features(
     symbol,
     spot_data,
     futures_data,
     btc_change_24h,
 ):
-    rows = fetch_klines(
-        symbol
-    )
+    rows = fetch_klines(symbol)
+    parsed = parse_klines(rows)
 
-    parsed = parse_klines(
-        rows
-    )
+    closes = parsed["closes"]
+    highs = parsed["highs"]
+    lows = parsed["lows"]
+    quote_volumes = parsed["quote_volumes"]
+    trades = parsed["trades"]
+    taker_buy_quote = parsed["taker_buy_quote"]
+    returns = parsed["returns"]
 
-    closes = parsed[
-        "closes"
-    ]
-
-    highs = parsed[
-        "highs"
-    ]
-
-    lows = parsed[
-        "lows"
-    ]
-
-    quote_volumes = parsed[
-        "quote_volumes"
-    ]
-
-    trades = parsed[
-        "trades"
-    ]
-
-    taker_buy_quote = parsed[
-        "taker_buy_quote"
-    ]
-
-    returns = parsed[
-        "returns"
-    ]
-
-    required_bars = (
-        BASELINE_BARS
-        + BARS_3H
-        + 5
-    )
+    required_bars = BASELINE_BARS + BARS_3H + 5
 
     if len(closes) < required_bars:
-        raise ValueError(
-            "insufficient_klines"
-        )
+        raise ValueError("insufficient_klines")
 
     current_price = closes[-1]
 
-    change_15m = pct_change(
-        closes[-4],
-        current_price,
-    )
-
-    change_1h = pct_change(
-        closes[-13],
-        current_price,
-    )
-
-    change_3h = pct_change(
-        closes[-37],
-        current_price,
-    )
-
+    change_15m = pct_change(closes[-4], current_price)
+    change_1h = pct_change(closes[-13], current_price)
+    change_3h = pct_change(closes[-37], current_price)
     change_24h = float(
-        spot_data.get(
-            "priceChangePercent",
-            0.0,
-        )
+        spot_data.get("priceChangePercent", 0.0) or 0.0
     )
 
     futures_change_24h = None
@@ -641,40 +385,23 @@ def calculate_features(
     if futures_data:
         try:
             futures_change_24h = float(
-                futures_data.get(
-                    "priceChangePercent",
-                    0.0,
-                )
+                futures_data.get("priceChangePercent", 0.0) or 0.0
             )
-
-        except Exception:
+        except (TypeError, ValueError):
             futures_change_24h = None
 
-    if futures_change_24h is not None:
-        spot_vs_futures = (
-            change_24h
-            - futures_change_24h
-        )
-
-    else:
-        spot_vs_futures = None
-
     baseline_volume = quote_volumes[
-        -(BASELINE_BARS + BARS_3H):
-        -BARS_3H
+        -(BASELINE_BARS + BARS_3H):-BARS_3H
     ]
 
     baseline_trades = trades[
-        -(BASELINE_BARS + BARS_3H):
-        -BARS_3H
+        -(BASELINE_BARS + BARS_3H):-BARS_3H
     ]
 
     baseline_returns = [
         abs(value)
-        for value
-        in returns[
-            -(BASELINE_BARS + BARS_3H):
-            -BARS_3H
+        for value in returns[
+            -(BASELINE_BARS + BARS_3H):-BARS_3H
         ]
     ]
 
@@ -734,35 +461,25 @@ def calculate_features(
     )
 
     baseline_volume_15m_median = (
-        statistics.median(
-            baseline_volume_15m
-        )
+        statistics.median(baseline_volume_15m)
         if baseline_volume_15m
         else 1.0
     )
 
     baseline_volume_1h_median = (
-        statistics.median(
-            baseline_volume_1h
-        )
+        statistics.median(baseline_volume_1h)
         if baseline_volume_1h
         else 1.0
     )
 
     volume_mult_15m = (
         volume_15m
-        / (
-            baseline_volume_15m_median
-            or 1.0
-        )
+        / (baseline_volume_15m_median or 1.0)
     )
 
     volume_mult_1h = (
         volume_1h
-        / (
-            baseline_volume_1h_median
-            or 1.0
-        )
+        / (baseline_volume_1h_median or 1.0)
     )
 
     taker_buy_15m = recent_sum(
@@ -770,14 +487,11 @@ def calculate_features(
         BARS_15M,
     )
 
-    if volume_15m > 0:
-        taker_buy_ratio_15m = (
-            taker_buy_15m
-            / volume_15m
-        )
-
-    else:
-        taker_buy_ratio_15m = 0.0
+    taker_buy_ratio_15m = (
+        taker_buy_15m / volume_15m
+        if volume_15m > 0
+        else 0.0
+    )
 
     low_3h = min(
         lows[-BARS_3H:]
@@ -792,14 +506,12 @@ def calculate_features(
         - low_3h
     )
 
-    if impulse_range > 0:
-        retention_proxy = (
-            current_price
-            - low_3h
-        ) / impulse_range
-
-    else:
-        retention_proxy = 0.0
+    retention_proxy = (
+        (current_price - low_3h)
+        / impulse_range
+        if impulse_range > 0
+        else 0.0
+    )
 
     oi_change_1h = None
     funding_rate = None
@@ -815,21 +527,19 @@ def calculate_features(
         if len(oi_history) >= 2:
             try:
                 first_oi = float(
-                    oi_history[
-                        0
-                    ].get(
+                    oi_history[0].get(
                         "sumOpenInterestValue",
                         0.0,
                     )
+                    or 0.0
                 )
 
                 last_oi = float(
-                    oi_history[
-                        -1
-                    ].get(
+                    oi_history[-1].get(
                         "sumOpenInterestValue",
                         0.0,
                     )
+                    or 0.0
                 )
 
                 oi_change_1h = pct_change(
@@ -837,7 +547,7 @@ def calculate_features(
                     last_oi,
                 )
 
-            except Exception:
+            except (TypeError, ValueError):
                 oi_change_1h = None
 
         funding_rate = (
@@ -852,29 +562,29 @@ def calculate_features(
             )
         )
 
-        if taker_history:
-            taker_values = []
+        taker_values = []
 
-            for item in taker_history:
-                try:
-                    taker_values.append(
-                        float(
-                            item.get(
-                                "buySellRatio",
-                                0.0,
-                            )
+        for item in taker_history:
+            try:
+                taker_values.append(
+                    float(
+                        item.get(
+                            "buySellRatio",
+                            0.0,
                         )
-                    )
-
-                except Exception:
-                    pass
-
-            if taker_values:
-                futures_taker_ratio = (
-                    average(
-                        taker_values
+                        or 0.0
                     )
                 )
+
+            except (TypeError, ValueError):
+                pass
+
+        if taker_values:
+            futures_taker_ratio = (
+                average(
+                    taker_values
+                )
+            )
 
     btc_relative_24h = (
         change_24h
@@ -914,18 +624,18 @@ def calculate_features(
         >= RETENTION_MIN
     )
 
-    previous_15m_volume = sum(
-        quote_volumes[-6:-3]
+    previous_15m_volume = (
+        sum(
+            quote_volumes[-6:-3]
+        )
     )
 
-    if previous_15m_volume > 0:
-        reignition_ratio = (
-            volume_15m
-            / previous_15m_volume
-        )
-
-    else:
-        reignition_ratio = 0.0
+    reignition_ratio = (
+        volume_15m
+        / previous_15m_volume
+        if previous_15m_volume > 0
+        else 0.0
+    )
 
     reignition = (
         reignition_ratio
@@ -1001,14 +711,12 @@ def calculate_features(
         and
         change_15m > 0
         and
-        oi_change_1h
-        is not None
+        oi_change_1h is not None
     ):
         if (
-            oi_change_1h > 2
+            oi_change_1h > 2.0
             and
-            futures_taker_ratio
-            is not None
+            futures_taker_ratio is not None
             and
             futures_taker_ratio > 1.05
         ):
@@ -1017,7 +725,7 @@ def calculate_features(
             )
 
         elif (
-            oi_change_1h < -2
+            oi_change_1h < -2.0
             and
             change_15m > 1.5
         ):
@@ -1029,14 +737,9 @@ def calculate_features(
         taker_buy_ratio_15m
         >= 0.60
     ):
-        if (
-            spot_vs_futures is None
-            or
-            spot_vs_futures >= -1.0
-        ):
-            engine = (
-                "SPOT_LED_DEMAND"
-            )
+        engine = (
+            "SPOT_LED_DEMAND"
+        )
 
     score = 0
 
@@ -1092,8 +795,10 @@ def calculate_features(
 
     if (
         trigger
-        and retention
-        and (
+        and
+        retention
+        and
+        (
             wakeup
             or persistence
             or reignition
@@ -1117,10 +822,26 @@ def calculate_features(
         stage = "OBSERVE"
 
     return {
-        "ts_utc": utc_now(),
-        "config_version": CONFIG_VERSION,
-        "symbol": symbol,
-        "price": current_price,
+        "ts_utc":
+            utc_now(),
+
+        "config_version":
+            CONFIG_VERSION,
+
+        "symbol":
+            symbol,
+
+        "stage":
+            stage,
+
+        "engine":
+            engine,
+
+        "score":
+            score,
+
+        "price":
+            current_price,
 
         "change_15m":
             change_15m,
@@ -1134,23 +855,8 @@ def calculate_features(
         "change_24h":
             change_24h,
 
-        "futures_change_24h":
-            futures_change_24h,
-
         "btc_relative_24h":
             btc_relative_24h,
-
-        "spot_vs_futures_change_24h":
-            spot_vs_futures,
-
-        "quote_volume_15m":
-            volume_15m,
-
-        "quote_volume_1h":
-            volume_1h,
-
-        "quote_volume_3h":
-            volume_3h,
 
         "volume_z_15m":
             volume_z,
@@ -1167,20 +873,17 @@ def calculate_features(
         "volume_mult_1h":
             volume_mult_1h,
 
+        "retention_proxy":
+            retention_proxy,
+
         "taker_buy_ratio_15m":
             taker_buy_ratio_15m,
-
-        "futures_taker_ratio_1h":
-            futures_taker_ratio,
 
         "oi_change_1h_pct":
             oi_change_1h,
 
         "funding_rate":
             funding_rate,
-
-        "retention_proxy":
-            retention_proxy,
 
         "wakeup":
             wakeup,
@@ -1200,14 +903,20 @@ def calculate_features(
         "climax_risk":
             climax_risk,
 
-        "stage":
-            stage,
+        "futures_change_24h":
+            futures_change_24h,
 
-        "engine":
-            engine,
+        "futures_taker_ratio_1h":
+            futures_taker_ratio,
 
-        "score":
-            score,
+        "quote_volume_15m":
+            volume_15m,
+
+        "quote_volume_1h":
+            volume_1h,
+
+        "quote_volume_3h":
+            volume_3h,
 
         "wake_components":
             wake_components,
@@ -1239,7 +948,7 @@ def run_scan():
     )
 
     print(
-        "BINANCE AVCI 2 V1.2"
+        "BINANCE AVCI 2 V1.3"
     )
 
     print(
@@ -1247,7 +956,8 @@ def run_scan():
     )
 
     print(
-        f"Config: {CONFIG_VERSION}"
+        f"Config: "
+        f"{CONFIG_VERSION}"
     )
 
     try:
@@ -1285,6 +995,7 @@ def run_scan():
             "priceChangePercent",
             0.0,
         )
+        or 0.0
     )
 
     save_scan(
@@ -1304,11 +1015,14 @@ def run_scan():
                 "priceChangePercent",
                 0.0,
             )
+            or 0.0
         )
 
         if (
             change
-            >= min(WINNER_LEVELS)
+            >= min(
+                WINNER_LEVELS
+            )
         ):
             daily_movers.append(
                 (
@@ -1321,6 +1035,7 @@ def run_scan():
                             "quoteVolume",
                             0.0,
                         )
+                        or 0.0
                     ),
                 )
             )
@@ -1333,11 +1048,9 @@ def run_scan():
 
     for rank, item in enumerate(
         daily_movers[:30],
-        1,
+        start=1,
     ):
-        symbol = item[0]
-        change = item[1]
-        volume = item[2]
+        symbol, change, volume = item
 
         save_daily_mover(
             scan_time[:10],
@@ -1350,11 +1063,13 @@ def run_scan():
 
     signals = []
 
-    total = len(universe)
+    total = len(
+        universe
+    )
 
     for index, symbol in enumerate(
         universe,
-        1,
+        start=1,
     ):
         try:
             futures_data = (
@@ -1382,8 +1097,11 @@ def run_scan():
             )
 
             if (
-                feature["stage"]
+                feature[
+                    "stage"
+                ]
                 != "OBSERVE"
+
                 and
                 not feature[
                     "climax_risk"
@@ -1396,10 +1114,7 @@ def run_scan():
         except Exception as error:
             save_data_issue(
                 "SYMBOL_SCAN_FAILED",
-                (
-                    f"{symbol}: "
-                    f"{error}"
-                ),
+                f"{symbol}: {error}",
                 scan_time,
             )
 
@@ -1417,9 +1132,11 @@ def run_scan():
         reverse=True,
     )
 
-    selected = signals[
-        :MAX_SELECTED
-    ]
+    selected = (
+        signals[
+            :MAX_SELECTED
+        ]
+    )
 
     print(
         "-" * 80
@@ -1457,7 +1174,7 @@ def run_scan():
 
     for rank, feature in enumerate(
         selected,
-        1,
+        start=1,
     ):
         save_feature(
             feature,
@@ -1503,4 +1220,50 @@ def run_scan():
             f"| Re-ignition: "
             f"{feature['reignition']} "
             f"| Trigger: "
-            f"{feature['trigger
+            f"{feature['trigger']}"
+        )
+
+        oi_value = (
+            feature[
+                "oi_change_1h_pct"
+            ]
+        )
+
+        funding_value = (
+            feature[
+                "funding_rate"
+            ]
+        )
+
+        oi_text = (
+            "N/A"
+            if oi_value is None
+            else f"{oi_value:+.2f}%"
+        )
+
+        funding_text = (
+            "N/A"
+            if funding_value is None
+            else f"{funding_value:.6f}"
+        )
+
+        print(
+            f"   OI 1H: "
+            f"{oi_text} "
+            f"| Funding: "
+            f"{funding_text} "
+            f"| Engine: "
+            f"{feature['engine']}"
+        )
+
+        print(
+            "-" * 80
+        )
+
+    print(
+        "=" * 80
+    )
+
+
+if __name__ == "__main__":
+    run_scan()
