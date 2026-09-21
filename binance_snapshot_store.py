@@ -24,7 +24,9 @@ def open_db():
 def _columns(conn, table):
     return {
         row["name"]
-        for row in conn.execute(f"PRAGMA table_info({table})")
+        for row in conn.execute(
+            f"PRAGMA table_info({table})"
+        )
     }
 
 
@@ -33,7 +35,8 @@ def _add_column(conn, table, definition):
 
     if name not in _columns(conn, table):
         conn.execute(
-            f"ALTER TABLE {table} ADD COLUMN {definition}"
+            f"ALTER TABLE {table} "
+            f"ADD COLUMN {definition}"
         )
 
 
@@ -59,6 +62,219 @@ def _backfill_column(
             WHERE {new_column} IS NULL
             """
         )
+
+
+def _drop_index(
+    conn,
+    index_name,
+):
+    conn.execute(
+        f"DROP INDEX IF EXISTS {index_name}"
+    )
+
+
+def _dedupe_scans(conn):
+    columns = _columns(
+        conn,
+        "scans",
+    )
+
+    required = {
+        "id",
+        "scan_time_utc",
+        "config_version",
+    }
+
+    if not required.issubset(
+        columns
+    ):
+        return
+
+    conn.execute(
+        """
+        DELETE FROM scans
+        WHERE id NOT IN (
+            SELECT MIN(id)
+            FROM scans
+            WHERE scan_time_utc IS NOT NULL
+              AND config_version IS NOT NULL
+            GROUP BY
+                scan_time_utc,
+                config_version
+        )
+        AND scan_time_utc IS NOT NULL
+        AND config_version IS NOT NULL
+        """
+    )
+
+
+def _dedupe_features(conn):
+    columns = _columns(
+        conn,
+        "features",
+    )
+
+    required = {
+        "id",
+        "scan_time_utc",
+        "config_version",
+        "symbol",
+    }
+
+    if not required.issubset(
+        columns
+    ):
+        return
+
+    if "is_selected" in columns:
+        conn.execute(
+            """
+            UPDATE features
+            SET is_selected = (
+                SELECT MAX(
+                    COALESCE(
+                        f2.is_selected,
+                        0
+                    )
+                )
+                FROM features f2
+                WHERE
+                    f2.scan_time_utc =
+                        features.scan_time_utc
+                    AND
+                    f2.config_version =
+                        features.config_version
+                    AND
+                    f2.symbol =
+                        features.symbol
+            )
+            WHERE scan_time_utc IS NOT NULL
+              AND config_version IS NOT NULL
+              AND symbol IS NOT NULL
+            """
+        )
+
+    if "is_signal" in columns:
+        conn.execute(
+            """
+            UPDATE features
+            SET is_signal = (
+                SELECT MAX(
+                    COALESCE(
+                        f2.is_signal,
+                        0
+                    )
+                )
+                FROM features f2
+                WHERE
+                    f2.scan_time_utc =
+                        features.scan_time_utc
+                    AND
+                    f2.config_version =
+                        features.config_version
+                    AND
+                    f2.symbol =
+                        features.symbol
+            )
+            WHERE scan_time_utc IS NOT NULL
+              AND config_version IS NOT NULL
+              AND symbol IS NOT NULL
+            """
+        )
+
+    conn.execute(
+        """
+        DELETE FROM features
+        WHERE id NOT IN (
+            SELECT MIN(id)
+            FROM features
+            WHERE scan_time_utc IS NOT NULL
+              AND config_version IS NOT NULL
+              AND symbol IS NOT NULL
+            GROUP BY
+                scan_time_utc,
+                config_version,
+                symbol
+        )
+        AND scan_time_utc IS NOT NULL
+        AND config_version IS NOT NULL
+        AND symbol IS NOT NULL
+        """
+    )
+
+
+def _dedupe_daily_movers(conn):
+    columns = _columns(
+        conn,
+        "daily_movers",
+    )
+
+    required = {
+        "id",
+        "trade_date",
+        "symbol",
+        "config_version",
+    }
+
+    if not required.issubset(
+        columns
+    ):
+        return
+
+    conn.execute(
+        """
+        DELETE FROM daily_movers
+        WHERE id NOT IN (
+            SELECT MIN(id)
+            FROM daily_movers
+            WHERE trade_date IS NOT NULL
+              AND symbol IS NOT NULL
+              AND config_version IS NOT NULL
+            GROUP BY
+                trade_date,
+                symbol,
+                config_version
+        )
+        AND trade_date IS NOT NULL
+        AND symbol IS NOT NULL
+        AND config_version IS NOT NULL
+        """
+    )
+
+
+def _dedupe_winner_anatomy(conn):
+    columns = _columns(
+        conn,
+        "winner_anatomy",
+    )
+
+    required = {
+        "id",
+        "trade_date",
+        "symbol",
+    }
+
+    if not required.issubset(
+        columns
+    ):
+        return
+
+    conn.execute(
+        """
+        DELETE FROM winner_anatomy
+        WHERE id NOT IN (
+            SELECT MIN(id)
+            FROM winner_anatomy
+            WHERE trade_date IS NOT NULL
+              AND symbol IS NOT NULL
+            GROUP BY
+                trade_date,
+                symbol
+        )
+        AND trade_date IS NOT NULL
+        AND symbol IS NOT NULL
+        """
+    )
 
 
 def init_db():
@@ -274,6 +490,69 @@ def init_db():
         "ts_utc",
     )
 
+    feature_columns = _columns(
+        conn,
+        "features",
+    )
+
+    if {
+        "is_selected",
+        "selected",
+    }.issubset(
+        feature_columns
+    ):
+        conn.execute(
+            """
+            UPDATE features
+            SET is_selected = MAX(
+                COALESCE(
+                    is_selected,
+                    0
+                ),
+                COALESCE(
+                    selected,
+                    0
+                )
+            )
+            """
+        )
+
+    if {
+        "is_signal",
+        "stage",
+        "climax_risk",
+    }.issubset(
+        feature_columns
+    ):
+        conn.execute(
+            """
+            UPDATE features
+            SET is_signal =
+                CASE
+                    WHEN
+                        COALESCE(
+                            stage,
+                            'OBSERVE'
+                        ) != 'OBSERVE'
+                        AND
+                        COALESCE(
+                            climax_risk,
+                            0
+                        ) = 0
+                    THEN 1
+                    ELSE
+                        COALESCE(
+                            is_signal,
+                            0
+                        )
+                END
+            WHERE
+                is_signal IS NULL
+                OR
+                is_signal = 0
+            """
+        )
+
     for definition in (
         "trade_date TEXT",
         "symbol TEXT",
@@ -288,6 +567,126 @@ def init_db():
             "daily_movers",
             definition,
         )
+
+    for definition in (
+        "event_id TEXT",
+        "symbol TEXT",
+        "signal_time_utc TEXT",
+        "signal_bar_open_ms INTEGER",
+        "signal_bar_close_ms INTEGER",
+        "config_version TEXT",
+        "data_mode TEXT",
+        "stage TEXT",
+        "engine TEXT",
+        "score INTEGER",
+        "signal_price REAL",
+        "entry_open_time_ms INTEGER",
+        "entry_status TEXT DEFAULT 'PENDING'",
+        "entry_time_utc TEXT",
+        "entry_price_raw REAL",
+        "entry_price_exec REAL",
+        "fee_bps_per_side REAL",
+        "slippage_bps_per_side REAL",
+        "outcome_status TEXT DEFAULT 'OPEN'",
+        "closed_at_utc TEXT",
+        "cooldown_hours INTEGER",
+        "raw_json TEXT",
+        "created_at_utc TEXT",
+    ):
+        _add_column(
+            conn,
+            "signal_events",
+            definition,
+        )
+
+    for definition in (
+        "event_id TEXT",
+        "symbol TEXT",
+        "entry_time_utc TEXT",
+        "entry_price_exec REAL",
+        "stop_pct REAL",
+        "horizon_hours INTEGER",
+        "first_touch_json TEXT",
+        "reach_json TEXT",
+        "hit_time_json TEXT",
+        "mfe_pct REAL",
+        "mae_pct REAL",
+        "raw_mfe_pct REAL",
+        "executable_mfe_pct REAL",
+        "net_return_pct REAL",
+        "btc_return_pct REAL",
+        "universe_return_pct REAL",
+        "excess_vs_btc_pct REAL",
+        "excess_vs_universe_pct REAL",
+        "label_status TEXT",
+        "updated_at_utc TEXT",
+    ):
+        _add_column(
+            conn,
+            "outcome_labels",
+            definition,
+        )
+
+    for definition in (
+        "analyzed_at_utc TEXT",
+        "trade_date TEXT",
+        "symbol TEXT",
+        "winner_change_24h REAL",
+        "first_anomaly_time_utc TEXT",
+        "first_anomaly_price REAL",
+        "winner_reference_price REAL",
+        "gain_before_first_anomaly REAL",
+        "hours_before_reference REAL",
+        "anomaly_volume_z REAL",
+        "anomaly_trade_z REAL",
+        "anomaly_return_z REAL",
+        "anomaly_volume_mult REAL",
+        "created_at_utc TEXT",
+    ):
+        _add_column(
+            conn,
+            "winner_anatomy",
+            definition,
+        )
+
+    for definition in (
+        "issue_time_utc TEXT",
+        "issue_type TEXT",
+        "details TEXT",
+        "created_at_utc TEXT",
+    ):
+        _add_column(
+            conn,
+            "data_issues",
+            definition,
+        )
+
+    for index_name in (
+        "idx_scans_unique",
+        "idx_features_unique",
+        "idx_daily_movers_unique",
+        "idx_winner_anatomy_unique",
+    ):
+        _drop_index(
+            conn,
+            index_name,
+        )
+
+    _dedupe_scans(
+        conn
+    )
+
+    _dedupe_features(
+        conn
+    )
+
+    _dedupe_daily_movers(
+        conn
+    )
+
+    _dedupe_winner_anatomy(
+        conn
+    )
 
     conn.executescript(
         """
@@ -389,8 +788,11 @@ def save_feature(
 ):
     if is_signal is None:
         is_signal = int(
-            feature.get("stage") != "OBSERVE"
-            and not feature.get(
+            feature.get(
+                "stage"
+            ) != "OBSERVE"
+            and
+            not feature.get(
                 "climax_risk",
                 False,
             )
@@ -454,52 +856,126 @@ def save_feature(
             symbol
         )
         DO UPDATE SET
-            data_mode=excluded.data_mode,
-            stage=excluded.stage,
-            engine=excluded.engine,
-            score=excluded.score,
-            is_signal=excluded.is_signal,
-            is_selected=MAX(
-                features.is_selected,
-                excluded.is_selected
-            ),
-            price=excluded.price,
-            signal_bar_open_ms=excluded.signal_bar_open_ms,
-            signal_bar_close_ms=excluded.signal_bar_close_ms,
-            change_15m=excluded.change_15m,
-            change_1h=excluded.change_1h,
-            change_3h=excluded.change_3h,
-            change_24h=excluded.change_24h,
-            btc_relative_24h=excluded.btc_relative_24h,
-            volume_z_15m=excluded.volume_z_15m,
-            trade_z_15m=excluded.trade_z_15m,
-            return_z_15m=excluded.return_z_15m,
-            volume_mult_15m=excluded.volume_mult_15m,
-            volume_mult_1h=excluded.volume_mult_1h,
-            retention_proxy=excluded.retention_proxy,
-            taker_buy_ratio_15m=excluded.taker_buy_ratio_15m,
-            oi_change_1h_pct=excluded.oi_change_1h_pct,
-            funding_rate=excluded.funding_rate,
-            wakeup=excluded.wakeup,
-            persistence=excluded.persistence,
-            retention=excluded.retention,
-            reignition=excluded.reignition,
-            trigger=excluded.trigger,
-            climax_risk=excluded.climax_risk,
-            raw_json=excluded.raw_json
+            data_mode =
+                excluded.data_mode,
+
+            stage =
+                excluded.stage,
+
+            engine =
+                excluded.engine,
+
+            score =
+                excluded.score,
+
+            is_signal =
+                MAX(
+                    features.is_signal,
+                    excluded.is_signal
+                ),
+
+            is_selected =
+                MAX(
+                    features.is_selected,
+                    excluded.is_selected
+                ),
+
+            price =
+                excluded.price,
+
+            signal_bar_open_ms =
+                excluded.signal_bar_open_ms,
+
+            signal_bar_close_ms =
+                excluded.signal_bar_close_ms,
+
+            change_15m =
+                excluded.change_15m,
+
+            change_1h =
+                excluded.change_1h,
+
+            change_3h =
+                excluded.change_3h,
+
+            change_24h =
+                excluded.change_24h,
+
+            btc_relative_24h =
+                excluded.btc_relative_24h,
+
+            volume_z_15m =
+                excluded.volume_z_15m,
+
+            trade_z_15m =
+                excluded.trade_z_15m,
+
+            return_z_15m =
+                excluded.return_z_15m,
+
+            volume_mult_15m =
+                excluded.volume_mult_15m,
+
+            volume_mult_1h =
+                excluded.volume_mult_1h,
+
+            retention_proxy =
+                excluded.retention_proxy,
+
+            taker_buy_ratio_15m =
+                excluded.taker_buy_ratio_15m,
+
+            oi_change_1h_pct =
+                excluded.oi_change_1h_pct,
+
+            funding_rate =
+                excluded.funding_rate,
+
+            wakeup =
+                excluded.wakeup,
+
+            persistence =
+                excluded.persistence,
+
+            retention =
+                excluded.retention,
+
+            reignition =
+                excluded.reignition,
+
+            trigger =
+                excluded.trigger,
+
+            climax_risk =
+                excluded.climax_risk,
+
+            raw_json =
+                excluded.raw_json
         """,
         (
-            feature["ts_utc"],
-            feature["config_version"],
+            feature[
+                "ts_utc"
+            ],
+            feature[
+                "config_version"
+            ],
             feature.get(
                 "data_mode",
                 "UNKNOWN",
             ),
-            feature["symbol"],
-            feature["stage"],
-            feature["engine"],
+            feature[
+                "symbol"
+            ],
+            feature[
+                "stage"
+            ],
+            feature[
+                "engine"
+            ],
             int(
-                feature["score"]
+                feature[
+                    "score"
+                ]
             ),
             int(
                 bool(
@@ -684,7 +1160,9 @@ def has_recent_event(
 
     conn.close()
 
-    return row is not None
+    return (
+        row is not None
+    )
 
 
 def create_signal_event(
@@ -749,7 +1227,7 @@ def create_signal_event(
 
     conn = open_db()
 
-    conn.execute(
+    cursor = conn.execute(
         """
         INSERT OR IGNORE INTO signal_events (
             event_id,
@@ -811,10 +1289,17 @@ def create_signal_event(
         ),
     )
 
+    inserted = (
+        cursor.rowcount > 0
+    )
+
     conn.commit()
     conn.close()
 
-    return event_id
+    if inserted:
+        return event_id
+
+    return None
 
 
 def get_pending_events():
@@ -927,24 +1412,59 @@ def save_outcome_label(
         )
         ON CONFLICT(event_id)
         DO UPDATE SET
-            entry_time_utc=excluded.entry_time_utc,
-            entry_price_exec=excluded.entry_price_exec,
-            stop_pct=excluded.stop_pct,
-            horizon_hours=excluded.horizon_hours,
-            first_touch_json=excluded.first_touch_json,
-            reach_json=excluded.reach_json,
-            hit_time_json=excluded.hit_time_json,
-            mfe_pct=excluded.mfe_pct,
-            mae_pct=excluded.mae_pct,
-            raw_mfe_pct=excluded.raw_mfe_pct,
-            executable_mfe_pct=excluded.executable_mfe_pct,
-            net_return_pct=excluded.net_return_pct,
-            btc_return_pct=excluded.btc_return_pct,
-            universe_return_pct=excluded.universe_return_pct,
-            excess_vs_btc_pct=excluded.excess_vs_btc_pct,
-            excess_vs_universe_pct=excluded.excess_vs_universe_pct,
-            label_status=excluded.label_status,
-            updated_at_utc=excluded.updated_at_utc
+            entry_time_utc =
+                excluded.entry_time_utc,
+
+            entry_price_exec =
+                excluded.entry_price_exec,
+
+            stop_pct =
+                excluded.stop_pct,
+
+            horizon_hours =
+                excluded.horizon_hours,
+
+            first_touch_json =
+                excluded.first_touch_json,
+
+            reach_json =
+                excluded.reach_json,
+
+            hit_time_json =
+                excluded.hit_time_json,
+
+            mfe_pct =
+                excluded.mfe_pct,
+
+            mae_pct =
+                excluded.mae_pct,
+
+            raw_mfe_pct =
+                excluded.raw_mfe_pct,
+
+            executable_mfe_pct =
+                excluded.executable_mfe_pct,
+
+            net_return_pct =
+                excluded.net_return_pct,
+
+            btc_return_pct =
+                excluded.btc_return_pct,
+
+            universe_return_pct =
+                excluded.universe_return_pct,
+
+            excess_vs_btc_pct =
+                excluded.excess_vs_btc_pct,
+
+            excess_vs_universe_pct =
+                excluded.excess_vs_universe_pct,
+
+            label_status =
+                excluded.label_status,
+
+            updated_at_utc =
+                excluded.updated_at_utc
         """,
         (
             label[
