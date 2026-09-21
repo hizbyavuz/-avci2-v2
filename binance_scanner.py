@@ -13,9 +13,13 @@ from binance_snapshot_store import (
     save_feature,
     save_daily_mover,
     save_data_issue,
+    create_signal_event,
 )
 
-CONFIG_VERSION = "binance-avci2-v1.4"
+CONFIG_VERSION = "binance-avci2-v1.5"
+
+DATA_MODE_SPOT = "SPOT_ONLY"
+DATA_MODE_FULL = "SPOT_FUTURES_FULL"
 
 SPOT_BASES = (
     "https://data-api.binance.vision",
@@ -31,23 +35,6 @@ QUOTE_ASSET = "USDT"
 
 MIN_SPOT_VOLUME_24H = 3_000_000.0
 MIN_FUTURES_VOLUME_24H = 5_000_000.0
-
-EXCLUDED_BASES = {
-    "USDC",
-    "FDUSD",
-    "USDP",
-    "TUSD",
-    "DAI",
-    "EUR",
-    "TRY",
-}
-
-EXCLUDED_SUFFIXES = (
-    "UP",
-    "DOWN",
-    "BULL",
-    "BEAR",
-)
 
 KLINE_INTERVAL = "5m"
 KLINE_LIMIT = 300
@@ -75,6 +62,11 @@ CLIMAX_OI_1H = 25.0
 
 MAX_SELECTED = 5
 
+COOLDOWN_HOURS = 24
+
+FEE_BPS_PER_SIDE = 10.0
+SLIPPAGE_BPS_PER_SIDE = 10.0
+
 WINNER_LEVELS = (
     20,
     30,
@@ -82,12 +74,22 @@ WINNER_LEVELS = (
     50,
 )
 
+EXCLUDED_BASES = {
+    "USDC",
+    "FDUSD",
+    "USDP",
+    "TUSD",
+    "DAI",
+    "EUR",
+    "TRY",
+}
+
 FUTURES_AVAILABLE = True
 
 session = requests.Session()
 
 session.headers.update({
-    "User-Agent": "binance-avci2-v1.4"
+    "User-Agent": "binance-avci2-v1.5"
 })
 
 
@@ -118,7 +120,8 @@ def spot_api_get(
                 451,
             ):
                 last_error = requests.HTTPError(
-                    f"{response.status_code} from {base}{path}",
+                    f"{response.status_code} "
+                    f"from {base}{path}",
                     response=response,
                 )
                 continue
@@ -134,7 +137,7 @@ def spot_api_get(
         raise last_error
 
     raise RuntimeError(
-        "Tum Binance spot endpointleri basarisiz oldu"
+        "All Binance spot endpoints failed"
     )
 
 
@@ -164,11 +167,8 @@ def futures_api_get(
 
             print(
                 f"Futures verisi kullanilamiyor "
-                f"({response.status_code})."
-            )
-
-            print(
-                "SPOT-ONLY moda geciliyor."
+                f"({response.status_code}). "
+                "SADECE SPOT moda geciliyor."
             )
 
             return None
@@ -181,17 +181,20 @@ def futures_api_get(
         FUTURES_AVAILABLE = False
 
         print(
-            f"Futures veri hatasi: {error}"
+            f"Futures veri hatasi: "
+            f"{error}"
         )
 
         print(
-            "SPOT-ONLY moda geciliyor."
+            "SADECE SPOT moda geciliyor."
         )
 
         return None
 
 
-def average(values):
+def average(
+    values,
+):
     if not values:
         return 0.0
 
@@ -200,7 +203,9 @@ def average(values):
     )
 
 
-def deviation(values):
+def deviation(
+    values,
+):
     if len(values) < 2:
         return 0.0
 
@@ -216,10 +221,6 @@ def zscore(
     if not baseline:
         return 0.0
 
-    avg = average(
-        baseline
-    )
-
     std = deviation(
         baseline
     )
@@ -228,7 +229,10 @@ def zscore(
         return 0.0
 
     return (
-        value - avg
+        value
+        - average(
+            baseline
+        )
     ) / std
 
 
@@ -357,6 +361,7 @@ def fetch_funding(
                 "lastFundingRate",
                 0.0,
             )
+            or 0.0
         )
 
     except (
@@ -499,15 +504,6 @@ def build_universe():
         if base in EXCLUDED_BASES:
             continue
 
-        if any(
-            base.endswith(
-                suffix
-            )
-            for suffix
-            in EXCLUDED_SUFFIXES
-        ):
-            continue
-
         spot_row = (
             spot_24h.get(
                 symbol
@@ -579,8 +575,16 @@ def parse_klines(
     quote_volumes = []
     trades = []
     taker_buy_quote = []
+    open_times = []
+    close_times = []
 
     for row in rows:
+        open_times.append(
+            int(
+                row[0]
+            )
+        )
+
         opens.append(
             float(
                 row[1]
@@ -623,6 +627,12 @@ def parse_klines(
             )
         )
 
+        close_times.append(
+            int(
+                row[6]
+            )
+        )
+
     returns = []
 
     for index in range(
@@ -643,6 +653,12 @@ def parse_klines(
         )
 
     return {
+        "open_times":
+            open_times,
+
+        "close_times":
+            close_times,
+
         "opens":
             opens,
 
@@ -674,6 +690,8 @@ def calculate_features(
     spot_data,
     futures_data,
     btc_change_24h,
+    data_mode,
+    scan_time,
 ):
     rows = fetch_klines(
         symbol
@@ -682,6 +700,14 @@ def calculate_features(
     parsed = parse_klines(
         rows
     )
+
+    open_times = parsed[
+        "open_times"
+    ]
+
+    close_times = parsed[
+        "close_times"
+    ]
 
     closes = parsed[
         "closes"
@@ -727,9 +753,23 @@ def calculate_features(
             "Yetersiz mum verisi"
         )
 
-    current_price = closes[
-        -1
-    ]
+    signal_bar_open_ms = (
+        open_times[
+            -1
+        ]
+    )
+
+    signal_bar_close_ms = (
+        close_times[
+            -1
+        ]
+    )
+
+    current_price = (
+        closes[
+            -1
+        ]
+    )
 
     change_15m = pct_change(
         closes[
@@ -914,14 +954,12 @@ def calculate_features(
         BARS_15M,
     )
 
-    if volume_15m > 0:
-        taker_buy_ratio_15m = (
-            taker_buy_15m
-            / volume_15m
-        )
-
-    else:
-        taker_buy_ratio_15m = 0.0
+    taker_buy_ratio_15m = (
+        taker_buy_15m
+        / volume_15m
+        if volume_15m > 0
+        else 0.0
+    )
 
     low_3h = min(
         lows[
@@ -940,14 +978,15 @@ def calculate_features(
         - low_3h
     )
 
-    if impulse_range > 0:
-        retention_proxy = (
+    retention_proxy = (
+        (
             current_price
             - low_3h
-        ) / impulse_range
-
-    else:
-        retention_proxy = 0.0
+        )
+        / impulse_range
+        if impulse_range > 0
+        else 0.0
+    )
 
     oi_change_1h = None
     funding_rate = None
@@ -984,9 +1023,11 @@ def calculate_features(
                     or 0.0
                 )
 
-                oi_change_1h = pct_change(
-                    first_oi,
-                    last_oi,
+                oi_change_1h = (
+                    pct_change(
+                        first_oi,
+                        last_oi,
+                    )
                 )
 
             except (
@@ -1072,24 +1113,21 @@ def calculate_features(
         >= RETENTION_MIN
     )
 
-    previous_15m_volume = sum(
-        quote_volumes[
-            -6:
-            -3
-        ]
+    previous_15m_volume = (
+        sum(
+            quote_volumes[
+                -6:
+                -3
+            ]
+        )
     )
 
-    if (
-        previous_15m_volume
-        > 0
-    ):
-        reignition_ratio = (
-            volume_15m
-            / previous_15m_volume
-        )
-
-    else:
-        reignition_ratio = 0.0
+    reignition_ratio = (
+        volume_15m
+        / previous_15m_volume
+        if previous_15m_volume > 0
+        else 0.0
+    )
 
     reignition = (
         reignition_ratio
@@ -1136,10 +1174,12 @@ def calculate_features(
         >= CLIMAX_CHANGE_24H
 
         or
+
         change_1h
         >= CLIMAX_CHANGE_1H
 
         or
+
         (
             funding_rate
             is not None
@@ -1151,6 +1191,7 @@ def calculate_features(
         )
 
         or
+
         (
             oi_change_1h
             is not None
@@ -1202,33 +1243,23 @@ def calculate_features(
     score = 0
 
     score += (
-        1
-        if wakeup
-        else 0
+        1 if wakeup else 0
     )
 
     score += (
-        1
-        if persistence
-        else 0
+        1 if persistence else 0
     )
 
     score += (
-        1
-        if retention
-        else 0
+        1 if retention else 0
     )
 
     score += (
-        1
-        if reignition
-        else 0
+        1 if reignition else 0
     )
 
     score += (
-        1
-        if trigger
-        else 0
+        1 if trigger else 0
     )
 
     score += (
@@ -1294,10 +1325,13 @@ def calculate_features(
 
     return {
         "ts_utc":
-            utc_now(),
+            scan_time,
 
         "config_version":
             CONFIG_VERSION,
+
+        "data_mode":
+            data_mode,
 
         "symbol":
             symbol,
@@ -1313,6 +1347,12 @@ def calculate_features(
 
         "price":
             current_price,
+
+        "signal_bar_open_ms":
+            signal_bar_open_ms,
+
+        "signal_bar_close_ms":
+            signal_bar_close_ms,
 
         "change_15m":
             change_15m,
@@ -1408,12 +1448,17 @@ def ranking_key(
         ),
         int(
             feature[
-                "reignition"
+                "wakeup"
             ]
         ),
         int(
             feature[
                 "persistence"
+            ]
+        ),
+        int(
+            feature[
+                "reignition"
             ]
         ),
         int(
@@ -1443,7 +1488,7 @@ def run_scan():
     )
 
     print(
-        "BINANCE AVCI 2 V1.4"
+        "BINANCE AVCI 2 V1.5"
     )
 
     print(
@@ -1478,6 +1523,12 @@ def run_scan():
 
         raise
 
+    data_mode = (
+        DATA_MODE_FULL
+        if futures_mode
+        else DATA_MODE_SPOT
+    )
+
     if futures_mode:
         print(
             "Veri modu: "
@@ -1494,10 +1545,6 @@ def run_scan():
             "OI ve fonlama verisi "
             "bu taramada kullanilamiyor."
         )
-
-    print(
-        "=" * 80
-    )
 
     btc_change_24h = float(
         spot_24h.get(
@@ -1516,6 +1563,11 @@ def run_scan():
     )
 
     print(
+        f"Toplam taranacak coin: "
+        f"{len(universe)}"
+    )
+
+    print(
         "=" * 80
     )
 
@@ -1526,6 +1578,7 @@ def run_scan():
             universe
         ),
         btc_change_24h,
+        data_mode,
     )
 
     daily_movers = []
@@ -1598,19 +1651,32 @@ def run_scan():
             CONFIG_VERSION,
         )
 
+    features = []
     signals = []
+
+    stage_counts = {
+        "WAKE_UP":
+            0,
+
+        "CONTINUATION":
+            0,
+
+        "REIGNITION":
+            0,
+
+        "TRIGGER":
+            0,
+
+        "OBSERVE":
+            0,
+    }
+
+    climax_count = 0
+    event_count = 0
+    cooldown_skip_count = 0
 
     total = len(
         universe
-    )
-
-    print(
-        f"Toplam taranacak coin: "
-        f"{total}"
-    )
-
-    print(
-        "=" * 80
     )
 
     for index, symbol in enumerate(
@@ -1634,15 +1700,35 @@ def run_scan():
                     ],
                     futures_data,
                     btc_change_24h,
+                    data_mode,
+                    scan_time,
                 )
             )
 
-            save_feature(
-                feature,
-                is_selected=0,
+            features.append(
+                feature
             )
 
-            if (
+            stage_counts[
+                feature[
+                    "stage"
+                ]
+            ] = (
+                stage_counts.get(
+                    feature[
+                        "stage"
+                    ],
+                    0,
+                )
+                + 1
+            )
+
+            if feature[
+                "climax_risk"
+            ]:
+                climax_count += 1
+
+            is_signal = (
                 feature[
                     "stage"
                 ]
@@ -1653,10 +1739,39 @@ def run_scan():
                 not feature[
                     "climax_risk"
                 ]
-            ):
+            )
+
+            save_feature(
+                feature,
+                is_selected=0,
+                is_signal=is_signal,
+            )
+
+            if is_signal:
                 signals.append(
                     feature
                 )
+
+                event_id = (
+                    create_signal_event(
+                        feature,
+                        cooldown_hours=(
+                            COOLDOWN_HOURS
+                        ),
+                        fee_bps_per_side=(
+                            FEE_BPS_PER_SIDE
+                        ),
+                        slippage_bps_per_side=(
+                            SLIPPAGE_BPS_PER_SIDE
+                        ),
+                    )
+                )
+
+                if event_id is None:
+                    cooldown_skip_count += 1
+
+                else:
+                    event_count += 1
 
         except Exception as error:
             save_data_issue(
@@ -1686,6 +1801,13 @@ def run_scan():
         :MAX_SELECTED
     ]
 
+    for feature in selected:
+        save_feature(
+            feature,
+            is_selected=1,
+            is_signal=True,
+        )
+
     print(
         "=" * 80
     )
@@ -1700,6 +1822,11 @@ def run_scan():
     )
 
     print(
+        f"Kaydedilen tum coinler: "
+        f"{len(features)}"
+    )
+
+    print(
         f"Sinyal veren coin: "
         f"{len(signals)}"
     )
@@ -1707,6 +1834,51 @@ def run_scan():
     print(
         f"Secilen aday: "
         f"{len(selected)}"
+    )
+
+    print(
+        f"Yeni event: "
+        f"{event_count}"
+    )
+
+    print(
+        f"Cooldown nedeniyle "
+        f"yeni event sayilmayan: "
+        f"{cooldown_skip_count}"
+    )
+
+    print(
+        f"Climax nedeniyle elenen: "
+        f"{climax_count}"
+    )
+
+    print(
+        "-" * 80
+    )
+
+    print(
+        f"Uyanis: "
+        f"{stage_counts['WAKE_UP']}"
+    )
+
+    print(
+        f"Devam: "
+        f"{stage_counts['CONTINUATION']}"
+    )
+
+    print(
+        f"Yeniden canlanma: "
+        f"{stage_counts['REIGNITION']}"
+    )
+
+    print(
+        f"Tetik: "
+        f"{stage_counts['TRIGGER']}"
+    )
+
+    print(
+        f"Gozlem: "
+        f"{stage_counts['OBSERVE']}"
     )
 
     print(
@@ -1771,11 +1943,6 @@ def run_scan():
         selected,
         start=1,
     ):
-        save_feature(
-            feature,
-            is_selected=1,
-        )
-
         stage_tr = stage_names.get(
             feature[
                 "stage"
@@ -1801,6 +1968,38 @@ def run_scan():
             * 100.0
         )
 
+        oi_value = (
+            feature[
+                "oi_change_1h_pct"
+            ]
+        )
+
+        funding_value = (
+            feature[
+                "funding_rate"
+            ]
+        )
+
+        if oi_value is None:
+            oi_text = (
+                "VERI YOK"
+            )
+
+        else:
+            oi_text = (
+                f"{oi_value:+.2f}%"
+            )
+
+        if funding_value is None:
+            funding_text = (
+                "VERI YOK"
+            )
+
+        else:
+            funding_text = (
+                f"{funding_value:.6f}"
+            )
+
         print(
             f"{rank}. "
             f"{feature['symbol']} "
@@ -1810,7 +2009,12 @@ def run_scan():
         )
 
         print(
-            f"   Fiyat hareketi -> "
+            f"   Veri modu: "
+            f"{feature['data_mode']}"
+        )
+
+        print(
+            f"   Fiyat -> "
             f"24s: "
             f"{feature['change_24h']:+.2f}% "
             f"| 1s: "
@@ -1846,51 +2050,6 @@ def run_scan():
             f"| Tetik: "
             f"{'EVET' if feature['trigger'] else 'HAYIR'}"
         )
-
-        if feature[
-            "climax_risk"
-        ]:
-            climax_text = (
-                "YUKSEK"
-            )
-
-        else:
-            climax_text = (
-                "DUSUK"
-            )
-
-        print(
-            f"   Asiri uzama riski: "
-            f"{climax_text}"
-        )
-
-        oi_value = feature[
-            "oi_change_1h_pct"
-        ]
-
-        funding_value = feature[
-            "funding_rate"
-        ]
-
-        if oi_value is None:
-            oi_text = (
-                "VERI YOK"
-            )
-
-        else:
-            oi_text = (
-                f"{oi_value:+.2f}%"
-            )
-
-        if funding_value is None:
-            funding_text = (
-                "VERI YOK"
-            )
-
-        else:
-            funding_text = (
-                f"{funding_value:.6f}"
-            )
 
         print(
             f"   Acik pozisyon 1s: "
