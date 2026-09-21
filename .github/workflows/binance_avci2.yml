@@ -28,6 +28,9 @@ jobs:
       - name: Run Binance scanner
         run: python binance_scanner.py
 
+      - name: Run outcome labeler
+        run: python binance_outcome_labeler.py
+
       - name: Run winner anatomy
         run: python binance_winner_anatomy.py
 
@@ -42,5 +45,6 @@ jobs:
             echo "No database changes"
           else
             git commit -m "data: update Binance Avci 2 snapshots"
-            git push
+            git pull --rebase origin main
+            git push origin main
           fi
