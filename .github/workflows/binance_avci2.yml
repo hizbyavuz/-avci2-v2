@@ -2,28 +2,94 @@ name: Binance Avci 2
 
 on:
   workflow_dispatch:
+    inputs:
+      journal_action:
+        description: "Optional: ENTRY, EXIT or SKIP"
+        required: false
+        type: choice
+        default: "NONE"
+        options: ["NONE", "ENTRY", "EXIT", "SKIP"]
+      journal_event_id:
+        description: "Signal event ID"
+        required: false
+        type: string
+      journal_price:
+        description: "Executed price (0 for SKIP)"
+        required: false
+        default: "0"
+        type: string
+      journal_quantity:
+        description: "Optional quantity"
+        required: false
+        type: string
+      journal_notes:
+        description: "Optional decision note"
+        required: false
+        type: string
   schedule:
     - cron: "7,22,37,52 * * * *"
 
 permissions:
-  contents: write
+  contents: read
+  actions: write
+
+concurrency:
+  group: binance-avci2-state
+  cancel-in-progress: false
 
 jobs:
   scan:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
+
+      - name: Restore latest research state
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          run_id=$(gh api \
+            "repos/${GITHUB_REPOSITORY}/actions/artifacts?name=binance-avci2-state&per_page=100" \
+            --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | reverse | .[0].workflow_run.id // empty')
+
+          if [ -n "$run_id" ]; then
+            mkdir -p .state
+            gh run download "$run_id" \
+              --name binance-avci2-state \
+              --dir .state
+            cp .state/binance_avci2.db binance_avci2.db
+            echo "Previous database restored"
+          else
+            echo "No state artifact yet; repository database will seed the first run"
+          fi
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
       - name: Install dependencies
         run: pip install -r binance_requirements.txt
+
+      - name: Run permanent tests
+        run: python -m unittest discover -s tests -v
+
+      - name: Save optional manual trade journal entry
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.journal_action != 'NONE' }}
+        env:
+          JOURNAL_ACTION: ${{ inputs.journal_action }}
+          JOURNAL_EVENT_ID: ${{ inputs.journal_event_id }}
+          JOURNAL_PRICE: ${{ inputs.journal_price }}
+          JOURNAL_QUANTITY: ${{ inputs.journal_quantity }}
+          JOURNAL_NOTES: ${{ inputs.journal_notes }}
+        run: |
+          args=(--event-id "$JOURNAL_EVENT_ID" --action "$JOURNAL_ACTION" --price "$JOURNAL_PRICE" --notes "$JOURNAL_NOTES")
+          if [ -n "$JOURNAL_QUANTITY" ]; then
+            args+=(--quantity "$JOURNAL_QUANTITY")
+          fi
+          python binance_trade_journal.py "${args[@]}"
 
       - name: Run Binance scanner
         run: python binance_scanner.py
@@ -34,17 +100,44 @@ jobs:
       - name: Run winner anatomy
         run: python binance_winner_anatomy.py
 
-      - name: Commit research database
+      - name: Build readable report
+        run: python binance_report.py
+
+      - name: Build HTML dashboard
+        run: python binance_dashboard.py
+
+      - name: Add report to job summary
+        run: cat binance_latest_report.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Optional Telegram notification
+        continue-on-error: true
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python binance_notify.py
+
+      - name: Upload research state
+        uses: actions/upload-artifact@v4
+        with:
+          name: binance-avci2-state
+          path: |
+            binance_avci2.db
+            binance_latest_report.md
+            binance_dashboard.html
+          if-no-files-found: error
+          retention-days: 21
+          compression-level: 6
+
+      - name: Keep latest two state backups
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          artifact_ids=$(gh api \
+            "repos/${GITHUB_REPOSITORY}/actions/artifacts?name=binance-avci2-state&per_page=100" \
+            --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | reverse | .[2:] | .[].id')
 
-          git add binance_avci2.db
-
-          if git diff --cached --quiet; then
-            echo "No database changes"
-          else
-            git commit -m "data: update Binance Avci 2 snapshots"
-            git pull --rebase origin main
-            git push origin main
-          fi
+          for artifact_id in $artifact_ids; do
+            gh api --method DELETE \
+              "repos/${GITHUB_REPOSITORY}/actions/artifacts/${artifact_id}"
+          done
