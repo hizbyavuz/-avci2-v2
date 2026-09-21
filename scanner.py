@@ -290,12 +290,14 @@ def scan_payload(
             created_at
         )
 
-        liquidity = num(
-            a.get("reserve_in_usd")
+         liquidity = num(
+         a.get("reserve_in_usd")
         )
-price_usd = num(
-    a.get("base_token_price_usd")
-)
+
+        price_usd = num(
+            a.get("base_token_price_usd")
+        )
+
         volume = a.get(
             "volume_usd",
             {}
