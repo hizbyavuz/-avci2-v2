@@ -266,7 +266,7 @@ def scan_payload(
 
     found = []
 
-    for pool in payload.get("data", []):
+       for pool in payload.get("data", []):
         a = pool.get(
             "attributes",
             {}
@@ -277,7 +277,7 @@ def scan_payload(
             ""
         )
 
-                pool_name = a.get(
+        pool_name = a.get(
             "name",
             "Unknown"
         )
@@ -285,6 +285,10 @@ def scan_payload(
         created_at = a.get(
             "pool_created_at"
         )
+
+        age_minutes = pool_age_minutes(
+            created_at
+        ) 
 
         age_minutes = pool_age_minutes(
             created_at
