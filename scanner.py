@@ -998,32 +998,72 @@ else:
             c["token_contract"]
         )
             if c.get("network_id") == "solana":
-                quote = jupiter_quote(
-                    c["token_contract"],
-                    USDC_MINT,
-                    1_000_000
+                           price_usd = c.get("price_usd", 0)
+            decimals = int(c.get("decimals", 0)) 
+     if price_usd <= 0 or decimals <= 0:
+    print("   Jupiter hata: fiyat veya decimals yok")
+    continue   
+amount_1000 = int(
+    (1000 / price_usd)
+    * (10 ** decimals)
+)
+amount_5000 = int(
+    (5000 / price_usd)
+    * (10 ** decimals)
+)
+quote = jupiter_quote(
+    c["token_contract"],
+    USDC_MINT,
+    amount_1000
+)     
+   quote_5000 = jupiter_quote(
+    c["token_contract"],
+    USDC_MINT,
+    amount_5000
+)             
+
+                          print("   Jupiter $1K:")
+
+            if quote["ok"]:
+                print(
+                    "   Route:",
+                    "VAR" if quote["route_plan"] else "YOK"
+                )
+                print(
+                    "   Price impact:",
+                    quote["price_impact_pct"]
+                )
+                print(
+                    "   Out amount:",
+                    quote["out_amount"]
+                )
+            else:
+                print(
+                    "   Jupiter hata:",
+                    quote["error"]
                 )
 
-                print("   Jupiter:")
+            print("   Jupiter $5K:")
 
-                if quote["ok"]:
-                    print(
-                        "   Route:",
-                        "VAR" if quote["route_plan"] else "YOK"
-                    )
-                    print(
-                        "   Price impact:",
-                        quote["price_impact_pct"]
-                    )
-                    print(
-                        "   Out amount:",
-                        quote["out_amount"]
-                    )
-                else:
-                    print(
-                        "   Jupiter hata:",
-                        quote["error"]
-                    )
+            if quote_5000["ok"]:
+                print(
+                    "   Route:",
+                    "VAR" if quote_5000["route_plan"] else "YOK"
+                )
+                print(
+                    "   Price impact:",
+                    quote_5000["price_impact_pct"]
+                )
+                print(
+                    "   Out amount:",
+                    quote_5000["out_amount"]
+                )
+            else:
+                print(
+                    "   Jupiter hata:",
+                    quote_5000["error"]
+                )
+                    
         print(
             "   Pool:"
         )
