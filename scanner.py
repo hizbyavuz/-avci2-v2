@@ -1,6 +1,8 @@
 import os
 import requests
 import time
+import sqlite3
+from collections import Counter, defaultdict
 from datetime import datetime, timezone
 
 from snapshot_deposu import snapshot_kaydet, son_snapshot, snapshot_sayisi
@@ -50,11 +52,67 @@ SOLANA_PUBLIC_RPC = os.getenv(
 
 GOPLUS_ACCESS_TOKEN = os.getenv("GOPLUS_ACCESS_TOKEN", "")
 
+ZEROX_API_KEY = os.getenv("ZEROX_API_KEY", "")
+
+# 0x cikis testinde alinacak stabil token.
+EVM_STABLES = {
+    "eth": {
+        "address": "0xA0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+        "symbol": "USDC",
+        "decimals": 6,
+    },
+    "base": {
+        "address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "symbol": "USDC",
+        "decimals": 6,
+    },
+    "arbitrum": {
+        "address": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+        "symbol": "USDC",
+        "decimals": 6,
+    },
+    "bsc": {
+        "address": "0x55d398326f99059fF775485246999027B3197955",
+        "symbol": "USDT",
+        "decimals": 18,
+    },
+}
+
+OUTCOME_DB_PATH = os.getenv(
+    "AVCI_OUTCOME_DB",
+    "avci_outcomes.db"
+)
+
+OUTCOME_SIGNAL_COOLDOWN_HOURS = 24
+OUTCOME_MAX_UPDATES_PER_RUN = 2
+OUTCOME_TARGETS = (3, 5, 7, 10, 15)
+OUTCOME_CLOSE_HOURS = 72
+
+# Top-holder hesabinda sistem/LP/burn/borsa benzeri etiketleri disla.
+EXCLUDED_HOLDER_TAG_WORDS = (
+    "burn",
+    "dead",
+    "null",
+    "locker",
+    "locked",
+    "liquidity",
+    "pool",
+    "raydium",
+    "orca",
+    "meteora",
+    "pump",
+    "program",
+    "dex",
+    "exchange",
+    "cex",
+    "bridge",
+)
+
 SOL_MINT = "So11111111111111111111111111111111111111112"
 USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
 USDC_DECIMALS = 6
 
-CONFIG_VERSION = "v3.0-complete-core-20260921"
+CONFIG_VERSION = "v4.0-full-risk-outcome-20260921"
 
 # ------------------------------------------------------------
 # TEMEL EVREN / TRADABILITY
@@ -1539,6 +1597,1028 @@ def deduplicate(candidates):
     )
 
 
+
+# ============================================================
+# V4 EK MOTORLAR
+# LP LOCK/BURN, DUZELTILMIS HOLDER, EVM EXIT, TRADE CLUSTER,
+# QUOTE TIMESTAMP, OUTCOME/MFE/MAE
+# ============================================================
+
+def utc_iso():
+    return datetime.now(timezone.utc).isoformat()
+
+
+def is_excluded_holder_tag(tag):
+    text = str(tag or "").strip().lower()
+
+    if not text:
+        return False
+
+    return any(
+        word in text
+        for word in EXCLUDED_HOLDER_TAG_WORDS
+    )
+
+
+def goplus_headers():
+    headers = {
+        "accept": "application/json"
+    }
+
+    if GOPLUS_ACCESS_TOKEN:
+        headers["Authorization"] = (
+            f"Bearer {GOPLUS_ACCESS_TOKEN}"
+        )
+
+    return headers
+
+
+def goplus_raw_evm(network_id, contract):
+    chain_id = EVM_CHAIN_IDS.get(network_id)
+
+    if not chain_id:
+        return {
+            "ok": False,
+            "error": "Desteklenmeyen EVM chain",
+            "data": None,
+        }
+
+    try:
+        r = requests.get(
+            (
+                "https://api.gopluslabs.io/api/v1/"
+                f"token_security/{chain_id}"
+            ),
+            params={
+                "contract_addresses": contract
+            },
+            headers=goplus_headers(),
+            timeout=20,
+        )
+
+        if r.status_code in (401, 403):
+            return {
+                "ok": False,
+                "error": "GoPlus auth/yetki yok",
+                "data": None,
+            }
+
+        r.raise_for_status()
+        payload = r.json()
+        result = payload.get("result") or {}
+
+        token = (
+            result.get(contract.lower())
+            or result.get(contract)
+            or {}
+        )
+
+        if not token:
+            return {
+                "ok": False,
+                "error": "GoPlus DATA_MISSING",
+                "data": None,
+            }
+
+        return {
+            "ok": True,
+            "error": None,
+            "data": token,
+        }
+
+    except Exception as e:
+        return {
+            "ok": False,
+            "error": str(e),
+            "data": None,
+        }
+
+
+def goplus_raw_solana(contract):
+    try:
+        r = requests.get(
+            (
+                "https://api.gopluslabs.io/api/v1/"
+                "solana/token_security"
+            ),
+            params={
+                "contract_addresses": contract
+            },
+            headers=goplus_headers(),
+            timeout=20,
+        )
+
+        if r.status_code in (401, 403):
+            return {
+                "ok": False,
+                "error": "GoPlus Solana auth/yetki yok",
+                "data": None,
+            }
+
+        r.raise_for_status()
+        payload = r.json()
+        result = payload.get("result") or {}
+
+        token = (
+            result.get(contract)
+            or result.get(contract.lower())
+            or {}
+        )
+
+        # Bazı sürümlerde result doğrudan token objesi olabilir.
+        if not token and any(
+            k in result
+            for k in (
+                "metadata",
+                "holders",
+                "dex",
+                "dex_info",
+                "total_supply",
+            )
+        ):
+            token = result
+
+        if not token:
+            return {
+                "ok": False,
+                "error": "GoPlus Solana DATA_MISSING",
+                "data": None,
+            }
+
+        return {
+            "ok": True,
+            "error": None,
+            "data": token,
+        }
+
+    except Exception as e:
+        return {
+            "ok": False,
+            "error": str(e),
+            "data": None,
+        }
+
+
+def adjusted_holder_concentration(holders):
+    rows = []
+
+    for h in holders or []:
+        tag = h.get("tag")
+        percent = num(h.get("percent")) * 100.0
+
+        if percent <= 0:
+            continue
+
+        excluded = (
+            is_excluded_holder_tag(tag)
+            or bool01(h.get("is_locked")) is True
+        )
+
+        if excluded:
+            continue
+
+        rows.append(percent)
+
+    rows.sort(reverse=True)
+
+    if not rows:
+        return {
+            "ok": False,
+            "top1_pct": None,
+            "top5_pct": None,
+            "top10_pct": None,
+            "counted_rows": 0,
+        }
+
+    return {
+        "ok": True,
+        "top1_pct": sum(rows[:1]),
+        "top5_pct": sum(rows[:5]),
+        "top10_pct": sum(rows[:10]),
+        "counted_rows": len(rows),
+    }
+
+
+def recursively_find_lists(obj, key_name):
+    found = []
+
+    if isinstance(obj, dict):
+        for key, value in obj.items():
+            if key == key_name and isinstance(value, list):
+                found.append(value)
+
+            found.extend(
+                recursively_find_lists(
+                    value,
+                    key_name
+                )
+            )
+
+    elif isinstance(obj, list):
+        for item in obj:
+            found.extend(
+                recursively_find_lists(
+                    item,
+                    key_name
+                )
+            )
+
+    return found
+
+
+def lp_protection_summary(raw_token):
+    lp_lists = recursively_find_lists(
+        raw_token or {},
+        "lp_holders"
+    )
+
+    if not lp_lists:
+        return {
+            "status": "DATA_MISSING",
+            "protected_pct": None,
+            "locked_pct": None,
+            "burned_pct": None,
+            "unknown_unlocked_pct": None,
+            "holders_seen": 0,
+        }
+
+    # En fazla holder bilgisi olan LP setini kullan.
+    holders = max(
+        lp_lists,
+        key=len
+    )
+
+    locked = 0.0
+    burned = 0.0
+    unknown_unlocked = 0.0
+
+    for h in holders:
+        p = num(h.get("percent")) * 100.0
+        tag = str(h.get("tag") or "").lower()
+        is_locked = bool01(
+            h.get("is_locked")
+        )
+
+        is_burn = any(
+            x in tag
+            for x in (
+                "burn",
+                "dead",
+                "null",
+                "black hole",
+            )
+        )
+
+        if is_burn:
+            burned += p
+        elif is_locked is True:
+            locked += p
+        else:
+            unknown_unlocked += p
+
+    protected = locked + burned
+
+    if protected >= 80:
+        status = "STRONGLY_PROTECTED"
+    elif protected >= 50:
+        status = "PARTLY_PROTECTED"
+    else:
+        status = "LOW_OR_UNKNOWN_PROTECTION"
+
+    return {
+        "status": status,
+        "protected_pct": protected,
+        "locked_pct": locked,
+        "burned_pct": burned,
+        "unknown_unlocked_pct": unknown_unlocked,
+        "holders_seen": len(holders),
+    }
+
+
+def gecko_recent_trade_cluster(
+    network_id,
+    pool_address,
+    creator=None,
+):
+    path = (
+        f"/networks/{network_id}/pools/"
+        f"{pool_address}/trades"
+    )
+
+    payload = api_get(path)
+    rows = payload.get("data") or []
+
+    parsed = []
+
+    for item in rows:
+        a = item.get("attributes") or {}
+        wallet = a.get("tx_from_address")
+        block = a.get("block_number")
+        kind = str(a.get("kind") or "").lower()
+        ts = a.get("block_timestamp")
+        volume = num(a.get("volume_in_usd"))
+
+        if not wallet:
+            continue
+
+        parsed.append({
+            "wallet": wallet,
+            "block": block,
+            "kind": kind,
+            "timestamp": ts,
+            "volume": volume,
+        })
+
+    if not parsed:
+        return {
+            "ok": False,
+            "error": "TRADE_DATA_MISSING",
+        }
+
+    wallet_counts = Counter(
+        x["wallet"]
+        for x in parsed
+    )
+
+    unique_wallets = len(wallet_counts)
+    total = len(parsed)
+    top_wallet_count = (
+        wallet_counts.most_common(1)[0][1]
+        if wallet_counts
+        else 0
+    )
+
+    top_wallet_trade_share = (
+        top_wallet_count / total
+        if total
+        else 0
+    )
+
+    same_block_buys = Counter()
+
+    for x in parsed:
+        if x["kind"] == "buy" and x["block"] is not None:
+            same_block_buys[x["block"]] += 1
+
+    max_same_block_buys = (
+        max(same_block_buys.values())
+        if same_block_buys
+        else 0
+    )
+
+    creator_trades = 0
+
+    if creator:
+        creator_norm = str(creator).lower()
+
+        creator_trades = sum(
+            1
+            for x in parsed
+            if str(x["wallet"]).lower()
+            == creator_norm
+        )
+
+    bundle_proxy = (
+        max_same_block_buys >= 4
+        or top_wallet_trade_share >= 0.25
+    )
+
+    return {
+        "ok": True,
+        "error": None,
+        "trades_seen": total,
+        "unique_wallets": unique_wallets,
+        "top_wallet_trade_share":
+            top_wallet_trade_share,
+        "max_same_block_buys":
+            max_same_block_buys,
+        "bundle_sniper_proxy":
+            bundle_proxy,
+        "creator_trades_in_pool":
+            creator_trades,
+    }
+
+
+def helius_creator_transfer_activity(
+    creator,
+    mint,
+):
+    if not HELIUS_API_KEY or not creator:
+        return {
+            "ok": False,
+            "error": "HELIUS_OR_CREATOR_MISSING",
+        }
+
+    url = helius_rpc_url()
+
+    since = int(
+        time.time() - 24 * 3600
+    )
+
+    res = json_rpc(
+        url,
+        "getTransfersByAddress",
+        [
+            creator,
+            {
+                "mint": mint,
+                "filters": {
+                    "blockTime": {
+                        "gte": since
+                    },
+                    "status": "succeeded",
+                },
+                "limit": 100,
+            }
+        ]
+    )
+
+    if not res.get("ok"):
+        return {
+            "ok": False,
+            "error": res.get("error"),
+        }
+
+    result = res.get("result") or {}
+    rows = (
+        result.get("data")
+        or result.get("transfers")
+        or result.get("items")
+        or (
+            result
+            if isinstance(result, list)
+            else []
+        )
+    )
+
+    if not isinstance(rows, list):
+        rows = []
+
+    return {
+        "ok": True,
+        "error": None,
+        "transfers_24h": len(rows),
+    }
+
+
+def zerox_exit_price(
+    network_id,
+    sell_token,
+    sell_amount,
+):
+    if not ZEROX_API_KEY:
+        return {
+            "ok": False,
+            "error": "ZEROX_API_KEY yok",
+            "timestamp": utc_iso(),
+        }
+
+    chain_id = EVM_CHAIN_IDS.get(
+        network_id
+    )
+
+    stable = EVM_STABLES.get(
+        network_id
+    )
+
+    if not chain_id or not stable:
+        return {
+            "ok": False,
+            "error": "0x chain/stable desteklenmiyor",
+            "timestamp": utc_iso(),
+        }
+
+    try:
+        r = requests.get(
+            (
+                "https://api.0x.org/"
+                "swap/allowance-holder/price"
+            ),
+            params={
+                "chainId": chain_id,
+                "sellToken": sell_token,
+                "buyToken": stable["address"],
+                "sellAmount": str(
+                    int(sell_amount)
+                ),
+            },
+            headers={
+                "0x-api-key": ZEROX_API_KEY,
+                "0x-version": "v2",
+                "accept": "application/json",
+            },
+            timeout=20,
+        )
+
+        r.raise_for_status()
+        data = r.json()
+
+        liquidity_available = data.get(
+            "liquidityAvailable"
+        )
+
+        if liquidity_available is False:
+            return {
+                "ok": False,
+                "error": "0x liquidityAvailable=false",
+                "timestamp": utc_iso(),
+            }
+
+        buy_amount = num(
+            data.get("buyAmount")
+        )
+
+        out_usd = (
+            buy_amount
+            / (
+                10
+                ** stable["decimals"]
+            )
+        )
+
+        return {
+            "ok": True,
+            "error": None,
+            "timestamp": utc_iso(),
+            "out_usd": out_usd,
+            "buy_amount": data.get(
+                "buyAmount"
+            ),
+            "liquidity_available":
+                liquidity_available,
+            "stable_symbol":
+                stable["symbol"],
+            "block_number":
+                data.get("blockNumber"),
+        }
+
+    except Exception as e:
+        return {
+            "ok": False,
+            "error": str(e),
+            "timestamp": utc_iso(),
+        }
+
+
+def evm_exit_metrics(
+    network_id,
+    token,
+    decimals,
+    price_usd,
+    intended_usd,
+):
+    if decimals <= 0 or price_usd <= 0:
+        return {
+            "ok": False,
+            "error": "fiyat veya decimals yok",
+            "timestamp": utc_iso(),
+        }
+
+    sell_amount = int(
+        (intended_usd / price_usd)
+        * (10 ** decimals)
+    )
+
+    q = zerox_exit_price(
+        network_id,
+        token,
+        sell_amount,
+    )
+
+    if not q.get("ok"):
+        return q
+
+    out_usd = num(
+        q.get("out_usd")
+    )
+
+    loss_pct = (
+        (
+            intended_usd
+            - out_usd
+        )
+        / intended_usd
+    ) * 100.0
+
+    q["loss_pct"] = loss_pct
+    q["intended_usd"] = (
+        intended_usd
+    )
+
+    return q
+
+
+# ------------------------------------------------------------
+# OUTCOME / MFE / MAE — 1 DAKIKALIK OHLCV
+# ------------------------------------------------------------
+
+def outcome_db():
+    con = sqlite3.connect(
+        OUTCOME_DB_PATH
+    )
+
+    con.execute(
+        """
+        CREATE TABLE IF NOT EXISTS signals (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            config_version TEXT NOT NULL,
+            network_id TEXT NOT NULL,
+            token_contract TEXT NOT NULL,
+            pool TEXT NOT NULL,
+            signal_ts INTEGER NOT NULL,
+            signal_iso TEXT NOT NULL,
+            entry_price REAL NOT NULL,
+            last_candle_ts INTEGER,
+            mfe_pct REAL NOT NULL DEFAULT 0,
+            mae_pct REAL NOT NULL DEFAULT 0,
+            hit_3_ts INTEGER,
+            hit_5_ts INTEGER,
+            hit_7_ts INTEGER,
+            hit_10_ts INTEGER,
+            hit_15_ts INTEGER,
+            observation_count INTEGER NOT NULL DEFAULT 0,
+            status TEXT NOT NULL DEFAULT 'OPEN'
+        )
+        """
+    )
+
+    con.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_signals_open
+        ON signals(status, signal_ts)
+        """
+    )
+
+    con.commit()
+    return con
+
+
+def record_signal_for_outcome(c):
+    entry_price = num(
+        c.get("price_usd")
+    )
+
+    if entry_price <= 0:
+        return None
+
+    now_ts = int(time.time())
+    cutoff = (
+        now_ts
+        - OUTCOME_SIGNAL_COOLDOWN_HOURS
+        * 3600
+    )
+
+    con = outcome_db()
+
+    row = con.execute(
+        """
+        SELECT id
+        FROM signals
+        WHERE network_id = ?
+          AND token_contract = ?
+          AND signal_ts >= ?
+        ORDER BY signal_ts DESC
+        LIMIT 1
+        """,
+        (
+            c["network_id"],
+            c["token_contract"],
+            cutoff,
+        )
+    ).fetchone()
+
+    if row:
+        con.close()
+        return row[0]
+
+    cur = con.execute(
+        """
+        INSERT INTO signals (
+            config_version,
+            network_id,
+            token_contract,
+            pool,
+            signal_ts,
+            signal_iso,
+            entry_price,
+            last_candle_ts,
+            status
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'OPEN')
+        """,
+        (
+            CONFIG_VERSION,
+            c["network_id"],
+            c["token_contract"],
+            c["pool"],
+            now_ts,
+            utc_iso(),
+            entry_price,
+            now_ts - 60,
+        )
+    )
+
+    signal_id = cur.lastrowid
+    con.commit()
+    con.close()
+    return signal_id
+
+
+def fetch_minute_candles(
+    network_id,
+    pool,
+    token_contract,
+    before_ts=None,
+    limit=120,
+):
+    path = (
+        f"/networks/{network_id}/pools/"
+        f"{pool}/ohlcv/minute"
+        f"?aggregate=1"
+        f"&limit={int(limit)}"
+        f"&currency=usd"
+        f"&token={token_contract}"
+    )
+
+    if before_ts:
+        path += (
+            f"&before_timestamp="
+            f"{int(before_ts)}"
+        )
+
+    payload = api_get(path)
+    data = payload.get("data") or {}
+    attrs = data.get("attributes") or {}
+    rows = attrs.get(
+        "ohlcv_list"
+    ) or []
+
+    parsed = []
+
+    for row in rows:
+        if (
+            not isinstance(row, list)
+            or len(row) < 6
+        ):
+            continue
+
+        parsed.append({
+            "ts": int_or_zero(row[0]),
+            "open": num(row[1]),
+            "high": num(row[2]),
+            "low": num(row[3]),
+            "close": num(row[4]),
+            "volume": num(row[5]),
+        })
+
+    parsed.sort(
+        key=lambda x: x["ts"]
+    )
+
+    return parsed
+
+
+def update_one_outcome(
+    con,
+    signal_row,
+):
+    (
+        signal_id,
+        network_id,
+        token_contract,
+        pool,
+        signal_ts,
+        entry_price,
+        last_candle_ts,
+        mfe_pct,
+        mae_pct,
+        hit3,
+        hit5,
+        hit7,
+        hit10,
+        hit15,
+        obs_count,
+    ) = signal_row
+
+    now_ts = int(time.time())
+
+    # Her run'da son ~3 saati cekmek,
+    # 10 dk scheduler icin yeterli tampon verir.
+    candles = fetch_minute_candles(
+        network_id,
+        pool,
+        token_contract,
+        before_ts=now_ts + 60,
+        limit=180,
+    )
+
+    candles = [
+        x
+        for x in candles
+        if x["ts"] > (
+            last_candle_ts
+            or signal_ts - 60
+        )
+        and x["ts"] >= signal_ts
+    ]
+
+    if not candles:
+        if (
+            now_ts - signal_ts
+            >= OUTCOME_CLOSE_HOURS
+            * 3600
+        ):
+            con.execute(
+                """
+                UPDATE signals
+                SET status = 'CLOSED_72H'
+                WHERE id = ?
+                """,
+                (signal_id,)
+            )
+        return
+
+    target_hits = {
+        3: hit3,
+        5: hit5,
+        7: hit7,
+        10: hit10,
+        15: hit15,
+    }
+
+    current_mfe = num(mfe_pct)
+    current_mae = num(mae_pct)
+
+    for candle in candles:
+        high_ret = (
+            (
+                candle["high"]
+                / entry_price
+            )
+            - 1
+        ) * 100.0
+
+        low_ret = (
+            (
+                candle["low"]
+                / entry_price
+            )
+            - 1
+        ) * 100.0
+
+        current_mfe = max(
+            current_mfe,
+            high_ret
+        )
+
+        current_mae = min(
+            current_mae,
+            low_ret
+        )
+
+        for target in OUTCOME_TARGETS:
+            if (
+                target_hits[target]
+                is None
+                and high_ret >= target
+            ):
+                target_hits[target] = (
+                    candle["ts"]
+                )
+
+    last_ts = candles[-1]["ts"]
+    new_obs = (
+        int_or_zero(obs_count)
+        + len(candles)
+    )
+
+    status = "OPEN"
+
+    if (
+        now_ts - signal_ts
+        >= OUTCOME_CLOSE_HOURS
+        * 3600
+    ):
+        status = "CLOSED_72H"
+
+    con.execute(
+        """
+        UPDATE signals
+        SET last_candle_ts = ?,
+            mfe_pct = ?,
+            mae_pct = ?,
+            hit_3_ts = ?,
+            hit_5_ts = ?,
+            hit_7_ts = ?,
+            hit_10_ts = ?,
+            hit_15_ts = ?,
+            observation_count = ?,
+            status = ?
+        WHERE id = ?
+        """,
+        (
+            last_ts,
+            current_mfe,
+            current_mae,
+            target_hits[3],
+            target_hits[5],
+            target_hits[7],
+            target_hits[10],
+            target_hits[15],
+            new_obs,
+            status,
+            signal_id,
+        )
+    )
+
+
+def update_outcomes():
+    con = outcome_db()
+
+    rows = con.execute(
+        """
+        SELECT
+            id,
+            network_id,
+            token_contract,
+            pool,
+            signal_ts,
+            entry_price,
+            last_candle_ts,
+            mfe_pct,
+            mae_pct,
+            hit_3_ts,
+            hit_5_ts,
+            hit_7_ts,
+            hit_10_ts,
+            hit_15_ts,
+            observation_count
+        FROM signals
+        WHERE status = 'OPEN'
+        ORDER BY signal_ts ASC
+        LIMIT ?
+        """,
+        (
+            OUTCOME_MAX_UPDATES_PER_RUN,
+        )
+    ).fetchall()
+
+    for row in rows:
+        try:
+            update_one_outcome(
+                con,
+                row
+            )
+            con.commit()
+        except Exception as e:
+            print(
+                "Outcome update hata:",
+                row[0],
+                e
+            )
+
+        time.sleep(7)
+
+    con.close()
+
+
+def outcome_summary():
+    con = outcome_db()
+
+    total = con.execute(
+        "SELECT COUNT(*) FROM signals"
+    ).fetchone()[0]
+
+    closed = con.execute(
+        """
+        SELECT COUNT(*)
+        FROM signals
+        WHERE status != 'OPEN'
+        """
+    ).fetchone()[0]
+
+    hits = {}
+
+    for target in OUTCOME_TARGETS:
+        col = f"hit_{target}_ts"
+
+        hits[target] = con.execute(
+            f"""
+            SELECT COUNT(*)
+            FROM signals
+            WHERE {col} IS NOT NULL
+            """
+        ).fetchone()[0]
+
+    con.close()
+
+    return {
+        "total": total,
+        "closed": closed,
+        "hits": hits,
+    }
+
+
 # ============================================================
 # NETWORK-SPECIFIC SECURITY + EXIT
 # ============================================================
@@ -2169,6 +3249,494 @@ def print_candidate(i, c):
     )
 
 
+
+# ============================================================
+# V4 OVERRIDES — ESKI CALISAN V3 MOTORLARINI KORUR,
+# USTUNE EKSIK RISK KATMANLARINI EKLER.
+# ============================================================
+
+_enrich_solana_candidate_v3 = enrich_solana_candidate
+_enrich_evm_candidate_v3 = enrich_evm_candidate
+_print_candidate_v3 = print_candidate
+
+
+def enrich_solana_candidate(c):
+    _enrich_solana_candidate_v3(c)
+
+    c["exit_quote_timestamp"] = utc_iso()
+
+    gp = goplus_raw_solana(
+        c["token_contract"]
+    )
+
+    c["goplus_solana"] = {
+        "ok": gp.get("ok"),
+        "error": gp.get("error"),
+    }
+
+    if not gp.get("ok"):
+        c.setdefault(
+            "security_risk_reasons",
+            []
+        ).append(
+            "GOPLUS_SOLANA_DATA_MISSING"
+        )
+
+        c["lp_protection"] = {
+            "status": "DATA_MISSING"
+        }
+
+        c["adjusted_holder"] = {
+            "ok": False
+        }
+
+        creator = None
+
+    else:
+        raw = gp.get("data") or {}
+
+        holders = raw.get(
+            "holders"
+        ) or []
+
+        c["adjusted_holder"] = (
+            adjusted_holder_concentration(
+                holders
+            )
+        )
+
+        c["lp_protection"] = (
+            lp_protection_summary(raw)
+        )
+
+        creator = (
+            raw.get("creator")
+            or raw.get("creator_address")
+        )
+
+        c["creator_address"] = creator
+
+        lp = c["lp_protection"]
+
+        if lp.get("status") == "DATA_MISSING":
+            c.setdefault(
+                "security_risk_reasons",
+                []
+            ).append(
+                "LP_DATA_MISSING"
+            )
+
+        elif num(
+            lp.get("protected_pct")
+        ) < 50:
+            c.setdefault(
+                "security_risk_reasons",
+                []
+            ).append(
+                "LP_LOW_PROTECTION"
+            )
+
+        adj = c["adjusted_holder"]
+
+        if adj.get("ok"):
+            if num(
+                adj.get("top1_pct")
+            ) >= SOL_TOP1_WARN_PCT:
+                c.setdefault(
+                    "security_risk_reasons",
+                    []
+                ).append(
+                    "ADJ_TOP1_CONCENTRATION"
+                )
+
+            if num(
+                adj.get("top5_pct")
+            ) >= SOL_TOP5_WARN_PCT:
+                c.setdefault(
+                    "security_risk_reasons",
+                    []
+                ).append(
+                    "ADJ_TOP5_CONCENTRATION"
+                )
+
+    cluster = gecko_recent_trade_cluster(
+        c["network_id"],
+        c["pool"],
+        creator=creator,
+    )
+
+    c["trade_cluster"] = cluster
+
+    if cluster.get(
+        "bundle_sniper_proxy"
+    ) is True:
+        c.setdefault(
+            "security_risk_reasons",
+            []
+        ).append(
+            "BUNDLE_SNIPER_PROXY"
+        )
+
+    if int_or_zero(
+        cluster.get(
+            "creator_trades_in_pool"
+        )
+    ) > 0:
+        c.setdefault(
+            "security_risk_reasons",
+            []
+        ).append(
+            "DEV_ACTIVE_IN_POOL"
+        )
+
+    dev_transfer = (
+        helius_creator_transfer_activity(
+            creator,
+            c["token_contract"],
+        )
+    )
+
+    c["dev_transfer_activity"] = (
+        dev_transfer
+    )
+
+    if (
+        dev_transfer.get("ok")
+        and int_or_zero(
+            dev_transfer.get(
+                "transfers_24h"
+            )
+        ) > 0
+    ):
+        c.setdefault(
+            "security_risk_reasons",
+            []
+        ).append(
+            "DEV_TOKEN_TRANSFERS_24H"
+        )
+
+
+def enrich_evm_candidate(c):
+    _enrich_evm_candidate_v3(c)
+
+    raw_res = goplus_raw_evm(
+        c["network_id"],
+        c["token_contract"]
+    )
+
+    c["goplus_raw"] = {
+        "ok": raw_res.get("ok"),
+        "error": raw_res.get("error"),
+    }
+
+    if not raw_res.get("ok"):
+        c.setdefault(
+            "security_risk_reasons",
+            []
+        ).append(
+            "GOPLUS_DATA_MISSING"
+        )
+
+        c["lp_protection"] = {
+            "status": "DATA_MISSING"
+        }
+
+        c["adjusted_holder"] = {
+            "ok": False
+        }
+
+    else:
+        raw = raw_res.get("data") or {}
+
+        c["lp_protection"] = (
+            lp_protection_summary(raw)
+        )
+
+        c["adjusted_holder"] = (
+            adjusted_holder_concentration(
+                raw.get("holders") or []
+            )
+        )
+
+        lp = c["lp_protection"]
+
+        if lp.get("status") == "DATA_MISSING":
+            c.setdefault(
+                "security_risk_reasons",
+                []
+            ).append(
+                "LP_DATA_MISSING"
+            )
+
+        elif num(
+            lp.get("protected_pct")
+        ) < 50:
+            c.setdefault(
+                "security_risk_reasons",
+                []
+            ).append(
+                "LP_LOW_PROTECTION"
+            )
+
+        creator = raw.get(
+            "creator_address"
+        )
+
+        if creator:
+            c["creator_address"] = creator
+
+    decimals = int_or_zero(
+        c.get("decimals")
+    )
+
+    price_usd = num(
+        c.get("price_usd")
+    )
+
+    c["evm_exit_1k"] = (
+        evm_exit_metrics(
+            c["network_id"],
+            c["token_contract"],
+            decimals,
+            price_usd,
+            1000,
+        )
+    )
+
+    c["evm_exit_5k"] = (
+        evm_exit_metrics(
+            c["network_id"],
+            c["token_contract"],
+            decimals,
+            price_usd,
+            5000,
+        )
+    )
+
+    c["exit_quote_timestamp"] = utc_iso()
+
+    if not ZEROX_API_KEY:
+        c.setdefault(
+            "security_risk_reasons",
+            []
+        ).append(
+            "EVM_EXIT_DATA_MISSING"
+        )
+
+    for label, data, threshold in (
+        (
+            "EVM_EXIT_1K_LOSS_HIGH",
+            c["evm_exit_1k"],
+            MAX_EXIT_LOSS_1K_PCT,
+        ),
+        (
+            "EVM_EXIT_5K_LOSS_HIGH",
+            c["evm_exit_5k"],
+            MAX_EXIT_LOSS_5K_PCT,
+        ),
+    ):
+        if data.get("ok"):
+            if num(
+                data.get("loss_pct")
+            ) > threshold:
+                c.setdefault(
+                    "security_risk_reasons",
+                    []
+                ).append(label)
+
+
+def print_candidate(i, c):
+    _print_candidate_v3(i, c)
+
+    print(
+        "   [V4 ek risk katmanlari]"
+    )
+
+    print(
+        "   Quote timestamp:",
+        c.get(
+            "exit_quote_timestamp",
+            "N/A"
+        )
+    )
+
+    lp = c.get(
+        "lp_protection"
+    ) or {}
+
+    print(
+        "   LP koruma:",
+        lp.get(
+            "status",
+            "DATA_MISSING"
+        )
+    )
+
+    if lp.get(
+        "protected_pct"
+    ) is not None:
+        print(
+            "      Kilit+burn:",
+            fmt_pct(
+                lp.get(
+                    "protected_pct"
+                )
+            )
+        )
+
+        print(
+            "      Kilitli:",
+            fmt_pct(
+                lp.get(
+                    "locked_pct"
+                )
+            )
+        )
+
+        print(
+            "      Burn:",
+            fmt_pct(
+                lp.get(
+                    "burned_pct"
+                )
+            )
+        )
+
+    adj = c.get(
+        "adjusted_holder"
+    ) or {}
+
+    print(
+        "   Adjusted holder "
+        "(LP/burn/program/exchange haric):",
+        (
+            (
+                fmt_pct(
+                    adj.get(
+                        "top1_pct"
+                    )
+                )
+                + " / "
+                + fmt_pct(
+                    adj.get(
+                        "top5_pct"
+                    )
+                )
+                + " / "
+                + fmt_pct(
+                    adj.get(
+                        "top10_pct"
+                    )
+                )
+            )
+            if adj.get("ok")
+            else "DATA_MISSING"
+        )
+    )
+
+    cluster = c.get(
+        "trade_cluster"
+    ) or {}
+
+    if c.get(
+        "network_id"
+    ) == "solana":
+        print(
+            "   Bundle/sniper proxy:",
+            (
+                yesno(
+                    cluster.get(
+                        "bundle_sniper_proxy"
+                    )
+                )
+                if cluster.get("ok")
+                else "DATA_MISSING"
+            )
+        )
+
+        if cluster.get("ok"):
+            print(
+                "      Unique recent wallets:",
+                cluster.get(
+                    "unique_wallets"
+                )
+            )
+
+            print(
+                "      Max same-block buys:",
+                cluster.get(
+                    "max_same_block_buys"
+                )
+            )
+
+            print(
+                "      Top-wallet trade share:",
+                fmt_pct(
+                    num(
+                        cluster.get(
+                            "top_wallet_trade_share"
+                        )
+                    )
+                    * 100
+                )
+            )
+
+    if c.get(
+        "network_id"
+    ) in EVM_CHAIN_IDS:
+        for name, data in (
+            (
+                "0x $1K exit",
+                c.get(
+                    "evm_exit_1k"
+                )
+            ),
+            (
+                "0x $5K exit",
+                c.get(
+                    "evm_exit_5k"
+                )
+            ),
+        ):
+            data = data or {}
+
+            print(
+                f"   {name}:",
+                (
+                    (
+                        f"out ${num(data.get('out_usd')):,.2f}, "
+                        f"kayip {fmt_pct(data.get('loss_pct'))}"
+                    )
+                    if data.get("ok")
+                    else (
+                        "DATA_MISSING/HATA - "
+                        + str(
+                            data.get(
+                                "error"
+                            )
+                        )
+                    )
+                )
+            )
+
+    print(
+        "   V4 security flags:",
+        (
+            ", ".join(
+                c.get(
+                    "security_risk_reasons"
+                )
+                or []
+            )
+            or "YOK"
+        )
+    )
+
+    print(
+        "=" * 72
+    )
+
+
 # ============================================================
 # MAIN
 # ============================================================
@@ -2194,6 +3762,12 @@ print(
     "Helius:",
     "AKTIF" if HELIUS_API_KEY
     else "PASIF (opsiyonel)"
+)
+
+print(
+    "0x EVM exit:",
+    "AKTIF" if ZEROX_API_KEY
+    else "PASIF (ZEROX_API_KEY yok)"
 )
 
 print(
@@ -2277,6 +3851,24 @@ for c in all_candidates[SECURITY_ENRICH_LIMIT:]:
     ]
     c["risk_band"] = "UNKNOWN"
 
+# Onceki sinyallerin 1 dakikalik OHLCV outcome verisini guncelle.
+update_outcomes()
+
+# Yeni sinyalleri 24 saat cooldown ile outcome DB'ye kaydet.
+for candidate in all_candidates:
+    try:
+        candidate["outcome_signal_id"] = (
+            record_signal_for_outcome(
+                candidate
+            )
+        )
+    except Exception as e:
+        candidate["outcome_signal_id"] = None
+        print(
+            "Outcome signal kayit hata:",
+            e
+        )
+
 # Tüm adaylar snapshot'a yazilir.
 for candidate in all_candidates:
     snapshot_kaydet(
@@ -2335,13 +3927,39 @@ else:
     ):
         print_candidate(i, c)
 
+try:
+    _out = outcome_summary()
+
+    print()
+    print(
+        "Outcome DB:",
+        _out["total"],
+        "sinyal /",
+        _out["closed"],
+        "72h kapanmis"
+    )
+
+    print(
+        "Outcome hits:",
+        " | ".join(
+            f"+%{t}: {_out['hits'][t]}"
+            for t in OUTCOME_TARGETS
+        )
+    )
+
+except Exception as e:
+    print(
+        "Outcome summary hata:",
+        e
+    )
+
 print()
 print("=" * 72)
-print("AVCI 2 V3 TAMAMLANDI")
+print("AVCI 2 V4 TAMAMLANDI")
 print(
-    "Not: Retention gercek path metriği, "
-    "funding-graph Sybil ve 24-72h triple-barrier "
-    "kalici tarihsel veri gerektirir; "
-    "scanner bunlari uydurmaz."
+    "Not: Outcome MFE/MAE ve +%3/+%5/+%7/+%10/+%15 "
+    "1 dakikalik OHLCV ile izlenir. Funding-graph Sybil "
+    "icin Helius transfer gecmisi gerekir; bundle/sniper "
+    "etiketi proxy olup kanit degildir."
 )
 print("=" * 72)
