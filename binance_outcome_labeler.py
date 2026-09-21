@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import json
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 
 import requests
 
@@ -21,7 +20,6 @@ SPOT_BASES = (
 )
 
 REQUEST_TIMEOUT = 20
-
 INTERVAL = "5m"
 
 TARGETS = (
@@ -33,7 +31,6 @@ TARGETS = (
 )
 
 STOP_PCT = -7.0
-
 HORIZON_HOURS = 72
 
 FEE_BPS_PER_SIDE = 10.0
@@ -42,7 +39,7 @@ SLIPPAGE_BPS_PER_SIDE = 10.0
 session = requests.Session()
 
 session.headers.update({
-    "User-Agent": "binance-avci2-outcome-labeler/1.0"
+    "User-Agent": "binance-avci2-outcome-labeler/1.2"
 })
 
 
@@ -79,7 +76,6 @@ def api_get(
                 continue
 
             response.raise_for_status()
-
             return response.json()
 
         except requests.RequestException as error:
@@ -206,7 +202,7 @@ def get_event_path(
         now_ms,
     )
 
-    rows = fetch_klines(
+    return fetch_klines(
         event[
             "symbol"
         ],
@@ -214,8 +210,6 @@ def get_event_path(
         request_end_ms,
         1000,
     )
-
-    return rows
 
 
 def label_event(
@@ -228,9 +222,22 @@ def label_event(
     if not rows:
         return None
 
+    entry_open_target = int(
+        event[
+            "entry_open_time_ms"
+        ]
+    )
+
     entry_row = rows[
         0
     ]
+
+    if int(
+        entry_row[
+            0
+        ]
+    ) != entry_open_target:
+        return None
 
     entry_open_time_ms = int(
         entry_row[
@@ -268,9 +275,12 @@ def label_event(
         )
     )
 
-    if event.get(
-        "entry_status"
-    ) != "READY":
+    if (
+        event.get(
+            "entry_status"
+        )
+        != "READY"
+    ):
         update_event_entry(
             event[
                 "event_id"
@@ -283,35 +293,22 @@ def label_event(
         )
 
     reach = {
-        str(
-            target
-        ): False
+        str(target): False
         for target in TARGETS
     }
 
     hit_time = {
-        str(
-            target
-        ): None
+        str(target): None
         for target in TARGETS
     }
 
     first_touch = {
-        str(
-            target
-        ): None
+        str(target): None
         for target in TARGETS
     }
 
-    mfe_pct = None
-    mae_pct = None
-
-    raw_mfe_pct = None
-    executable_mfe_pct = None
-
     max_high = None
     min_low = None
-
     stop_hit_time = None
 
     for row in rows:
@@ -345,32 +342,39 @@ def label_event(
         ):
             min_low = low_raw
 
-        high_exec = apply_exit_cost(
-            high_raw,
-            fee_bps,
-            slippage_bps,
+        high_exec = (
+            apply_exit_cost(
+                high_raw,
+                fee_bps,
+                slippage_bps,
+            )
         )
 
-        low_exec = apply_exit_cost(
-            low_raw,
-            fee_bps,
-            slippage_bps,
+        low_exec = (
+            apply_exit_cost(
+                low_raw,
+                fee_bps,
+                slippage_bps,
+            )
         )
 
-        high_return = pct_change(
-            entry_price_exec,
-            high_exec,
+        high_return = (
+            pct_change(
+                entry_price_exec,
+                high_exec,
+            )
         )
 
-        low_return = pct_change(
-            entry_price_exec,
-            low_exec,
+        low_return = (
+            pct_change(
+                entry_price_exec,
+                low_exec,
+            )
         )
 
         if (
             stop_hit_time is None
-            and low_return
-            <= STOP_PCT
+            and low_return <= STOP_PCT
         ):
             stop_hit_time = (
                 open_time_ms
@@ -385,8 +389,7 @@ def label_event(
                 not reach[
                     key
                 ]
-                and high_return
-                >= target
+                and high_return >= target
             ):
                 reach[
                     key
@@ -398,19 +401,28 @@ def label_event(
                     open_time_ms
                 )
 
+    raw_mfe_pct = None
+    executable_mfe_pct = None
+    mfe_pct = None
+    mae_pct = None
+
     if max_high is not None:
-        raw_mfe_pct = pct_change(
-            entry_price_raw,
-            max_high,
+        raw_mfe_pct = (
+            pct_change(
+                entry_price_raw,
+                max_high,
+            )
         )
 
-        executable_mfe_pct = pct_change(
-            entry_price_exec,
-            apply_exit_cost(
-                max_high,
-                fee_bps,
-                slippage_bps,
-            ),
+        executable_mfe_pct = (
+            pct_change(
+                entry_price_exec,
+                apply_exit_cost(
+                    max_high,
+                    fee_bps,
+                    slippage_bps,
+                ),
+            )
         )
 
         mfe_pct = (
@@ -418,13 +430,15 @@ def label_event(
         )
 
     if min_low is not None:
-        mae_pct = pct_change(
-            entry_price_exec,
-            apply_exit_cost(
-                min_low,
-                fee_bps,
-                slippage_bps,
-            ),
+        mae_pct = (
+            pct_change(
+                entry_price_exec,
+                apply_exit_cost(
+                    min_low,
+                    fee_bps,
+                    slippage_bps,
+                ),
+            )
         )
 
     for target in TARGETS:
@@ -439,10 +453,7 @@ def label_event(
         )
 
         if target_hit is None:
-            if (
-                stop_hit_time
-                is not None
-            ):
+            if stop_hit_time is not None:
                 first_touch[
                     key
                 ] = "STOP"
@@ -473,7 +484,7 @@ def label_event(
         int(
             event[
                 "entry_open_time_ms"
-            )
+            ]
         )
         + HORIZON_HOURS
         * 60
@@ -509,9 +520,11 @@ def label_event(
         )
     )
 
-    net_return_pct = pct_change(
-        entry_price_exec,
-        last_close_exec,
+    net_return_pct = (
+        pct_change(
+            entry_price_exec,
+            last_close_exec,
+        )
     )
 
     label_status = (
@@ -557,8 +570,7 @@ def label_event(
                     ms_to_iso(
                         value
                     )
-                    if value
-                    is not None
+                    if value is not None
                     else None
                 )
                 for key, value
@@ -647,8 +659,10 @@ def main():
 
     for event in events:
         try:
-            result = label_event(
-                event
+            result = (
+                label_event(
+                    event
+                )
             )
 
             if result is None:
@@ -681,8 +695,7 @@ def main():
 
             print(
                 f"{event['symbol']} "
-                f"| "
-                f"{label['label_status']} "
+                f"| {label['label_status']} "
                 f"| Net: "
                 f"{label['net_return_pct']:+.2f}% "
                 f"| MFE: "
