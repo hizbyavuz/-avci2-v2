@@ -2,7 +2,9 @@ import os
 import requests
 import time
 from datetime import datetime, timezone
+
 from snapshot_deposu import snapshot_kaydet, son_snapshot, snapshot_sayisi
+
 BASE_URL = "https://api.geckoterminal.com/api/v2"
 
 NETWORKS = {
@@ -12,11 +14,13 @@ NETWORKS = {
     "eth": "Ethereum",
     "arbitrum": "Arbitrum",
 }
+
 JUPITER_API_KEY = os.getenv("JUPITER_API_KEY", "")
 JUPITER_QUOTE_URL = "https://api.jup.ag/swap/v1/quote"
 
 SOL_MINT = "So11111111111111111111111111111111111111112"
 USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+
 # -------------------------------------------------
 # AVCI 2 V2.1 CONFIG
 # -------------------------------------------------
@@ -101,7 +105,6 @@ def api_get(path):
                 continue
 
             r.raise_for_status()
-
             return r.json()
 
         except Exception as e:
@@ -115,6 +118,8 @@ def api_get(path):
         "data": [],
         "included": []
     }
+
+
 def jupiter_quote(input_mint, output_mint, amount):
     if not JUPITER_API_KEY:
         return {
@@ -153,6 +158,7 @@ def jupiter_quote(input_mint, output_mint, amount):
             "error": str(e),
         }
 
+
 def included_map(payload):
     result = {}
 
@@ -161,7 +167,6 @@ def included_map(payload):
             obj.get("type"),
             obj.get("id")
         )
-
         result[key] = obj
 
     return result
@@ -214,8 +219,11 @@ def token_from_included(pool, inc, relation):
             "symbol",
             ""
         ),
- "decimals": int(attrs.get("decimals") or 0),
+        "decimals": int(
+            attrs.get("decimals") or 0
+        ),
     }
+
 
 def classify_stage(
     age_minutes,
@@ -263,10 +271,9 @@ def scan_payload(
     source
 ):
     inc = included_map(payload)
-
     found = []
 
-       for pool in payload.get("data", []):
+    for pool in payload.get("data", []):
         a = pool.get(
             "attributes",
             {}
@@ -285,10 +292,6 @@ def scan_payload(
         created_at = a.get(
             "pool_created_at"
         )
-
-        age_minutes = pool_age_minutes(
-            created_at
-        ) 
 
         age_minutes = pool_age_minutes(
             created_at
@@ -322,6 +325,7 @@ def scan_payload(
         volume_5m = num(
             volume.get("m5")
         )
+
         changes = a.get(
             "price_change_percentage",
             {}
@@ -441,7 +445,6 @@ def scan_payload(
 
         # ---------------------------------------
         # SHORT-TERM CRASH VETO
-        # DONATED tipi coinleri engeller
         # ---------------------------------------
 
         veto_reason = None
@@ -460,7 +463,6 @@ def scan_payload(
 
         # ---------------------------------------
         # YENI POOL AYRIMI
-        # MONA tipi sahte acceleration engeli
         # ---------------------------------------
 
         is_new_launch = (
@@ -474,11 +476,6 @@ def scan_payload(
         # ---------------------------------------
 
         if is_new_launch:
-
-            # Yeni coinlerde 24h / 1h karsilastirmasi
-            # yapmiyoruz.
-            # Gercek 5m aktivitesine bakiyoruz.
-
             if volume_5m < MIN_VOLUME_5M:
                 continue
 
@@ -489,9 +486,6 @@ def scan_payload(
                 continue
 
         else:
-
-            # Eski poollarda son saat hala yasiyor mu?
-
             if volume_1h < MIN_VOLUME_1H:
                 continue
 
@@ -533,15 +527,10 @@ def scan_payload(
         # ---------------------------------------
 
         if is_new_launch:
-
-            # Yeterli gecmis olmadigi icin
-            # acceleration hesaplamiyoruz.
-
             acceleration_1h = None
             acceleration_5m = None
 
         else:
-
             expected_hour = max(
                 volume_24h / 24,
                 1
@@ -581,7 +570,6 @@ def scan_payload(
             score += 1
 
         if not is_new_launch:
-
             if (
                 acceleration_1h is not None
                 and acceleration_1h >= 1.5
@@ -601,10 +589,6 @@ def scan_payload(
                 score += 1
 
         else:
-
-            # Yeni launch icin skor ust siniri
-            # bilerek dusuk tutuluyor.
-
             if buys_5m > sells_5m:
                 score += 1
 
@@ -628,100 +612,76 @@ def scan_payload(
             "network": network_name,
             "network_id": network_id,
             "source": source,
-
             "name": (
                 base_token.get(
                     "name"
                 )
                 or pool_name
             ),
-
             "symbol": base_token.get(
                 "symbol",
                 ""
             ),
-
             "token_contract":
                 token_contract,
-
             "pool":
                 pool_address,
-
             "quote_symbol":
                 quote_token.get(
                     "symbol",
                     ""
                 ),
-
             "created_at":
                 created_at,
-
             "age_minutes":
                 age_minutes,
-
             "stage":
                 stage,
-
             "score":
                 score,
-
             "liquidity":
                 liquidity,
             "price_usd":
                 price_usd,
             "decimals":
-    base_token.get("decimals", 0),
+                base_token.get(
+                    "decimals",
+                    0
+                ),
             "volume_24h":
                 volume_24h,
-
             "volume_6h":
                 volume_6h,
-
             "volume_1h":
                 volume_1h,
-
             "volume_5m":
                 volume_5m,
-
             "change_24h":
                 change_24h,
-
             "change_6h":
                 change_6h,
-
             "change_1h":
                 change_1h,
-
             "change_5m":
                 change_5m,
-
             "buys_24h":
                 buys_24h,
-
             "sells_24h":
                 sells_24h,
-
             "buys_1h":
                 buys_1h,
-
             "sells_1h":
                 sells_1h,
-
             "buys_5m":
                 buys_5m,
-
             "sells_5m":
                 sells_5m,
-
             "volume_liquidity_ratio":
                 volume_liquidity_ratio,
-
             "acceleration_1h":
                 acceleration_1h,
-
             "acceleration_5m":
                 acceleration_5m,
-
             "is_new_launch":
                 is_new_launch,
         })
@@ -733,7 +693,6 @@ def deduplicate(candidates):
     result = {}
 
     for c in candidates:
-
         key = (
             c["network_id"],
             c["token_contract"]
@@ -780,10 +739,9 @@ print("=" * 72)
 
 all_candidates = []
 
-
 for network_id, network_name in NETWORKS.items():
-
     print()
+
     print(
         f"[{network_name}] taraniyor..."
     )
@@ -830,6 +788,7 @@ for network_id, network_name in NETWORKS.items():
 all_candidates = deduplicate(
     all_candidates
 )
+
 for candidate in all_candidates:
     snapshot_kaydet(
         candidate,
@@ -840,6 +799,7 @@ print(
     "Snapshot toplam:",
     snapshot_sayisi()
 )
+
 all_candidates.sort(
     key=lambda x: (
         x["score"],
@@ -848,20 +808,16 @@ all_candidates.sort(
     reverse=True
 )
 
-
 print()
 print("=" * 72)
 
-
 if not all_candidates:
-
     print("0 TEMIZ AVCI 2 ADAYI")
     print(
         "0 aday da dogru bir sonuctur."
     )
 
 else:
-
     print(
         f"{len(all_candidates)} "
         "ADAY BULUNDU"
@@ -873,7 +829,6 @@ else:
         all_candidates[:20],
         1
     ):
-
         print()
 
         print(
@@ -903,7 +858,6 @@ else:
         )
 
         if c["age_minutes"] is not None:
-
             print(
                 f"   Pool age: "
                 f"{c['age_minutes']:.1f} dk"
@@ -976,14 +930,12 @@ else:
         )
 
         if c["is_new_launch"]:
-
             print(
                 "   Hacim ivmesi: "
                 "YENI POOL - hesaplanmadi"
             )
 
         else:
-
             print(
                 f"   1H hacim ivmesi: "
                 f"{c['acceleration_1h']:.2f}x"
@@ -1002,73 +954,97 @@ else:
             "  ",
             c["token_contract"]
         )
-            if c.get("network_id") == "solana":
-                           price_usd = c.get("price_usd", 0)
-            decimals = int(c.get("decimals", 0)) 
-     if price_usd <= 0 or decimals <= 0:
-    print("   Jupiter hata: fiyat veya decimals yok")
-    continue   
-amount_1000 = int(
-    (1000 / price_usd)
-    * (10 ** decimals)
-)
-amount_5000 = int(
-    (5000 / price_usd)
-    * (10 ** decimals)
-)
-quote = jupiter_quote(
-    c["token_contract"],
-    USDC_MINT,
-    amount_1000
-)     
-   quote_5000 = jupiter_quote(
-    c["token_contract"],
-    USDC_MINT,
-    amount_5000
-)             
 
-                          print("   Jupiter $1K:")
+        if c.get("network_id") == "solana":
+            price_usd = num(
+                c.get("price_usd")
+            )
 
-            if quote["ok"]:
+            decimals = int(
+                c.get("decimals") or 0
+            )
+
+            if price_usd <= 0 or decimals <= 0:
                 print(
-                    "   Route:",
-                    "VAR" if quote["route_plan"] else "YOK"
+                    "   Jupiter hata: "
+                    "fiyat veya decimals yok"
                 )
-                print(
-                    "   Price impact:",
-                    quote["price_impact_pct"]
-                )
-                print(
-                    "   Out amount:",
-                    quote["out_amount"]
-                )
+
             else:
-                print(
-                    "   Jupiter hata:",
-                    quote["error"]
+                amount_1000 = int(
+                    (1000 / price_usd)
+                    * (10 ** decimals)
                 )
 
-            print("   Jupiter $5K:")
+                amount_5000 = int(
+                    (5000 / price_usd)
+                    * (10 ** decimals)
+                )
 
-            if quote_5000["ok"]:
-                print(
-                    "   Route:",
-                    "VAR" if quote_5000["route_plan"] else "YOK"
+                quote = jupiter_quote(
+                    c["token_contract"],
+                    USDC_MINT,
+                    amount_1000
                 )
-                print(
-                    "   Price impact:",
-                    quote_5000["price_impact_pct"]
+
+                quote_5000 = jupiter_quote(
+                    c["token_contract"],
+                    USDC_MINT,
+                    amount_5000
                 )
-                print(
-                    "   Out amount:",
-                    quote_5000["out_amount"]
-                )
-            else:
-                print(
-                    "   Jupiter hata:",
-                    quote_5000["error"]
-                )
-                    
+
+                print("   Jupiter $1K:")
+
+                if quote["ok"]:
+                    print(
+                        "   Route:",
+                        "VAR"
+                        if quote["route_plan"]
+                        else "YOK"
+                    )
+
+                    print(
+                        "   Price impact:",
+                        quote["price_impact_pct"]
+                    )
+
+                    print(
+                        "   Out amount:",
+                        quote["out_amount"]
+                    )
+
+                else:
+                    print(
+                        "   Jupiter hata:",
+                        quote["error"]
+                    )
+
+                print("   Jupiter $5K:")
+
+                if quote_5000["ok"]:
+                    print(
+                        "   Route:",
+                        "VAR"
+                        if quote_5000["route_plan"]
+                        else "YOK"
+                    )
+
+                    print(
+                        "   Price impact:",
+                        quote_5000["price_impact_pct"]
+                    )
+
+                    print(
+                        "   Out amount:",
+                        quote_5000["out_amount"]
+                    )
+
+                else:
+                    print(
+                        "   Jupiter hata:",
+                        quote_5000["error"]
+                    )
+
         print(
             "   Pool:"
         )
