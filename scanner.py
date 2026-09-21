@@ -277,10 +277,12 @@ def scan_payload(
             ""
         )
 
-        pool_name = a.get(
+                pool_name = a.get(
             "name",
             "Unknown"
-                created_at = a.get(
+        )
+
+        created_at = a.get(
             "pool_created_at"
         )
 
