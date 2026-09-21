@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import hashlib
+import json
+import math
+import os
 import statistics
 import time
 from datetime import datetime, timezone
@@ -13,10 +17,17 @@ from binance_snapshot_store import (
     save_feature,
     save_daily_mover,
     save_data_issue,
+    save_raw_klines,
+    save_raw_deriv,
+    save_orderbook_snapshot,
+    get_asset_metadata,
+    save_asset_metadata,
+    save_universe_member,
+    update_scan_health,
     create_signal_event,
 )
 
-CONFIG_VERSION = "binance-avci2-v1.5"
+CONFIG_VERSION = "binance-avci2-v2.1-final"
 
 DATA_MODE_SPOT = "SPOT_ONLY"
 DATA_MODE_FULL = "SPOT_FUTURES_FULL"
@@ -37,9 +48,11 @@ MIN_SPOT_VOLUME_24H = 3_000_000.0
 MIN_FUTURES_VOLUME_24H = 5_000_000.0
 
 KLINE_INTERVAL = "5m"
-KLINE_LIMIT = 300
+KLINE_LIMIT = 1000
 
-BASELINE_BARS = 144
+# Seven full days of closed 5-minute bars.  This is deliberately frozen in the
+# config hash so later research cannot silently change the comparison window.
+BASELINE_BARS = 7 * 24 * 12
 
 BARS_15M = 3
 BARS_1H = 12
@@ -61,11 +74,25 @@ CLIMAX_FUNDING_ABS = 0.0015
 CLIMAX_OI_1H = 25.0
 
 MAX_SELECTED = 5
+MAX_NEAR_MISS = 5
+MAX_RANDOM_CONTROL = 5
 
 COOLDOWN_HOURS = 24
+ENTRY_DELAY_SECONDS = 120
 
 FEE_BPS_PER_SIDE = 10.0
 SLIPPAGE_BPS_PER_SIDE = 10.0
+
+MAX_SPREAD_BPS = 30.0
+MAX_BUY_IMPACT_1K_BPS = 35.0
+MAX_BUY_IMPACT_5K_BPS = 100.0
+MIN_VALID_UNIVERSE = 80
+MIN_COIN_AGE_DAYS = 30
+
+BTC_UP_REGIME_PCT = 2.0
+BTC_DOWN_REGIME_PCT = -2.0
+MAX_CLOCK_SKEW_SECONDS = 10.0
+MAX_KLINE_STALENESS_MINUTES = 12.0
 
 WINNER_LEVELS = (
     20,
@@ -75,13 +102,59 @@ WINNER_LEVELS = (
 )
 
 EXCLUDED_BASES = {
+    "BTC",
     "USDC",
     "FDUSD",
     "USDP",
     "TUSD",
     "DAI",
+    "USDE",
+    "USD1",
+    "USDS",
+    "XUSD",
+    "BFUSD",
+    "PYUSD",
+    "AEUR",
+    "EURI",
+    "RLUSD",
+    "USTC",
+    "LUSD",
+    "FRAX",
+    "SUSD",
+    "GUSD",
+    "USDJ",
     "EUR",
     "TRY",
+    "WBTC",
+    "WBETH",
+    "WETH",
+    "BTCB",
+    "AMDB",
+    "NVDAB",
+    "INTCB",
+    "QQQB",
+    "SOXLB",
+    "GOOGLB",
+    "TSLAB",
+}
+
+LEVERAGED_BASES = {
+    "BTCUP",
+    "BTCDOWN",
+    "ETHUP",
+    "ETHDOWN",
+    "BNBUP",
+    "BNBDOWN",
+    "ADAUP",
+    "ADADOWN",
+    "XRPUP",
+    "XRPDOWN",
+    "DOTUP",
+    "DOTDOWN",
+    "LINKUP",
+    "LINKDOWN",
+    "TRXUP",
+    "TRXDOWN",
 }
 
 FUTURES_AVAILABLE = True
@@ -89,8 +162,55 @@ FUTURES_AVAILABLE = True
 session = requests.Session()
 
 session.headers.update({
-    "User-Agent": "binance-avci2-v1.5"
+    "User-Agent": "binance-avci2-v2.1-final"
 })
+
+
+CONFIG_SNAPSHOT = {
+    "config_version": CONFIG_VERSION,
+    "min_spot_volume_24h": MIN_SPOT_VOLUME_24H,
+    "min_futures_volume_24h": MIN_FUTURES_VOLUME_24H,
+    "baseline_bars": BASELINE_BARS,
+    "wake_volume_z": WAKE_VOLUME_Z,
+    "wake_return_z": WAKE_RETURN_Z,
+    "wake_trade_z": WAKE_TRADE_Z,
+    "retention_min": RETENTION_MIN,
+    "persistence_volume_mult": PERSISTENCE_VOLUME_MULT,
+    "reignition_volume_mult": REIGNITION_VOLUME_MULT,
+    "trigger_min_components": TRIGGER_MIN_COMPONENTS,
+    "climax_change_24h": CLIMAX_CHANGE_24H,
+    "climax_change_1h": CLIMAX_CHANGE_1H,
+    "climax_funding_abs": CLIMAX_FUNDING_ABS,
+    "climax_oi_1h": CLIMAX_OI_1H,
+    "max_selected": MAX_SELECTED,
+    "max_near_miss": MAX_NEAR_MISS,
+    "max_random_control": MAX_RANDOM_CONTROL,
+    "cooldown_hours": COOLDOWN_HOURS,
+    "entry_delay_seconds": ENTRY_DELAY_SECONDS,
+    "fee_bps_per_side": FEE_BPS_PER_SIDE,
+    "max_spread_bps": MAX_SPREAD_BPS,
+    "max_buy_impact_1k_bps": MAX_BUY_IMPACT_1K_BPS,
+    "max_buy_impact_5k_bps": MAX_BUY_IMPACT_5K_BPS,
+    "max_clock_skew_seconds": MAX_CLOCK_SKEW_SECONDS,
+    "max_kline_staleness_minutes": MAX_KLINE_STALENESS_MINUTES,
+    "min_coin_age_days": MIN_COIN_AGE_DAYS,
+    "btc_up_regime_pct": BTC_UP_REGIME_PCT,
+    "btc_down_regime_pct": BTC_DOWN_REGIME_PCT,
+}
+
+CONFIG_HASH = hashlib.sha256(
+    json.dumps(
+        CONFIG_SNAPSHOT,
+        sort_keys=True,
+    ).encode("utf-8")
+).hexdigest()
+
+
+def is_excluded_base(base):
+    return (
+        base in EXCLUDED_BASES
+        or base in LEVERAGED_BASES
+    )
 
 
 def utc_now():
@@ -294,6 +414,71 @@ def grouped_sums(
     return result
 
 
+def impulse_retention(parsed, baseline_volume_15m_median):
+    """Measure retention from the first qualifying positive impulse, not range position."""
+    closes = parsed["closes"]
+    lows = parsed["lows"]
+    highs = parsed["highs"]
+    volumes = parsed["quote_volumes"]
+    open_times = parsed["open_times"]
+    start = max(2, len(closes) - BARS_3H)
+
+    for index in range(start, len(closes)):
+        impulse_return = pct_change(closes[index - 2], closes[index])
+        impulse_volume = sum(volumes[index - 2:index + 1])
+        volume_multiple = impulse_volume / (baseline_volume_15m_median or 1.0)
+        if impulse_return < 1.0 or volume_multiple < REIGNITION_VOLUME_MULT:
+            continue
+        impulse_low = min(lows[index - 2:index + 1])
+        impulse_high = max(highs[index - 2:])
+        impulse_size = impulse_high - impulse_low
+        retention = (
+            (closes[-1] - impulse_low) / impulse_size
+            if impulse_size > 0 else 0.0
+        )
+        return {
+            "retention": max(0.0, min(1.5, retention)),
+            "impulse_start_ms": open_times[index - 2],
+            "impulse_low": impulse_low,
+            "impulse_high": impulse_high,
+            "impulse_return_pct": impulse_return,
+            "impulse_volume_multiple": volume_multiple,
+        }
+
+    return {
+        "retention": 0.0,
+        "impulse_start_ms": None,
+        "impulse_low": None,
+        "impulse_high": None,
+        "impulse_return_pct": None,
+        "impulse_volume_multiple": None,
+    }
+
+
+def normalized_deficit(value, threshold):
+    return max(0.0, (threshold - float(value or 0.0)) / abs(threshold))
+
+
+def qualification_distance(feature):
+    wake_deficits = sorted((
+        normalized_deficit(feature.get("volume_z_15m"), WAKE_VOLUME_Z),
+        normalized_deficit(feature.get("trade_z_15m"), WAKE_TRADE_Z),
+        normalized_deficit(feature.get("return_z_15m"), WAKE_RETURN_Z),
+    ))
+    wake_distance = sum(wake_deficits[:2])
+    continuation_distance = (
+        normalized_deficit(feature.get("volume_mult_1h"), PERSISTENCE_VOLUME_MULT)
+        + normalized_deficit(feature.get("retention_proxy"), RETENTION_MIN)
+    )
+    reignition_distance = normalized_deficit(
+        feature.get("reignition_ratio"), REIGNITION_VOLUME_MULT
+    ) + (0.0 if float(feature.get("change_15m") or 0.0) > 0 else 1.0)
+    trigger_count = sum((feature.get("trigger_components") or {}).values())
+    trigger_distance = normalized_deficit(trigger_count, TRIGGER_MIN_COMPONENTS)
+    return min(wake_distance, continuation_distance, reignition_distance,
+               trigger_distance)
+
+
 def fetch_spot_exchange_info():
     return spot_api_get(
         "/api/v3/exchangeInfo"
@@ -304,6 +489,159 @@ def fetch_spot_24h():
     return spot_api_get(
         "/api/v3/ticker/24hr"
     )
+
+
+def fetch_listing_time_ms(symbol):
+    rows = spot_api_get(
+        "/api/v3/klines",
+        {"symbol": symbol, "interval": "1d", "startTime": 0, "limit": 1},
+    )
+    return int(rows[0][0]) if rows else None
+
+
+def fetch_book_tickers():
+    data = spot_api_get(
+        "/api/v3/ticker/bookTicker"
+    )
+
+    return {
+        row["symbol"]: row
+        for row in data
+        if isinstance(row, dict)
+        and row.get("symbol")
+    }
+
+
+def fetch_depth(symbol):
+    return spot_api_get(
+        "/api/v3/depth",
+        {
+            "symbol": symbol,
+            "limit": 100,
+        },
+    )
+
+
+def fetch_server_time_ms():
+    return int(spot_api_get("/api/v3/time")["serverTime"])
+
+
+def book_spread_bps(book):
+    if not book:
+        return None
+
+    try:
+        bid = float(book.get("bidPrice") or 0.0)
+        ask = float(book.get("askPrice") or 0.0)
+    except (TypeError, ValueError):
+        return None
+
+    mid = (bid + ask) / 2.0
+
+    if bid <= 0 or ask <= 0 or mid <= 0:
+        return None
+
+    return (ask - bid) / mid * 10000.0
+
+
+def quote_buy_impact_bps(asks, quote_amount):
+    remaining = float(quote_amount)
+    base_bought = 0.0
+    quote_spent = 0.0
+
+    if not asks:
+        return None
+
+    best_ask = float(asks[0][0])
+
+    for price_text, qty_text in asks:
+        price = float(price_text)
+        quantity = float(qty_text)
+        available_quote = price * quantity
+        spent = min(remaining, available_quote)
+        base_bought += spent / price
+        quote_spent += spent
+        remaining -= spent
+
+        if remaining <= 1e-9:
+            break
+
+    if remaining > 1e-6 or base_bought <= 0:
+        return None
+
+    average_price = quote_spent / base_bought
+    return (average_price / best_ask - 1.0) * 10000.0
+
+
+def quote_sell_impact_bps(bids, quote_amount):
+    if not bids:
+        return None
+
+    best_bid = float(bids[0][0])
+    base_to_sell = float(quote_amount) / best_bid
+    remaining_base = base_to_sell
+    quote_received = 0.0
+
+    for price_text, qty_text in bids:
+        price = float(price_text)
+        quantity = float(qty_text)
+        sold = min(remaining_base, quantity)
+        quote_received += sold * price
+        remaining_base -= sold
+
+        if remaining_base <= 1e-12:
+            break
+
+    if remaining_base > 1e-9 or base_to_sell <= 0:
+        return None
+
+    average_price = quote_received / base_to_sell
+    return (1.0 - average_price / best_bid) * 10000.0
+
+
+def visible_capacity_usd(levels):
+    total = 0.0
+    for price_text, qty_text in levels or []:
+        total += float(price_text) * float(qty_text)
+    return total
+
+
+def measure_liquidity(symbol, book_ticker):
+    depth = fetch_depth(symbol)
+    bids = depth.get("bids") or []
+    asks = depth.get("asks") or []
+
+    best_bid = float(bids[0][0]) if bids else None
+    best_ask = float(asks[0][0]) if asks else None
+
+    return {
+        "best_bid": best_bid,
+        "best_ask": best_ask,
+        "spread_bps": book_spread_bps(book_ticker),
+        "buy_impact_1k_bps": quote_buy_impact_bps(
+            asks,
+            1000.0,
+        ),
+        "sell_impact_1k_bps": quote_sell_impact_bps(
+            bids,
+            1000.0,
+        ),
+        "buy_impact_5k_bps": quote_buy_impact_bps(
+            asks,
+            5000.0,
+        ),
+        "sell_impact_5k_bps": quote_sell_impact_bps(
+            bids,
+            5000.0,
+        ),
+        "visible_bid_capacity_usd": visible_capacity_usd(bids),
+        "visible_ask_capacity_usd": visible_capacity_usd(asks),
+        "depth_raw": {
+            "lastUpdateId": depth.get("lastUpdateId"),
+            "bids": bids,
+            "asks": asks,
+        },
+    }
 
 
 def fetch_futures_24h():
@@ -320,22 +658,57 @@ def fetch_futures_24h():
     return []
 
 
-def fetch_klines(
-    symbol,
-):
-    return spot_api_get(
-        "/api/v3/klines",
-        {
-            "symbol":
-                symbol,
+def fetch_klines(symbol, end_time_ms=None, required_bars=None):
+    required = required_bars or (BASELINE_BARS + BARS_3H + 5)
+    cursor = end_time_ms
+    collected = []
 
-            "interval":
-                KLINE_INTERVAL,
+    while len(collected) < required:
+        params = {
+            "symbol": symbol,
+            "interval": KLINE_INTERVAL,
+            "limit": min(KLINE_LIMIT, required - len(collected)),
+        }
+        if cursor is not None:
+            params["endTime"] = int(cursor)
 
-            "limit":
-                KLINE_LIMIT,
-        },
-    )
+        batch = spot_api_get("/api/v3/klines", params)
+        if not batch:
+            break
+        collected = list(batch) + collected
+        oldest_open_ms = int(batch[0][0])
+        next_cursor = oldest_open_ms - 1
+        if cursor is not None and next_cursor >= cursor:
+            break
+        cursor = next_cursor
+        if len(batch) < params["limit"]:
+            break
+
+    unique = {int(row[0]): row for row in collected}
+    return [unique[key] for key in sorted(unique)][-required:]
+
+
+def validate_kline_rows(rows, scan_time_ms):
+    if not rows:
+        raise ValueError("Mum verisi bos")
+    opens = [int(row[0]) for row in rows]
+    if len(opens) != len(set(opens)):
+        raise ValueError("Tekrarlanan mum zamani")
+    expected_ms = 5 * 60 * 1000
+    if any(b - a != expected_ms for a, b in zip(opens, opens[1:])):
+        raise ValueError("Mum zaman serisinde bosluk var")
+    for row in rows:
+        open_price, high, low, close = map(float, row[1:5])
+        if min(open_price, high, low, close) <= 0:
+            raise ValueError("Gecersiz sifir/negatif fiyat")
+        if high < max(open_price, close) or low > min(open_price, close):
+            raise ValueError("Gecersiz OHLC sirasi")
+        if float(row[7]) < 0 or float(row[8]) < 0:
+            raise ValueError("Negatif hacim/islem sayisi")
+    staleness_minutes = (scan_time_ms - int(rows[-1][6])) / 60000.0
+    if staleness_minutes > MAX_KLINE_STALENESS_MINUTES:
+        raise ValueError(f"Bayat mum verisi: {staleness_minutes:.1f} dakika")
+    return staleness_minutes
 
 
 def fetch_funding(
@@ -423,7 +796,7 @@ def fetch_taker_ratio(
     return []
 
 
-def build_universe():
+def build_universe(scan_time):
     global FUTURES_AVAILABLE
 
     exchange_info = (
@@ -432,6 +805,10 @@ def build_universe():
 
     spot_list = (
         fetch_spot_24h()
+    )
+
+    book_tickers = (
+        fetch_book_tickers()
     )
 
     futures_list = (
@@ -470,6 +847,7 @@ def build_universe():
         FUTURES_AVAILABLE = False
 
     symbols = []
+    scan_time_ms = int(datetime.fromisoformat(scan_time).timestamp() * 1000)
 
     for item in exchange_info.get(
         "symbols",
@@ -496,12 +874,18 @@ def build_universe():
         if quote != QUOTE_ASSET:
             continue
 
+        save_asset_metadata(symbol, base, quote, item.get("status", "UNKNOWN"))
+
         if item.get(
             "status"
         ) != "TRADING":
+            save_universe_member(scan_time, symbol, "EXCLUDED", "NOT_TRADING",
+                                 CONFIG_VERSION)
             continue
 
-        if base in EXCLUDED_BASES:
+        if is_excluded_base(base):
+            save_universe_member(scan_time, symbol, "EXCLUDED", "ASSET_CLASS",
+                                 CONFIG_VERSION)
             continue
 
         spot_row = (
@@ -511,6 +895,8 @@ def build_universe():
         )
 
         if not spot_row:
+            save_universe_member(scan_time, symbol, "EXCLUDED", "NO_24H_DATA",
+                                 CONFIG_VERSION)
             continue
 
         spot_volume = float(
@@ -525,6 +911,37 @@ def build_universe():
             spot_volume
             < MIN_SPOT_VOLUME_24H
         ):
+            save_universe_member(scan_time, symbol, "EXCLUDED", "LOW_VOLUME",
+                                 CONFIG_VERSION)
+            continue
+
+        spread_bps = book_spread_bps(
+            book_tickers.get(symbol)
+        )
+
+        if (
+            spread_bps is None
+            or spread_bps > MAX_SPREAD_BPS
+        ):
+            save_universe_member(scan_time, symbol, "EXCLUDED", "WIDE_SPREAD",
+                                 CONFIG_VERSION)
+            continue
+
+        metadata = get_asset_metadata(symbol) or {}
+        listing_time_ms = metadata.get("listing_time_ms")
+        if listing_time_ms is None:
+            try:
+                listing_time_ms = fetch_listing_time_ms(symbol)
+                save_asset_metadata(symbol, base, quote, item.get("status", "UNKNOWN"),
+                                    listing_time_ms)
+            except Exception:
+                save_universe_member(scan_time, symbol, "EXCLUDED",
+                                     "AGE_UNKNOWN", CONFIG_VERSION)
+                continue
+        age_days = (scan_time_ms - int(listing_time_ms)) / 86400000.0
+        if age_days < MIN_COIN_AGE_DAYS:
+            save_universe_member(scan_time, symbol, "EXCLUDED", "TOO_NEW",
+                                 CONFIG_VERSION)
             continue
 
         if futures_mode:
@@ -535,6 +952,8 @@ def build_universe():
             )
 
             if not futures_row:
+                save_universe_member(scan_time, symbol, "EXCLUDED",
+                                     "NO_FUTURES_PAIR", CONFIG_VERSION)
                 continue
 
             futures_volume = float(
@@ -549,11 +968,14 @@ def build_universe():
                 futures_volume
                 < MIN_FUTURES_VOLUME_24H
             ):
+                save_universe_member(scan_time, symbol, "EXCLUDED",
+                                     "LOW_FUTURES_VOLUME", CONFIG_VERSION)
                 continue
 
         symbols.append(
             symbol
         )
+        save_universe_member(scan_time, symbol, "INCLUDED", None, CONFIG_VERSION)
 
     return (
         sorted(
@@ -561,6 +983,7 @@ def build_universe():
         ),
         spot_24h,
         futures_24h,
+        book_tickers,
         futures_mode,
     )
 
@@ -689,16 +1112,34 @@ def calculate_features(
     symbol,
     spot_data,
     futures_data,
+    book_ticker,
     btc_change_24h,
     data_mode,
     scan_time,
 ):
-    rows = fetch_klines(
-        symbol
+    scan_time_ms = int(
+        datetime.fromisoformat(
+            scan_time
+        ).timestamp()
+        * 1000
     )
+
+    rows = [
+        row
+        for row in fetch_klines(symbol, scan_time_ms - 1)
+        if int(row[6]) < scan_time_ms
+    ]
+
+    staleness_minutes = validate_kline_rows(rows, scan_time_ms)
 
     parsed = parse_klines(
         rows
+    )
+    metadata = get_asset_metadata(symbol) or {}
+    listing_time_ms = metadata.get("listing_time_ms")
+    coin_age_days = (
+        (scan_time_ms - int(listing_time_ms)) / 86400000.0
+        if listing_time_ms is not None else None
     )
 
     open_times = parsed[
@@ -961,32 +1402,8 @@ def calculate_features(
         else 0.0
     )
 
-    low_3h = min(
-        lows[
-            -BARS_3H:
-        ]
-    )
-
-    high_3h = max(
-        highs[
-            -BARS_3H:
-        ]
-    )
-
-    impulse_range = (
-        high_3h
-        - low_3h
-    )
-
-    retention_proxy = (
-        (
-            current_price
-            - low_3h
-        )
-        / impulse_range
-        if impulse_range > 0
-        else 0.0
-    )
+    impulse = impulse_retention(parsed, baseline_volume_15m_median)
+    retention_proxy = impulse["retention"]
 
     oi_change_1h = None
     funding_rate = None
@@ -1240,6 +1657,14 @@ def calculate_features(
             "SPOT_LED_DEMAND"
         )
 
+    if taker_buy_ratio_15m >= 0.75 and volume_z >= 3.0:
+        engine = "WHALE_ASSISTED_PROXY"
+
+    manipulation_risk = (
+        (trade_z >= 6.0 and return_z < 0.5)
+        or (taker_buy_ratio_15m >= 0.95 and abs(change_15m) < 0.25)
+    )
+
     score = 0
 
     score += (
@@ -1323,7 +1748,7 @@ def calculate_features(
     else:
         stage = "OBSERVE"
 
-    return {
+    feature = {
         "ts_utc":
             scan_time,
 
@@ -1335,6 +1760,13 @@ def calculate_features(
 
         "symbol":
             symbol,
+
+        "coin_age_days": coin_age_days,
+
+        "recent_closed_klines":
+            rows[-3:],
+
+        "raw_klines": rows,
 
         "stage":
             stage,
@@ -1365,6 +1797,28 @@ def calculate_features(
 
         "change_24h":
             change_24h,
+
+        "quote_volume_24h":
+            float(
+                spot_data.get(
+                    "quoteVolume",
+                    0.0,
+                )
+                or 0.0
+            ),
+
+        "spread_bps":
+            book_spread_bps(
+                book_ticker
+            ),
+
+        "data_staleness_minutes": staleness_minutes,
+
+        "impulse_start_ms": impulse["impulse_start_ms"],
+        "impulse_low": impulse["impulse_low"],
+        "impulse_high": impulse["impulse_high"],
+        "impulse_return_pct": impulse["impulse_return_pct"],
+        "impulse_volume_multiple": impulse["impulse_volume_multiple"],
 
         "btc_relative_24h":
             btc_relative_24h,
@@ -1414,6 +1868,9 @@ def calculate_features(
         "climax_risk":
             climax_risk,
 
+        "manipulation_risk": manipulation_risk,
+        "catalyst_status": "UNAVAILABLE_NO_NEWS_FEED",
+
         "futures_change_24h":
             futures_change_24h,
 
@@ -1429,12 +1886,17 @@ def calculate_features(
         "quote_volume_3h":
             volume_3h,
 
+        "reignition_ratio": reignition_ratio,
+
         "wake_components":
             wake_components,
 
         "trigger_components":
             trigger_components,
     }
+
+    feature["near_miss_distance"] = qualification_distance(feature)
+    return feature
 
 
 def ranking_key(
@@ -1472,23 +1934,311 @@ def ranking_key(
         feature[
             "volume_z_15m"
         ],
+        feature.get(
+            "cross_sectional_rarity_pct",
+            0.0,
+        ),
         feature[
             "btc_relative_24h"
         ],
     )
 
 
+def btc_regime(change_24h):
+    if change_24h >= BTC_UP_REGIME_PCT:
+        return "UP"
+
+    if change_24h <= BTC_DOWN_REGIME_PCT:
+        return "DOWN"
+
+    return "SIDEWAYS"
+
+
+def add_percentile_rank(
+    features,
+    source_key,
+    target_key,
+):
+    values = sorted(
+        float(feature.get(source_key) or 0.0)
+        for feature in features
+    )
+
+    total = len(values)
+
+    if total == 0:
+        return
+
+    for feature in features:
+        value = float(
+            feature.get(source_key)
+            or 0.0
+        )
+        count_at_or_below = sum(
+            candidate <= value
+            for candidate in values
+        )
+        feature[target_key] = (
+            count_at_or_below
+            / total
+            * 100.0
+        )
+
+
+def enrich_cross_sectional_features(features):
+    add_percentile_rank(
+        features,
+        "volume_z_15m",
+        "volume_rarity_pct",
+    )
+    add_percentile_rank(
+        features,
+        "trade_z_15m",
+        "trade_rarity_pct",
+    )
+    add_percentile_rank(
+        features,
+        "return_z_15m",
+        "return_rarity_pct",
+    )
+
+    for feature in features:
+        feature[
+            "cross_sectional_rarity_pct"
+        ] = statistics.fmean(
+            (
+                feature["volume_rarity_pct"],
+                feature["trade_rarity_pct"],
+                feature["return_rarity_pct"],
+            )
+        )
+
+
+def liquidity_is_valid(liquidity):
+    required = (
+        liquidity.get("spread_bps"),
+        liquidity.get("buy_impact_1k_bps"),
+        liquidity.get("buy_impact_5k_bps"),
+    )
+
+    if any(value is None for value in required):
+        return False
+
+    return (
+        liquidity["spread_bps"] <= MAX_SPREAD_BPS
+        and liquidity["buy_impact_1k_bps"]
+        <= MAX_BUY_IMPACT_1K_BPS
+        and liquidity["buy_impact_5k_bps"]
+        <= MAX_BUY_IMPACT_5K_BPS
+    )
+
+
+def select_tradable_signal_groups(
+    features,
+    book_tickers,
+):
+    signal_pool = sorted(
+        [
+            feature for feature in features
+            if feature["stage"] != "OBSERVE"
+            and not feature["climax_risk"]
+            and not feature.get("manipulation_risk", False)
+        ],
+        key=ranking_key,
+        reverse=True,
+    )
+    qualified = []
+
+    for feature in signal_pool:
+        try:
+            liquidity = measure_liquidity(
+                feature["symbol"],
+                book_tickers.get(
+                    feature["symbol"]
+                ),
+            )
+        except Exception as error:
+            feature["liquidity_error"] = str(error)
+            continue
+
+        feature["liquidity"] = liquidity
+
+        if (
+            float(liquidity.get("buy_impact_1k_bps") or 0.0) >= 20.0
+            and float(feature.get("change_15m") or 0.0) > 0
+        ):
+            feature["engine"] = "LIQUIDITY_VACUUM"
+
+        if liquidity_is_valid(liquidity):
+            qualified.append(feature)
+
+        if len(qualified) >= MAX_SELECTED:
+            break
+
+    selected = qualified[:MAX_SELECTED]
+    selected_symbols = {feature["symbol"] for feature in selected}
+    near_pool = sorted(
+        [
+            feature for feature in features
+            if feature["symbol"] not in selected_symbols
+            and not feature["climax_risk"]
+            and not feature.get("manipulation_risk", False)
+        ],
+        key=lambda feature: (
+            float(feature.get("near_miss_distance") or 0.0),
+            tuple(-float(value) if isinstance(value, (int, float)) else value
+                  for value in ranking_key(feature)),
+        ),
+    )
+    near_miss = []
+    for feature in near_pool:
+        try:
+            liquidity = feature.get("liquidity") or measure_liquidity(
+                feature["symbol"], book_tickers.get(feature["symbol"]),
+            )
+        except Exception:
+            continue
+        feature["liquidity"] = liquidity
+        if liquidity_is_valid(liquidity):
+            near_miss.append(feature)
+        if len(near_miss) >= MAX_NEAR_MISS:
+            break
+
+    return selected, near_miss
+
+
+def deterministic_control_key(
+    scan_time,
+    symbol,
+):
+    return hashlib.sha256(
+        f"{scan_time}|{symbol}".encode(
+            "utf-8"
+        )
+    ).hexdigest()
+
+
+def select_matched_random_controls(
+    features,
+    selected,
+    near_miss,
+    scan_time,
+    book_tickers,
+):
+    excluded_symbols = {
+        feature["symbol"]
+        for feature in selected + near_miss
+    }
+
+    pool = [
+        feature
+        for feature in features
+        if feature["symbol"]
+        not in excluded_symbols
+        and feature["stage"] == "OBSERVE"
+        and not feature["climax_risk"]
+        and not feature.get("manipulation_risk", False)
+    ]
+
+    controls = []
+
+    for candidate in selected:
+        if not pool:
+            break
+
+        target_volume = max(
+            float(
+                candidate.get(
+                    "quote_volume_24h",
+                    0.0,
+                )
+                or 0.0
+            ),
+            1.0,
+        )
+
+        ranked_pool = sorted(
+            pool,
+            key=lambda feature: (
+                abs(
+                    math.log10(
+                        max(
+                            float(
+                                feature.get(
+                                    "quote_volume_24h",
+                                    0.0,
+                                )
+                                or 0.0
+                            ),
+                            1.0,
+                        )
+                    )
+                    - math.log10(
+                        target_volume
+                    )
+                ),
+                abs(
+                    float(feature.get("coin_age_days") or 0.0)
+                    - float(candidate.get("coin_age_days") or 0.0)
+                ),
+                abs(
+                    float(feature.get("spread_bps") or 0.0)
+                    - float(candidate.get("spread_bps") or 0.0)
+                ),
+                deterministic_control_key(
+                    scan_time,
+                    feature["symbol"],
+                ),
+            ),
+        )
+
+        chosen = None
+
+        for option in ranked_pool:
+            try:
+                liquidity = measure_liquidity(
+                    option["symbol"],
+                    book_tickers.get(
+                        option["symbol"]
+                    ),
+                )
+            except Exception:
+                pool.remove(option)
+                continue
+
+            option["liquidity"] = liquidity
+            pool.remove(option)
+
+            if liquidity_is_valid(liquidity):
+                chosen = option
+                break
+
+        if chosen is not None:
+            controls.append(chosen)
+
+        if len(controls) >= MAX_RANDOM_CONTROL:
+            break
+
+    return controls
+
+
 def run_scan():
     init_db()
 
     scan_time = utc_now()
+    local_time_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+    clock_skew_seconds = None
+    try:
+        clock_skew_seconds = abs(fetch_server_time_ms() - local_time_ms) / 1000.0
+    except Exception as error:
+        save_data_issue("CLOCK_SYNC_CHECK_FAILED", str(error), scan_time)
 
     print(
         "=" * 80
     )
 
     print(
-        "BINANCE AVCI 2 V1.5"
+        "BINANCE AVCI 2 V2.1 FINAL"
     )
 
     print(
@@ -1509,8 +2259,9 @@ def run_scan():
             universe,
             spot_24h,
             futures_24h,
+            book_tickers,
             futures_mode,
-        ) = build_universe()
+        ) = build_universe(scan_time)
 
     except Exception as error:
         save_data_issue(
@@ -1546,15 +2297,46 @@ def run_scan():
             "bu taramada kullanilamiyor."
         )
 
-    btc_change_24h = float(
-        spot_24h.get(
-            "BTCUSDT",
-            {},
-        ).get(
-            "priceChangePercent",
-            0.0,
+        save_data_issue(
+            "FUTURES_DATA_UNAVAILABLE",
+            (
+                "Tarama SPOT_ONLY modunda; "
+                "OI ve funding alanlari bos."
+            ),
+            scan_time,
         )
-        or 0.0
+
+    btc_row = spot_24h.get("BTCUSDT")
+    btc_available = bool(
+        btc_row
+        and btc_row.get("priceChangePercent") is not None
+    )
+    btc_change_24h = float(
+        btc_row.get("priceChangePercent", 0.0) or 0.0
+    ) if btc_available else 0.0
+    regime = btc_regime(btc_change_24h)
+
+    health_status = "VALID_FULL"
+    if (
+        len(universe) < MIN_VALID_UNIVERSE
+        or not btc_available
+        or clock_skew_seconds is None
+        or clock_skew_seconds > MAX_CLOCK_SKEW_SECONDS
+    ):
+        health_status = "INVALID"
+        save_data_issue(
+            "SCAN_HEALTH_INVALID",
+            f"universe={len(universe)}, btc_available={btc_available}, "
+            f"clock_skew_seconds={clock_skew_seconds}",
+            scan_time,
+        )
+    elif not futures_mode:
+        health_status = "VALID_SPOT_OBSERVATION"
+
+    validation_tier = (
+        "PRIMARY"
+        if health_status == "VALID_FULL"
+        else "OBSERVATIONAL"
     )
 
     print(
@@ -1566,6 +2348,8 @@ def run_scan():
         f"Toplam taranacak coin: "
         f"{len(universe)}"
     )
+
+    print(f"Saat farki: {clock_skew_seconds if clock_skew_seconds is not None else '-'} sn")
 
     print(
         "=" * 80
@@ -1579,6 +2363,11 @@ def run_scan():
         ),
         btc_change_24h,
         data_mode,
+        regime,
+        health_status,
+        CONFIG_HASH,
+        os.environ.get("GITHUB_SHA"),
+        clock_skew_seconds,
     )
 
     daily_movers = []
@@ -1672,12 +2461,22 @@ def run_scan():
     }
 
     climax_count = 0
-    event_count = 0
-    cooldown_skip_count = 0
+    event_counts = {
+        "CANDIDATE": 0,
+        "NEAR_MISS": 0,
+        "RANDOM_CONTROL": 0,
+    }
+
+    cooldown_skip_counts = {
+        "CANDIDATE": 0,
+        "NEAR_MISS": 0,
+        "RANDOM_CONTROL": 0,
+    }
 
     total = len(
         universe
     )
+    symbol_error_count = 0
 
     for index, symbol in enumerate(
         universe,
@@ -1699,6 +2498,7 @@ def run_scan():
                         symbol
                     ],
                     futures_data,
+                    book_tickers.get(symbol),
                     btc_change_24h,
                     data_mode,
                     scan_time,
@@ -1708,6 +2508,14 @@ def run_scan():
             features.append(
                 feature
             )
+
+            save_raw_klines(
+                symbol,
+                feature.pop("raw_klines", []),
+                CONFIG_VERSION,
+            )
+
+            save_raw_deriv(feature)
 
             stage_counts[
                 feature[
@@ -1728,52 +2536,8 @@ def run_scan():
             ]:
                 climax_count += 1
 
-            is_signal = (
-                feature[
-                    "stage"
-                ]
-                != "OBSERVE"
-
-                and
-
-                not feature[
-                    "climax_risk"
-                ]
-            )
-
-            save_feature(
-                feature,
-                is_selected=0,
-                is_signal=is_signal,
-            )
-
-            if is_signal:
-                signals.append(
-                    feature
-                )
-
-                event_id = (
-                    create_signal_event(
-                        feature,
-                        cooldown_hours=(
-                            COOLDOWN_HOURS
-                        ),
-                        fee_bps_per_side=(
-                            FEE_BPS_PER_SIDE
-                        ),
-                        slippage_bps_per_side=(
-                            SLIPPAGE_BPS_PER_SIDE
-                        ),
-                    )
-                )
-
-                if event_id is None:
-                    cooldown_skip_count += 1
-
-                else:
-                    event_count += 1
-
         except Exception as error:
+            symbol_error_count += 1
             save_data_issue(
                 "SYMBOL_SCAN_FAILED",
                 (
@@ -1792,21 +2556,115 @@ def run_scan():
             SCAN_SLEEP_SECONDS
         )
 
+    enrich_cross_sectional_features(features)
+
+    if total and symbol_error_count / total > 0.20:
+        health_status = "INVALID"
+        validation_tier = "OBSERVATIONAL"
+        update_scan_health(scan_time, CONFIG_VERSION, health_status)
+        save_data_issue(
+            "SCAN_ERROR_RATE_INVALID",
+            f"errors={symbol_error_count}, universe={total}",
+            scan_time,
+        )
+
+    for feature in features:
+        feature["btc_regime"] = regime
+        feature["validation_tier"] = validation_tier
+        is_signal = (
+            feature["stage"] != "OBSERVE"
+            and not feature["climax_risk"]
+            and not feature.get("manipulation_risk", False)
+        )
+        save_feature(
+            feature,
+            is_selected=0,
+            is_signal=is_signal,
+            selection_class=("RAW_SIGNAL" if is_signal else "NONE"),
+        )
+        if is_signal:
+            signals.append(feature)
+
     signals.sort(
         key=ranking_key,
         reverse=True,
     )
 
-    selected = signals[
-        :MAX_SELECTED
-    ]
+    if health_status == "INVALID":
+        selected, near_miss, random_controls = [], [], []
+    else:
+        selected, near_miss = select_tradable_signal_groups(
+            features,
+            book_tickers,
+        )
+        random_controls = select_matched_random_controls(
+            features,
+            selected,
+            near_miss,
+            scan_time,
+            book_tickers,
+        )
 
     for feature in selected:
         save_feature(
             feature,
             is_selected=1,
             is_signal=True,
+            selection_class="CANDIDATE",
         )
+
+    for feature in near_miss:
+        save_feature(
+            feature,
+            is_selected=0,
+            is_signal=(feature["stage"] != "OBSERVE"),
+            selection_class="NEAR_MISS",
+        )
+
+    for feature in random_controls:
+        save_feature(
+            feature,
+            is_selected=0,
+            is_signal=False,
+            selection_class="RANDOM_CONTROL",
+        )
+
+    for event_class, group in (
+        ("CANDIDATE", selected),
+        ("NEAR_MISS", near_miss),
+        ("RANDOM_CONTROL", random_controls),
+    ):
+        for feature in group:
+            save_orderbook_snapshot(feature, event_class)
+            liquidity = feature.get("liquidity") or {}
+            observed_slippage = max(
+                float(liquidity.get("buy_impact_1k_bps") or 0.0),
+                float(liquidity.get("sell_impact_1k_bps") or 0.0),
+            )
+            event_id = create_signal_event(
+                feature,
+                cooldown_hours=COOLDOWN_HOURS,
+                fee_bps_per_side=(
+                    FEE_BPS_PER_SIDE
+                ),
+                slippage_bps_per_side=(
+                    max(SLIPPAGE_BPS_PER_SIDE, observed_slippage)
+                ),
+                event_class=event_class,
+                entry_delay_seconds=(
+                    ENTRY_DELAY_SECONDS
+                ),
+            )
+
+            if event_id is None:
+                cooldown_skip_counts[
+                    event_class
+                ] += 1
+
+            else:
+                event_counts[
+                    event_class
+                ] += 1
 
     print(
         "=" * 80
@@ -1815,6 +2673,9 @@ def run_scan():
     print(
         "TARAMA OZETI"
     )
+
+    print(f"Saglik: {health_status} | Dogrulama: {validation_tier}")
+    print(f"BTC rejimi: {regime}")
 
     print(
         f"Tarama evreni: "
@@ -1837,14 +2698,20 @@ def run_scan():
     )
 
     print(
-        f"Yeni event: "
-        f"{event_count}"
+        "Yeni event "
+        f"| aday: {event_counts['CANDIDATE']} "
+        f"| near-miss: {event_counts['NEAR_MISS']} "
+        "| random: "
+        f"{event_counts['RANDOM_CONTROL']}"
     )
 
     print(
-        f"Cooldown nedeniyle "
-        f"yeni event sayilmayan: "
-        f"{cooldown_skip_count}"
+        "Cooldown nedeniyle atlanan "
+        f"| aday: {cooldown_skip_counts['CANDIDATE']} "
+        "| near-miss: "
+        f"{cooldown_skip_counts['NEAR_MISS']} "
+        "| random: "
+        f"{cooldown_skip_counts['RANDOM_CONTROL']}"
     )
 
     print(
