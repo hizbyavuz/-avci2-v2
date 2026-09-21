@@ -2,6 +2,8 @@ import os
 import requests
 import time
 import sqlite3
+import hashlib
+import math
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
 
@@ -88,6 +90,53 @@ OUTCOME_MAX_UPDATES_PER_RUN = 2
 OUTCOME_TARGETS = (3, 5, 7, 10, 15)
 OUTCOME_CLOSE_HOURS = 72
 
+# ============================================================
+# V5 VALIDATION — ONCEDEN SABITLENMIS TEST KURALLARI
+# ============================================================
+
+VALIDATION_DB_PATH = os.getenv(
+    "AVCI_VALIDATION_DB",
+    "avci_validation_v5.db"
+)
+
+ENTRY_DELAY_MINUTES = 2
+STOP_PCT = -7.0
+VALIDATION_TARGETS = (3, 5, 7, 10, 15)
+VALIDATION_HORIZON_HOURS = 72
+
+# Her acik olayi her 10 dakikada sorgulamak yerine 2 saatte bir
+# 1 dakikalik mumlarla yolunu tamamlar. Boylece rate-limit patlamaz.
+VALIDATION_UPDATE_INTERVAL_MINUTES = 120
+VALIDATION_MAX_UPDATES_PER_RUN = 8
+
+# Her candidate icin 1 near-miss + 1 random control.
+NEAR_MISS_PER_CANDIDATE = 1
+RANDOM_CONTROL_PER_CANDIDATE = 1
+
+# Kontrol havuzu adaylara benzeyecek, ama ana sinyal filtresini gecmek zorunda degil.
+CONTROL_MIN_VOLUME_24H = 15000
+CONTROL_MIN_CHANGE_24H = -5
+CONTROL_MAX_CHANGE_24H = 40
+
+# Net-getiri maliyet modeli.
+# Jupiter/0x quote varsa cikis kaybi gercek quote'tan gelir.
+# Ag masrafi ve ekstra fee varsayimdir; raporda "ASSUMED" diye tutulur.
+COST_MODEL_VERSION = "v1_quote_plus_assumed_network_cost"
+ASSUMED_NETWORK_COST_PCT = {
+    "solana": 0.10,
+    "bsc": 0.20,
+    "base": 0.15,
+    "arbitrum": 0.15,
+    "eth": 0.50,
+}
+
+# Test sirasinda degistirilmeyecek, onceden tanimli 3 kombinasyon.
+FROZEN_RULESETS = (
+    "R1_WAKEUP_STRICT",
+    "R2_REIGNITION_TRIGGER",
+    "R3_PERSISTENCE_STRUCTURE",
+)
+
 # Top-holder hesabinda sistem/LP/burn/borsa benzeri etiketleri disla.
 EXCLUDED_HOLDER_TAG_WORDS = (
     "burn",
@@ -112,7 +161,7 @@ SOL_MINT = "So11111111111111111111111111111111111111112"
 USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
 USDC_DECIMALS = 6
 
-CONFIG_VERSION = "v4.0-full-risk-outcome-20260921"
+CONFIG_VERSION = "v5.0-validation-frozen-20260921"
 
 # ------------------------------------------------------------
 # TEMEL EVREN / TRADABILITY
@@ -3737,12 +3786,1542 @@ def print_candidate(i, c):
     )
 
 
+
+# ============================================================
+# V5 — BILIMSEL DOGRULAMA KATMANI
+# Candidate + Near-Miss + Random Control
+# Entry Delay + Stop-First Triple Barrier
+# MFE/MAE + Quote Cost + Rejim + Ag Bazli Rapor
+# ============================================================
+
+def validation_now_ts():
+    return int(time.time())
+
+
+def validation_scan_bucket():
+    # 10 dakikalik deterministik bucket.
+    return validation_now_ts() // 600
+
+
+def frozen_rulesets_for_candidate(c):
+    models = c.get("models") or {}
+    climax = (c.get("climax") or {}).get("risk") is True
+    trap = (c.get("trap_proxy") or {}).get("risk") is True
+
+    result = []
+
+    if (
+        models.get("wake_up") is True
+        and c.get("motor_passed", 0) >= 12
+        and not climax
+        and not trap
+    ):
+        result.append("R1_WAKEUP_STRICT")
+
+    if (
+        models.get("re_ignition") is True
+        and models.get("trigger") is True
+        and c.get("motor_passed", 0) >= 11
+        and not climax
+    ):
+        result.append("R2_REIGNITION_TRIGGER")
+
+    if (
+        models.get("persistence") is True
+        and models.get("retention_proxy") is True
+        and c.get("motor_passed", 0) >= 11
+        and not trap
+    ):
+        result.append("R3_PERSISTENCE_STRUCTURE")
+
+    return result
+
+
+def fetch_market_regime():
+    result = {
+        "timestamp": utc_iso(),
+        "btc_change_24h": None,
+        "sol_change_24h": None,
+        "btc_regime": "UNKNOWN",
+        "sol_regime": "UNKNOWN",
+        "weekend": datetime.now(timezone.utc).weekday() >= 5,
+        "utc_hour": datetime.now(timezone.utc).hour,
+    }
+
+    try:
+        r = requests.get(
+            "https://api.coingecko.com/api/v3/simple/price",
+            params={
+                "ids": "bitcoin,solana",
+                "vs_currencies": "usd",
+                "include_24hr_change": "true",
+            },
+            timeout=15,
+        )
+        r.raise_for_status()
+        data = r.json()
+
+        btc = num(
+            (data.get("bitcoin") or {}).get(
+                "usd_24h_change"
+            )
+        )
+        sol = num(
+            (data.get("solana") or {}).get(
+                "usd_24h_change"
+            )
+        )
+
+        result["btc_change_24h"] = btc
+        result["sol_change_24h"] = sol
+
+        def label(x):
+            if x >= 2:
+                return "UP"
+            if x <= -2:
+                return "DOWN"
+            return "SIDEWAYS"
+
+        result["btc_regime"] = label(btc)
+        result["sol_regime"] = label(sol)
+
+    except Exception as e:
+        result["error"] = str(e)
+
+    return result
+
+
+def control_pool_from_payload(
+    payload,
+    network_id,
+    network_name,
+    source,
+):
+    inc = included_map(payload)
+    rows = []
+
+    for pool in payload.get("data", []):
+        a = pool.get("attributes") or {}
+
+        pool_address = a.get("address") or ""
+        if not pool_address:
+            continue
+
+        age_minutes = pool_age_minutes(
+            a.get("pool_created_at")
+        )
+
+        liquidity = num(
+            a.get("reserve_in_usd")
+        )
+
+        volume = a.get("volume_usd") or {}
+        volume_24h = num(volume.get("h24"))
+        volume_1h = num(volume.get("h1"))
+        volume_5m = num(volume.get("m5"))
+
+        changes = (
+            a.get("price_change_percentage")
+            or {}
+        )
+
+        change_24h = num(changes.get("h24"))
+        change_6h = num(changes.get("h6"))
+        change_1h = num(changes.get("h1"))
+        change_5m = num(changes.get("m5"))
+
+        tx = a.get("transactions") or {}
+        h24 = tx.get("h24") or {}
+        h1 = tx.get("h1") or {}
+        m5 = tx.get("m5") or {}
+
+        buys_24h = num(h24.get("buys"))
+        sells_24h = num(h24.get("sells"))
+        buys_1h = num(h1.get("buys"))
+        sells_1h = num(h1.get("sells"))
+        buys_5m = num(m5.get("buys"))
+        sells_5m = num(m5.get("sells"))
+
+        base_token = token_from_included(
+            pool,
+            inc,
+            "base_token"
+        )
+
+        token_contract = (
+            base_token.get("address")
+            or ""
+        )
+
+        if not token_contract:
+            continue
+
+        # Aynı tradability evreni, ama sinyal kurallari daha gevsek.
+        if not (
+            MIN_LIQUIDITY
+            <= liquidity
+            <= MAX_LIQUIDITY
+        ):
+            continue
+
+        if volume_24h < CONTROL_MIN_VOLUME_24H:
+            continue
+
+        if not (
+            CONTROL_MIN_CHANGE_24H
+            <= change_24h
+            <= CONTROL_MAX_CHANGE_24H
+        ):
+            continue
+
+        if (
+            age_minutes is not None
+            and age_minutes > MAX_POOL_AGE_MINUTES
+        ):
+            continue
+
+        price_usd = num(
+            a.get("base_token_price_usd")
+        )
+
+        if price_usd <= 0:
+            continue
+
+        rows.append({
+            "network": network_name,
+            "network_id": network_id,
+            "source": source,
+            "name": (
+                base_token.get("name")
+                or a.get("name")
+                or "Unknown"
+            ),
+            "symbol": (
+                base_token.get("symbol")
+                or ""
+            ),
+            "token_contract": token_contract,
+            "pool": pool_address,
+            "created_at": a.get(
+                "pool_created_at"
+            ),
+            "age_minutes": age_minutes,
+            "liquidity": liquidity,
+            "price_usd": price_usd,
+            "decimals": int_or_zero(
+                base_token.get("decimals")
+            ),
+            "volume_24h": volume_24h,
+            "volume_1h": volume_1h,
+            "volume_5m": volume_5m,
+            "change_24h": change_24h,
+            "change_6h": change_6h,
+            "change_1h": change_1h,
+            "change_5m": change_5m,
+            "buys_24h": buys_24h,
+            "sells_24h": sells_24h,
+            "buys_1h": buys_1h,
+            "sells_1h": sells_1h,
+            "buys_5m": buys_5m,
+            "sells_5m": sells_5m,
+        })
+
+    return rows
+
+
+def dedup_control_pool(rows):
+    best = {}
+
+    for row in rows:
+        key = (
+            row["network_id"],
+            row["token_contract"]
+        )
+
+        old = best.get(key)
+
+        if old is None:
+            best[key] = row
+            continue
+
+        # Daha likit olan pool'u tut.
+        if row["liquidity"] > old["liquidity"]:
+            best[key] = row
+
+    return list(best.values())
+
+
+def match_distance(candidate, control):
+    # Yaş/likidite/hacim/fiyat-hareket benzerligi.
+    # Log distance, buyuk-cap farklarini ezmez.
+    def logd(a, b):
+        return abs(
+            math.log(max(num(a), 1))
+            - math.log(max(num(b), 1))
+        )
+
+    age_a = (
+        candidate.get("age_minutes")
+        if candidate.get("age_minutes") is not None
+        else 0
+    )
+    age_b = (
+        control.get("age_minutes")
+        if control.get("age_minutes") is not None
+        else 0
+    )
+
+    return (
+        1.5 * logd(
+            candidate.get("liquidity"),
+            control.get("liquidity")
+        )
+        + 1.5 * logd(
+            candidate.get("volume_24h"),
+            control.get("volume_24h")
+        )
+        + 0.8 * logd(
+            age_a + 60,
+            age_b + 60
+        )
+        + 0.05 * abs(
+            num(candidate.get("change_24h"))
+            - num(control.get("change_24h"))
+        )
+    )
+
+
+def deterministic_pick(rows, salt):
+    if not rows:
+        return None
+
+    ranked = []
+
+    for row in rows:
+        raw = (
+            f"{salt}|"
+            f"{row['network_id']}|"
+            f"{row['token_contract']}"
+        ).encode("utf-8")
+
+        digest = hashlib.sha256(
+            raw
+        ).hexdigest()
+
+        ranked.append(
+            (digest, row)
+        )
+
+    ranked.sort(
+        key=lambda x: x[0]
+    )
+
+    return ranked[0][1]
+
+
+def select_validation_controls(
+    candidates,
+    control_pool,
+):
+    candidate_keys = {
+        (
+            c["network_id"],
+            c["token_contract"]
+        )
+        for c in candidates
+    }
+
+    selected = []
+    used = set()
+    bucket = validation_scan_bucket()
+
+    for c in candidates:
+        same_network = [
+            x
+            for x in control_pool
+            if x["network_id"] == c["network_id"]
+            and (
+                x["network_id"],
+                x["token_contract"]
+            ) not in candidate_keys
+            and (
+                x["network_id"],
+                x["token_contract"]
+            ) not in used
+        ]
+
+        if not same_network:
+            continue
+
+        # Near-miss: en benzer yaş/liq/hacim profili.
+        ranked = sorted(
+            same_network,
+            key=lambda x: match_distance(
+                c,
+                x
+            )
+        )
+
+        for near in ranked[
+            :NEAR_MISS_PER_CANDIDATE
+        ]:
+            row = dict(near)
+            row["group_type"] = "NEAR_MISS"
+            row["matched_candidate"] = (
+                c["token_contract"]
+            )
+            row["match_distance"] = (
+                match_distance(
+                    c,
+                    near
+                )
+            )
+            selected.append(row)
+            used.add(
+                (
+                    row["network_id"],
+                    row["token_contract"]
+                )
+            )
+
+        random_pool = [
+            x
+            for x in same_network
+            if (
+                x["network_id"],
+                x["token_contract"]
+            ) not in used
+        ]
+
+        for j in range(
+            RANDOM_CONTROL_PER_CANDIDATE
+        ):
+            rnd = deterministic_pick(
+                random_pool,
+                (
+                    f"{bucket}|"
+                    f"{c['token_contract']}|"
+                    f"{j}"
+                )
+            )
+
+            if rnd is None:
+                break
+
+            row = dict(rnd)
+            row["group_type"] = "RANDOM_CONTROL"
+            row["matched_candidate"] = (
+                c["token_contract"]
+            )
+            row["match_distance"] = None
+            selected.append(row)
+
+            used.add(
+                (
+                    row["network_id"],
+                    row["token_contract"]
+                )
+            )
+
+            random_pool = [
+                x
+                for x in random_pool
+                if (
+                    x["network_id"],
+                    x["token_contract"]
+                ) not in used
+            ]
+
+    return selected
+
+
+def validation_exit_snapshot(item):
+    ts = utc_iso()
+
+    price_usd = num(
+        item.get("price_usd")
+    )
+    decimals = int_or_zero(
+        item.get("decimals")
+    )
+
+    if item["network_id"] == "solana":
+        if decimals <= 0:
+            profile = solana_mint_profile(
+                item["token_contract"]
+            )
+            decimals = int_or_zero(
+                profile.get("decimals")
+            )
+            item["decimals"] = decimals
+
+        if (
+            price_usd <= 0
+            or decimals <= 0
+            or not JUPITER_API_KEY
+        ):
+            return {
+                "status": "DATA_MISSING",
+                "timestamp": ts,
+                "exit_loss_pct": None,
+                "provider": "JUPITER",
+            }
+
+        amount = int(
+            (1000 / price_usd)
+            * (10 ** decimals)
+        )
+
+        q = quote_exit_metrics(
+            jupiter_quote(
+                item["token_contract"],
+                USDC_MINT,
+                amount,
+            ),
+            1000
+        )
+
+        return {
+            "status": (
+                "OK"
+                if q.get("ok")
+                else "DATA_MISSING"
+            ),
+            "timestamp": ts,
+            "exit_loss_pct": (
+                q.get("loss_pct")
+                if q.get("ok")
+                else None
+            ),
+            "price_impact_pct": (
+                q.get("price_impact_pct")
+                if q.get("ok")
+                else None
+            ),
+            "provider": "JUPITER",
+        }
+
+    if item["network_id"] in EVM_CHAIN_IDS:
+        q = evm_exit_metrics(
+            item["network_id"],
+            item["token_contract"],
+            decimals,
+            price_usd,
+            1000,
+        )
+
+        return {
+            "status": (
+                "OK"
+                if q.get("ok")
+                else "DATA_MISSING"
+            ),
+            "timestamp": (
+                q.get("timestamp")
+                or ts
+            ),
+            "exit_loss_pct": (
+                q.get("loss_pct")
+                if q.get("ok")
+                else None
+            ),
+            "provider": "0X",
+            "error": q.get("error"),
+        }
+
+    return {
+        "status": "DATA_MISSING",
+        "timestamp": ts,
+        "exit_loss_pct": None,
+        "provider": "NONE",
+    }
+
+
+def validation_cost_snapshot(item):
+    quote = validation_exit_snapshot(
+        item
+    )
+
+    network_cost = (
+        ASSUMED_NETWORK_COST_PCT.get(
+            item["network_id"],
+            0.25
+        )
+    )
+
+    exit_loss = quote.get(
+        "exit_loss_pct"
+    )
+
+    # Exit quote yoksa cost-adjusted sonuc "UNKNOWN" kalir.
+    if exit_loss is None:
+        total = None
+        status = "PARTIAL_DATA"
+    else:
+        total = (
+            max(0.0, num(exit_loss))
+            + network_cost
+        )
+        status = "QUOTE_PLUS_ASSUMPTION"
+
+    return {
+        "model_version": COST_MODEL_VERSION,
+        "status": status,
+        "quote_provider": quote.get(
+            "provider"
+        ),
+        "quote_timestamp": quote.get(
+            "timestamp"
+        ),
+        "exit_loss_pct": exit_loss,
+        "assumed_network_cost_pct":
+            network_cost,
+        "estimated_total_cost_pct": total,
+    }
+
+
+def validation_db():
+    con = sqlite3.connect(
+        VALIDATION_DB_PATH
+    )
+
+    con.execute(
+        """
+        CREATE TABLE IF NOT EXISTS validation_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            config_version TEXT NOT NULL,
+            batch_id TEXT NOT NULL,
+            group_type TEXT NOT NULL,
+            matched_candidate TEXT,
+            network_id TEXT NOT NULL,
+            token_contract TEXT NOT NULL,
+            pool TEXT NOT NULL,
+            source TEXT,
+            signal_ts INTEGER NOT NULL,
+            signal_iso TEXT NOT NULL,
+            signal_price REAL NOT NULL,
+            entry_due_ts INTEGER NOT NULL,
+            entry_ts INTEGER,
+            entry_price REAL,
+            last_candle_ts INTEGER,
+            next_update_ts INTEGER NOT NULL,
+            horizon_end_ts INTEGER NOT NULL,
+
+            rulesets TEXT,
+            btc_regime TEXT,
+            sol_regime TEXT,
+            btc_change_24h REAL,
+            sol_change_24h REAL,
+            utc_hour INTEGER,
+            weekend INTEGER,
+
+            quote_provider TEXT,
+            quote_timestamp TEXT,
+            exit_loss_pct REAL,
+            assumed_network_cost_pct REAL,
+            estimated_total_cost_pct REAL,
+            cost_status TEXT,
+
+            stop_pct REAL NOT NULL,
+            stop_ts INTEGER,
+
+            hit_3_ts INTEGER,
+            hit_5_ts INTEGER,
+            hit_7_ts INTEGER,
+            hit_10_ts INTEGER,
+            hit_15_ts INTEGER,
+
+            result_3 TEXT,
+            result_5 TEXT,
+            result_7 TEXT,
+            result_10 TEXT,
+            result_15 TEXT,
+
+            mfe_pct REAL,
+            mae_pct REAL,
+            gross_final_pct REAL,
+            net_final_pct REAL,
+            observation_count INTEGER NOT NULL DEFAULT 0,
+            status TEXT NOT NULL DEFAULT 'WAIT_ENTRY'
+        )
+        """
+    )
+
+    con.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_validation_open
+        ON validation_events(status, next_update_ts)
+        """
+    )
+
+    con.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_validation_dedup
+        ON validation_events(
+            group_type,
+            network_id,
+            token_contract,
+            signal_ts
+        )
+        """
+    )
+
+    con.commit()
+    return con
+
+
+def validation_record_event(
+    item,
+    group_type,
+    batch_id,
+    regime,
+):
+    signal_price = num(
+        item.get("price_usd")
+    )
+
+    if signal_price <= 0:
+        return None
+
+    now_ts = validation_now_ts()
+    cutoff = (
+        now_ts
+        - OUTCOME_SIGNAL_COOLDOWN_HOURS
+        * 3600
+    )
+
+    con = validation_db()
+
+    existing = con.execute(
+        """
+        SELECT id
+        FROM validation_events
+        WHERE group_type = ?
+          AND network_id = ?
+          AND token_contract = ?
+          AND signal_ts >= ?
+        ORDER BY signal_ts DESC
+        LIMIT 1
+        """,
+        (
+            group_type,
+            item["network_id"],
+            item["token_contract"],
+            cutoff,
+        )
+    ).fetchone()
+
+    if existing:
+        con.close()
+        return existing[0]
+
+    cost = validation_cost_snapshot(
+        item
+    )
+
+    rulesets = ""
+
+    if group_type == "CANDIDATE":
+        rulesets = ",".join(
+            frozen_rulesets_for_candidate(
+                item
+            )
+        )
+
+    cur = con.execute(
+        """
+        INSERT INTO validation_events (
+            config_version,
+            batch_id,
+            group_type,
+            matched_candidate,
+            network_id,
+            token_contract,
+            pool,
+            source,
+            signal_ts,
+            signal_iso,
+            signal_price,
+            entry_due_ts,
+            last_candle_ts,
+            next_update_ts,
+            horizon_end_ts,
+            rulesets,
+            btc_regime,
+            sol_regime,
+            btc_change_24h,
+            sol_change_24h,
+            utc_hour,
+            weekend,
+            quote_provider,
+            quote_timestamp,
+            exit_loss_pct,
+            assumed_network_cost_pct,
+            estimated_total_cost_pct,
+            cost_status,
+            stop_pct,
+            mfe_pct,
+            mae_pct,
+            status
+        )
+        VALUES (
+            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+        )
+        """,
+        (
+            CONFIG_VERSION,
+            batch_id,
+            group_type,
+            item.get(
+                "matched_candidate"
+            ),
+            item["network_id"],
+            item["token_contract"],
+            item["pool"],
+            item.get("source"),
+            now_ts,
+            utc_iso(),
+            signal_price,
+            now_ts
+            + ENTRY_DELAY_MINUTES * 60,
+            now_ts - 60,
+            now_ts
+            + ENTRY_DELAY_MINUTES * 60,
+            now_ts
+            + VALIDATION_HORIZON_HOURS
+            * 3600,
+            rulesets,
+            regime.get("btc_regime"),
+            regime.get("sol_regime"),
+            regime.get("btc_change_24h"),
+            regime.get("sol_change_24h"),
+            regime.get("utc_hour"),
+            1 if regime.get("weekend")
+            else 0,
+            cost.get("quote_provider"),
+            cost.get("quote_timestamp"),
+            cost.get("exit_loss_pct"),
+            cost.get(
+                "assumed_network_cost_pct"
+            ),
+            cost.get(
+                "estimated_total_cost_pct"
+            ),
+            cost.get("status"),
+            STOP_PCT,
+            0.0,
+            0.0,
+            "WAIT_ENTRY",
+        )
+    )
+
+    event_id = cur.lastrowid
+    con.commit()
+    con.close()
+    return event_id
+
+
+def _result_column(target):
+    return f"result_{target}"
+
+
+def _hit_column(target):
+    return f"hit_{target}_ts"
+
+
+def validation_update_one(
+    con,
+    row,
+):
+    (
+        event_id,
+        network_id,
+        token_contract,
+        pool,
+        signal_ts,
+        entry_due_ts,
+        entry_ts,
+        entry_price,
+        last_candle_ts,
+        next_update_ts,
+        horizon_end_ts,
+        stop_pct,
+        stop_ts,
+        hit3,
+        hit5,
+        hit7,
+        hit10,
+        hit15,
+        result3,
+        result5,
+        result7,
+        result10,
+        result15,
+        mfe_pct,
+        mae_pct,
+        obs_count,
+        est_cost_pct,
+        status,
+    ) = row
+
+    now_ts = validation_now_ts()
+
+    if now_ts < entry_due_ts:
+        return
+
+    before_ts = min(
+        now_ts + 60,
+        horizon_end_ts + 60
+    )
+
+    candles = fetch_minute_candles(
+        network_id,
+        pool,
+        token_contract,
+        before_ts=before_ts,
+        limit=180,
+    )
+
+    candles = [
+        x
+        for x in candles
+        if x["ts"] > (
+            last_candle_ts
+            or signal_ts - 60
+        )
+        and x["ts"] >= signal_ts
+    ]
+
+    if not candles:
+        new_status = status
+
+        if now_ts >= horizon_end_ts:
+            new_status = "CLOSED_72H"
+
+        con.execute(
+            """
+            UPDATE validation_events
+            SET next_update_ts = ?,
+                status = ?
+            WHERE id = ?
+            """,
+            (
+                now_ts
+                + VALIDATION_UPDATE_INTERVAL_MINUTES
+                * 60,
+                new_status,
+                event_id,
+            )
+        )
+        return
+
+    # 2 dakikalik gecikmeden sonraki ilk mumun OPEN'i giris.
+    if entry_price is None:
+        entry_candle = next(
+            (
+                x
+                for x in candles
+                if x["ts"] >= entry_due_ts
+            ),
+            None
+        )
+
+        if entry_candle is None:
+            con.execute(
+                """
+                UPDATE validation_events
+                SET last_candle_ts = ?,
+                    next_update_ts = ?
+                WHERE id = ?
+                """,
+                (
+                    candles[-1]["ts"],
+                    now_ts
+                    + VALIDATION_UPDATE_INTERVAL_MINUTES
+                    * 60,
+                    event_id,
+                )
+            )
+            return
+
+        entry_ts = entry_candle["ts"]
+        entry_price = entry_candle["open"]
+
+        if entry_price <= 0:
+            return
+
+    target_hits = {
+        3: hit3,
+        5: hit5,
+        7: hit7,
+        10: hit10,
+        15: hit15,
+    }
+
+    results = {
+        3: result3,
+        5: result5,
+        7: result7,
+        10: result10,
+        15: result15,
+    }
+
+    current_stop_ts = stop_ts
+    current_mfe = num(mfe_pct)
+    current_mae = num(mae_pct)
+    final_close = entry_price
+
+    relevant = [
+        x
+        for x in candles
+        if x["ts"] >= entry_ts
+    ]
+
+    for candle in relevant:
+        high_ret = (
+            (
+                candle["high"]
+                / entry_price
+            )
+            - 1
+        ) * 100.0
+
+        low_ret = (
+            (
+                candle["low"]
+                / entry_price
+            )
+            - 1
+        ) * 100.0
+
+        current_mfe = max(
+            current_mfe,
+            high_ret
+        )
+        current_mae = min(
+            current_mae,
+            low_ret
+        )
+        final_close = candle["close"]
+
+        stop_hit_this_candle = (
+            low_ret <= stop_pct
+        )
+
+        # SAME-CANDLE AMBIGUITY:
+        # 1m mum icinde hedef ve stop birlikte gorulurse stop-first.
+        if (
+            current_stop_ts is None
+            and stop_hit_this_candle
+        ):
+            current_stop_ts = candle["ts"]
+
+        for target in VALIDATION_TARGETS:
+            if results[target] is not None:
+                continue
+
+            target_hit_this_candle = (
+                high_ret >= target
+            )
+
+            if stop_hit_this_candle:
+                results[target] = "STOP_FIRST"
+
+            elif target_hit_this_candle:
+                target_hits[target] = (
+                    candle["ts"]
+                )
+                results[target] = "TARGET_FIRST"
+
+            elif current_stop_ts is not None:
+                results[target] = "STOP_FIRST"
+
+    # Horizon biterse acik kalan bariyerler TIMEOUT.
+    is_closed = (
+        now_ts >= horizon_end_ts
+        or (
+            relevant
+            and relevant[-1]["ts"]
+            >= horizon_end_ts - 60
+        )
+    )
+
+    if is_closed:
+        for target in VALIDATION_TARGETS:
+            if results[target] is None:
+                results[target] = "TIMEOUT"
+
+    gross_final_pct = (
+        (
+            final_close
+            / entry_price
+        )
+        - 1
+    ) * 100.0
+
+    net_final_pct = None
+
+    if est_cost_pct is not None:
+        net_final_pct = (
+            gross_final_pct
+            - num(est_cost_pct)
+        )
+
+    new_status = (
+        "CLOSED_72H"
+        if is_closed
+        else "OPEN"
+    )
+
+    last_ts = (
+        relevant[-1]["ts"]
+        if relevant
+        else candles[-1]["ts"]
+    )
+
+    con.execute(
+        """
+        UPDATE validation_events
+        SET entry_ts = ?,
+            entry_price = ?,
+            last_candle_ts = ?,
+            next_update_ts = ?,
+            stop_ts = ?,
+            hit_3_ts = ?,
+            hit_5_ts = ?,
+            hit_7_ts = ?,
+            hit_10_ts = ?,
+            hit_15_ts = ?,
+            result_3 = ?,
+            result_5 = ?,
+            result_7 = ?,
+            result_10 = ?,
+            result_15 = ?,
+            mfe_pct = ?,
+            mae_pct = ?,
+            gross_final_pct = ?,
+            net_final_pct = ?,
+            observation_count = ?,
+            status = ?
+        WHERE id = ?
+        """,
+        (
+            entry_ts,
+            entry_price,
+            last_ts,
+            now_ts
+            + VALIDATION_UPDATE_INTERVAL_MINUTES
+            * 60,
+            current_stop_ts,
+            target_hits[3],
+            target_hits[5],
+            target_hits[7],
+            target_hits[10],
+            target_hits[15],
+            results[3],
+            results[5],
+            results[7],
+            results[10],
+            results[15],
+            current_mfe,
+            current_mae,
+            gross_final_pct,
+            net_final_pct,
+            int_or_zero(obs_count)
+            + len(relevant),
+            new_status,
+            event_id,
+        )
+    )
+
+
+def validation_update_events():
+    con = validation_db()
+    now_ts = validation_now_ts()
+
+    rows = con.execute(
+        """
+        SELECT
+            id,
+            network_id,
+            token_contract,
+            pool,
+            signal_ts,
+            entry_due_ts,
+            entry_ts,
+            entry_price,
+            last_candle_ts,
+            next_update_ts,
+            horizon_end_ts,
+            stop_pct,
+            stop_ts,
+            hit_3_ts,
+            hit_5_ts,
+            hit_7_ts,
+            hit_10_ts,
+            hit_15_ts,
+            result_3,
+            result_5,
+            result_7,
+            result_10,
+            result_15,
+            mfe_pct,
+            mae_pct,
+            observation_count,
+            estimated_total_cost_pct,
+            status
+        FROM validation_events
+        WHERE status != 'CLOSED_72H'
+          AND next_update_ts <= ?
+        ORDER BY next_update_ts ASC
+        LIMIT ?
+        """,
+        (
+            now_ts,
+            VALIDATION_MAX_UPDATES_PER_RUN,
+        )
+    ).fetchall()
+
+    for row in rows:
+        try:
+            validation_update_one(
+                con,
+                row
+            )
+            con.commit()
+        except Exception as e:
+            print(
+                "V5 validation update hata:",
+                row[0],
+                e
+            )
+
+        time.sleep(7)
+
+    con.close()
+
+
+def _median(values):
+    vals = sorted(
+        float(x)
+        for x in values
+        if x is not None
+    )
+
+    if not vals:
+        return None
+
+    n = len(vals)
+    mid = n // 2
+
+    if n % 2:
+        return vals[mid]
+
+    return (
+        vals[mid - 1]
+        + vals[mid]
+    ) / 2
+
+
+def validation_report_rows():
+    con = validation_db()
+
+    rows = con.execute(
+        """
+        SELECT
+            group_type,
+            network_id,
+            btc_regime,
+            sol_regime,
+            rulesets,
+            result_10,
+            result_15,
+            mfe_pct,
+            mae_pct,
+            net_final_pct,
+            cost_status,
+            status
+        FROM validation_events
+        """
+    ).fetchall()
+
+    con.close()
+    return rows
+
+
+def validation_summary():
+    rows = validation_report_rows()
+
+    summary = {
+        "total": len(rows),
+        "by_group": {},
+        "by_network": {},
+        "by_regime": {},
+        "rulesets": {},
+    }
+
+    def calc(group_rows):
+        target10_known = [
+            r
+            for r in group_rows
+            if r[5] in (
+                "TARGET_FIRST",
+                "STOP_FIRST",
+                "TIMEOUT",
+            )
+        ]
+
+        hit10 = sum(
+            1
+            for r in target10_known
+            if r[5] == "TARGET_FIRST"
+        )
+
+        target15_known = [
+            r
+            for r in group_rows
+            if r[6] in (
+                "TARGET_FIRST",
+                "STOP_FIRST",
+                "TIMEOUT",
+            )
+        ]
+
+        hit15 = sum(
+            1
+            for r in target15_known
+            if r[6] == "TARGET_FIRST"
+        )
+
+        return {
+            "n": len(group_rows),
+            "closed": sum(
+                1
+                for r in group_rows
+                if r[11] == "CLOSED_72H"
+            ),
+            "hit10_n": len(target10_known),
+            "hit10_rate": (
+                hit10 / len(target10_known)
+                if target10_known
+                else None
+            ),
+            "hit15_n": len(target15_known),
+            "hit15_rate": (
+                hit15 / len(target15_known)
+                if target15_known
+                else None
+            ),
+            "median_mfe": _median(
+                r[7]
+                for r in group_rows
+            ),
+            "median_mae": _median(
+                r[8]
+                for r in group_rows
+            ),
+            "median_net": _median(
+                r[9]
+                for r in group_rows
+                if r[10]
+                == "QUOTE_PLUS_ASSUMPTION"
+            ),
+        }
+
+    for group in (
+        "CANDIDATE",
+        "NEAR_MISS",
+        "RANDOM_CONTROL",
+    ):
+        subset = [
+            r
+            for r in rows
+            if r[0] == group
+        ]
+        summary["by_group"][group] = (
+            calc(subset)
+        )
+
+    networks = sorted({
+        r[1]
+        for r in rows
+    })
+
+    for network in networks:
+        subset = [
+            r
+            for r in rows
+            if r[1] == network
+        ]
+
+        summary["by_network"][network] = {}
+
+        for group in (
+            "CANDIDATE",
+            "NEAR_MISS",
+            "RANDOM_CONTROL",
+        ):
+            gs = [
+                r
+                for r in subset
+                if r[0] == group
+            ]
+
+            summary["by_network"][network][group] = (
+                calc(gs)
+            )
+
+    btc_regimes = sorted({
+        r[2]
+        for r in rows
+        if r[2]
+    })
+
+    for regime in btc_regimes:
+        subset = [
+            r
+            for r in rows
+            if r[2] == regime
+        ]
+        summary["by_regime"][regime] = (
+            calc(subset)
+        )
+
+    # Frozen rulesets only; "best combo mining" yok.
+    for ruleset in FROZEN_RULESETS:
+        subset = [
+            r
+            for r in rows
+            if r[0] == "CANDIDATE"
+            and ruleset in (
+                r[4] or ""
+            ).split(",")
+        ]
+
+        summary["rulesets"][ruleset] = (
+            calc(subset)
+        )
+
+    return summary
+
+
+def print_validation_summary(summary):
+    print()
+    print("=" * 72)
+    print("V5 VALIDATION RAPORU")
+
+    print(
+        "Toplam validation event:",
+        summary["total"]
+    )
+
+    print(
+        "Entry delay:",
+        f"{ENTRY_DELAY_MINUTES} dk",
+        "| Stop:",
+        f"%{STOP_PCT:.1f}",
+        "| Horizon:",
+        f"{VALIDATION_HORIZON_HOURS}h"
+    )
+
+    print(
+        "Frozen rulesets:",
+        ", ".join(FROZEN_RULESETS)
+    )
+
+    for group, stats in (
+        summary["by_group"].items()
+    ):
+        hit10 = stats["hit10_rate"]
+        hit15 = stats["hit15_rate"]
+
+        print()
+        print(
+            group,
+            f"n={stats['n']}",
+            f"closed={stats['closed']}"
+        )
+
+        print(
+            "   +10 TARGET-FIRST:",
+            (
+                f"%{hit10 * 100:.1f}"
+                if hit10 is not None
+                else "N/A"
+            ),
+            f"(n={stats['hit10_n']})"
+        )
+
+        print(
+            "   +15 TARGET-FIRST:",
+            (
+                f"%{hit15 * 100:.1f}"
+                if hit15 is not None
+                else "N/A"
+            ),
+            f"(n={stats['hit15_n']})"
+        )
+
+        print(
+            "   Median MFE/MAE:",
+            (
+                f"%{stats['median_mfe']:.2f}"
+                if stats["median_mfe"] is not None
+                else "N/A"
+            ),
+            "/",
+            (
+                f"%{stats['median_mae']:.2f}"
+                if stats["median_mae"] is not None
+                else "N/A"
+            )
+        )
+
+        print(
+            "   Median net:",
+            (
+                f"%{stats['median_net']:.2f}"
+                if stats["median_net"] is not None
+                else "N/A"
+            )
+        )
+
+    print()
+    print("Aglar AYRI tutuluyor:")
+
+    for network, groups in (
+        summary["by_network"].items()
+    ):
+        c = groups["CANDIDATE"]
+        r = groups["RANDOM_CONTROL"]
+
+        print(
+            f"   {network}: "
+            f"candidate n={c['n']} "
+            f"| random n={r['n']}"
+        )
+
+    print()
+    print(
+        "Not: 30-50 sinyalden once kombinasyon "
+        "'kazanan' ilan edilmez."
+    )
+    print(
+        "Candidate, near-miss ve random kontrol "
+        "ayni 72h kurallariyla izlenir."
+    )
+    print("=" * 72)
+
+
+
+# ============================================================
 # ============================================================
 # MAIN
 # ============================================================
 
 print("=" * 72)
-print("AVCI 2 V3 — COMPLETE CORE")
+print("AVCI 2 V5 — FROZEN VALIDATION")
 print("CONFIG:", CONFIG_VERSION)
 
 print(
@@ -3781,7 +5360,23 @@ print(
 
 print("=" * 72)
 
+# Once onceki validation eventlerinin yolunu guncelle.
+validation_update_events()
+
+regime = fetch_market_regime()
+
+print(
+    "Piyasa rejimi:",
+    "BTC",
+    regime.get("btc_regime"),
+    f"({regime.get('btc_change_24h')})",
+    "| SOL",
+    regime.get("sol_regime"),
+    f"({regime.get('sol_change_24h')})"
+)
+
 all_candidates = []
+all_control_pool = []
 
 for network_id, network_name in NETWORKS.items():
     print()
@@ -3799,6 +5394,15 @@ for network_id, network_name in NETWORKS.items():
 
     all_candidates.extend(
         scan_payload(
+            trending,
+            network_id,
+            network_name,
+            "TRENDING"
+        )
+    )
+
+    all_control_pool.extend(
+        control_pool_from_payload(
             trending,
             network_id,
             network_name,
@@ -3825,10 +5429,23 @@ for network_id, network_name in NETWORKS.items():
         )
     )
 
+    all_control_pool.extend(
+        control_pool_from_payload(
+            new_pools,
+            network_id,
+            network_name,
+            "NEW"
+        )
+    )
+
     time.sleep(7)
 
 all_candidates = deduplicate(
     all_candidates
+)
+
+all_control_pool = dedup_control_pool(
+    all_control_pool
 )
 
 # Once base-filtered, zenginlestirme pahali API'leri sadece ilk grup icin.
@@ -3841,20 +5458,82 @@ all_candidates.sort(
     reverse=True
 )
 
-for c in all_candidates[:SECURITY_ENRICH_LIMIT]:
+for c in all_candidates[
+    :SECURITY_ENRICH_LIMIT
+]:
     enrich_candidate(c)
 
-# Zenginlestirilmeyenler de snapshotta kaybolmasin.
-for c in all_candidates[SECURITY_ENRICH_LIMIT:]:
+for c in all_candidates[
+    SECURITY_ENRICH_LIMIT:
+]:
     c["security_risk_reasons"] = [
         "NOT_ENRICHED_LIMIT"
     ]
     c["risk_band"] = "UNKNOWN"
 
-# Onceki sinyallerin 1 dakikalik OHLCV outcome verisini guncelle.
-update_outcomes()
+# Frozen rule memberships sinyal aninda kaydedilir.
+for c in all_candidates:
+    c["frozen_rulesets"] = (
+        frozen_rulesets_for_candidate(c)
+    )
 
-# Yeni sinyalleri 24 saat cooldown ile outcome DB'ye kaydet.
+# Candidate ile benzer near-miss + random controls.
+validation_controls = (
+    select_validation_controls(
+        all_candidates,
+        all_control_pool,
+    )
+)
+
+batch_id = (
+    datetime.now(timezone.utc)
+    .strftime("%Y%m%dT%H%M")
+)
+
+# Candidate ve controls AYNI entry/outcome kuraliyla validation DB'ye.
+for c in all_candidates:
+    try:
+        c["validation_event_id"] = (
+            validation_record_event(
+                c,
+                "CANDIDATE",
+                batch_id,
+                regime,
+            )
+        )
+    except Exception as e:
+        c["validation_event_id"] = None
+        print(
+            "Candidate validation kayit hata:",
+            e
+        )
+
+for control in validation_controls:
+    try:
+        control["validation_event_id"] = (
+            validation_record_event(
+                control,
+                control["group_type"],
+                batch_id,
+                regime,
+            )
+        )
+    except Exception as e:
+        control["validation_event_id"] = None
+        print(
+            "Control validation kayit hata:",
+            e
+        )
+
+# Eski V4 outcome DB de geriye donuk uyumluluk icin devam eder.
+try:
+    update_outcomes()
+except Exception as e:
+    print(
+        "Legacy outcome update hata:",
+        e
+    )
+
 for candidate in all_candidates:
     try:
         candidate["outcome_signal_id"] = (
@@ -3865,11 +5544,11 @@ for candidate in all_candidates:
     except Exception as e:
         candidate["outcome_signal_id"] = None
         print(
-            "Outcome signal kayit hata:",
+            "Legacy outcome signal hata:",
             e
         )
 
-# Tüm adaylar snapshot'a yazilir.
+# Tüm candidate'lar mevcut snapshot deposuna da yazilir.
 for candidate in all_candidates:
     snapshot_kaydet(
         candidate,
@@ -3881,7 +5560,32 @@ print(
     snapshot_sayisi()
 )
 
-# Output sıralaması: önce skor/motor, sonra daha az risk flag.
+print(
+    "V5 kontrol grubu:",
+    len(validation_controls),
+    "adet"
+)
+
+print(
+    "   Near-miss:",
+    sum(
+        1
+        for x in validation_controls
+        if x["group_type"]
+        == "NEAR_MISS"
+    )
+)
+
+print(
+    "   Random:",
+    sum(
+        1
+        for x in validation_controls
+        if x["group_type"]
+        == "RANDOM_CONTROL"
+    )
+)
+
 all_candidates.sort(
     key=lambda x: (
         x["score"],
@@ -3927,39 +5631,67 @@ else:
     ):
         print_candidate(i, c)
 
+        print(
+            "   Frozen validation rules:",
+            (
+                ", ".join(
+                    c.get(
+                        "frozen_rulesets"
+                    )
+                    or []
+                )
+                or "HICBIRI"
+            )
+        )
+
+        print(
+            "   Validation event id:",
+            c.get(
+                "validation_event_id"
+            )
+        )
+
+# V5 bilimsel validation raporu.
+try:
+    v5_summary = validation_summary()
+    print_validation_summary(
+        v5_summary
+    )
+except Exception as e:
+    print(
+        "V5 validation summary hata:",
+        e
+    )
+
+# Legacy outcome ozeti.
 try:
     _out = outcome_summary()
 
     print()
     print(
-        "Outcome DB:",
+        "Legacy Outcome DB:",
         _out["total"],
         "sinyal /",
         _out["closed"],
         "72h kapanmis"
     )
 
-    print(
-        "Outcome hits:",
-        " | ".join(
-            f"+%{t}: {_out['hits'][t]}"
-            for t in OUTCOME_TARGETS
-        )
-    )
-
 except Exception as e:
     print(
-        "Outcome summary hata:",
+        "Legacy outcome summary hata:",
         e
     )
 
 print()
 print("=" * 72)
-print("AVCI 2 V4 TAMAMLANDI")
+print("AVCI 2 V5 TAMAMLANDI")
 print(
-    "Not: Outcome MFE/MAE ve +%3/+%5/+%7/+%10/+%15 "
-    "1 dakikalik OHLCV ile izlenir. Funding-graph Sybil "
-    "icin Helius transfer gecmisi gerekir; bundle/sniper "
-    "etiketi proxy olup kanit degildir."
+    "Candidate + Near-Miss + Random Control, "
+    "2dk entry delay, -%7 stop, stop-first 1m triple barrier, "
+    "+%3/+%5/+%7/+%10/+%15, MFE/MAE, quote-cost, "
+    "BTC/SOL rejimi ve ag-bazli rapor aktif."
+)
+print(
+    "Test sirasinda esikler ve FROZEN_RULESETS degistirilmemeli."
 )
 print("=" * 72)
