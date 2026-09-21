@@ -1,0 +1,46 @@
+name: Binance Avci 2
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "7,22,37,52 * * * *"
+
+permissions:
+  contents: write
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r binance_requirements.txt
+
+      - name: Run Binance scanner
+        run: python binance_scanner.py
+
+      - name: Run winner anatomy
+        run: python binance_winner_anatomy.py
+
+      - name: Commit research database
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add binance_avci2.db
+
+          if git diff --cached --quiet; then
+            echo "No database changes"
+          else
+            git commit -m "data: update Binance Avci 2 snapshots"
+            git push
+          fi
