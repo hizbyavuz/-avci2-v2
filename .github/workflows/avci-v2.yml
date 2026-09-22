@@ -15,7 +15,9 @@ jobs:
       - name: Restore Avci DB
         uses: actions/cache/restore@v4
         with:
-          path: avci2.db
+          path: |
+            avci2.db
+            avci_outcomes.db
           key: avci2-db-${{ github.run_id }}
           restore-keys: |
             avci2-db-        
@@ -36,5 +38,17 @@ jobs:
         if: always()
         uses: actions/cache/save@v4
         with:
-          path: avci2.db
+          path: |
+            avci2.db
+            avci_outcomes.db
           key: avci2-db-${{ github.run_id }}
+      - name: Publish shared signal history
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate-avci2-signal-history
+          path: |
+            avci2.db
+            avci_outcomes.db
+          if-no-files-found: warn
+          retention-days: 21

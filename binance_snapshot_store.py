@@ -30,6 +30,11 @@ FEATURE_RAW_EXTRA_KEYS = (
     "manipulation_risk",
     "catalyst_status",
     "coin_age_days",
+    "history_floor_90d",
+    "history_gain_90d_pct",
+    "history_gain_30d_pct",
+    "history_days_available",
+    "history_exclusion_reason",
 )
 
 

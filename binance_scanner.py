@@ -28,7 +28,7 @@ from binance_snapshot_store import (
     create_signal_event,
 )
 
-CONFIG_VERSION = "binance-avci2-v2.3-observability"
+CONFIG_VERSION = "binance-avci2-v2.4-early-entry-observation"
 
 DATA_MODE_SPOT = "SPOT_ONLY"
 DATA_MODE_FULL = "SPOT_FUTURES_FULL"
@@ -89,6 +89,8 @@ MAX_BUY_IMPACT_1K_BPS = 35.0
 MAX_BUY_IMPACT_5K_BPS = 100.0
 MIN_VALID_UNIVERSE = 80
 MIN_COIN_AGE_DAYS = 30
+HISTORY_LOOKBACK_DAYS = 90
+MAX_GAIN_FROM_90D_FLOOR_PCT = 50.0
 
 BTC_UP_REGIME_PCT = 2.0
 BTC_DOWN_REGIME_PCT = -2.0
@@ -209,6 +211,8 @@ CONFIG_SNAPSHOT = {
     "max_clock_skew_seconds": MAX_CLOCK_SKEW_SECONDS,
     "max_kline_staleness_minutes": MAX_KLINE_STALENESS_MINUTES,
     "min_coin_age_days": MIN_COIN_AGE_DAYS,
+    "history_lookback_days": HISTORY_LOOKBACK_DAYS,
+    "max_gain_from_90d_floor_pct": MAX_GAIN_FROM_90D_FLOOR_PCT,
     "tokenized_security_bases": sorted(TOKENIZED_SECURITY_BASES),
     "btc_up_regime_pct": BTC_UP_REGIME_PCT,
     "btc_down_regime_pct": BTC_DOWN_REGIME_PCT,
@@ -514,6 +518,29 @@ def fetch_listing_time_ms(symbol):
         {"symbol": symbol, "interval": "1d", "startTime": 0, "limit": 1},
     )
     return int(rows[0][0]) if rows else None
+
+
+def recent_history_gain(symbol, price, scan_time):
+    """Gain from the lowest *daily close* in the last 90 completed days."""
+    scan_ms = int(datetime.fromisoformat(scan_time).timestamp() * 1000)
+    # Exclude today's unfinished daily candle; the current signal close is price.
+    end_ms = (scan_ms // 86400000) * 86400000 - 1
+    rows = spot_api_get("/api/v3/klines", {
+        "symbol": symbol, "interval": "1d", "endTime": end_ms,
+        "limit": HISTORY_LOOKBACK_DAYS,
+    })
+    if not isinstance(rows, list) or len(rows) < MIN_COIN_AGE_DAYS - 1:
+        raise ValueError("Not enough closed daily history")
+    if int(rows[-1][6]) < end_ms - 86400000:
+        raise ValueError("Stale daily history")
+    closes = [float(row[4]) for row in rows if int(row[6]) <= end_ms]
+    if len(closes) < MIN_COIN_AGE_DAYS - 1 or min(closes) <= 0:
+        raise ValueError("Invalid closed daily history")
+    floor = min(closes)
+    return {"history_floor_90d": floor,
+            "history_gain_90d_pct": pct_change(floor, price),
+            "history_gain_30d_pct": pct_change(min(closes[-30:]), price),
+            "history_days_available": len(closes)}
 
 
 def fetch_book_tickers():
@@ -1796,7 +1823,12 @@ def calculate_features(
         "coin_age_days": coin_age_days,
 
         "recent_closed_klines":
-            rows[-3:],
+            rows[-13:],
+
+        "recent_returns_1h": [
+            pct_change(closes[i - 1], closes[i])
+            for i in range(len(closes) - 12, len(closes))
+        ],
 
         "recent_returns_1h": [
             pct_change(closes[i - 1], closes[i])
@@ -2100,6 +2132,23 @@ def select_tradable_signal_groups(
 
         feature["liquidity"] = liquidity
 
+        try:
+            history = recent_history_gain(feature["symbol"], feature["price"],
+                                          feature["ts_utc"])
+            feature.update(history)
+        except Exception as error:
+            feature["history_exclusion_reason"] = "HISTORY_UNVERIFIED"
+            save_data_issue("HISTORY_UNVERIFIED",
+                            f"{feature['symbol']}: {error}", feature["ts_utc"])
+            save_feature(feature, is_signal=False,
+                         selection_class="HISTORY_UNVERIFIED")
+            continue
+        if history["history_gain_90d_pct"] >= MAX_GAIN_FROM_90D_FLOOR_PCT:
+            feature["history_exclusion_reason"] = "ALREADY_UP_50_PCT_90D"
+            save_feature(feature, is_signal=False,
+                         selection_class="ALREADY_RISEN")
+            continue
+
         if (
             float(liquidity.get("buy_impact_1k_bps") or 0.0) >= 20.0
             and float(feature.get("change_15m") or 0.0) > 0
@@ -2118,6 +2167,7 @@ def select_tradable_signal_groups(
         [
             feature for feature in features
             if feature["symbol"] not in selected_symbols
+            and not feature.get("history_exclusion_reason")
             and not feature["climax_risk"]
             and not feature.get("manipulation_risk", False)
         ],
