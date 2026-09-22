@@ -9,9 +9,18 @@ import shutil
 
 import avci_state_guard as state
 import avci_watchdog as watchdog
+import binance_notify as notify
 
 
 class OperationsTests(unittest.TestCase):
+    def test_candidate_identity_points_to_exact_spot_pair(self):
+        identity, link = notify.candidate_identity("TIAUSDT")
+        self.assertEqual(identity, "Celestia (TIA) | Spot TIA/USDT")
+        self.assertEqual(link, "https://www.binance.com/en/trade/TIA_USDT?type=spot")
+        unknown, link = notify.candidate_identity("UNKNOWNUSDT")
+        self.assertEqual(unknown, "UNKNOWN | Spot UNKNOWN/USDT")
+        self.assertIn("UNKNOWN_USDT?type=spot", link)
+
     def test_watchdog_detects_missing_recent_success(self):
         now = datetime(2026, 9, 22, 20, 0, tzinfo=timezone.utc)
         old = (now - timedelta(minutes=90)).isoformat()
