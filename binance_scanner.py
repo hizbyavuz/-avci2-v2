@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
 import hashlib
@@ -1124,10 +1124,23 @@ def calculate_features(
         * 1000
     )
 
+    interval_ms = 5 * 60 * 1000
+
+    # Binance, scan aninda halen acik olan 5 dakikalik mumu da
+    # dondurebilir. Yalnizca tamamen kapanmis son mumun bitis zamanini
+    # kullanmak, acik mum silindikten sonra gerekli mum sayisinin bir
+    # eksik kalmasini onler.
+    last_closed_end_ms = (
+        scan_time_ms // interval_ms
+    ) * interval_ms - 1
+
     rows = [
         row
-        for row in fetch_klines(symbol, scan_time_ms - 1)
-        if int(row[6]) < scan_time_ms
+        for row in fetch_klines(
+            symbol,
+            last_closed_end_ms,
+        )
+        if int(row[6]) <= last_closed_end_ms
     ]
 
     staleness_minutes = validate_kline_rows(rows, scan_time_ms)
@@ -2538,6 +2551,10 @@ def run_scan():
 
         except Exception as error:
             symbol_error_count += 1
+            print(
+                f"HATA | {symbol} | "
+                f"{type(error).__name__}: {error}"
+            )
             save_data_issue(
                 "SYMBOL_SCAN_FAILED",
                 (
@@ -2751,6 +2768,21 @@ def run_scan():
     print(
         "=" * 80
     )
+
+    if health_status == "INVALID":
+        print(
+            "TARAMA GECERSIZ - ADAY KARARI URETILMEDI"
+        )
+
+        print(
+            "Bu tarama 0 aday olarak degil, DATA_FAILURE olarak kaydedilmelidir."
+        )
+
+        print(
+            "=" * 80
+        )
+
+        return
 
     if not selected:
         print(
