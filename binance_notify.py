@@ -249,6 +249,16 @@ def read_new_candidates(
     ]
 
 
+def read_trade_alerts(connection, scan_time):
+    try:
+        rows = connection.execute("""SELECT symbol, alert_kind, price, reason
+            FROM trade_alerts WHERE scan_time_utc=? ORDER BY id""",
+                                  (scan_time,)).fetchall()
+    except sqlite3.OperationalError:
+        return []
+    return [dict(row) for row in rows]
+
+
 def read_bridge_scores(
     connection,
     scan_time,
@@ -661,6 +671,8 @@ def main():
             ],
         )
 
+        trade_alerts = read_trade_alerts(connection, scan["scan_time_utc"])
+
         bridge_scores = read_bridge_scores(
             connection,
             scan[
@@ -674,7 +686,7 @@ def main():
     finally:
         connection.close()
 
-    if not candidates:
+    if not candidates and not trade_alerts:
         print(
             "Bu taramada yeni temiz aday yok; "
             "Telegram bildirimi gönderilmedi"
@@ -685,11 +697,17 @@ def main():
         get_telegram_settings()
     )
 
-    message = build_message(
-        scan,
-        candidates,
-        bridge_scores,
-    )
+    message = (build_message(scan, candidates, bridge_scores)
+               if candidates else "BINANCE AVCI 2 - KAĞIT ÜSTÜ TAKİP\n"
+               f"Tarama: {scan['scan_time_utc']}\n"
+               f"Sürüm: {scan['config_version']}")
+    if trade_alerts:
+        message += "\n\nALIM / SATIŞ GÖZLEMİ (GERÇEK EMİR DEĞİL):"
+        for item in trade_alerts:
+            kind = ("ALIM TETİĞİ" if item["alert_kind"] == "PAPER_ENTRY"
+                    else "SATIŞ UYARISI")
+            message += (f"\n{kind}: {item['symbol']} | "
+                        f"fiyat {item['price']:.8g} | {item['reason']}")
 
     print(message)
 

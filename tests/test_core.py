@@ -1,11 +1,16 @@
 import os
 import tempfile
 import unittest
+from unittest.mock import patch
+from datetime import datetime
 
 import binance_outcome_labeler as outcome
 import binance_scanner as scanner
 import binance_snapshot_store as store
 import binance_report as report
+import binance_trade_signals as trade
+import binance_flow_observer as flow
+import cross_venue_observer as cross
 
 
 def kline(open_ms, open_price=100, high=101, low=99, close=100,
@@ -15,6 +20,50 @@ def kline(open_ms, open_price=100, high=101, low=99, close=100,
 
 
 class CoreMathTests(unittest.TestCase):
+    def test_orderbook_uses_same_dollar_units_both_sides(self):
+        depth = {"bids": [["100", "2"]], "asks": [["101", "1"]]}
+        self.assertAlmostEqual(flow.imbalance(depth), 99 / 301)
+        self.assertIsNone(flow.imbalance({"bids": [], "asks": []}))
+
+    def test_cross_venue_mapping_requires_verified_contract(self):
+        import json
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "mapping.json"
+            path.write_text(json.dumps([
+                {"network_id": "eth", "token_contract": "0xAbC",
+                 "binance_symbol": "TESTUSDT", "verified": True},
+                {"network_id": "eth", "token_contract": "0xDEF",
+                 "binance_symbol": "BADUSDT", "verified": False},
+            ]))
+            self.assertEqual(cross.read_mapping(path),
+                             {("eth", "0xabc"): "TESTUSDT"})
+
+    def test_older_rise_is_measured_before_new_signal(self):
+        start = int(datetime.fromisoformat("2026-09-22T00:00:00+00:00").timestamp()
+                    * 1000) - 90 * 86400000
+        daily = [[start + i * 86400000, "1", "1", "1", str(1 + i / 100),
+                  "0", start + (i + 1) * 86400000 - 1] for i in range(90)]
+        with patch.object(scanner, "spot_api_get", return_value=daily):
+            result = scanner.recent_history_gain(
+                "TESTUSDT", 1.6, "2026-09-22T12:00:00+00:00")
+        self.assertGreaterEqual(result["history_gain_90d_pct"], 50)
+
+    def test_paper_entry_requires_breakout_and_early_history(self):
+        bars = [kline(i * 300000, high=101) for i in range(12)]
+        bars.append(kline(12 * 300000, high=102, close=101.2))
+        feature = {"recent_closed_klines": bars, "stage": "TRIGGER",
+                   "history_gain_90d_pct": 20, "volume_mult_1h": 2,
+                   "taker_buy_ratio_15m": .60, "change_15m": 1}
+        self.assertIsNotNone(trade.entry_reason(feature))
+        feature["history_gain_90d_pct"] = 60
+        self.assertIsNone(trade.entry_reason(feature))
+
+    def test_paper_exit_warning_uses_recorded_entry(self):
+        event = {"entry_status": "READY", "entry_price_exec": 100,
+                 "signal_price": 100}
+        self.assertIn("%7", trade.exit_reason({"price": 92}, event))
+
     def test_confidence_interval_uses_scan_blocks(self):
         self.assertEqual(report.cohort_interval({"one": [1, 0, 1]}),
                          (None, None))

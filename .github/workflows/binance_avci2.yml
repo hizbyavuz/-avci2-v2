@@ -105,6 +105,28 @@ jobs:
       - name: Run Binance scanner
         run: python -u binance_scanner.py
 
+      - name: Record paper entry and exit observations
+        run: python -u binance_trade_signals.py
+
+      - name: Record order-book, trade, and derivative observations
+        continue-on-error: true
+        run: python -u binance_flow_observer.py
+
+      - name: Retrieve Gate signal history for observational comparison
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          run_id=$(gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts?name=gate-avci2-signal-history&per_page=100" \
+            --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | reverse | .[0].workflow_run.id // empty')
+          if [ -n "$run_id" ]; then
+            mkdir -p .gate-state
+            gh run download "$run_id" --name gate-avci2-signal-history --dir .gate-state
+          fi
+
+      - name: Compare timestamped signals between venues
+        run: python -u cross_venue_observer.py
+
       - name: Run outcome labeler
         run: python -u binance_outcome_labeler.py
 
