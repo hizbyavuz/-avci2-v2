@@ -50,24 +50,7 @@ jobs:
       - name: Restore latest research state
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          run_id=$(gh api \
-            "repos/${GITHUB_REPOSITORY}/actions/artifacts?name=binance-avci2-state&per_page=100" \
-            --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | reverse | .[0].workflow_run.id // empty')
-
-          if [ -n "$run_id" ]; then
-            mkdir -p .state
-
-            gh run download "$run_id" \
-              --name binance-avci2-state \
-              --dir .state
-
-            cp .state/binance_avci2.db binance_avci2.db
-
-            echo "Previous database restored"
-          else
-            echo "No state artifact yet; repository database will seed the first run"
-          fi
+        run: python avci_state_guard.py restore-binance
 
       - name: Setup Python
         uses: actions/setup-python@v6
@@ -159,6 +142,22 @@ jobs:
             binance_dashboard.html
           if-no-files-found: error
           retention-days: 21
+          compression-level: 6
+
+      - name: Decide daily archive
+        id: daily
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python avci_state_guard.py daily-needed >> "$GITHUB_OUTPUT"
+
+      - name: Save independent daily archive
+        if: steps.daily.outputs.needed == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.daily.outputs.name }}
+          path: binance_avci2.db
+          if-no-files-found: error
+          retention-days: 60
           compression-level: 6
 
       - name: Keep latest two state backups
