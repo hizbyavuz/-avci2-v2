@@ -77,9 +77,10 @@ class CoreMathTests(unittest.TestCase):
         self.assertIsNone(scanner.return_correlation([0] * 12, [1] * 12))
 
     def test_tokenized_securities_are_excluded_without_blocking_crypto(self):
-        for base in ("AMDB", "NVDAB", "QQQB", "TSLAB", "AAPLX", "SPYX"):
+        for base in ("AMDB", "NVDAB", "QQQB", "TSLAB", "AAPLX", "SPYX",
+                     "SPCXB", "KORUB", "MUB", "AAPLB", "AAOIB"):
             self.assertTrue(scanner.is_excluded_base(base), base)
-        for base in ("ETH", "SOL", "LINK", "XRP", "BNB"):
+        for base in ("ETH", "SOL", "LINK", "XRP", "BNB", "BANK", "SPX"):
             self.assertFalse(scanner.is_excluded_base(base), base)
 
     def test_kline_quality_detects_gap(self):
