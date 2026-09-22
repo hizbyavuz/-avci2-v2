@@ -170,16 +170,14 @@ def read_database_summary():
         (version,),
     ).fetchall()
 
-    feature_count_row = (
-        connection.execute(
-            """
-            SELECT COUNT(*) AS count_value
-            FROM pre_event_features
-            WHERE research_version = ?
-            """,
-            (version,),
-        ).fetchone()
-    )
+    feature_count_row = connection.execute(
+        """
+        SELECT COUNT(*) AS count_value
+        FROM pre_event_features
+        WHERE research_version = ?
+        """,
+        (version,),
+    ).fetchone()
 
     connection.close()
 
@@ -205,18 +203,23 @@ def read_database_summary():
     return {
         "version":
             version,
+
         "analyzed_at_utc":
             latest["analyzed_at_utc"],
+
         "grouped":
             grouped,
+
         "top_closed": [
             dict(row)
             for row in top_closed
         ],
+
         "top_open": [
             dict(row)
             for row in top_open
         ],
+
         "feature_count": int(
             feature_count_row[
                 "count_value"
@@ -338,12 +341,10 @@ def build_message(
         )
     )
 
-    now_text = (
-        datetime.now(
-            timezone.utc
-        ).strftime(
-            "%Y-%m-%d %H:%M UTC"
-        )
+    now_text = datetime.now(
+        timezone.utc
+    ).strftime(
+        "%Y-%m-%d %H:%M UTC"
     )
 
     message = (
@@ -351,25 +352,33 @@ def build_message(
         "- GUNLUK SONUC\n\n"
 
         f"Rapor zamani: {now_text}\n"
+
         f"Surum: "
         f"{database_summary['version']}\n"
+
         "Tarama evreni: "
         f"{log_summary.get('universe', '-')} "
         "coin\n"
+
         "Bulunan +%15 olayi: "
         f"{log_summary.get('winner_events', '-')}"
         "\n\n"
 
         "INCELEME GRUBU\n"
+
         "- Kapanmis kazanan: "
         f"{closed_winners['count']}\n"
+
         "- Acik/guncel olay: "
         f"{open_winners['count']}\n"
+
         "- Eslesmis basarisiz kontrol: "
         f"{controls['count']}\n"
+
         "- Hareket oncesi goruntu: "
         f"{actual_snapshots}/"
         f"{expected_snapshots}\n"
+
         "- Eksik goruntu: "
         f"{missing_snapshots}\n\n"
 
@@ -378,21 +387,25 @@ def build_message(
 
         "ORTALAMA 72 SAATLIK "
         "MAKSIMUM HAREKET\n"
+
         "- Kapanmis kazananlar: "
         f"%{closed_winners['average_gain']:+.2f}"
         "\n"
+
         "- Eslesmis kontroller: "
         f"%{controls['average_gain']:+.2f}"
         "\n\n"
 
         "EN GUCLU KAPANMIS "
         "KAZANANLAR\n"
+
         f"{format_coin_rows(
             database_summary['top_closed'],
             True,
         )}\n\n"
 
         "GUNCEL OPEN OLAYLAR\n"
+
         f"{format_coin_rows(
             database_summary['top_open'],
         )}\n\n"
@@ -409,18 +422,100 @@ def build_message(
     ]
 
 
+def find_chat_id(token):
+    response = requests.get(
+        (
+            "https://api.telegram.org/"
+            f"bot{token}/getUpdates"
+        ),
+        timeout=20,
+    )
+
+    response.raise_for_status()
+
+    data = response.json()
+
+    if not data.get("ok"):
+        description = data.get(
+            "description",
+            "Bilinmeyen Telegram hatasi",
+        )
+
+        raise RuntimeError(
+            f"Telegram hatasi: {description}"
+        )
+
+    private_chat_ids = []
+
+    for update in data.get(
+        "result",
+        [],
+    ):
+        message_data = (
+            update.get("message")
+            or update.get("edited_message")
+            or {}
+        )
+
+        chat = message_data.get(
+            "chat",
+            {},
+        )
+
+        if (
+            chat.get("type") == "private"
+            and chat.get("id") is not None
+        ):
+            private_chat_ids.append(
+                str(chat["id"])
+            )
+
+    if not private_chat_ids:
+        raise RuntimeError(
+            "Telegram Chat ID bulunamadi. "
+            "Kendi olusturdugun bota /start "
+            "ve ardindan merhaba yaz. "
+            "Sonra workflow'u tekrar calistir."
+        )
+
+    return private_chat_ids[-1]
+
+
 def send_telegram(message):
     token = os.environ.get(
         "TELEGRAM_BOT_TOKEN"
     )
 
+    if not token:
+        raise RuntimeError(
+            "TELEGRAM_BOT_TOKEN eksik"
+        )
+
+    token = token.strip()
+
+    if ":" not in token:
+        raise RuntimeError(
+            "Telegram token hatali. "
+            "Tokenin sayilar, iki nokta ve "
+            "devamindaki yazi dahil tamami "
+            "GitHub secret icinde olmali."
+        )
+
     chat_id = os.environ.get(
         "TELEGRAM_CHAT_ID"
     )
 
-    if not token or not chat_id:
-        raise RuntimeError(
-            "Telegram secret bilgileri eksik"
+    if chat_id:
+        chat_id = chat_id.strip()
+
+    if not chat_id:
+        chat_id = find_chat_id(
+            token
+        )
+
+        print(
+            "Telegram Chat ID "
+            "otomatik bulundu"
         )
 
     response = requests.post(
@@ -437,6 +532,19 @@ def send_telegram(message):
     )
 
     response.raise_for_status()
+
+    data = response.json()
+
+    if not data.get("ok"):
+        description = data.get(
+            "description",
+            "Bilinmeyen Telegram hatasi",
+        )
+
+        raise RuntimeError(
+            f"Telegram mesaji gonderilemedi: "
+            f"{description}"
+        )
 
 
 def main():
