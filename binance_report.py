@@ -3,7 +3,9 @@
 
 import json
 import math
+import random
 import sqlite3
+from collections import defaultdict
 from pathlib import Path
 
 DB_FILE = "binance_avci2.db"
@@ -26,6 +28,17 @@ def wilson_interval(successes, total, z=1.96):
     return 100 * (center - margin), 100 * (center + margin)
 
 
+def cohort_interval(cohorts, seed=20260922):
+    """Equal-weight scan bootstrap; same-scan signals are one dependent block."""
+    values = [sum(items) / len(items) for items in cohorts.values() if items]
+    if len(values) < 2:
+        return None, None
+    rng = random.Random(seed)
+    samples = sorted(100 * sum(rng.choices(values, k=len(values))) / len(values)
+                     for _ in range(2000))
+    return samples[49], samples[1949]
+
+
 def main():
     conn = sqlite3.connect(DB_FILE)
     conn.row_factory = sqlite3.Row
@@ -34,8 +47,8 @@ def main():
         """
         SELECT config_version, scan_time_utc, data_mode,
                universe_size, btc_change_24h, btc_regime,
-               health_status, config_hash, git_sha
-               , clock_skew_seconds
+               health_status, config_hash, git_sha,
+               clock_skew_seconds, btc_flash_15m_pct, btc_flash_crash
         FROM scans
         ORDER BY scan_time_utc DESC
         LIMIT 1
@@ -161,6 +174,8 @@ def main():
                e.spread_bps, e.buy_impact_1k_bps,
                e.gain_before_signal_pct,
                e.minutes_from_first_anomaly,
+               json_extract(e.raw_json, '$.same_scan_corr_max') AS peer_corr,
+               json_extract(e.raw_json, '$.cohort_size') AS cohort_size,
                o.label_status, o.net_return_pct,
                o.mfe_pct, o.mae_pct,
                o.excess_vs_btc_pct, o.excess_vs_universe_pct,
@@ -193,6 +208,19 @@ def main():
         """
     ).fetchall()
 
+    target_rows = conn.execute("""
+        SELECT e.signal_time_utc, e.event_class, e.validation_tier,
+               o.barrier_results_json
+        FROM signal_events e JOIN outcome_labels o ON e.event_id=o.event_id
+        WHERE e.config_version=? AND o.label_status='CLOSED'
+          AND e.event_class IN ('CANDIDATE','NEAR_MISS','RANDOM_CONTROL')
+    """, (version,)).fetchall()
+    unresolved_rows = conn.execute("""
+        SELECT event_class, COUNT(*) AS n FROM signal_events
+        WHERE config_version=? AND outcome_status='DATA_FAILURE'
+        GROUP BY event_class
+    """, (version,)).fetchall()
+
     lines = [
         "# Binance Avci 2 - Son Rapor",
         "",
@@ -202,6 +230,8 @@ def main():
         f"- Evren: `{latest['universe_size']}`",
         f"- BTC 24s: `{latest['btc_change_24h']:+.2f}%`",
         f"- BTC rejimi: `{latest['btc_regime'] or '-'}`",
+        f"- BTC son 15 dk: `{fmt(latest['btc_flash_15m_pct'])}%` "
+        f"| sert dusus etiketi: `{bool(latest['btc_flash_crash'])}`",
         f"- Veri sagligi: `{latest['health_status'] or '-'}`",
         f"- Ayar kimligi: `{(latest['config_hash'] or '-')[:12]}`",
         f"- Kod kimligi: `{(latest['git_sha'] or '-')[:12]}`",
@@ -224,6 +254,43 @@ def main():
             f"| {row['health_status'] or '-'} | {row['btc_regime'] or '-'} | "
             f"{row['scans']} |"
         )
+
+    lines.extend(["", "## Hedef oranlari ve bagimli adaylar", "",
+                  "Sadece 72 saati kapanmis olaylar. Wilson araligi adaylari bagimsiz "
+                  "varsayar; tarama araligi ayni taramadaki adaylari tek kumede tutar. "
+                  "Iki taramadan azsa kume araligi hesaplanmaz.", "",
+                  "| Sinif | Dogrulama | Hedef | Basari / olay | Tarama kumesi | "
+                  "Oran % | Wilson %95 | Tarama bootstrap %95 |",
+                  "|---|---|---:|---:|---:|---:|---|---|"])
+    grouped = defaultdict(list)
+    for row in target_rows:
+        try:
+            barriers = json.loads(row["barrier_results_json"] or "{}")
+        except (ValueError, TypeError):
+            continue
+        for target in (3, 5, 7, 10, 15):
+            result = barriers.get("72", {}).get(str(float(target)), {}).get("result")
+            if result in ("TARGET", "STOP", "TIMEOUT"):
+                grouped[(row["event_class"], row["validation_tier"], target)].append(
+                    (row["signal_time_utc"], int(result == "TARGET")))
+    for (group, tier, target), observations in sorted(grouped.items()):
+        cohorts = defaultdict(list)
+        for scan, success in observations:
+            cohorts[scan].append(success)
+        successes = sum(success for _, success in observations)
+        n = len(observations)
+        low, high = wilson_interval(successes, n)
+        block_low, block_high = cohort_interval(cohorts)
+        block_range = (f"{block_low:.1f}–{block_high:.1f}"
+                       if block_low is not None else "yetersiz")
+        lines.append(f"| {group} | {tier} | +{target}% | {successes}/{n} | "
+                     f"{len(cohorts)} | {100*successes/n:.1f} | "
+                     f"{low:.1f}–{high:.1f} | {block_range} |")
+    lines.extend(["", "## Cozumlenemeyen olaylar", "",
+                  "Borsadan kaldirilan veya veri yolu kaybolan olaylar basarisiz "
+                  "sinyal sayilmaz; veri arizasi olarak ayri tutulur."])
+    for row in unresolved_rows:
+        lines.append(f"- {row['event_class']}: {row['n']} DATA_FAILURE")
 
     lines.extend([
         "",
@@ -253,9 +320,9 @@ def main():
         "## Son Adaylar",
         "",
         "| UTC | Coin | Asama | Skor | Dogrulama | Spread bps | "
-        "$1k etki bps | Durum | 4s % | 24s % | 72s % | Bariyer net % | "
+        "$1k etki bps | Tarama kumesi | En yuksek es hareket | Durum | 4s % | 24s % | 72s % | Bariyer net % | "
         "MFE % | MAE % | BTC ustu % | Evren ustu % |",
-        "|---|---|---|---:|---|---:|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|",
+        "|---|---|---|---:|---|---:|---:|---:|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|",
     ])
 
     for row in candidates:
@@ -263,6 +330,7 @@ def main():
             f"| {row['signal_time_utc']} | {row['symbol']} | "
             f"{row['stage']} | {row['score']} | {row['validation_tier']} | "
             f"{fmt(row['spread_bps'])} | {fmt(row['buy_impact_1k_bps'])} | "
+            f"{row['cohort_size'] or 1} | {fmt(row['peer_corr'])} | "
             f"{row['label_status'] or 'PENDING'} | "
             f"{fmt(row['return_4h'])} | {fmt(row['return_24h'])} | "
             f"{fmt(row['return_72h'])} | {fmt(row['net_return_pct'])} | "

@@ -515,6 +515,7 @@ def build_message(
         "🚨 BINANCE AVCI 2 - YENİ ADAY",
         "",
         f"Tarama zamanı: {scan_time}",
+        f"Sürüm: {scan['config_version']} | ayar: {(scan['config_hash'] or '-')[:12]} | kod: {(scan['git_sha'] or '-')[:12]}",
         f"Veri sağlığı: {health_text}",
         f"BTC rejimi: {regime_text}",
         f"Tarama evreni: {universe_size} coin",
@@ -528,6 +529,12 @@ def build_message(
             "OI ve fonlama doğrulaması yapılamadı.",
             "",
         ])
+
+    if scan.get("btc_flash_crash"):
+        lines.extend(["⚠️ BTC son 15 dakikada sert düştü (gözlem etiketi).",
+                      "Bu taramadaki sinyaller ayrıca değerlendirilmeli.", ""])
+    if len(candidates) > 1:
+        lines.extend([f"⚠️ Aynı taramada {len(candidates)} aday: sonuçlar bağımsız sayılmayacak.", ""])
 
     for index, candidate in enumerate(
         candidates,
@@ -636,10 +643,15 @@ def main():
         if scan[
             "health_status"
         ] == "INVALID":
-            print(
-                "Tarama sağlık kontrolünden "
-                "geçemedi; bildirim gönderilmedi"
-            )
+            token, chat_id = get_telegram_settings()
+            send_telegram(token, chat_id,
+                          "⚠️ BINANCE AVCI 2 TARAMA HATASI\n"
+                          f"UTC: {scan['scan_time_utc']}\n"
+                          f"Sürüm: {scan['config_version']}\n"
+                          f"Ayar: {(scan['config_hash'] or '-')[:12]}\n"
+                          f"Kod: {(scan['git_sha'] or '-')[:12]}\n"
+                          "Veri sağlığı geçersiz; aday kararı üretilmedi.")
+            print("Geçersiz tarama Telegram uyarısı gönderildi")
             return
 
         candidates = read_new_candidates(

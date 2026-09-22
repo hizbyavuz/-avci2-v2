@@ -12,6 +12,7 @@ from binance_snapshot_store import (
     close_event,
     save_outcome_label,
     save_data_issue,
+    mark_event_data_failure,
     get_universe_return,
     save_raw_klines,
 )
@@ -91,6 +92,16 @@ def api_get(
     raise RuntimeError(
         "All Binance spot endpoints failed"
     )
+
+
+def confirmed_symbol_removed(symbol):
+    """Confirm from live exchangeInfo; API failures must stay unresolved."""
+    info = api_get("/api/v3/exchangeInfo")
+    symbols = info.get("symbols")
+    if not isinstance(symbols, list) or not symbols:
+        raise ValueError("exchangeInfo incomplete")
+    match = next((row for row in symbols if row.get("symbol") == symbol), None)
+    return match is None or match.get("status") != "TRADING"
 
 
 def fetch_klines(
@@ -461,6 +472,17 @@ def label_event(event, btc_rows=None):
     if not rows:
         return None
 
+    # A delisted or interrupted symbol can return a valid *partial* path.
+    # Never turn that into a 72-hour TIMEOUT or an ordinary loss.
+    if any(int(b[0]) - int(a[0]) != 300000 for a, b in zip(rows, rows[1:])):
+        save_data_issue("OUTCOME_PATH_GAP", event["event_id"])
+        return None
+    elapsed_end_ms = min(now_ms, entry_open_time_ms + HORIZON_HOURS * 3600000)
+    expected_last_open = ((elapsed_end_ms - 1) // 300000) * 300000
+    if int(rows[-1][0]) < expected_last_open - 300000:
+        save_data_issue("OUTCOME_PATH_STALE", event["event_id"])
+        return None
+
     entry_price_raw = float(rows[0][1])
     fee_bps = float(event.get("fee_bps_per_side") or FEE_BPS_PER_SIDE)
     slippage_bps = float(
@@ -631,6 +653,19 @@ def main():
             )
 
             if result is None:
+                if (datetime.now(timezone.utc).timestamp() * 1000
+                        >= int(event["entry_open_time_ms"]) + 15 * 60000):
+                    try:
+                        if confirmed_symbol_removed(event["symbol"]):
+                            mark_event_data_failure(event["event_id"],
+                                                    "symbol absent or not TRADING")
+                    except Exception as verify_error:
+                        save_data_issue("SYMBOL_STATUS_UNVERIFIED",
+                                        f"{event['event_id']}: {verify_error}")
+                if (datetime.now(timezone.utc).timestamp() * 1000
+                        >= int(event["entry_open_time_ms"]) + 72 * 3600000):
+                    save_data_issue("OUTCOME_PATH_MISSING",
+                                    f"{event['event_id']}: entry/path missing")
                 print(
                     f"{event['symbol']}: "
                     "Henuz entry mumu yok."
@@ -671,6 +706,17 @@ def main():
 
         except Exception as error:
             error_count += 1
+
+            # Exchange removal is not a stop-loss or ordinary failed signal.
+            # Verify against the full listing so transient candle API errors
+            # cannot silently close candidate, near-miss or control events.
+            try:
+                if confirmed_symbol_removed(event["symbol"]):
+                    mark_event_data_failure(event["event_id"],
+                                            "symbol absent or not TRADING")
+            except Exception as verify_error:
+                save_data_issue("SYMBOL_STATUS_UNVERIFIED",
+                                f"{event['event_id']}: {verify_error}")
 
             save_data_issue(
                 "OUTCOME_LABEL_FAILED",

@@ -785,6 +785,8 @@ def init_db():
             "config_hash TEXT",
             "git_sha TEXT",
             "clock_skew_seconds REAL",
+            "btc_flash_15m_pct REAL",
+            "btc_flash_crash INTEGER DEFAULT 0",
             "created_at_utc TEXT",
         ):
             _add_column(
@@ -1203,6 +1205,25 @@ def update_scan_health(scan_time_utc, config_version, health_status):
             (health_status, scan_time_utc, config_version),
         )
     _retry_write(operation)
+
+
+def save_scan_observation(scan_time_utc, config_version, btc_flash_15m_pct,
+                          btc_flash_crash):
+    def operation(conn):
+        conn.execute("""UPDATE scans SET btc_flash_15m_pct=?, btc_flash_crash=?
+                        WHERE scan_time_utc=? AND config_version=?""",
+                     (btc_flash_15m_pct, int(btc_flash_crash), scan_time_utc,
+                      config_version))
+    _retry_write(operation)
+
+
+def mark_event_data_failure(event_id, reason):
+    def operation(conn):
+        conn.execute("""UPDATE signal_events SET outcome_status='DATA_FAILURE',
+                        closed_at_utc=? WHERE event_id=? AND outcome_status='OPEN'""",
+                     (utc_now(), event_id))
+    _retry_write(operation)
+    save_data_issue("EVENT_DATA_FAILURE", f"{event_id}: {reason}")
 
 
 def save_feature(

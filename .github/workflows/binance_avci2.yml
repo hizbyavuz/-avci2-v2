@@ -152,3 +152,10 @@ jobs:
             gh api --method DELETE \
               "repos/${GITHUB_REPOSITORY}/actions/artifacts/${artifact_id}"
           done
+
+      - name: Alert on failed scan or report
+        if: failure()
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python -u binance_health_alert.py

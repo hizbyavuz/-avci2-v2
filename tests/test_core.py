@@ -5,6 +5,7 @@ import unittest
 import binance_outcome_labeler as outcome
 import binance_scanner as scanner
 import binance_snapshot_store as store
+import binance_report as report
 
 
 def kline(open_ms, open_price=100, high=101, low=99, close=100,
@@ -14,6 +15,18 @@ def kline(open_ms, open_price=100, high=101, low=99, close=100,
 
 
 class CoreMathTests(unittest.TestCase):
+    def test_confidence_interval_uses_scan_blocks(self):
+        self.assertEqual(report.cohort_interval({"one": [1, 0, 1]}),
+                         (None, None))
+        low, high = report.cohort_interval({"one": [1, 1], "two": [0]})
+        self.assertLessEqual(low, 50)
+        self.assertGreaterEqual(high, 50)
+
+    def test_same_scan_co_movement_is_observed(self):
+        self.assertAlmostEqual(scanner.return_correlation([1, -1] * 6,
+                                                           [2, -2] * 6), 1.0)
+        self.assertIsNone(scanner.return_correlation([0] * 12, [1] * 12))
+
     def test_tokenized_securities_are_excluded_without_blocking_crypto(self):
         for base in ("AMDB", "NVDAB", "QQQB", "TSLAB", "AAPLX", "SPYX"):
             self.assertTrue(scanner.is_excluded_base(base), base)
@@ -70,6 +83,8 @@ class DatabaseTests(unittest.TestCase):
                 self.assertEqual(conn.execute("SELECT COUNT(*) FROM manual_trades").fetchone()[0], 1)
                 self.assertIn("raw_json", {r["name"] for r in conn.execute(
                     "PRAGMA table_info(orderbook_snap)")})
+                self.assertIn("btc_flash_crash", {r["name"] for r in conn.execute(
+                    "PRAGMA table_info(scans)")})
                 conn.close()
             finally:
                 store.DB_FILE = previous

@@ -14,6 +14,7 @@ import requests
 from binance_snapshot_store import (
     init_db,
     save_scan,
+    save_scan_observation,
     save_feature,
     save_daily_mover,
     save_data_issue,
@@ -27,7 +28,7 @@ from binance_snapshot_store import (
     create_signal_event,
 )
 
-CONFIG_VERSION = "binance-avci2-v2.2-crypto-only"
+CONFIG_VERSION = "binance-avci2-v2.3-observability"
 
 DATA_MODE_SPOT = "SPOT_ONLY"
 DATA_MODE_FULL = "SPOT_FUTURES_FULL"
@@ -1797,6 +1798,11 @@ def calculate_features(
         "recent_closed_klines":
             rows[-3:],
 
+        "recent_returns_1h": [
+            pct_change(closes[i - 1], closes[i])
+            for i in range(len(closes) - 12, len(closes))
+        ],
+
         "raw_klines": rows,
 
         "stage":
@@ -2253,6 +2259,17 @@ def select_matched_random_controls(
     return controls
 
 
+def return_correlation(first, second):
+    """Pearson correlation of the same 12 closed five-minute returns."""
+    if len(first) != 12 or len(second) != 12:
+        return None
+    mean_a, mean_b = statistics.fmean(first), statistics.fmean(second)
+    numerator = sum((a - mean_a) * (b - mean_b) for a, b in zip(first, second))
+    variance_a = sum((a - mean_a) ** 2 for a in first)
+    variance_b = sum((b - mean_b) ** 2 for b in second)
+    return numerator / math.sqrt(variance_a * variance_b) if variance_a * variance_b else None
+
+
 def run_scan():
     init_db()
 
@@ -2347,6 +2364,17 @@ def run_scan():
     ) if btc_available else 0.0
     regime = btc_regime(btc_change_24h)
 
+    # Observation only: a sharp market-wide drop does not alter frozen signals.
+    btc_flash_15m_pct = None
+    try:
+        btc_rows = [row for row in fetch_klines("BTCUSDT", required_bars=4)
+                    if int(row[6]) <= (scan_time_ms := int(datetime.fromisoformat(scan_time).timestamp() * 1000))]
+        if len(btc_rows) >= 4:
+            btc_flash_15m_pct = pct_change(float(btc_rows[-4][4]), float(btc_rows[-1][4]))
+    except Exception as error:
+        save_data_issue("BTC_FLASH_OBSERVATION_FAILED", str(error), scan_time)
+    btc_flash_crash = btc_flash_15m_pct is not None and btc_flash_15m_pct <= -3.0
+
     health_status = "VALID_FULL"
     if (
         len(universe) < MIN_VALID_UNIVERSE
@@ -2400,6 +2428,7 @@ def run_scan():
         os.environ.get("GITHUB_SHA"),
         clock_skew_seconds,
     )
+    save_scan_observation(scan_time, CONFIG_VERSION, btc_flash_15m_pct, btc_flash_crash)
 
     daily_movers = []
 
@@ -2605,6 +2634,8 @@ def run_scan():
 
     for feature in features:
         feature["btc_regime"] = regime
+        feature["btc_flash_15m_pct"] = btc_flash_15m_pct
+        feature["btc_flash_crash"] = btc_flash_crash
         feature["validation_tier"] = validation_tier
         is_signal = (
             feature["stage"] != "OBSERVE"
@@ -2639,6 +2670,18 @@ def run_scan():
             scan_time,
             book_tickers,
         )
+
+    # Same-scan candidates share one market event until demonstrated otherwise.
+    # This conservative cohort ID is for reporting, never signal selection.
+    for feature in selected:
+        feature["cohort_id"] = scan_time
+        feature["cohort_size"] = len(selected)
+        peers = [return_correlation(feature.get("recent_returns_1h", []),
+                                    other.get("recent_returns_1h", []))
+                 for other in selected if other is not feature]
+        valid_peers = [value for value in peers if value is not None]
+        feature["same_scan_corr_max"] = max(valid_peers) if valid_peers else None
+        feature["same_scan_corr_high"] = any(value >= 0.8 for value in valid_peers)
 
     for feature in selected:
         save_feature(
