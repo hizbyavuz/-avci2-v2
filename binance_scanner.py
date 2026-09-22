@@ -27,7 +27,7 @@ from binance_snapshot_store import (
     create_signal_event,
 )
 
-CONFIG_VERSION = "binance-avci2-v2.1-final"
+CONFIG_VERSION = "binance-avci2-v2.2-crypto-only"
 
 DATA_MODE_SPOT = "SPOT_ONLY"
 DATA_MODE_FULL = "SPOT_FUTURES_FULL"
@@ -157,6 +157,20 @@ LEVERAGED_BASES = {
     "TRXDOWN",
 }
 
+# Binance also lists tokenized equities and ETFs under ordinary USDT pairs.
+# Match the underlying ticker plus the issuer suffix, rather than excluding
+# every asset ending in B or X (which would remove legitimate crypto coins).
+TOKENIZED_SECURITY_TICKERS = {
+    "AAPL", "AMD", "AMZN", "ARM", "COIN", "GOOGL", "HOOD",
+    "INTC", "META", "MSFT", "MSTR", "NFLX", "NVDA", "PLTR",
+    "QQQ", "SOXL", "SPY", "TSLA", "TSM",
+}
+TOKENIZED_SECURITY_BASES = {
+    ticker + suffix
+    for ticker in TOKENIZED_SECURITY_TICKERS
+    for suffix in ("B", "X")
+}
+
 FUTURES_AVAILABLE = True
 
 session = requests.Session()
@@ -194,6 +208,7 @@ CONFIG_SNAPSHOT = {
     "max_clock_skew_seconds": MAX_CLOCK_SKEW_SECONDS,
     "max_kline_staleness_minutes": MAX_KLINE_STALENESS_MINUTES,
     "min_coin_age_days": MIN_COIN_AGE_DAYS,
+    "tokenized_security_bases": sorted(TOKENIZED_SECURITY_BASES),
     "btc_up_regime_pct": BTC_UP_REGIME_PCT,
     "btc_down_regime_pct": BTC_DOWN_REGIME_PCT,
 }
@@ -210,6 +225,7 @@ def is_excluded_base(base):
     return (
         base in EXCLUDED_BASES
         or base in LEVERAGED_BASES
+        or base in TOKENIZED_SECURITY_BASES
     )
 
 
@@ -932,6 +948,8 @@ def build_universe(scan_time):
         if listing_time_ms is None:
             try:
                 listing_time_ms = fetch_listing_time_ms(symbol)
+                if listing_time_ms is None:
+                    raise ValueError("No first trading candle")
                 save_asset_metadata(symbol, base, quote, item.get("status", "UNKNOWN"),
                                     listing_time_ms)
             except Exception:
