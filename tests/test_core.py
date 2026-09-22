@@ -14,6 +14,12 @@ def kline(open_ms, open_price=100, high=101, low=99, close=100,
 
 
 class CoreMathTests(unittest.TestCase):
+    def test_tokenized_securities_are_excluded_without_blocking_crypto(self):
+        for base in ("AMDB", "NVDAB", "QQQB", "TSLAB", "AAPLX", "SPYX"):
+            self.assertTrue(scanner.is_excluded_base(base), base)
+        for base in ("ETH", "SOL", "LINK", "XRP", "BNB"):
+            self.assertFalse(scanner.is_excluded_base(base), base)
+
     def test_kline_quality_detects_gap(self):
         rows = [kline(0), kline(600000)]
         with self.assertRaises(ValueError):
