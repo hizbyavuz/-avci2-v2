@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 import json
 import sqlite3
 import statistics
@@ -622,6 +619,68 @@ def init_db():
                 created_at_utc TEXT
             );
 
+            CREATE TABLE IF NOT EXISTS winner_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                event_id TEXT UNIQUE,
+                research_version TEXT,
+                subject_class TEXT,
+                symbol TEXT,
+                matched_winner_event_id TEXT,
+                event_start_time_utc TEXT,
+                threshold_time_utc TEXT,
+                peak_time_utc TEXT,
+                horizon_end_time_utc TEXT,
+                event_status TEXT,
+                start_price REAL,
+                peak_price REAL,
+                max_gain_pct REAL,
+                max_drawdown_pct REAL,
+                highest_level_reached REAL,
+                levels_reached_json TEXT,
+                first_anomaly_time_utc TEXT,
+                first_anomaly_price REAL,
+                gain_before_first_anomaly_pct REAL,
+                hours_anomaly_before_start REAL,
+                pre_volume_24h REAL,
+                pre_volatility_24h REAL,
+                analyzed_at_utc TEXT,
+                raw_json TEXT,
+                created_at_utc TEXT
+            );
+
+            CREATE TABLE IF NOT EXISTS pre_event_features (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                event_id TEXT,
+                research_version TEXT,
+                subject_class TEXT,
+                symbol TEXT,
+                offset_hours INTEGER,
+                feature_time_utc TEXT,
+                price REAL,
+                return_15m_pct REAL,
+                return_1h_pct REAL,
+                return_3h_pct REAL,
+                return_6h_pct REAL,
+                return_12h_pct REAL,
+                return_24h_pct REAL,
+                btc_return_24h_pct REAL,
+                excess_vs_btc_24h_pct REAL,
+                quote_volume_15m REAL,
+                quote_volume_1h REAL,
+                quote_volume_24h REAL,
+                volume_z_15m REAL,
+                trade_z_15m REAL,
+                return_z_15m REAL,
+                volume_mult_15m REAL,
+                volume_mult_1h REAL,
+                taker_buy_ratio_15m REAL,
+                realized_volatility_24h REAL,
+                range_compression_24h REAL,
+                raw_json TEXT,
+                created_at_utc TEXT,
+                UNIQUE(event_id, symbol, offset_hours, research_version)
+            );
+
             CREATE TABLE IF NOT EXISTS data_issues (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 issue_time_utc TEXT,
@@ -987,6 +1046,15 @@ def init_db():
                 trade_date,
                 symbol
             );
+
+            CREATE INDEX IF NOT EXISTS idx_winner_events_symbol_time
+            ON winner_events(symbol, event_start_time_utc);
+
+            CREATE INDEX IF NOT EXISTS idx_winner_events_class_status
+            ON winner_events(subject_class, event_status, max_gain_pct);
+
+            CREATE INDEX IF NOT EXISTS idx_pre_event_features_event
+            ON pre_event_features(event_id, subject_class, offset_hours);
 
             CREATE INDEX IF NOT EXISTS idx_raw_klines_symbol_time
             ON raw_klines(symbol, interval_value, open_time_ms);
@@ -2400,6 +2468,134 @@ def save_winner_anatomy(
     _retry_write(
         operation
     )
+
+
+def save_winner_event(row):
+    def operation(conn):
+        conn.execute(
+            """
+            INSERT INTO winner_events (
+                event_id, research_version, subject_class, symbol,
+                matched_winner_event_id, event_start_time_utc,
+                threshold_time_utc, peak_time_utc, horizon_end_time_utc,
+                event_status, start_price, peak_price, max_gain_pct,
+                max_drawdown_pct, highest_level_reached,
+                levels_reached_json, first_anomaly_time_utc,
+                first_anomaly_price, gain_before_first_anomaly_pct,
+                hours_anomaly_before_start, pre_volume_24h,
+                pre_volatility_24h, analyzed_at_utc, raw_json,
+                created_at_utc
+            ) VALUES (
+                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                ?, ?, ?, ?, ?
+            )
+            ON CONFLICT(event_id) DO UPDATE SET
+                event_status=excluded.event_status,
+                peak_time_utc=excluded.peak_time_utc,
+                horizon_end_time_utc=excluded.horizon_end_time_utc,
+                peak_price=excluded.peak_price,
+                max_gain_pct=excluded.max_gain_pct,
+                max_drawdown_pct=excluded.max_drawdown_pct,
+                highest_level_reached=excluded.highest_level_reached,
+                levels_reached_json=excluded.levels_reached_json,
+                first_anomaly_time_utc=excluded.first_anomaly_time_utc,
+                first_anomaly_price=excluded.first_anomaly_price,
+                gain_before_first_anomaly_pct=excluded.gain_before_first_anomaly_pct,
+                hours_anomaly_before_start=excluded.hours_anomaly_before_start,
+                pre_volume_24h=excluded.pre_volume_24h,
+                pre_volatility_24h=excluded.pre_volatility_24h,
+                analyzed_at_utc=excluded.analyzed_at_utc,
+                raw_json=excluded.raw_json
+            """,
+            (
+                row["event_id"], row["research_version"],
+                row["subject_class"], row["symbol"],
+                row.get("matched_winner_event_id"),
+                row["event_start_time_utc"], row.get("threshold_time_utc"),
+                row.get("peak_time_utc"), row.get("horizon_end_time_utc"),
+                row.get("event_status", "OPEN"), row.get("start_price"),
+                row.get("peak_price"), row.get("max_gain_pct"),
+                row.get("max_drawdown_pct"),
+                row.get("highest_level_reached"),
+                json.dumps(row.get("levels_reached", {}), sort_keys=True),
+                row.get("first_anomaly_time_utc"),
+                row.get("first_anomaly_price"),
+                row.get("gain_before_first_anomaly_pct"),
+                row.get("hours_anomaly_before_start"),
+                row.get("pre_volume_24h"), row.get("pre_volatility_24h"),
+                row.get("analyzed_at_utc", utc_now()),
+                json.dumps(row.get("raw", {}), sort_keys=True), utc_now(),
+            ),
+        )
+    _retry_write(operation)
+
+
+def save_pre_event_feature(row):
+    def operation(conn):
+        conn.execute(
+            """
+            INSERT INTO pre_event_features (
+                event_id, research_version, subject_class, symbol,
+                offset_hours, feature_time_utc, price,
+                return_15m_pct, return_1h_pct, return_3h_pct,
+                return_6h_pct, return_12h_pct, return_24h_pct,
+                btc_return_24h_pct, excess_vs_btc_24h_pct,
+                quote_volume_15m, quote_volume_1h, quote_volume_24h,
+                volume_z_15m, trade_z_15m, return_z_15m,
+                volume_mult_15m, volume_mult_1h,
+                taker_buy_ratio_15m, realized_volatility_24h,
+                range_compression_24h, raw_json, created_at_utc
+            ) VALUES (
+                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                ?, ?, ?, ?, ?, ?, ?, ?
+            )
+            ON CONFLICT(event_id, symbol, offset_hours, research_version)
+            DO UPDATE SET
+                feature_time_utc=excluded.feature_time_utc,
+                price=excluded.price,
+                return_15m_pct=excluded.return_15m_pct,
+                return_1h_pct=excluded.return_1h_pct,
+                return_3h_pct=excluded.return_3h_pct,
+                return_6h_pct=excluded.return_6h_pct,
+                return_12h_pct=excluded.return_12h_pct,
+                return_24h_pct=excluded.return_24h_pct,
+                btc_return_24h_pct=excluded.btc_return_24h_pct,
+                excess_vs_btc_24h_pct=excluded.excess_vs_btc_24h_pct,
+                quote_volume_15m=excluded.quote_volume_15m,
+                quote_volume_1h=excluded.quote_volume_1h,
+                quote_volume_24h=excluded.quote_volume_24h,
+                volume_z_15m=excluded.volume_z_15m,
+                trade_z_15m=excluded.trade_z_15m,
+                return_z_15m=excluded.return_z_15m,
+                volume_mult_15m=excluded.volume_mult_15m,
+                volume_mult_1h=excluded.volume_mult_1h,
+                taker_buy_ratio_15m=excluded.taker_buy_ratio_15m,
+                realized_volatility_24h=excluded.realized_volatility_24h,
+                range_compression_24h=excluded.range_compression_24h,
+                raw_json=excluded.raw_json
+            """,
+            (
+                row["event_id"], row["research_version"],
+                row["subject_class"], row["symbol"], row["offset_hours"],
+                row["feature_time_utc"], row.get("price"),
+                row.get("return_15m_pct"), row.get("return_1h_pct"),
+                row.get("return_3h_pct"), row.get("return_6h_pct"),
+                row.get("return_12h_pct"), row.get("return_24h_pct"),
+                row.get("btc_return_24h_pct"),
+                row.get("excess_vs_btc_24h_pct"),
+                row.get("quote_volume_15m"), row.get("quote_volume_1h"),
+                row.get("quote_volume_24h"), row.get("volume_z_15m"),
+                row.get("trade_z_15m"), row.get("return_z_15m"),
+                row.get("volume_mult_15m"), row.get("volume_mult_1h"),
+                row.get("taker_buy_ratio_15m"),
+                row.get("realized_volatility_24h"),
+                row.get("range_compression_24h"),
+                json.dumps(row.get("raw", {}), sort_keys=True), utc_now(),
+            ),
+        )
+    _retry_write(operation)
 
 
 def save_data_issue(
