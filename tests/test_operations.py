@@ -13,6 +13,26 @@ import binance_notify as notify
 
 
 class OperationsTests(unittest.TestCase):
+    def test_paper_alerts_are_clear_and_never_claim_real_trades(self):
+        alerts = [
+            {"symbol": "BCHUSDT", "price": 340.4,
+             "alert_kind": "PAPER_EXIT_WARNING",
+             "reason": "Kağıt üzerindeki girişten %10 yukarıda (kâr gözlemi)"},
+            {"symbol": "EPICUSDT", "price": 0.5467,
+             "alert_kind": "PAPER_EXIT_WARNING",
+             "reason": "Kağıt üzerindeki girişten %7 aşağıda (zarar sınırı)"},
+            {"symbol": "PEPEUSDT", "price": 0.00000486,
+             "alert_kind": "PAPER_EXIT_WARNING",
+             "reason": "Sinyal fiyatının %1,5 altına indi"},
+        ]
+        message = notify.format_paper_alerts(alerts)
+        self.assertIn("Hesabından alım veya satım yapılmadı", message)
+        self.assertIn("Kâr seviyesine gelenler (1)", message)
+        self.assertIn("Zarar sınırına gelenler (1)", message)
+        self.assertIn("İzleme uyarıları (1)", message)
+        self.assertIn("0.00000486 USDT", message)
+        self.assertNotIn("SATIŞ UYARISI", message)
+
     def test_candidate_identity_points_to_exact_spot_pair(self):
         identity, link = notify.candidate_identity("TIAUSDT")
         self.assertEqual(identity, "Celestia (TIA) | Spot TIA/USDT")
