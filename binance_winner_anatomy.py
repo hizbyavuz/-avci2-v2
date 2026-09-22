@@ -16,111 +16,42 @@ from binance_snapshot_store import (
     save_winner_event,
 )
 
-RESEARCH_VERSION = "binance-winner-anatomy-v2.0.1"
-
-SPOT_BASES = (
-    "https://data-api.binance.vision",
-    "https://api.binance.com",
-)
-
+RESEARCH_VERSION = "binance-winner-anatomy-v2.0.2"
+SPOT_BASES = ("https://data-api.binance.vision", "https://api.binance.com")
 REQUEST_TIMEOUT = 25
 REQUEST_SLEEP_SECONDS = 0.08
-
 QUOTE_ASSET = "USDT"
 MIN_QUOTE_VOLUME_24H = 3_000_000.0
-
 EVENT_LOOKBACK_DAYS = 7
 HOURLY_HISTORY_DAYS = 15
 EVENT_HORIZON_HOURS = 72
 EVENT_TROUGH_LOOKBACK_HOURS = 24
 EVENT_COOLDOWN_HOURS = 12
-
 CONTROL_MAX_GAIN_PCT = 10.0
 MAX_DETAILED_EVENTS_PER_RUN = 30
-
-WINNER_LEVELS = (
-    15.0,
-    20.0,
-    30.0,
-    40.0,
-    50.0,
-    60.0,
-)
-
-PRE_EVENT_OFFSETS_HOURS = (
-    72,
-    48,
-    24,
-    12,
-    6,
-    3,
-    1,
-)
-
+MAX_OPEN_DETAILED_EVENTS_PER_RUN = 10
+WINNER_LEVELS = (15.0, 20.0, 30.0, 40.0, 50.0, 60.0)
+PRE_EVENT_OFFSETS_HOURS = (72, 48, 24, 12, 6, 3, 1)
 BASELINE_5M_BARS = 7 * 24 * 12
 PRE_EVENT_HOURS = 72
 
-DETAIL_HISTORY_BEFORE_HOURS = (
-    7 * 24
-    + PRE_EVENT_HOURS
-    + 4
-)
+DETAIL_HISTORY_BEFORE_HOURS = 7 * 24 + PRE_EVENT_HOURS + 4
 
 ANOMALY_VOLUME_Z = 2.5
 ANOMALY_TRADE_Z = 2.0
 ANOMALY_RETURN_Z = 2.0
 
 EXCLUDED_BASES = {
-    "BTC",
-    "USDC",
-    "FDUSD",
-    "USDP",
-    "TUSD",
-    "DAI",
-    "USDE",
-    "USD1",
-    "USDS",
-    "XUSD",
-    "BFUSD",
-    "PYUSD",
-    "AEUR",
-    "EURI",
-    "RLUSD",
-    "USTC",
-    "LUSD",
-    "FRAX",
-    "SUSD",
-    "GUSD",
-    "USDJ",
-    "EUR",
-    "TRY",
-    "WBTC",
-    "WBETH",
-    "WETH",
-    "BTCB",
-    "BTCUP",
-    "BTCDOWN",
-    "ETHUP",
-    "ETHDOWN",
-    "BNBUP",
-    "BNBDOWN",
-    "ADAUP",
-    "ADADOWN",
-    "XRPUP",
-    "XRPDOWN",
-    "DOTUP",
-    "DOTDOWN",
-    "LINKUP",
-    "LINKDOWN",
-    "TRXUP",
-    "TRXDOWN",
+    "BTC", "USDC", "FDUSD", "USDP", "TUSD", "DAI", "USDE", "USD1",
+    "USDS", "XUSD", "BFUSD", "PYUSD", "AEUR", "EURI", "RLUSD", "USTC",
+    "LUSD", "FRAX", "SUSD", "GUSD", "USDJ", "EUR", "TRY", "WBTC",
+    "WBETH", "WETH", "BTCB", "BTCUP", "BTCDOWN", "ETHUP", "ETHDOWN",
+    "BNBUP", "BNBDOWN", "ADAUP", "ADADOWN", "XRPUP", "XRPDOWN",
+    "DOTUP", "DOTDOWN", "LINKUP", "LINKDOWN", "TRXUP", "TRXDOWN",
 }
 
 session = requests.Session()
-
-session.headers.update({
-    "User-Agent": RESEARCH_VERSION,
-})
+session.headers.update({"User-Agent": RESEARCH_VERSION})
 
 
 def utc_now():
@@ -138,10 +69,7 @@ def iso_from_ms(value):
 
 
 def pct_change(start, end):
-    if start in (None, 0):
-        return 0.0
-
-    if end is None:
+    if start in (None, 0) or end is None:
         return 0.0
 
     return (
@@ -151,17 +79,11 @@ def pct_change(start, end):
 
 
 def mean(values):
-    if not values:
-        return 0.0
-
-    return statistics.fmean(values)
+    return statistics.fmean(values) if values else 0.0
 
 
 def pstdev(values):
-    if len(values) < 2:
-        return 0.0
-
-    return statistics.pstdev(values)
+    return statistics.pstdev(values) if len(values) >= 2 else 0.0
 
 
 def zscore(value, baseline):
@@ -194,14 +116,12 @@ def api_get(path, params=None):
                     451,
                 ):
                     last_error = requests.HTTPError(
-                        f"{response.status_code} "
-                        f"from {base}{path}",
+                        f"{response.status_code} from {base}{path}",
                         response=response,
                     )
                     continue
 
                 response.raise_for_status()
-
                 return response.json()
 
             except requests.RequestException as error:
@@ -217,10 +137,7 @@ def api_get(path, params=None):
     )
 
 
-def last_closed_end_ms(
-    interval_ms,
-    now_ms=None,
-):
+def last_closed_end_ms(interval_ms, now_ms=None):
     now_ms = (
         now_ms
         or int(
@@ -234,27 +151,13 @@ def last_closed_end_ms(
     ) * interval_ms - 1
 
 
-def fetch_klines_range(
-    symbol,
-    interval,
-    start_ms,
-    end_ms,
-):
-    """
-    Mumlari ileri yonlu ve sinirli sayfalama ile indirir.
-    API imleci ilerlemezse sonsuz donguye girmek yerine hata verir.
-    """
-
+def fetch_klines_range(symbol, interval, start_ms, end_ms):
     interval_ms_by_name = {
         "5m": 5 * 60 * 1000,
         "1h": 60 * 60 * 1000,
     }
 
-    interval_ms = (
-        interval_ms_by_name.get(
-            interval
-        )
-    )
+    interval_ms = interval_ms_by_name.get(interval)
 
     if interval_ms is None:
         raise ValueError(
@@ -265,7 +168,6 @@ def fetch_klines_range(
         0,
         int(start_ms),
     )
-
     end_ms = int(end_ms)
 
     if end_ms < start_ms:
@@ -324,9 +226,7 @@ def fetch_klines_range(
         if next_cursor <= cursor:
             raise RuntimeError(
                 "Mum indirme noktasi ilerlemedi: "
-                f"{symbol} {interval} "
-                f"cursor={cursor} "
-                f"newest={newest_open_ms}"
+                f"{symbol} {interval}"
             )
 
         cursor = next_cursor
@@ -344,8 +244,7 @@ def fetch_klines_range(
     else:
         raise RuntimeError(
             "Mum indirme sayfa siniri asildi: "
-            f"{symbol} {interval} "
-            f"pages={max_pages}"
+            f"{symbol} {interval}"
         )
 
     return [
@@ -451,10 +350,7 @@ def build_universe():
     return sorted(symbols)
 
 
-def pre_hourly_metrics(
-    rows,
-    index,
-):
+def pre_hourly_metrics(rows, index):
     prior = rows[
         max(0, index - 24):
         index
@@ -502,16 +398,7 @@ def event_identifier(
     ).hexdigest()[:24]
 
 
-def detect_winner_events(
-    symbol,
-    rows,
-    now_ms,
-):
-    """
-    Once dipten sonra gelen tepe hareketlerini bulur.
-    Tepe dipten onceyse kazanan hareket sayilmaz.
-    """
-
+def detect_winner_events(symbol, rows, now_ms):
     events = []
     seen_starts = set()
 
@@ -547,8 +434,8 @@ def detect_winner_events(
                 trough_start,
                 index + 1,
             ),
-            key=lambda candidate_index:
-                rows[candidate_index]["low"],
+            key=lambda candidate:
+                rows[candidate]["low"],
         )
 
         trough_price = rows[
@@ -582,13 +469,11 @@ def detect_winner_events(
                     + 1,
                 )
 
-            gain = pct_change(
-                trough_price,
-                rows[cursor]["high"],
-            )
-
             if (
-                gain
+                pct_change(
+                    trough_price,
+                    rows[cursor]["high"],
+                )
                 >= WINNER_LEVELS[0]
             ):
                 threshold_index = cursor
@@ -643,8 +528,8 @@ def detect_winner_events(
 
         peak_offset = max(
             range(len(path)),
-            key=lambda path_index:
-                path[path_index]["high"],
+            key=lambda candidate:
+                path[candidate]["high"],
         )
 
         peak_index = (
@@ -688,7 +573,7 @@ def detect_winner_events(
             trough_index,
         )
 
-        event = {
+        events.append({
             "event_id": event_identifier(
                 symbol,
                 event_start_ms,
@@ -771,9 +656,8 @@ def detect_winner_events(
                 "horizon_hours":
                     EVENT_HORIZON_HOURS,
             },
-        }
+        })
 
-        events.append(event)
         seen_starts.add(
             event_start_ms
         )
@@ -786,10 +670,7 @@ def detect_winner_events(
     return events
 
 
-def nearest_index(
-    rows,
-    timestamp_ms,
-):
+def nearest_index(rows, timestamp_ms):
     found = [
         index
         for index, row
@@ -800,31 +681,27 @@ def nearest_index(
         )
     ]
 
-    if not found:
-        return None
+    return (
+        found[-1]
+        if found
+        else None
+    )
 
-    return found[-1]
 
-
-def control_metrics_at(
-    rows,
-    timestamp_ms,
-):
+def control_metrics_at(rows, timestamp_ms):
     index = nearest_index(
         rows,
         timestamp_ms,
     )
 
-    if index is None:
-        return None
-
-    if index < 24:
-        return None
-
     if (
-        index
-        + EVENT_HORIZON_HOURS
-        >= len(rows)
+        index is None
+        or index < 24
+        or (
+            index
+            + EVENT_HORIZON_HOURS
+            >= len(rows)
+        )
     ):
         return None
 
@@ -841,8 +718,8 @@ def control_metrics_at(
 
     peak_offset = max(
         range(len(path)),
-        key=lambda path_index:
-            path[path_index]["high"],
+        key=lambda candidate:
+            path[candidate]["high"],
     )
 
     gain = pct_change(
@@ -1064,10 +941,7 @@ def choose_matched_control(
     }
 
 
-def grouped_sums(
-    values,
-    size,
-):
+def grouped_sums(values, size):
     return [
         sum(
             values[
@@ -1093,11 +967,9 @@ def feature_snapshot(
         target_ms,
     )
 
-    if index is None:
-        return None
-
     if (
-        index
+        index is None
+        or index
         < BASELINE_5M_BARS + 36
     ):
         return None
@@ -1117,17 +989,14 @@ def feature_snapshot(
         row["close"]
         for row in current
     ]
-
     volumes = [
         row["quote_volume"]
         for row in current
     ]
-
     trades = [
         row["trades"]
         for row in current
     ]
-
     taker = [
         row["taker_buy_quote"]
         for row in current
@@ -1137,12 +1006,10 @@ def feature_snapshot(
         row["quote_volume"]
         for row in baseline
     ]
-
     base_trades = [
         row["trades"]
         for row in baseline
     ]
-
     base_returns = [
         row["abs_return"]
         for row in baseline
@@ -1151,15 +1018,12 @@ def feature_snapshot(
     volume_15m = sum(
         volumes[-3:]
     )
-
     volume_1h = sum(
         volumes[-12:]
     )
-
     volume_24h = sum(
         volumes[-288:]
     )
-
     trades_15m = sum(
         trades[-3:]
     )
@@ -1243,7 +1107,7 @@ def feature_snapshot(
         288
     )
 
-    volume_median_15m = (
+    median_15m = (
         statistics.median(
             baseline_volume_15m
         )
@@ -1251,7 +1115,7 @@ def feature_snapshot(
         else 1.0
     )
 
-    volume_median_1h = (
+    median_1h = (
         statistics.median(
             baseline_volume_1h
         )
@@ -1320,14 +1184,14 @@ def feature_snapshot(
         "volume_mult_15m": (
             volume_15m
             / (
-                volume_median_15m
+                median_15m
                 or 1.0
             )
         ),
         "volume_mult_1h": (
             volume_1h
             / (
-                volume_median_1h
+                median_1h
                 or 1.0
             )
         ),
@@ -1388,13 +1252,11 @@ def first_pre_event_anomaly(
         start_index
     ]["close"]
 
-    scan_start = max(
-        start_index,
-        BASELINE_5M_BARS + 36,
-    )
-
     for index in range(
-        scan_start,
+        max(
+            start_index,
+            BASELINE_5M_BARS + 36,
+        ),
         end_index + 1,
     ):
         snapshot = feature_snapshot(
@@ -1661,21 +1523,51 @@ def main():
         reverse=True,
     )
 
-    selected = winner_events[
-        :MAX_DETAILED_EVENTS_PER_RUN
-    ]
-
-    used = set()
-    controls = []
-
-    for winner in [
+    closed_events = [
         event
-        for event in selected
+        for event in winner_events
         if (
             event["event_status"]
             == "CLOSED"
         )
-    ]:
+    ]
+
+    open_events = [
+        event
+        for event in winner_events
+        if (
+            event["event_status"]
+            == "OPEN"
+        )
+    ]
+
+    closed_limit = max(
+        0,
+        MAX_DETAILED_EVENTS_PER_RUN
+        - MAX_OPEN_DETAILED_EVENTS_PER_RUN,
+    )
+
+    selected_closed = (
+        closed_events[
+            :closed_limit
+        ]
+    )
+
+    selected_open = (
+        open_events[
+            :MAX_OPEN_DETAILED_EVENTS_PER_RUN
+        ]
+    )
+
+    selected = (
+        selected_closed
+        + selected_open
+    )
+
+    used = set()
+    controls = []
+
+    for winner in selected_closed:
         control = (
             choose_matched_control(
                 winner,
@@ -1690,14 +1582,14 @@ def main():
             )
 
     if selected:
-        all_detailed_events = (
+        detailed_events = (
             selected + controls
         )
 
         earliest = min(
             event["event_start_ms"]
             for event
-            in all_detailed_events
+            in detailed_events
         )
 
         btc_rows = parse_rows(
@@ -1783,6 +1675,10 @@ def main():
     print(
         f"Detay winner: "
         f"{len(selected)} "
+        f"| CLOSED: "
+        f"{len(selected_closed)} "
+        f"| OPEN: "
+        f"{len(selected_open)} "
         "| Eslesmis kontrol: "
         f"{len(controls)}"
     )
