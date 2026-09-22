@@ -4,6 +4,8 @@
 import json
 import os
 import sqlite3
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 import requests
 
@@ -283,6 +285,46 @@ def read_trade_alerts(connection, scan_time):
     except sqlite3.OperationalError:
         return []
     return [dict(row) for row in rows]
+
+
+def format_paper_price(price):
+    return f"{float(price):.10f}".rstrip("0").rstrip(".")
+
+
+def format_paper_alerts(alerts):
+    """Make paper observations readable without suggesting real orders."""
+    groups = {"profit": [], "loss": [], "watch": [], "entry": []}
+    for alert in alerts:
+        symbol = alert["symbol"]
+        price = format_paper_price(alert["price"])
+        reason = alert["reason"]
+        if alert["alert_kind"] == "PAPER_ENTRY":
+            key, detail = "entry", "Deneme alımı için şartlar oluştu"
+        elif "%10 yukarıda" in reason:
+            key, detail = "profit", "Deneme girişinden en az %10 yukarıda"
+        elif "%7 aşağıda" in reason:
+            key, detail = "loss", "Deneme girişinden en az %7 aşağıda"
+        elif "%1,5 altına" in reason:
+            key, detail = "watch", "İşaretlendiği fiyattan %1,5 geriledi"
+        else:
+            key, detail = "watch", reason
+        groups[key].append(f"• {symbol}: {price} USDT — {detail}")
+
+    lines = ["📋 AVCI - DENEME İŞLEMLERİNİN DURUMU",
+             "Bunlar geçmiş sinyallerin kağıt üzerindeki takibidir.",
+             "Hesabından alım veya satım yapılmadı.",
+             "Bugünün adaylarının 24 saatlik toplu raporu ayrı gelir."]
+    for key, title in (("profit", "Kâr seviyesine gelenler"),
+                       ("loss", "Zarar sınırına gelenler"),
+                       ("entry", "Yeni deneme alımları"),
+                       ("watch", "İzleme uyarıları")):
+        items = groups[key]
+        if not items:
+            continue
+        lines.extend(["", f"{title} ({len(items)}):", *items[:5]])
+        if len(items) > 5:
+            lines.append(f"• Ayrıca {len(items) - 5} kayıt daha var.")
+    return "\n".join(lines)
 
 
 def read_bridge_scores(
@@ -725,17 +767,13 @@ def main():
         get_telegram_settings()
     )
 
+    scan_time_local = datetime.fromisoformat(scan["scan_time_utc"])
+    scan_time_local = scan_time_local.astimezone(
+        ZoneInfo("Europe/Istanbul")).strftime("%d.%m.%Y %H:%M")
     message = (build_message(scan, candidates, bridge_scores)
-               if candidates else "BINANCE AVCI 2 - KAĞIT ÜSTÜ TAKİP\n"
-               f"Tarama: {scan['scan_time_utc']}\n"
-               f"Sürüm: {scan['config_version']}")
+               if candidates else f"Tarama: {scan_time_local} (Türkiye)\n")
     if trade_alerts:
-        message += "\n\nALIM / SATIŞ GÖZLEMİ (GERÇEK EMİR DEĞİL):"
-        for item in trade_alerts:
-            kind = ("ALIM TETİĞİ" if item["alert_kind"] == "PAPER_ENTRY"
-                    else "SATIŞ UYARISI")
-            message += (f"\n{kind}: {item['symbol']} | "
-                        f"fiyat {item['price']:.8g} | {item['reason']}")
+        message += "\n" + format_paper_alerts(trade_alerts)
 
     print(message)
 
