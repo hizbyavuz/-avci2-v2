@@ -26,6 +26,7 @@ on:
         description: "Optional decision note"
         required: false
         type: string
+
   schedule:
     - cron: "7,22,37,52 * * * *"
 
@@ -56,10 +57,13 @@ jobs:
 
           if [ -n "$run_id" ]; then
             mkdir -p .state
+
             gh run download "$run_id" \
               --name binance-avci2-state \
               --dir .state
+
             cp .state/binance_avci2.db binance_avci2.db
+
             echo "Previous database restored"
           else
             echo "No state artifact yet; repository database will seed the first run"
@@ -85,7 +89,12 @@ jobs:
           JOURNAL_QUANTITY: ${{ inputs.journal_quantity }}
           JOURNAL_NOTES: ${{ inputs.journal_notes }}
         run: |
-          args=(--event-id "$JOURNAL_EVENT_ID" --action "$JOURNAL_ACTION" --price "$JOURNAL_PRICE" --notes "$JOURNAL_NOTES")
+          args=(
+            --event-id "$JOURNAL_EVENT_ID"
+            --action "$JOURNAL_ACTION"
+            --price "$JOURNAL_PRICE"
+            --notes "$JOURNAL_NOTES"
+          )
 
           if [ -n "$JOURNAL_QUANTITY" ]; then
             args+=(--quantity "$JOURNAL_QUANTITY")
@@ -99,6 +108,9 @@ jobs:
       - name: Run outcome labeler
         run: python -u binance_outcome_labeler.py
 
+      - name: Compare candidates with Winner Anatomy
+        run: python -u binance_winner_bridge.py
+
       - name: Build readable report
         run: python binance_report.py
 
@@ -108,12 +120,12 @@ jobs:
       - name: Add report to job summary
         run: cat binance_latest_report.md >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Optional Telegram notification
+      - name: Send Turkish Telegram notification
         continue-on-error: true
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: python binance_notify.py
+        run: python -u binance_notify.py
 
       - name: Upload research state
         uses: actions/upload-artifact@v4
