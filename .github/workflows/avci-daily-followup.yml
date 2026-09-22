@@ -1,0 +1,63 @@
+name: Avci candidate 24 hour follow-up
+
+on:
+  workflow_dispatch:
+    inputs:
+      day:
+        description: "Turkiye sinyal tarihi YYYY-MM-DD; bos birakirsan iki gun once"
+        required: false
+        type: string
+  schedule:
+    - cron: "13 2 * * *"
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  followup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install requests
+        run: pip install -r binance_requirements.txt
+      - name: Pick report date in Turkey
+        id: period
+        env:
+          REQUESTED_DAY: ${{ inputs.day }}
+        run: |
+          day=${REQUESTED_DAY:-$(TZ=Europe/Istanbul date -d '2 days ago' +%Y-%m-%d)}
+          if [[ ! "$day" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+            echo "Expected YYYY-MM-DD" >&2
+            exit 1
+          fi
+          echo "day=$day" >> "$GITHUB_OUTPUT"
+      - name: Build signal versus 24-hour prices
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPORT_DAY: ${{ steps.period.outputs.day }}
+        run: python avci_daily_followup.py --day "$REPORT_DAY"
+      - name: Save the complete coin-by-coin table
+        uses: actions/upload-artifact@v4
+        with:
+          name: avci-24s-${{ steps.period.outputs.day }}
+          path: avci-gunluk-${{ steps.period.outputs.day }}/tum_adaylar.csv
+          if-no-files-found: error
+          retention-days: 90
+      - name: Send main Turkish Telegram message
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          REPORT_DAY: ${{ steps.period.outputs.day }}
+        run: |
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          from binance_notify import get_telegram_settings, send_telegram
+          message = (Path(f"avci-gunluk-{os.environ['REPORT_DAY']}") / "telegram.txt").read_text(encoding="utf-8")
+          send_telegram(*get_telegram_settings(), message)
+          PY
