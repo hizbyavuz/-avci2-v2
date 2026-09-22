@@ -1,0 +1,91 @@
+name: Binance Winner Anatomy Daily
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 2 * * *"
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: binance-avci2-state
+  cancel-in-progress: false
+
+jobs:
+  research:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Restore latest research state
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          run_id=$(gh api \
+            "repos/${GITHUB_REPOSITORY}/actions/artifacts?name=binance-avci2-state&per_page=100" \
+            --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | reverse | .[0].workflow_run.id // empty')
+
+          if [ -n "$run_id" ]; then
+            mkdir -p .state
+            gh run download "$run_id" \
+              --name binance-avci2-state \
+              --dir .state
+            cp .state/binance_avci2.db binance_avci2.db
+            echo "Previous database restored"
+          else
+            echo "No state artifact yet; repository database will seed the first run"
+          fi
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r binance_requirements.txt
+
+      - name: Run permanent tests
+        run: python -m unittest discover -s tests -v
+
+      - name: Run retrospective winner research
+        run: python -u binance_winner_anatomy.py
+
+      - name: Build readable report
+        run: python binance_report.py
+
+      - name: Build HTML dashboard
+        run: python binance_dashboard.py
+
+      - name: Add report to job summary
+        run: cat binance_latest_report.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload research state
+        uses: actions/upload-artifact@v4
+        with:
+          name: binance-avci2-state
+          path: |
+            binance_avci2.db
+            binance_latest_report.md
+            binance_dashboard.html
+          if-no-files-found: error
+          retention-days: 21
+          compression-level: 6
+
+      - name: Keep latest two state backups
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          artifact_ids=$(gh api \
+            "repos/${GITHUB_REPOSITORY}/actions/artifacts?name=binance-avci2-state&per_page=100" \
+            --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | reverse | .[2:] | .[].id')
+
+          for artifact_id in $artifact_ids; do
+            gh api --method DELETE \
+              "repos/${GITHUB_REPOSITORY}/actions/artifacts/${artifact_id}"
+          done
