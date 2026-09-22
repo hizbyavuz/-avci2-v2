@@ -11,6 +11,32 @@ import requests
 DB_FILE = "binance_avci2.db"
 TELEGRAM_LIMIT = 4096
 
+# Only show names whose symbol-to-asset mapping has been checked. A ticker
+# alone is not enough to guess a project's name (several coins share tickers).
+VERIFIED_COIN_NAMES = {
+    "TIA": "Celestia",
+    "ATOM": "Cosmos",
+    "APT": "Aptos",
+    "BCH": "Bitcoin Cash",
+    "FLOKI": "Floki",
+    "HBAR": "Hedera",
+    "LTC": "Litecoin",
+    "PENGU": "Pudgy Penguins",
+    "QNT": "Quant",
+    "VIRTUAL": "Virtuals Protocol",
+}
+
+
+def candidate_identity(symbol):
+    """Show the exact Binance Spot market even when no name is verified."""
+    if not symbol.endswith("USDT"):
+        raise ValueError(f"Expected a USDT Spot pair: {symbol}")
+    base = symbol[:-4]
+    name = VERIFIED_COIN_NAMES.get(base)
+    title = f"{name} ({base})" if name else base
+    return (f"{title} | Spot {base}/USDT",
+            f"https://www.binance.com/en/trade/{base}_USDT?type=spot")
+
 
 STAGE_NAMES = {
     "TRIGGER": "TETİK",
@@ -583,8 +609,10 @@ def build_message(
             )
         )
 
+        identity, market_url = candidate_identity(candidate["symbol"])
         lines.extend([
-            f"{index}. {candidate['symbol']}",
+            f"{index}. {identity}",
+            f"Binance Spot: {market_url}",
             f"Aşama: {stage_text}",
             f"Hareket tipi: {engine_text}",
             f"Puan: {score}/8",
