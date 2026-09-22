@@ -1,0 +1,71 @@
+name: Avci monthly readable results
+
+on:
+  workflow_dispatch:
+    inputs:
+      month:
+        description: "UTC month YYYY-MM; leave empty for previous month"
+        required: false
+        type: string
+  schedule:
+    # Wait for 72-hour outcomes from the last day of the previous month.
+    - cron: "13 8 4 * *"
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - name: Choose the reporting month
+        id: period
+        env:
+          REQUESTED_MONTH: ${{ inputs.month }}
+        run: |
+          month=${REQUESTED_MONTH:-$(date -u -d 'last month' +%Y-%m)}
+          if [[ ! "$month" =~ ^[0-9]{4}-(0[1-9]|1[0-2])$ ]]; then
+            echo "Expected YYYY-MM" >&2
+            exit 1
+          fi
+          echo "month=$month" >> "$GITHUB_OUTPUT"
+
+      - name: Build the readable report and both event tables
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPORT_MONTH: ${{ steps.period.outputs.month }}
+        run: python avci_monthly_report.py --month "$REPORT_MONTH"
+
+      - name: Show the summary in this workflow run
+        env:
+          REPORT_MONTH: ${{ steps.period.outputs.month }}
+        run: cat "avci-aylik-$REPORT_MONTH/OZET.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Save downloadable report and event tables
+        uses: actions/upload-artifact@v4
+        with:
+          name: avci-aylik-${{ steps.period.outputs.month }}
+          path: |
+            avci-aylik-${{ steps.period.outputs.month }}/OZET.md
+            avci-aylik-${{ steps.period.outputs.month }}/binance_olaylar.csv
+            avci-aylik-${{ steps.period.outputs.month }}/gate_olaylar.csv
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Send short Turkish Telegram summary with report link
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          REPORT_MONTH: ${{ steps.period.outputs.month }}
+        run: |
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          from binance_notify import get_telegram_settings, send_telegram
+          month = os.environ["REPORT_MONTH"]
+          message = (Path(f"avci-aylik-{month}") / "telegram.txt").read_text(encoding="utf-8")
+          send_telegram(*get_telegram_settings(), message)
+          PY
