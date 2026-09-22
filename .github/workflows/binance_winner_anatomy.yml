@@ -53,7 +53,9 @@ jobs:
         run: python -m unittest discover -s tests -v
 
       - name: Run retrospective winner research
-        run: python -u binance_winner_anatomy.py
+        run: |
+          python -u binance_winner_anatomy.py \
+            | tee binance_winner_anatomy.log
 
       - name: Build readable report
         run: python binance_report.py
@@ -62,7 +64,16 @@ jobs:
         run: python binance_dashboard.py
 
       - name: Add report to job summary
-        run: cat binance_latest_report.md >> "$GITHUB_STEP_SUMMARY"
+        run: |
+          cat binance_latest_report.md \
+            >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Send Turkish Winner Anatomy Telegram result
+        continue-on-error: true
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python -u binance_winner_notify.py
 
       - name: Upload research state
         uses: actions/upload-artifact@v4
@@ -72,6 +83,7 @@ jobs:
             binance_avci2.db
             binance_latest_report.md
             binance_dashboard.html
+            binance_winner_anatomy.log
           if-no-files-found: error
           retention-days: 21
           compression-level: 6
