@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import json
 import os
 import sqlite3
 
@@ -20,6 +21,15 @@ STAGE_NAMES = {
 }
 
 
+ENGINE_NAMES = {
+    "SPOT_LED_DEMAND": "SPOT TALEBİ",
+    "LEVERAGED_BREAKOUT": "KALDIRAÇLI KIRILIM",
+    "SHORT_SQUEEZE": "SHORT SIKIŞMASI",
+    "LIQUIDITY_VACUUM": "LİKİDİTE BOŞLUĞU",
+    "MIXED": "KARMA",
+}
+
+
 REGIME_NAMES = {
     "UP": "YÜKSELİŞ",
     "DOWN": "DÜŞÜŞ",
@@ -31,6 +41,31 @@ HEALTH_NAMES = {
     "VALID_FULL": "GEÇERLİ - TAM VERİ",
     "VALID_SPOT_OBSERVATION": "GEÇERLİ - SADECE SPOT",
     "INVALID": "GEÇERSİZ",
+}
+
+
+VALIDATION_NAMES = {
+    "PRIMARY": "ANA DOĞRULAMA",
+    "OBSERVATIONAL": "GÖZLEMSEL",
+    "LEGACY": "ESKİ KAYIT",
+}
+
+
+CLASS_NAMES = {
+    "KAZANANA_BENZER":
+        "KAZANANA BENZER",
+
+    "KONTROLE_BENZER":
+        "BAŞARISIZ KONTROLE BENZER",
+
+    "KARMA":
+        "KARIŞIK",
+
+    "REFERANS_DISI":
+        "TARİHSEL REFERANS DIŞI",
+
+    "YETERSIZ_VERI":
+        "YETERSİZ VERİ",
 }
 
 
@@ -169,7 +204,7 @@ def send_telegram(
 
 
 def read_latest_scan(connection):
-    return connection.execute(
+    row = connection.execute(
         """
         SELECT *
         FROM scans
@@ -178,18 +213,26 @@ def read_latest_scan(connection):
         """
     ).fetchone()
 
+    return (
+        dict(row)
+        if row is not None
+        else None
+    )
+
 
 def read_new_candidates(
     connection,
     scan_time,
 ):
-    return connection.execute(
+    rows = connection.execute(
         """
         SELECT
             symbol,
             stage,
+            engine,
             score,
-            validation_tier
+            validation_tier,
+            config_version
         FROM signal_events
         WHERE event_class = 'CANDIDATE'
           AND signal_time_utc = ?
@@ -200,10 +243,247 @@ def read_new_candidates(
         (scan_time,),
     ).fetchall()
 
+    return [
+        dict(row)
+        for row in rows
+    ]
+
+
+def read_bridge_scores(
+    connection,
+    scan_time,
+    config_version,
+):
+    try:
+        rows = connection.execute(
+            """
+            SELECT *
+            FROM winner_bridge_scores
+            WHERE scan_time_utc = ?
+              AND config_version = ?
+            ORDER BY
+                created_at_utc DESC,
+                id DESC
+            """,
+            (
+                scan_time,
+                config_version,
+            ),
+        ).fetchall()
+
+    except sqlite3.OperationalError as error:
+        if (
+            "no such table"
+            in str(error).lower()
+        ):
+            return {}
+
+        raise
+
+    results = {}
+
+    for row in rows:
+        item = dict(row)
+
+        symbol = item[
+            "symbol"
+        ]
+
+        if symbol not in results:
+            results[
+                symbol
+            ] = item
+
+    return results
+
+
+def parse_feature_labels(
+    raw_text,
+    positive,
+):
+    if not raw_text:
+        return []
+
+    try:
+        rows = json.loads(
+            raw_text
+        )
+    except (
+        TypeError,
+        json.JSONDecodeError,
+    ):
+        return []
+
+    labels = []
+
+    for row in rows:
+        edge = row.get(
+            "winner_edge"
+        )
+
+        label = row.get(
+            "label"
+        )
+
+        if (
+            edge is None
+            or not label
+        ):
+            continue
+
+        edge = float(
+            edge
+        )
+
+        if positive and edge > 0:
+            labels.append(
+                label
+            )
+
+        if (
+            not positive
+            and edge < 0
+        ):
+            labels.append(
+                label
+            )
+
+        if len(labels) >= 2:
+            break
+
+    return labels
+
+
+def add_bridge_lines(
+    lines,
+    bridge,
+):
+    if not bridge:
+        lines.extend([
+            "Tarihsel karşılaştırma: VERİ YOK",
+            "",
+        ])
+        return
+
+    classification = bridge.get(
+        "classification",
+        "YETERSIZ_VERI",
+    )
+
+    classification_text = (
+        CLASS_NAMES.get(
+            classification,
+            classification,
+        )
+    )
+
+    similarity = bridge.get(
+        "winner_similarity_pct"
+    )
+
+    reference_fit = bridge.get(
+        "reference_fit_pct"
+    )
+
+    offset = bridge.get(
+        "best_offset_hours"
+    )
+
+    winner_count = int(
+        bridge.get(
+            "winner_sample_count"
+        )
+        or 0
+    )
+
+    control_count = int(
+        bridge.get(
+            "control_sample_count"
+        )
+        or 0
+    )
+
+    feature_count = int(
+        bridge.get(
+            "compared_feature_count"
+        )
+        or 0
+    )
+
+    lines.append(
+        "Winner Anatomy karşılaştırması:"
+    )
+
+    lines.append(
+        f"Sınıf: {classification_text}"
+    )
+
+    if similarity is not None:
+        lines.append(
+            "Geçmiş kazanan benzerliği: "
+            f"%{float(similarity):.1f}"
+        )
+
+    if reference_fit is not None:
+        lines.append(
+            "Tarihsel profile uyum: "
+            f"%{float(reference_fit):.1f}"
+        )
+
+    if offset is not None:
+        lines.append(
+            "En yakın geçmiş pencere: "
+            f"hareketten {int(offset)} saat önce"
+        )
+
+    lines.append(
+        "Karşılaştırılan örnek: "
+        f"{winner_count} kazanan / "
+        f"{control_count} kontrol"
+    )
+
+    lines.append(
+        "Karşılaştırılan özellik: "
+        f"{feature_count}"
+    )
+
+    strong_labels = parse_feature_labels(
+        bridge.get(
+            "strong_features_json"
+        ),
+        positive=True,
+    )
+
+    weak_labels = parse_feature_labels(
+        bridge.get(
+            "weak_features_json"
+        ),
+        positive=False,
+    )
+
+    if strong_labels:
+        lines.append(
+            "Kazanana benzeyen taraf: "
+            + ", ".join(
+                strong_labels
+            )
+        )
+
+    if weak_labels:
+        lines.append(
+            "Kontrole benzeyen taraf: "
+            + ", ".join(
+                weak_labels
+            )
+        )
+
+    lines.append("")
+
 
 def build_message(
     scan,
     candidates,
+    bridge_scores,
 ):
     scan_time = scan[
         "scan_time_utc"
@@ -262,6 +542,15 @@ def build_message(
             stage,
         )
 
+        engine = candidate.get(
+            "engine"
+        )
+
+        engine_text = ENGINE_NAMES.get(
+            engine,
+            engine or "BİLİNMİYOR",
+        )
+
         score = candidate[
             "score"
         ]
@@ -270,13 +559,31 @@ def build_message(
             "validation_tier"
         ]
 
+        validation_text = (
+            VALIDATION_NAMES.get(
+                validation,
+                validation,
+            )
+        )
+
         lines.extend([
             f"{index}. {candidate['symbol']}",
             f"Aşama: {stage_text}",
+            f"Hareket tipi: {engine_text}",
             f"Puan: {score}/8",
-            f"Doğrulama: {validation}",
-            "",
+            f"Doğrulama: {validation_text}",
         ])
+
+        bridge = bridge_scores.get(
+            candidate[
+                "symbol"
+            ]
+        )
+
+        add_bridge_lines(
+            lines,
+            bridge,
+        )
 
     lines.extend([
         "Açıklama:",
@@ -285,6 +592,7 @@ def build_message(
         "YENİDEN CANLANMA = Hareket tekrar hızlanıyor.",
         "TETİK = Birden fazla şart aynı anda oluştu.",
         "",
+        "Geçmiş kazanan benzerliği başarı ihtimali değildir.",
         "Bu bildirim otomatik alım emri değildir.",
         "İlk aşama paper-trade ve araştırma amaçlıdır.",
     ])
@@ -301,11 +609,16 @@ def main():
         )
 
     connection = sqlite3.connect(
-        DB_FILE
+        DB_FILE,
+        timeout=60,
     )
 
     connection.row_factory = (
         sqlite3.Row
+    )
+
+    connection.execute(
+        "PRAGMA busy_timeout=60000"
     )
 
     try:
@@ -331,7 +644,19 @@ def main():
 
         candidates = read_new_candidates(
             connection,
-            scan["scan_time_utc"],
+            scan[
+                "scan_time_utc"
+            ],
+        )
+
+        bridge_scores = read_bridge_scores(
+            connection,
+            scan[
+                "scan_time_utc"
+            ],
+            scan[
+                "config_version"
+            ],
         )
 
     finally:
@@ -351,6 +676,7 @@ def main():
     message = build_message(
         scan,
         candidates,
+        bridge_scores,
     )
 
     print(message)
