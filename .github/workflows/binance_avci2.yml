@@ -86,19 +86,18 @@ jobs:
           JOURNAL_NOTES: ${{ inputs.journal_notes }}
         run: |
           args=(--event-id "$JOURNAL_EVENT_ID" --action "$JOURNAL_ACTION" --price "$JOURNAL_PRICE" --notes "$JOURNAL_NOTES")
+
           if [ -n "$JOURNAL_QUANTITY" ]; then
             args+=(--quantity "$JOURNAL_QUANTITY")
           fi
+
           python binance_trade_journal.py "${args[@]}"
 
       - name: Run Binance scanner
-        run: python binance_scanner.py
+        run: python -u binance_scanner.py
 
       - name: Run outcome labeler
-        run: python binance_outcome_labeler.py
-
-      - name: Run winner anatomy
-        run: python binance_winner_anatomy.py
+        run: python -u binance_outcome_labeler.py
 
       - name: Build readable report
         run: python binance_report.py
