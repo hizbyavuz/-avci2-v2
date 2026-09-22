@@ -5,6 +5,14 @@ on:
   schedule:
     - cron: "*/10 * * * *"
 
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: gate-avci2-state
+  cancel-in-progress: false
+
 jobs:
   scan:
     runs-on: ubuntu-latest
@@ -18,9 +26,15 @@ jobs:
           path: |
             avci2.db
             avci_outcomes.db
+            avci_validation_v5.db
           key: avci2-db-${{ github.run_id }}
           restore-keys: |
             avci2-db-        
+
+      - name: Restore verified Gate history
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python avci_state_guard.py restore-gate
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -35,12 +49,13 @@ jobs:
          JUPITER_API_KEY: ${{ secrets.JUPITER_API_KEY }}
         run: python scanner.py
       - name: Save Avci DB
-        if: always()
+        if: success()
         uses: actions/cache/save@v4
         with:
           path: |
             avci2.db
             avci_outcomes.db
+            avci_validation_v5.db
           key: avci2-db-${{ github.run_id }}
       - name: Publish shared signal history
         if: success()
@@ -50,5 +65,37 @@ jobs:
           path: |
             avci2.db
             avci_outcomes.db
-          if-no-files-found: warn
-          retention-days: 21
+            avci_validation_v5.db
+          if-no-files-found: error
+          retention-days: 3
+
+      - name: Decide daily archive
+        id: daily
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python avci_state_guard.py daily-needed gate >> "$GITHUB_OUTPUT"
+
+      - name: Save independent Gate daily archive
+        if: steps.daily.outputs.needed == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.daily.outputs.name }}
+          path: |
+            avci2.db
+            avci_outcomes.db
+            avci_validation_v5.db
+          if-no-files-found: error
+          retention-days: 60
+
+      - name: Keep latest two fast Gate backups
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          artifact_ids=$(gh api \
+            "repos/${GITHUB_REPOSITORY}/actions/artifacts?name=gate-avci2-signal-history&per_page=100" \
+            --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | reverse | .[2:] | .[].id')
+          for artifact_id in $artifact_ids; do
+            gh api --method DELETE \
+              "repos/${GITHUB_REPOSITORY}/actions/artifacts/${artifact_id}"
+          done
