@@ -104,22 +104,63 @@ def last_closed_end_ms(interval_ms, now_ms=None):
 
 
 def fetch_klines_range(symbol, interval, start_ms, end_ms):
-    cursor, collected = int(end_ms), {}
-    while cursor >= start_ms:
+    """Fetch a bounded candle range with forward-only pagination.
+
+    The page counter and monotonic cursor check prevent a malformed or ignored
+    Binance cursor from trapping a GitHub Actions job in an endless loop.
+    """
+    interval_ms_by_name = {
+        "5m": 5 * 60 * 1000,
+        "1h": 60 * 60 * 1000,
+    }
+    interval_ms = interval_ms_by_name.get(interval)
+    if interval_ms is None:
+        raise ValueError(f"Unsupported interval: {interval}")
+
+    start_ms = max(0, int(start_ms))
+    end_ms = int(end_ms)
+    if end_ms < start_ms:
+        return []
+
+    expected_bars = (end_ms - start_ms) // interval_ms + 1
+    max_pages = max(1, math.ceil(expected_bars / 1000) + 3)
+    cursor = start_ms
+    collected = {}
+
+    for _page in range(max_pages):
         batch = api_get("/api/v3/klines", {
-            "symbol": symbol, "interval": interval, "endTime": cursor, "limit": 1000,
+            "symbol": symbol,
+            "interval": interval,
+            "startTime": cursor,
+            "endTime": end_ms,
+            "limit": 1000,
         })
         if not batch:
             break
+
         for row in batch:
             open_ms, close_ms = int(row[0]), int(row[6])
-            if open_ms >= start_ms and close_ms <= end_ms:
+            if start_ms <= open_ms and close_ms <= end_ms:
                 collected[open_ms] = row
-        oldest = int(batch[0][0])
-        if oldest <= start_ms or oldest >= cursor:
+
+        newest_open_ms = int(batch[-1][0])
+        next_cursor = newest_open_ms + interval_ms
+        if next_cursor <= cursor:
+            raise RuntimeError(
+                f"Kline cursor ilerlemedi: {symbol} {interval} "
+                f"cursor={cursor} newest={newest_open_ms}"
+            )
+
+        cursor = next_cursor
+        if cursor > end_ms or len(batch) < 1000:
             break
-        cursor = oldest - 1
         time.sleep(REQUEST_SLEEP_SECONDS)
+    else:
+        raise RuntimeError(
+            f"Kline sayfa siniri asildi: {symbol} {interval} "
+            f"pages={max_pages}"
+        )
+
     return [collected[key] for key in sorted(collected)]
 
 
