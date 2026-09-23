@@ -30,6 +30,7 @@ on:
   push:
     paths:
       - "binance_*.py"
+      - "telegram_readable.py"
       - "tests/test_core.py"
       - ".github/workflows/binance_avci2.yml"
 
