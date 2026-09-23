@@ -9,6 +9,11 @@ from zoneinfo import ZoneInfo
 
 import requests
 
+from telegram_readable import (
+    binance_price, coingecko_logo, fmt_price, pct,
+    record_initial, send_photo_or_text, due_followups, mark_followup,
+)
+
 
 DB_FILE = "binance_avci2.db"
 TELEGRAM_LIMIT = 4096
@@ -738,6 +743,66 @@ def build_message(
     return "\n".join(lines)
 
 
+
+def build_readable_candidate(scan, candidate, bridge=None):
+    symbol=candidate["symbol"]
+    base=symbol[:-4]
+    identity, market_url=candidate_identity(symbol)
+    now_price=binance_price(symbol)
+    signal_price=candidate.get("signal_price")
+    change=pct(now_price, signal_price)
+    stage=candidate.get("stage")
+    engine=candidate.get("engine")
+    score=candidate.get("score")
+    why=STAGE_EXPLANATIONS.get(stage, STAGE_NAMES.get(stage, stage or "İzleme"))
+    engine_text=ENGINE_NAMES.get(engine, engine or "karma").lower()
+    lines=[
+        "🔎 BINANCE AVCI | YENİ ADAY",
+        identity,
+        f"Şu anki fiyat: {fmt_price(now_price)} USDT" if now_price is not None else "Şu anki fiyat alınamadı",
+        f"Sinyal fiyatı: {fmt_price(signal_price)} USDT" if signal_price is not None else "Sinyal fiyatı yok",
+    ]
+    if change is not None:
+        direction="yukarıda" if change>=0 else "aşağıda"
+        lines.append(f"Sinyalden beri: %{abs(change):.2f} {direction}")
+    lines.extend([
+        f"Neden dikkat çekti? {why}",
+        f"Kısaca hareket: {engine_text}. Botun {score}/8 kuralı aynı anda sağlandı.",
+        f"Piyasa durumu: BTC {REGIME_NAMES.get(scan.get('btc_regime'), scan.get('btc_regime','?')).lower()}.",
+    ])
+    if bridge:
+        cls=CLASS_NAMES.get(bridge.get("classification"), "yetersiz veri").lower()
+        lines.append(f"Geçmiş örneklerle görünüm: {cls}.")
+    lines.extend([
+        "Bu bir alım önerisi değil; bot hareketin devam edip etmediğini izleyecek.",
+        f"Binance Spot: {market_url}",
+    ])
+    logo=coingecko_logo(base, VERIFIED_COIN_NAMES.get(base))
+    return "\n".join(lines), now_price, logo
+
+def send_binance_followups(token, chat_id, connection):
+    def getter(_key, symbol):
+        return binance_price(symbol)
+    rows=due_followups(connection,"binance_telegram_price_history",getter,min_pp=3.0)
+    sent=0
+    for row in rows[:5]:
+        direction="yukarıda" if row["change"]>=0 else "aşağıda"
+        last_dir="yükseldi" if (row["since_last"] or 0)>=0 else "düştü"
+        text=(
+            f"📊 BINANCE AVCI | TAKİP\n{row['symbol']}\n"
+            f"Şu an: {fmt_price(row['current'])} USDT\n"
+            f"Sinyalden beri: %{abs(row['change']):.2f} {direction}\n"
+            f"Önceki bildirime göre: %{abs(row['since_last'] or 0):.2f} {last_dir}\n"
+            "Bot hâlâ sonucu ölçüyor; bu bir işlem talimatı değil."
+        )
+        if send_photo_or_text(token,chat_id,text,row.get("logo")):
+            mark_followup(connection,"binance_telegram_price_history",
+                          row["key"],row["current"],row["change"])
+            sent+=1
+    connection.commit()
+    return sent
+
+
 def main():
     if not os.path.exists(
         DB_FILE
@@ -822,9 +887,22 @@ def main():
     scan_time_local = scan_time_local.astimezone(
         ZoneInfo("Europe/Istanbul")).strftime("%d.%m.%Y %H:%M")
     if candidates:
-        message = build_message(scan, candidates, bridge_scores)
-        print(message)
-        send_telegram(token, chat_id, message)
+        with sqlite3.connect(DB_FILE, timeout=60) as hist:
+            for candidate in candidates[:5]:
+                bridge = bridge_scores.get(candidate["symbol"])
+                message, current_price, logo = build_readable_candidate(scan, candidate, bridge)
+                print(message)
+                send_photo_or_text(token, chat_id, message, logo)
+                record_initial(
+                    hist, "binance_telegram_price_history",
+                    f"{candidate['symbol']}|{scan['scan_time_utc']}",
+                    candidate["symbol"], candidate.get("signal_price"),
+                    current_price, logo,
+                )
+            hist.commit()
+            followups = send_binance_followups(token, chat_id, hist)
+            if followups:
+                print(f"Binance takip bildirimi: {followups}")
     if trade_alerts:
         paper_message = f"{scan_time_local} (Türkiye)\n" + format_paper_alerts(trade_alerts)
         print(paper_message)
