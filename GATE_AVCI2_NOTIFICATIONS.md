@@ -25,10 +25,12 @@ gönderimi onayladıktan sonra `SENT` olur. Geçici Telegram hatasında bir sonr
 tarama yeniden dener. İşlem emri gönderilmez. Mevcut günlük Avcı raporu Gate
 adaylarının 24 saat sonraki fiyatını ayrı izler; bu gerçekleşmiş kâr değildir.
 
-Gereken GitHub Secrets: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`,
-`JUPITER_API_KEY`. `HELIUS_API_KEY`, `GOPLUS_ACCESS_TOKEN` ve `ZEROX_API_KEY`
+Gereken GitHub Secrets: `TELEGRAM_BOT_TOKEN` ve `JUPITER_API_KEY`.
+`TELEGRAM_CHAT_ID` verilmezse Binance Avcı 2 ile aynı botun son özel
+sohbeti Telegram `getUpdates` üzerinden bulunur; sohbet bulunamazsa
+adaylar gönderilmeden bekler. `HELIUS_API_KEY`, `GOPLUS_ACCESS_TOKEN` ve `ZEROX_API_KEY`
 mevcutsa zenginleştirme için okunur; EVM çıkış doğrulaması olmadan EVM alarmı
 verilmez. Hiçbir API anahtarı kaynak koduna veya Telegram mesajına yazılmaz.
-Telegram değişkenleri boşsa GitHub Actions uyarı üretir. Başarılı workflow
+Bot anahtarı eksikse veya sohbet bulunamazsa GitHub Actions uyarı üretir. Başarılı workflow
 tek başına Telegram mesajının ulaştığını kanıtlamaz; gönderilen aday sayısı
 ve bot ayarı ayrıca kontrol edilmelidir.
