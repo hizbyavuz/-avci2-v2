@@ -31,8 +31,34 @@ def tape(symbol, scan_time):
     for row in large:
         streak = streak + 1 if not row["m"] else 0
         max_streak = max(max_streak, streak)
-    return {"large_trades": len(large), "large_buy_share": buy / len(large)
-            if large else None, "large_buy_streak": max_streak}
+
+    notionals = [float(row["p"]) * float(row["q"]) for row in rows]
+    total_notional = sum(notionals)
+    top5_share = (sum(sorted(notionals, reverse=True)[:5]) / total_notional
+                  if total_notional > 0 else None)
+
+    # Repeated-size and rapid side-alternation are only manipulation proxies;
+    # they are not proof of wash trading.
+    rounded = [round(value, -1) if value >= 10 else round(value, 2)
+               for value in notionals]
+    counts = {}
+    for value in rounded:
+        counts[value] = counts.get(value, 0) + 1
+    repeated = sum(count for count in counts.values() if count >= 3)
+    repeated_ratio = repeated / len(rows) if rows else None
+
+    alternations = 0
+    if len(rows) >= 2:
+        sides = [not row["m"] for row in rows]
+        alternations = sum(sides[i] != sides[i-1] for i in range(1, len(sides)))
+    alternation_ratio = alternations / (len(rows)-1) if len(rows) >= 2 else None
+
+    return {"trade_count": len(rows), "large_trades": len(large),
+            "large_buy_share": buy / len(large) if large else None,
+            "large_buy_streak": max_streak,
+            "top5_notional_share": top5_share,
+            "repeated_notional_ratio": repeated_ratio,
+            "side_alternation_ratio": alternation_ratio}
 
 
 def main():
