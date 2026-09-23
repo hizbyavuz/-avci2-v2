@@ -13,6 +13,7 @@ from gate_expanded_observer import collect_extra_observations
 from gate_lp_crosscheck import fetch_lp_summary
 from gate_intelligence import (creator_reputation, lp_lock_health,
                                x_contract_mentions)
+from gate_security_confidence import assess as assess_security_confidence, record as record_security_confidence
 
 # ============================================================
 # AVCI 2 V3 — COMPLETE CORE
@@ -2988,6 +2989,8 @@ def enrich_candidate(c):
     else:
         c["risk_band"] = "HIGH_FLAGS"
 
+    # Separate research-only evidence grade. This never changes frozen V5.
+    c["security_confidence"] = assess_security_confidence(c)
     return c
 
 
@@ -5755,6 +5758,13 @@ for control in validation_controls:
             e
         )
 
+try:
+    print("Güvenlik güveni geçmişi:", record_security_confidence(
+        "avci2.db", batch_id, all_candidates
+    ))
+except sqlite3.Error as exc:
+    print("::warning::Güvenlik güveni geçmişi yazılamadı:", type(exc).__name__)
+
 # Eski V4 outcome DB de geriye donuk uyumluluk icin devam eder.
 try:
     update_outcomes()
@@ -5826,6 +5836,10 @@ for candidate in expanded_qualified[:2]:
         print("Expanded candidate record error:", type(exc).__name__)
 if expanded_enriched:
     record_candidate_risk("avci2.db", batch_id, expanded_enriched)
+    try:
+        record_security_confidence("avci2.db", batch_id, expanded_enriched)
+    except sqlite3.Error as exc:
+        print("::warning::Expanded güvenlik güveni yazılamadı:", type(exc).__name__)
 print("V5.1 ek sayfa: aday", len(expanded_candidates),
       "| kurallara uyan", len(expanded_qualified),
       "| güvenlik incelenen", len(expanded_enriched))
