@@ -21,6 +21,7 @@ CHAIN_IDS = {
 }
 EVM_ADDRESS = re.compile(r"0x[0-9a-fA-F]{40}\Z")
 SOL_ADDRESS = re.compile(r"[1-9A-HJ-NP-Za-km-z]{32,44}\Z")
+LEVERAGED_SYMBOL = re.compile(r"(?:[235]L|[235]S)\Z", re.I)
 
 
 def valid_address(network, address):
@@ -34,6 +35,16 @@ def finite_number(value):
         return number if math.isfinite(number) else None
     except (TypeError, ValueError):
         return None
+
+
+def is_leveraged_product(base, currency, ticker):
+    """Gate's ETF ticker fields take precedence over generic pair.type."""
+    if any(ticker.get(field) not in (None, "", 0, "0")
+           for field in ("etf_leverage", "etf_net_value", "etf_pre_net_value")):
+        return True
+    name = str(currency.get("name") or "")
+    return bool(LEVERAGED_SYMBOL.search(str(base or "")) or
+                re.search(r"\b\d+x(?:long|short)\b", name, re.I))
 
 
 def build_snapshot(currencies, pairs, tickers):
@@ -55,6 +66,8 @@ def build_snapshot(currencies, pairs, tickers):
                 or pair.get("type") != "normal" or pair.get("st_tag") is True
                 or not currency or currency.get("delisted") is not False
                 or currency.get("trade_disabled") is not False or not ticker):
+            continue
+        if is_leveraged_product(base, currency, ticker):
             continue
         last = finite_number(ticker.get("last"))
         volume = finite_number(ticker.get("quote_volume"))
