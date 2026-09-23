@@ -1,0 +1,65 @@
+name: Gate Spot independent paper watch
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "4,14,24,34,44,54 * * * *"
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: gate-spot-watch-state
+  cancel-in-progress: false
+
+jobs:
+  observe:
+    runs-on: ubuntu-latest
+    env:
+      GATE_SPOT_DB: gate_spot_state.db
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore previous paper observations
+        uses: actions/cache/restore@v4
+        with:
+          path: gate_spot_state.db
+          key: gate-spot-db-${{ github.run_id }}
+          restore-keys: |
+            gate-spot-db-
+      - name: Recover latest archive when cache is missing
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if test ! -s gate_spot_state.db; then
+            run_id=$(gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts?name=gate-spot-watch-state&per_page=100" \
+              --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | last | .workflow_run.id // empty')
+            if test -n "$run_id"; then
+              gh run download "$run_id" --name gate-spot-watch-state --dir .
+            fi
+          fi
+      - name: Observe all tradable Gate Spot pairs
+        run: python gate_spot_observer.py
+      - name: Record separate paper watches and sampled outcomes
+        run: python gate_spot_watch.py
+      - name: Save paper observations
+        uses: actions/cache/save@v4
+        with:
+          path: gate_spot_state.db
+          key: gate-spot-db-${{ github.run_id }}
+      - name: Back up paper observations
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate-spot-watch-state
+          path: gate_spot_state.db
+          retention-days: 3
+      - name: Keep latest two backups
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          artifact_ids=$(gh api \
+            "repos/${GITHUB_REPOSITORY}/actions/artifacts?name=gate-spot-watch-state&per_page=100" \
+            --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | reverse | .[2:] | .[].id')
+          for artifact_id in $artifact_ids; do
+            gh api --method DELETE "repos/${GITHUB_REPOSITORY}/actions/artifacts/${artifact_id}"
+          done
