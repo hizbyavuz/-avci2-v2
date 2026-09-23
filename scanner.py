@@ -3906,6 +3906,7 @@ def control_pool_from_payload(
     network_id,
     network_name,
     source,
+    observation=False,
 ):
     inc = included_map(payload)
     rows = []
@@ -3966,23 +3967,18 @@ def control_pool_from_payload(
         if not token_contract:
             continue
 
-        # Aynı tradability evreni, ama sinyal kurallari daha gevsek.
-        if not (
-            MIN_LIQUIDITY
-            <= liquidity
-            <= MAX_LIQUIDITY
-        ):
-            continue
-
-        if volume_24h < CONTROL_MIN_VOLUME_24H:
-            continue
-
-        if not (
-            CONTROL_MIN_CHANGE_24H
-            <= change_24h
-            <= CONTROL_MAX_CHANGE_24H
-        ):
-            continue
+        # The observation cohort is deliberately broader than the frozen V5
+        # candidate/control universe. It cannot become a signal by itself.
+        if observation:
+            if liquidity < 5000 or volume_24h < 1000:
+                continue
+        else:
+            if not (MIN_LIQUIDITY <= liquidity <= MAX_LIQUIDITY):
+                continue
+            if volume_24h < CONTROL_MIN_VOLUME_24H:
+                continue
+            if not (CONTROL_MIN_CHANGE_24H <= change_24h <= CONTROL_MAX_CHANGE_24H):
+                continue
 
         if (
             age_minutes is not None
@@ -5387,6 +5383,7 @@ print(
 
 all_candidates = []
 all_control_pool = []
+all_observation_pool = []
 feed_errors = []
 
 for network_id, network_name in NETWORKS.items():
@@ -5425,6 +5422,12 @@ for network_id, network_name in NETWORKS.items():
         )
     )
 
+    all_observation_pool.extend(
+        control_pool_from_payload(
+            trending, network_id, network_name, "TRENDING", observation=True
+        )
+    )
+
     time.sleep(7)
 
     new_pools = api_get(
@@ -5454,6 +5457,12 @@ for network_id, network_name in NETWORKS.items():
             network_id,
             network_name,
             "NEW"
+        )
+    )
+
+    all_observation_pool.extend(
+        control_pool_from_payload(
+            new_pools, network_id, network_name, "NEW", observation=True
         )
     )
 
@@ -5512,7 +5521,7 @@ batch_id = (
 # V5 selection remains frozen. This separate v5.1 observation records
 # the broader eligible pool history and whether any feed failed.
 observer_health = record_scan(
-    "avci2.db", batch_id, all_control_pool + all_candidates, feed_errors
+    "avci2.db", batch_id, all_observation_pool + all_candidates, feed_errors
 )
 print("Erken izleme verisi:", observer_health)
 
