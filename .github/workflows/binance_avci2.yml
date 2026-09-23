@@ -101,6 +101,10 @@ jobs:
         continue-on-error: true
         run: python -u binance_structure_observer.py
 
+      - name: Label BTC-decoupling research outcomes
+        continue-on-error: true
+        run: python -u binance_decoupling_labeler.py
+
       - name: Record order-book, trade, and derivative observations
         continue-on-error: true
         run: python -u binance_flow_observer.py
