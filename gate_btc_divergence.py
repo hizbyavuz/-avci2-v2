@@ -16,7 +16,7 @@ from collections import Counter
 from urllib import parse, request
 
 DB = os.getenv("GATE_SPOT_DB", "avci2.db")
-BINANCE_KLINES = "https://api.binance.com/api/v3/klines"
+GATE_CANDLES = "https://api.gateio.ws/api/v4/spot/candlesticks"
 VERSION = "gate-btc-divergence-v0.1-20260923"
 
 
@@ -29,25 +29,44 @@ def _finite(value):
 
 
 def btc_returns(open_url=request.urlopen, now=None):
-    """Return closed-candle BTCUSDT returns for 15m/1h/3h."""
+    """Return Gate BTC_USDT closed-candle returns for 15m/1h/3h.
+
+    Gate is used here deliberately so the research source matches the venue
+    being studied and GitHub runners do not depend on Binance's geo policy.
+    """
     now = int(now or time.time())
-    query = parse.urlencode({"symbol": "BTCUSDT", "interval": "5m", "limit": 50})
-    with open_url(f"{BINANCE_KLINES}?{query}", timeout=15) as response:
+    query = parse.urlencode({
+        "currency_pair": "BTC_USDT",
+        "interval": "5m",
+        "limit": 50,
+    })
+    with open_url(f"{GATE_CANDLES}?{query}", timeout=15) as response:
         rows = json.load(response)
     if not isinstance(rows, list):
-        raise ValueError("BTC kline response invalid")
+        raise ValueError("Gate BTC candle response invalid")
 
-    closed = []
-    now_ms = now * 1000
+    parsed = []
     for row in rows:
-        if not isinstance(row, list) or len(row) < 7:
+        if not isinstance(row, list) or len(row) < 6:
             continue
-        close = _finite(row[4])
-        close_time = int(row[6])
-        if close and close > 0 and close_time < now_ms:
-            closed.append(close)
+        try:
+            ts = int(float(row[0]))
+        except (TypeError, ValueError):
+            continue
+        # Gate v4 candlesticks: [timestamp, quote_volume, close, high, low, open, ...]
+        close = _finite(row[2])
+        if close and close > 0 and ts + 300 <= now:
+            parsed.append((ts, close))
+
+    parsed.sort(key=lambda item: item[0])
+    # De-duplicate timestamps defensively.
+    by_ts = {}
+    for ts, close in parsed:
+        by_ts[ts] = close
+    closed = [close for ts, close in sorted(by_ts.items())]
+
     if len(closed) < 37:
-        raise ValueError("BTC closed-candle history insufficient")
+        raise ValueError("Gate BTC closed-candle history insufficient")
 
     latest = closed[-1]
 
