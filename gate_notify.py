@@ -149,7 +149,7 @@ def format_alert(event, item, context, risk_context=None):
             f"$5.000 işlemde %{float(q5['loss_pct']):.1f} fiyat kaybı."
         )
     lines.extend([
-        f"Kontrat: {contract}",
+        f"Tam kontrat: {contract}",
         "Özet: Bot bu coinde alış/hacim davranışını sıra dışı buldu ve güvenlik kontrollerinden geçirdi.",
         "Bu bir alım önerisi değil; bot hareketin devamını ölçmeye devam edecek.",
     ])
