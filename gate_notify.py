@@ -115,9 +115,6 @@ def format_alert(event, item, context, risk_context=None):
     network, contract = event["network_id"], event["token_contract"]
     rules = [RULE_NAMES.get(rule, rule)
              for rule in event["rulesets"].split(",") if rule]
-    live = gecko_token(network, contract)
-    live_price = live.get("price")
-    live_change = pct(live_price, event["signal_price"])
     lp = item.get("lp_protection") or {}
     holder = item.get("adjusted_holder") or {}
     q1=(item.get("exit_1k") if network=="solana" else item.get("evm_exit_1k")) or {}
@@ -127,12 +124,8 @@ def format_alert(event, item, context, risk_context=None):
         "🔎 GATE AVCI | YENİ ADAY",
         f"{item.get('name') or '?'} ({item.get('symbol') or '?'}) • {NETWORK_NAMES.get(network,network)}",
         f"{local:%d.%m.%Y %H:%M} (Türkiye)",
-        f"Şu anki fiyat: ${fmt_price(live_price)}" if live_price is not None else "Şu anki fiyat alınamadı",
         f"Sinyal fiyatı: ${price(event['signal_price'])}",
     ]
-    if live_change is not None:
-        lines.append(f"Sinyalden beri: %{abs(live_change):.2f} " +
-                     ("yukarıda" if live_change>=0 else "aşağıda"))
     lines.extend([
         f"Son 24 saat: %{float(item.get('change_24h') or 0):+.1f}",
         "Neden dikkat çekti? " + ", ".join(rules) + ".",
@@ -166,15 +159,19 @@ def gate_send_payload(token, chat, message, network, contract, signal_price=None
                       session=requests):
     live=gecko_token(network, contract, session=session)
     current=live.get("price")
-    extra=[]
-    if current is not None and "Şu anki fiyat:" not in message:
-        extra.append(f"Şu anki fiyat: ${fmt_price(current)}")
+    # Always refresh volatile price lines at the actual send moment.
+    kept=[line for line in message.splitlines()
+          if not line.startswith("Şu anki fiyat:")
+          and not line.startswith("Sinyalden beri:")]
+    if current is not None:
+        kept.insert(3, f"Şu anki fiyat: ${fmt_price(current)}")
+    else:
+        kept.insert(3, "Şu anki fiyat alınamadı")
     change=pct(current, signal_price)
-    if change is not None and "Sinyalden beri:" not in message:
-        extra.append(f"Sinyalden beri: %{abs(change):.2f} " +
-                     ("yukarıda" if change>=0 else "aşağıda"))
-    if extra:
-        message="\n".join([message,"",*extra])
+    if change is not None:
+        kept.insert(5, f"Sinyalden beri: %{abs(change):.2f} " +
+                    ("yukarıda" if change>=0 else "aşağıda"))
+    message="\n".join(kept)
     ok=send_photo_or_text(token, chat, message, live.get("logo"), session=session)
     return ok, current, live.get("logo")
 
