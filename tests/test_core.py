@@ -122,6 +122,16 @@ class CoreMathTests(unittest.TestCase):
             "bids":[["100","2"]], "asks":[["101","0.5"]]
         }), 1.8)
 
+    def test_btc_decoupling_strength_and_retention(self):
+        excess, flags = structure.decoupling_flags(1.4, -0.7, [1.2, 1.1, 0.2])
+        self.assertAlmostEqual(excess, 2.1)
+        self.assertIn("BTC_DECOUPLING_STRENGTH", flags)
+        self.assertIn("BTC_DECOUPLING_RETENTION", flags)
+
+        excess, flags = structure.decoupling_flags(-0.2, -0.7, [1.2, 1.1])
+        self.assertAlmostEqual(excess, 0.5)
+        self.assertNotIn("BTC_DECOUPLING_STRENGTH", flags)
+
     def test_gap_stop_uses_executable_open(self):
         event = {"symbol": "TESTUSDT"}
         rows = [kline(0, 100, 101, 99, 100), kline(300000, 88, 90, 87, 89)]
