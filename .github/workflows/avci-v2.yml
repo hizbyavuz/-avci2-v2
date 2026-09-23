@@ -79,6 +79,11 @@ jobs:
          GOPLUS_ACCESS_TOKEN: ${{ secrets.GOPLUS_ACCESS_TOKEN }}
          X_API_BEARER_TOKEN: ${{ secrets.X_API_BEARER_TOKEN }}
         run: python scanner.py
+
+      - name: Build anti-manipulation counter-evidence
+        continue-on-error: true
+        run: python -u gate_deception_observer.py
+
       - name: Record fixed post-signal checkpoints
         continue-on-error: true
         run: python -u avci_checkpoints.py gate
