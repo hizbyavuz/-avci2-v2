@@ -32,7 +32,7 @@ on:
       - "binance_*.py"
       - "telegram_readable.py"
       - "avci_checkpoints.py"
-      - "tests/test_core.py"
+      - "tests/test_*.py"
       - ".github/workflows/binance_avci2.yml"
 
   schedule:
