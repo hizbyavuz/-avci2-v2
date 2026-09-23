@@ -56,6 +56,10 @@ jobs:
         if: success()
         continue-on-error: true
         run: python gate_spot_observer.py
+      - name: Track separate Gate Spot early paper watches
+        if: success()
+        continue-on-error: true
+        run: python gate_spot_watch.py
       - name: Send verified Gate research candidates
         if: success()
         env:
