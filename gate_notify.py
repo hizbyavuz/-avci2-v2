@@ -45,7 +45,8 @@ def security_decision(item):
 
     holder = item.get("adjusted_holder") or {}
     lp = item.get("lp_protection") or {}
-    if not holder.get("ok") or lp.get("status") == "DATA_MISSING":
+    if not holder.get("ok") or lp.get("status") in (
+            "DATA_MISSING", "MULTIPLE_POOLS_UNVERIFIED"):
         return "Holder veya likidite koruması doğrulanamadı"
     for field, maximum in (("top1_pct", 40), ("top5_pct", 70), ("top10_pct", 85)):
         if holder.get(field) is None or float(holder[field]) >= maximum:
