@@ -1,0 +1,54 @@
+import tempfile
+import unittest
+from pathlib import Path
+import sqlite3
+
+from gate_spot_observer import build_snapshot, save_snapshot
+
+
+ADDRESS = "0x" + "a" * 40
+
+
+class GateSpotObserverTest(unittest.TestCase):
+    def test_only_active_pairs_with_official_chain_address_are_mapped(self):
+        currencies = [
+            {"currency": "GOOD", "name": "Good", "delisted": False,
+             "trade_disabled": False,
+             "chains": [{"name": "ETH", "addr": ADDRESS},
+                        {"name": "OTHER", "addr": ADDRESS}]},
+            {"currency": "BAD", "name": "Bad", "delisted": False,
+             "trade_disabled": False, "chains": [{"name": "ETH", "addr": ""}]},
+        ]
+        pairs = [
+            {"id": "GOOD_USDT", "base": "GOOD", "quote": "USDT",
+             "trade_status": "tradable", "type": "normal"},
+            {"id": "BAD_USDT", "base": "BAD", "quote": "USDT",
+             "trade_status": "tradable", "type": "normal"},
+            {"id": "GOOD_BTC", "base": "GOOD", "quote": "BTC",
+             "trade_status": "tradable", "type": "normal"},
+        ]
+        tickers = [
+            {"currency_pair": pair["id"], "last": "1",
+             "quote_volume": "40000", "change_percentage": "12"}
+            for pair in pairs
+        ]
+        market, contracts = build_snapshot(currencies, pairs, tickers)
+        self.assertEqual({row[0] for row in market}, {"GOOD_USDT", "BAD_USDT"})
+        self.assertEqual(contracts, [("GOOD_USDT", "eth", ADDRESS)])
+
+    def test_error_clears_stale_market_data(self):
+        with tempfile.TemporaryDirectory() as directory:
+            db = str(Path(directory) / "state.db")
+            save_snapshot(db, "batch1", [("GOOD_USDT", "GOOD", "Good", 1, 2, 3)],
+                          [("GOOD_USDT", "eth", ADDRESS)])
+            save_snapshot(db, "batch2", [], [], "RequestException")
+            with sqlite3.connect(db) as con:
+                self.assertEqual(con.execute(
+                    "SELECT count(*) FROM gate_spot_market").fetchone()[0], 0)
+                self.assertEqual(con.execute(
+                    "SELECT status FROM gate_spot_health WHERE batch_id='batch2'"
+                ).fetchone()[0], "ERROR")
+
+
+if __name__ == "__main__":
+    unittest.main()
