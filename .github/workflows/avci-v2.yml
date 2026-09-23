@@ -51,7 +51,7 @@ jobs:
         run: pip install requests
 
       - name: Run Gate engine regression tests
-        run: python -m unittest tests.test_gate_spot_watch tests.test_gate_spot_bridge tests.test_gate_spot_observer tests.test_gate_activity_bridges
+        run: python -m unittest tests.test_gate_spot_watch tests.test_gate_spot_bridge tests.test_gate_spot_observer tests.test_gate_activity_bridges tests.test_gate_btc_divergence
 
       - name: Observe Gate Spot and record separate early movement
         continue-on-error: true
