@@ -117,9 +117,13 @@ def latest_candidates(con):
         FROM scans ORDER BY scan_time_utc DESC LIMIT 1""").fetchone()
     if not scan or scan[2] == "INVALID":
         return None, []
-    rows = con.execute("""SELECT symbol,stage,score,change_15m,change_24h,
-            volume_rarity_pct,cross_sectional_rarity_pct,oi_change_1h_pct,
-            funding_rate,price
+    rows = con.execute("""SELECT symbol,stage,engine,score,price,spread_bps,
+            change_15m,change_1h,change_3h,change_24h,btc_relative_24h,
+            volume_rarity_pct,trade_rarity_pct,return_rarity_pct,
+            cross_sectional_rarity_pct,volume_z_15m,trade_z_15m,return_z_15m,
+            volume_mult_15m,volume_mult_1h,retention_proxy,taker_buy_ratio_15m,
+            oi_change_1h_pct,funding_rate,wakeup,persistence,retention,reignition,
+            trigger,climax_risk,raw_json
         FROM features WHERE scan_time_utc=?
           AND change_24h < 25
         ORDER BY CASE WHEN stage='OBSERVE' THEN 1 ELSE 0 END,
