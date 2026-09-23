@@ -5766,6 +5766,24 @@ try:
 except (OSError, ValueError, sqlite3.Error) as exc:
     print("::warning::Hacim uyanışı katmanı kullanılamadı:", type(exc).__name__)
 
+try:
+    from gate_activity_bridge import review as review_activity
+    activity_counts = review_activity(
+        "avci2.db", batch_id, all_observation_pool + all_candidates,
+        enrich_candidate, (compute_climax, compute_trap_proxy))
+    print("Buyer/likidite erken aktivite güvenlik incelemesi:", activity_counts)
+except (OSError, ValueError, sqlite3.Error) as exc:
+    print("::warning::Buyer/likidite katmanı kullanılamadı:", type(exc).__name__)
+
+try:
+    from gate_cross_venue_bridge import review as review_cross_venue
+    cross_counts = review_cross_venue(
+        "avci2.db", batch_id, all_observation_pool + all_candidates,
+        enrich_candidate, (compute_climax, compute_trap_proxy))
+    print("Gate/DEX cross-venue ignition güvenlik incelemesi:", cross_counts)
+except (OSError, ValueError, sqlite3.Error) as exc:
+    print("::warning::Cross-venue katmanı kullanılamadı:", type(exc).__name__)
+
 print(
     "Snapshot toplam:",
     snapshot_sayisi()
