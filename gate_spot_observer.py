@@ -147,7 +147,7 @@ def save_snapshot(path, batch, market, contracts, error="", quality=()):
                 [(batch, pair, symbol, last, volume, change)
                  for pair, symbol, _name, last, volume, change in market
                  if volume >= 30000])
-            market_pairs = {row[0] for row in market}
+            market_pairs = {row[0] for row in market if row[4] >= 30000}
             con.executemany("""INSERT OR IGNORE INTO gate_spot_quality
                 VALUES (?, ?, ?, ?, ?)""",
                 [(batch, pair, start, bid, ask)
