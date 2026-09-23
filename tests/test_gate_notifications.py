@@ -230,9 +230,11 @@ class GateNotificationTests(unittest.TestCase):
             session = Session()
             with patch.dict("os.environ", {"TELEGRAM_BOT_TOKEN": "test-token",
                                          "TELEGRAM_CHAT_ID": ""}), \
-                 patch("gate_notify.find_chat_id", return_value="binance-chat") as finder:
+                 patch("gate_notify.resolve_chat_id",
+                       return_value="binance-chat") as resolver:
                 self.assertEqual(send_pending(obs, val, session), 1)
-            finder.assert_called_once_with("test-token")
+            resolver.assert_called_once_with(
+                "test-token", "", obs, "Gate Telegram")
             self.assertEqual(session.chat_ids, ["binance-chat"])
 
 
