@@ -1,4 +1,5 @@
 name: Gate Spot independent paper watch
+# This separate observation job never places orders or sends Telegram alerts.
 
 on:
   workflow_dispatch:
