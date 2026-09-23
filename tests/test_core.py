@@ -11,6 +11,7 @@ import binance_report as report
 import binance_trade_signals as trade
 import binance_flow_observer as flow
 import cross_venue_observer as cross
+import binance_structure_observer as structure
 
 
 def kline(open_ms, open_price=100, high=101, low=99, close=100,
@@ -112,6 +113,14 @@ class CoreMathTests(unittest.TestCase):
                 "trigger_components": {}}
         self.assertLess(scanner.qualification_distance(strong),
                         scanner.qualification_distance(weak))
+
+    def test_structure_observer_math(self):
+        self.assertEqual(structure.sector_for("TAOUSDT"), "AI")
+        self.assertIsNone(structure.sector_for("UNKNOWNUSDT"))
+        self.assertGreater(structure.robust_z(10, [1,1,2,2,3,3,4,4]), 2)
+        self.assertGreater(structure.depth_pressure({
+            "bids":[["100","2"]], "asks":[["101","0.5"]]
+        }), 1.8)
 
     def test_gap_stop_uses_executable_open(self):
         event = {"symbol": "TESTUSDT"}
