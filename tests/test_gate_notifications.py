@@ -74,6 +74,15 @@ class GateNotificationTests(unittest.TestCase):
         item = safe_item()
         item["lp_protection"]["creator_unlocked_pct"] = 12
         self.assertIn("Deployer", security_decision(item))
+        item = safe_item()
+        item["lp_protection"]["lock_expiry_statuses"] = ["EXPIRES_SOON"]
+        self.assertIn("24 saat", security_decision(item))
+        item = safe_item()
+        item["creator_reputation"] = {"status": "FLAGGED"}
+        self.assertIn("GoPlus", security_decision(item))
+        item = safe_item()
+        item["trade_cluster"] = {"wash_proxy": True}
+        self.assertIn("karşılıklı", security_decision(item))
 
     def test_holder_change_uses_prior_sample_and_creator_is_observation_only(self):
         with tempfile.TemporaryDirectory() as folder:
