@@ -15,6 +15,9 @@ resmi kontrat eşleşmesi ve Gate emir defterinde $1.000 alıp tekrar satabilme
 koşullarını arar. Sonucu `gate_spot_watch` tablosuna ve Actions özetine yazar.
 Bu sonuçlar **yalnızca kağıt izleme** içindir; alış emri veya Telegram alım
 adayı üretilmez. On-chain V5 seçim, güvenlik ve bildirim kuralları değişmez.
+Bir parite için 24 saat yeni kayıt açılmaz. Sonraki taramalardaki örneklenmiş
+fiyat değişimi `gate_spot_watch_path` tablosuna 72 saate kadar kaydedilir;
+bu örnekler gerçekleşebilir net getiri veya tam 1 dakikalık fiyat yolu değildir.
 Ardışık snapshot henüz yoksa temiz izleme olmaması beklenir. Takip edilen
 olayların sonradan gerçekleşen getirisi ve kaçırılan yükselişler ölçülmeden
 bu ayrı kolun başarısı hakkında hüküm verilmez.
