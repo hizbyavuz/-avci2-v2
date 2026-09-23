@@ -203,7 +203,12 @@ def send_pending(observation_path=OBS_DB, validation_path=VALIDATION_DB,
     token = os.getenv("TELEGRAM_BOT_TOKEN")
     chat = os.getenv("TELEGRAM_CHAT_ID")
     if not token or not chat:
-        print("Gate Telegram ayarı eksik; onaylı adaylar beklemede.")
+        missing = ", ".join(name for name, value in
+                            (("TELEGRAM_BOT_TOKEN", token),
+                             ("TELEGRAM_CHAT_ID", chat)) if not value)
+        print(f"::warning::Gate Telegram bildirimleri KAPALI: {missing} "
+              "GitHub Secrets içinde eksik. Onaylı adaylar kayıtlı bekler; "
+              "hiçbir mesaj gönderilmedi.")
         return 0
     with sqlite3.connect(observation_path) as con:
         rows = con.execute("""SELECT validation_id, message FROM gate_alert_audit
