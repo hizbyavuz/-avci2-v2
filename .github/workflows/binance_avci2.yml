@@ -91,6 +91,10 @@ jobs:
       - name: Record paper entry and exit observations
         run: python -u binance_trade_signals.py
 
+      - name: Record pre-signal market-structure observations
+        continue-on-error: true
+        run: python -u binance_structure_observer.py
+
       - name: Record order-book, trade, and derivative observations
         continue-on-error: true
         run: python -u binance_flow_observer.py
