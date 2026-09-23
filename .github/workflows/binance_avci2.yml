@@ -32,6 +32,7 @@ on:
       - "binance_*.py"
       - "telegram_readable.py"
       - "avci_checkpoints.py"
+      - "avci_observation_report.py"
       - "tests/test_*.py"
       - ".github/workflows/binance_avci2.yml"
 
@@ -133,6 +134,10 @@ jobs:
       - name: Record fixed post-signal checkpoints
         continue-on-error: true
         run: python -u avci_checkpoints.py binance
+
+      - name: Summarize observational QA
+        continue-on-error: true
+        run: python -u avci_observation_report.py binance
 
       - name: Run outcome labeler
         run: python -u binance_outcome_labeler.py
