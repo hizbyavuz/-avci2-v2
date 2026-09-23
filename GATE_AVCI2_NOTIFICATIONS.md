@@ -42,6 +42,35 @@ cüzdan sayısı ayrı kaydedilir. Bilinen deployer kilitsiz LP payı %10 veya
 üstündeyse Telegram adayı bekletilir; V5 sinyal eşiği değişmez. Örneklenen
 işlemler bütün ağın alıcı sayısı veya kesin wash-trade kanıtı değildir.
 Aynı deployer'ın botun gözlediği farklı coin sayısı geçmiş rug kanıtı
-sayılmaz. Harici doğrulama olmadan deployer kara listesi ya da sosyal medya
-mention skoru üretilmez. LP kilidinin bitiş zamanı ayrıca doğrulanmadığı
-için kilit yüzdesi tek başına güvenlik garantisi değildir.
+sayılmaz. LP kilidi yüzdesi tek başına güvenlik garantisi değildir.
+
+V5 sonrası araştırma katmanı: havuz yanıtı sağlıyorsa 5 dakikalık ve 1 saatlik
+benzersiz alıcı sayılarını, coin'in önceki ölçümlerine göre alıcı hızını ayrı
+tutar. Son işlem örneğinde aynı cüzdanın aynı blokta benzer tutarla hem alıp
+hem satması iki veya daha fazla kez görülürse Telegram adayı bekletir;
+bu kural sahte işlem kanıtı değil, temkinli bir örneklem vekilidir.
+GoPlus kötü niyetli adres API'sinin EVM creator adresinde doğruladığı risk veya
+önceki kötü niyetli kontrat sayısı >0 ise Telegram adayı bekletilir.
+Negatif GoPlus sonucu "güvenli" demek değildir. Solana creator geçmişi aynı
+kapsamda harici doğrulanamadığından yalnızca kendi kaydımızdaki tekrar sayısı
+gösterilir; yanlış bir kara liste etiketi üretilmez.
+
+GoPlus kilit detayında `end_time` varsa bitiş zamanı saklanır; kilidi 24 saat
+içinde açılacak aday bekletilir, geçmişte bitmiş kilit korumaya dahil edilmez.
+Kilidin bitişi dönmüyorsa süre bilinmiyor diye raporlanır. Multi-pool ve
+NFT tabanlı likidite farklı sözleşmelerde ayrıca doğrulama gerektirebilir.
+
+Sosyal veri opsiyonel: GitHub Secrets içine `X_API_BEARER_TOKEN` konursa,
+X'in resmi `/2/tweets/counts/recent` API'sinde yalnızca **tam kontrat adresini**
+içeren herkese açık gönderilerin son 15/önceki 45 dakikalık sayısı gözlenir.
+İsim/ticker araması, otomatik sosyal puan veya Telegram kanallarında küresel
+mention taraması yoktur. Anahtar yok, API yetkisi yok veya sorgu boşsa durum
+`UNAVAILABLE` kalır; V5 puanı ve aday seçimi değişmez. Kaynak ücret ve
+kota koşullarını X hesabında ayrıca kontrol etmek gerekir.
+
+`gate_research_report.py`, son 30 gün kapanmış aday, near-miss ve rastgele
+kontrollerin +%10 ilk hedef oranlarını, belirsiz sonuç sayısını, maliyet sonrası
+ölçülebilen örnekleri ve önceden sabitlenmiş iki güvenlik alt grubunu GitHub
+Actions özetine yazar. 100 kapanmış aday ve 100 kontrol olmadan üstünlük
+iddiası kurmaz; bu sayı bile istatistiksel anlamlılık garantisi değildir.
+Sinyalden önceki yükseliş sonuçlara eklenmez. Donmuş V5 kuralları değiştirilmez.
