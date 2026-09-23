@@ -1,10 +1,10 @@
 """Observational opportunity layer for Gate Avci.
-Never changes frozen V5 scoring/security/selection. Uses Gate Spot history only.
-Adds missed-mover audit, market leader/follower context, and silent accumulation.
+Never changes frozen V5 scoring/security/selection.
+Adds missed-mover attribution, market leaders/followers and silent accumulation.
 """
 import json, sqlite3, statistics
 DB="avci2.db"
-VERSION="gate-opportunity-v0.1-20260923"
+VERSION="gate-opportunity-v0.2-20260923"
 
 def med(xs):
     xs=[float(x) for x in xs if x is not None]
@@ -26,11 +26,12 @@ def main(path=DB):
             return_rank INTEGER,volume_acceleration REAL,price_acceleration REAL,
             silent_accumulation INTEGER NOT NULL DEFAULT 0,
             possible_follower INTEGER NOT NULL DEFAULT 0,
-            missed_mover INTEGER NOT NULL DEFAULT 0,flags_json TEXT NOT NULL,
-            PRIMARY KEY(batch_id,pair,version))""")
+            missed_mover INTEGER NOT NULL DEFAULT 0,miss_reason_json TEXT NOT NULL,
+            flags_json TEXT NOT NULL,PRIMARY KEY(batch_id,pair,version))""")
         ranked=sorted(rows,key=lambda r:(float(r["change_24h"]),float(r["volume_24h"])),reverse=True)
         rank={r["pair"]:i+1 for i,r in enumerate(ranked)}
         missed=silent=followers=0
+        early_table=con.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='gate_early_observations'").fetchone()
         for r in rows:
             hist=con.execute("""SELECT h.volume_24h,h.change_24h,h.last
                 FROM gate_spot_history h JOIN gate_spot_health s ON s.batch_id=h.batch_id
@@ -47,22 +48,28 @@ def main(path=DB):
             follower=bool(rank[r["pair"]]>10 and vacc is not None and vacc>=1.25
                           and pacc is not None and pacc>=2 and float(r["change_24h"])>0)
             if follower: flags.append("POSSIBLE_FOLLOWER"); followers+=1
-            mapped=con.execute("SELECT 1 FROM gate_spot_contracts WHERE pair=? LIMIT 1",(r["pair"],)).fetchone()
-            early_table=con.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='gate_early_observations'").fetchone()
+            contracts=con.execute("SELECT network_id,token_contract FROM gate_spot_contracts WHERE pair=?",(r["pair"],)).fetchall()
             seen=False
-            if mapped and early_table:
-                seen=bool(con.execute("""SELECT 1 FROM gate_early_observations e
-                    JOIN gate_spot_contracts c ON c.network_id=e.network_id
-                    AND c.token_contract=e.token_contract
-                    WHERE c.pair=? AND e.scan_ts>=? LIMIT 1""",
-                    (r["pair"],int(health["scan_ts"])-86400)).fetchone())
+            if contracts and early_table:
+                for network,contract in contracts:
+                    if con.execute("""SELECT 1 FROM gate_early_observations
+                        WHERE network_id=? AND token_contract=? AND scan_ts>=? LIMIT 1""",
+                        (network,contract,int(health["scan_ts"])-86400)).fetchone():
+                        seen=True; break
             mm=bool(float(r["change_24h"])>=15 and not seen)
-            if mm: flags.append("MISSED_MOVER"); missed+=1
+            reasons=[]
+            if mm:
+                flags.append("MISSED_MOVER"); missed+=1
+                if not contracts: reasons.append("NO_VERIFIED_CONTRACT_MAPPING")
+                elif not early_table: reasons.append("ONCHAIN_EARLY_HISTORY_UNAVAILABLE")
+                else: reasons.append("NO_EARLY_ONCHAIN_ANOMALY_RECORDED")
+                if vacc is None: reasons.append("INSUFFICIENT_VOLUME_HISTORY")
+                elif vacc<1.25: reasons.append("NO_VOLUME_ACCELERATION")
             con.execute("""INSERT OR REPLACE INTO gate_opportunity_observations
-                VALUES(?,?,?,?,?,?,?,?,?,?)""",
-                (batch,r["pair"],VERSION,rank[r["pair"]],vacc,pacc,int(sa),int(follower),int(mm),json.dumps(flags)))
+                VALUES(?,?,?,?,?,?,?,?,?,?,?)""",
+                (batch,r["pair"],VERSION,rank[r["pair"]],vacc,pacc,int(sa),int(follower),
+                 int(mm),json.dumps(reasons),json.dumps(flags)))
         con.commit()
         print(f"Gate opportunity: {len(rows)} pair; silent={silent}, follower={followers}, missed>=15%={missed}")
-    finally:
-        con.close()
+    finally: con.close()
 if __name__=="__main__": main()
