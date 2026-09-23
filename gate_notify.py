@@ -343,7 +343,17 @@ def send_pending(observation_path=OBS_DB, validation_path=VALIDATION_DB,
                     ev=val.execute("""SELECT network_id,token_contract,signal_price
                         FROM validation_events WHERE id=?""",(event_id,)).fetchone()
                     if not ev:
-                        raise RuntimeError("Validation event bulunamadı")
+                        # Backward-compatible pending rows from older state/test fixtures:
+                        # send the stored safe text, but do not invent price/logo history.
+                        ok=send_photo_or_text(token,chat,message,None,session=session)
+                        if not ok:
+                            raise RuntimeError("Telegram API gönderimi onaylamadı")
+                        con.execute("""UPDATE gate_alert_audit SET status='SENT',
+                            decided_at_utc=? WHERE validation_id=?""",
+                            (datetime.now(timezone.utc).isoformat(), event_id))
+                        con.commit()
+                        sent += 1
+                        continue
                     ok,current,logo=gate_send_payload(
                         token,chat,message,ev["network_id"],ev["token_contract"],
                         ev["signal_price"],session=session)
