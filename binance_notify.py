@@ -872,9 +872,19 @@ def main():
     finally:
         connection.close()
 
-    if not candidates and not trade_alerts:
+    # Follow-up tracking is independent from whether this scan produced
+    # a fresh candidate. Existing signals must still be checked every run.
+    with sqlite3.connect(DB_FILE, timeout=60) as hist:
+        try:
+            has_followups = bool(hist.execute(
+                "SELECT 1 FROM binance_telegram_price_history LIMIT 1"
+            ).fetchone())
+        except sqlite3.OperationalError:
+            has_followups = False
+
+    if not candidates and not trade_alerts and not has_followups:
         print(
-            "Bu taramada yeni temiz aday yok; "
+            "Bu taramada yeni temiz aday veya takip edilecek eski aday yok; "
             "Telegram bildirimi gönderilmedi"
         )
         return
@@ -886,8 +896,8 @@ def main():
     scan_time_local = datetime.fromisoformat(scan["scan_time_utc"])
     scan_time_local = scan_time_local.astimezone(
         ZoneInfo("Europe/Istanbul")).strftime("%d.%m.%Y %H:%M")
-    if candidates:
-        with sqlite3.connect(DB_FILE, timeout=60) as hist:
+    with sqlite3.connect(DB_FILE, timeout=60) as hist:
+        if candidates:
             for candidate in candidates[:5]:
                 bridge = bridge_scores.get(candidate["symbol"])
                 message, current_price, logo = build_readable_candidate(scan, candidate, bridge)
@@ -900,9 +910,10 @@ def main():
                     current_price, logo,
                 )
             hist.commit()
-            followups = send_binance_followups(token, chat_id, hist)
-            if followups:
-                print(f"Binance takip bildirimi: {followups}")
+
+        followups = send_binance_followups(token, chat_id, hist)
+        if followups:
+            print(f"Binance takip bildirimi: {followups}")
     if trade_alerts:
         paper_message = f"{scan_time_local} (Türkiye)\n" + format_paper_alerts(trade_alerts)
         print(paper_message)
