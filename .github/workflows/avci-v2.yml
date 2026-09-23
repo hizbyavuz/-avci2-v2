@@ -59,6 +59,10 @@ jobs:
           python gate_spot_observer.py
           python gate_spot_watch.py
 
+      - name: Analyze coins rising while BTC falls
+        continue-on-error: true
+        run: python -u gate_btc_divergence.py
+
       - name: Run Avci 2 V2
         env:
          JUPITER_API_KEY: ${{ secrets.JUPITER_API_KEY }}
