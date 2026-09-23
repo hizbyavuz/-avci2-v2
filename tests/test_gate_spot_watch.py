@@ -51,6 +51,11 @@ class GateSpotWatchTest(unittest.TestCase):
                 self.assertEqual(con.execute("""SELECT status FROM gate_spot_watch
                     WHERE pair='GOOD_USDT'""").fetchone()[0], "PAPER_WATCH")
 
+    def test_unfillable_book_never_becomes_paper_watch(self):
+        self.assertIsNone(round_trip_loss({
+            "asks": [["1.01", "2000"]], "bids": [["1", "1"]]
+        }))
+
 
 if __name__ == "__main__":
     unittest.main()
