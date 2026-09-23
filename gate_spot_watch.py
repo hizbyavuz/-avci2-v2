@@ -10,7 +10,7 @@ DB = os.getenv("GATE_SPOT_DB", "avci2.db")
 VERSION = "gate-spot-watch-v0-20260923"
 
 
-def shortlist(con, now, batch):
+def shortlist(con, now, batch, diagnostics=None):
     """Require two real observations and exchange-provided identity/quotes."""
     current = con.execute("""SELECT h.pair, h.symbol, h.last, h.volume_24h,
         h.change_24h, q.buy_start, q.bid, q.ask
@@ -19,12 +19,20 @@ def shortlist(con, now, batch):
         WHERE h.batch_id=?""", (batch,)).fetchall()
     has_watch_table = con.execute("""SELECT 1 FROM sqlite_master
         WHERE type='table' AND name='gate_spot_watch'""").fetchone()
+    counts = diagnostics if diagnostics is not None else {}
+    counts["liquid_early"] = counts["aged"] = counts["tight"] = 0
+    counts["history"] = counts["rising"] = counts["mapped"] = 0
     result = []
     for pair, symbol, price, volume, day_change, start, bid, ask in current:
-        if (volume < 300000 or not 3 <= day_change <= 25 or
-                start <= 0 or now - start < 30 * 86400 or
-                ask <= 0 or 100 * (ask - bid) / ask > .4):
+        if volume < 300000 or not 3 <= day_change <= 25:
             continue
+        counts["liquid_early"] += 1
+        if start <= 0 or now - start < 30 * 86400:
+            continue
+        counts["aged"] += 1
+        if ask <= 0 or 100 * (ask - bid) / ask > .4:
+            continue
+        counts["tight"] += 1
         # Exact Gate pair, from a previous run at least 18 minutes ago.
         prior = con.execute("""SELECT h.last, g.scan_ts FROM gate_spot_history h
             JOIN gate_spot_health g ON g.batch_id=h.batch_id
@@ -34,14 +42,17 @@ def shortlist(con, now, batch):
             (pair, now - 3600, now - 18 * 60)).fetchone()
         if prior is None or prior[0] <= 0:
             continue
+        counts["history"] += 1
         rise = 100 * (price / prior[0] - 1)
         if not 1 <= rise <= 8:
             continue
+        counts["rising"] += 1
         # Ticker alone never establishes a coin's identity.
         addresses = con.execute("""SELECT network_id, token_contract
             FROM gate_spot_contracts WHERE pair=?""", (pair,)).fetchall()
         if not addresses:
             continue
+        counts["mapped"] += 1
         recent_watch = con.execute("""SELECT 1 FROM gate_spot_watch w
             JOIN gate_spot_health g ON g.batch_id=w.batch_id
             WHERE w.pair=? AND w.status='PAPER_WATCH'
@@ -130,7 +141,8 @@ def run(path=DB, book_fetch=fetch_book):
             return "Gate Spot erken izleme: güncel veri yok; aday üretilmedi"
         batch, now, _ = health
         record_watch_paths(con, batch, now)
-        result = shortlist(con, now, batch)
+        counts = {}
+        result = shortlist(con, now, batch, counts)
         messages = []
         for item in result[:3]:
             try:
@@ -148,7 +160,11 @@ def run(path=DB, book_fetch=fetch_book):
                     f"$1k gidiş-dönüş ~%{loss:.1f}; {item['network']} "
                     f"{item['contract']})")
         return (f"Gate Spot ayrı kağıt izleme: {len(result)} ön eleme, "
-                f"{len(messages)} derinlik doğrulandı. " +
+                f"{len(messages)} derinlik doğrulandı. "
+                f"Eleme adımları: hacim+24s değişim {counts['liquid_early']}, "
+                f"30g yaş {counts['aged']}, dar makas {counts['tight']}, "
+                f"önceki fiyat {counts['history']}, 20dk yükseliş "
+                f"{counts['rising']}, resmi kontrat {counts['mapped']}. " +
                 (" | ".join(messages) if messages else "Temiz izleme yok."))
 
 
