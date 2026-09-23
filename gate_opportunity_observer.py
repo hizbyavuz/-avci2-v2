@@ -10,6 +10,11 @@ def med(xs):
     xs=[float(x) for x in xs if x is not None]
     return statistics.median(xs) if xs else None
 
+def ensure_columns(con):
+    cols={row[1] for row in con.execute("PRAGMA table_info(gate_opportunity_observations)")}
+    if "miss_reason_json" not in cols:
+        con.execute("ALTER TABLE gate_opportunity_observations ADD COLUMN miss_reason_json TEXT NOT NULL DEFAULT '[]'")
+
 def main(path=DB):
     con=sqlite3.connect(path, timeout=60); con.row_factory=sqlite3.Row
     try:
@@ -28,6 +33,7 @@ def main(path=DB):
             possible_follower INTEGER NOT NULL DEFAULT 0,
             missed_mover INTEGER NOT NULL DEFAULT 0,miss_reason_json TEXT NOT NULL,
             flags_json TEXT NOT NULL,PRIMARY KEY(batch_id,pair,version))""")
+        ensure_columns(con)
         ranked=sorted(rows,key=lambda r:(float(r["change_24h"]),float(r["volume_24h"])),reverse=True)
         rank={r["pair"]:i+1 for i,r in enumerate(ranked)}
         missed=silent=followers=0
@@ -66,9 +72,12 @@ def main(path=DB):
                 if vacc is None: reasons.append("INSUFFICIENT_VOLUME_HISTORY")
                 elif vacc<1.25: reasons.append("NO_VOLUME_ACCELERATION")
             con.execute("""INSERT OR REPLACE INTO gate_opportunity_observations
+                (batch_id,pair,version,return_rank,volume_acceleration,
+                 price_acceleration,silent_accumulation,possible_follower,
+                 missed_mover,flags_json,miss_reason_json)
                 VALUES(?,?,?,?,?,?,?,?,?,?,?)""",
-                (batch,r["pair"],VERSION,rank[r["pair"]],vacc,pacc,int(sa),int(follower),
-                 int(mm),json.dumps(reasons),json.dumps(flags)))
+                (batch,r["pair"],VERSION,rank[r["pair"]],vacc,pacc,int(sa),
+                 int(follower),int(mm),json.dumps(flags),json.dumps(reasons)))
         con.commit()
         print(f"Gate opportunity: {len(rows)} pair; silent={silent}, follower={followers}, missed>=15%={missed}")
     finally: con.close()
