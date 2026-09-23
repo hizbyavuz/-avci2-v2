@@ -8,6 +8,7 @@ from binance_opportunity_observer import miss_reason
 from binance_deception_observer import classify_cex_evidence
 from gate_deception_observer import classify_gate_evidence
 from gate_notify import observation_only_reason
+from gate_security_confidence import assess
 from telegram_readable import record_initial, due_followups, mark_followup
 
 class ObservationalExtensionTests(unittest.TestCase):
@@ -63,6 +64,29 @@ class ObservationalExtensionTests(unittest.TestCase):
             "Risk işaretleri var veya güvenlik verisi eksik: EXIT_1K_LOSS_HIGH"))
         self.assertFalse(observation_only_reason(
             "Risk işaretleri var veya güvenlik verisi eksik"))
+
+    def test_gate_security_confidence_strong_medium_blocked(self):
+        strong = {
+            "network_id":"solana","token_contract":"A"*32,
+            "security_risk_reasons":[],
+            "solana_security":{"ok":True,"mint_authority_active":False,
+                "freeze_authority_active":False,"top10_pct":40},
+            "exit_1k":{"ok":True,"loss_pct":1.0},
+            "exit_5k":{"ok":True,"loss_pct":2.0},
+            "adjusted_holder":{"ok":True,"top10_pct":40},
+            "lp_protection":{"protected_pct":90},
+            "creator_reputation":{"status":"NO_FINDING"},
+            "trade_cluster":{"wash_proxy":False},
+        }
+        self.assertEqual(assess(strong)["label"], "STRONG")
+
+        blocked = dict(strong)
+        blocked["security_risk_reasons"]=["EXIT_1K_LOSS_HIGH"]
+        self.assertEqual(assess(blocked)["label"], "BLOCKED")
+
+        weak = {"network_id":"bsc","token_contract":"0x"+"1"*40,
+                "security_risk_reasons":["SECURITY_API_UNAVAILABLE"]}
+        self.assertEqual(assess(weak)["label"], "WEAK")
 
     def test_followup_history_updates_without_new_candidate(self):
         with tempfile.TemporaryDirectory() as folder:
