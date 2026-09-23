@@ -22,6 +22,18 @@ def miss_reason(r):
     if not reasons: reasons.append("FROZEN_SIGNAL_RULES_NOT_MET")
     return reasons
 
+def ensure_columns(con):
+    cols={row[1] for row in con.execute("PRAGMA table_info(opportunity_observations)")}
+    additions={
+        "sector":"TEXT",
+        "sector_rank":"INTEGER",
+        "possible_follower":"INTEGER NOT NULL DEFAULT 0",
+        "miss_reason_json":"TEXT NOT NULL DEFAULT '[]'",
+    }
+    for name,ddl in additions.items():
+        if name not in cols:
+            con.execute(f"ALTER TABLE opportunity_observations ADD COLUMN {name} {ddl}")
+
 def main(path=DB):
     con=sqlite3.connect(path, timeout=60); con.row_factory=sqlite3.Row
     try:
@@ -43,6 +55,7 @@ def main(path=DB):
             possible_follower INTEGER NOT NULL DEFAULT 0,
             missed_mover INTEGER NOT NULL DEFAULT 0,miss_reason_json TEXT NOT NULL,
             flags_json TEXT NOT NULL,PRIMARY KEY(scan_time_utc,symbol,version))""")
+        ensure_columns(con)
         market=med([r["change_15m"] for r in rows])
         ranked=sorted(rows,key=lambda r:(float(r["change_15m"] or -999),float(r["volume_rarity_pct"] or -999)),reverse=True)
         rank={r["symbol"]:i+1 for i,r in enumerate(ranked)}
@@ -78,9 +91,13 @@ def main(path=DB):
             reasons=miss_reason(r) if mm else []
             if mm: flags.append("MISSED_MOVER"); missed+=1
             con.execute("""INSERT OR REPLACE INTO opportunity_observations
-                VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-                (ts,r["symbol"],VERSION,excess,rank[r["symbol"]],sec,srank,accel,
-                 int(sa),int(follower),int(mm),json.dumps(reasons),json.dumps(flags)))
+                (scan_time_utc,symbol,version,market_excess_15m,leader_rank,
+                 acceleration_ratio,silent_accumulation,missed_mover,flags_json,
+                 sector,sector_rank,possible_follower,miss_reason_json)
+                VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                (ts,r["symbol"],VERSION,excess,rank[r["symbol"]],accel,
+                 int(sa),int(mm),json.dumps(flags),sec,srank,int(follower),
+                 json.dumps(reasons)))
             written+=1
         con.commit()
         print(f"Binance opportunity: {written} coin; silent={silent}, follower={followers}, missed>=15%={missed}")
