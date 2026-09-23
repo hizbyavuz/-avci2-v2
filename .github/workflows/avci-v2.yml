@@ -2,6 +2,12 @@ name: Avci 2 V2 Multi-Chain
 
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - "scanner.py"
+      - "gate_*.py"
+      - "tests/test_gate_*.py"
+      - ".github/workflows/avci-v2.yml"
   schedule:
     - cron: "*/10 * * * *"
 
@@ -43,6 +49,9 @@ jobs:
 
       - name: Install requests
         run: pip install requests
+
+      - name: Run Gate engine regression tests
+        run: python -m unittest tests.test_gate_spot_watch tests.test_gate_spot_bridge tests.test_gate_spot_observer tests.test_gate_activity_bridges
 
       - name: Observe Gate Spot and record separate early movement
         continue-on-error: true
