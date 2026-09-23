@@ -110,48 +110,64 @@ def price(value):
 
 
 def format_alert(event, item, context, risk_context=None):
-    local = datetime.fromtimestamp(event["signal_ts"], timezone.utc)
-    local = local.astimezone(ZoneInfo("Europe/Istanbul"))
-    network, contract = event["network_id"], event["token_contract"]
-    rules = [RULE_NAMES.get(rule, rule)
-             for rule in event["rulesets"].split(",") if rule]
-    lp = item.get("lp_protection") or {}
-    holder = item.get("adjusted_holder") or {}
+    local=datetime.fromtimestamp(event["signal_ts"], timezone.utc).astimezone(ZoneInfo("Europe/Istanbul"))
+    network,contract=event["network_id"],event["token_contract"]
+    rules=[RULE_NAMES.get(rule,rule) for rule in event["rulesets"].split(",") if rule]
+    lp=item.get("lp_protection") or {}
+    holder=item.get("adjusted_holder") or {}
     q1=(item.get("exit_1k") if network=="solana" else item.get("evm_exit_1k")) or {}
     q5=(item.get("exit_5k") if network=="solana" else item.get("evm_exit_5k")) or {}
+    buys=int(item.get("buys_5m") or 0); sells=int(item.get("sells_5m") or 0)
+    c24=float(item.get("change_24h") or 0)
 
     lines=[
         "🔎 GATE AVCI | YENİ ADAY",
-        f"{item.get('name') or '?'} ({item.get('symbol') or '?'}) • {NETWORK_NAMES.get(network,network)}",
-        f"{local:%d.%m.%Y %H:%M} (Türkiye)",
-        f"Sinyal fiyatı: ${price(event['signal_price'])}",
+        f"🪙 {item.get('name') or '?'} ({item.get('symbol') or '?'}) • {NETWORK_NAMES.get(network,network)}",
+        f"🕒 {local:%d.%m.%Y %H:%M}",
+        f"🎯 Sinyal geldiğinde: ${price(event['signal_price'])}",
+        f"⏱ Son 24 saat: %{c24:+.1f}",
+        "",
+        "👀 Neden geldi?",
     ]
-    lines.extend([
-        f"Son 24 saat: %{float(item.get('change_24h') or 0):+.1f}",
-        "Neden dikkat çekti? " + ", ".join(rules) + ".",
-    ])
+    for rule in rules:
+        lines.append(f"• {rule}.")
     if context.get("own_volume_ratio") is not None:
-        lines.append(f"Hacim normaline göre yaklaşık {context['own_volume_ratio']:.1f} kat.")
-    buys=int(item.get("buys_5m") or 0); sells=int(item.get("sells_5m") or 0)
-    lines.append(f"Son 5 dk: {buys} alış / {sells} satış.")
+        lines.append(f"• Hacim kendi normalinin yaklaşık {context['own_volume_ratio']:.1f} katına çıktı.")
+    if buys or sells:
+        if buys > sells*1.2:
+            lines.append(f"• Son 5 dk alımlar satışlardan belirgin fazla: {buys} alış / {sells} satış.")
+        else:
+            lines.append(f"• Son 5 dk işlem dengesi: {buys} alış / {sells} satış.")
     if context.get("first_anomaly_ts") is not None:
         delta=max(0,(event["signal_ts"]-context["first_anomaly_ts"])//60)
-        lines.append(f"Bot ilk sıra dışı hareketi sinyalden {delta} dk önce görmüş.")
+        lines.append(f"• Bot ilk sıra dışı hareketi sinyalden {delta} dk önce fark etmiş.")
         if context.get("gain_before_signal_pct") is not None:
-            lines.append(f"Sinyal gelmeden önce zaten %{context['gain_before_signal_pct']:+.1f} hareket etmişti.")
+            lines.append(f"• Sinyal gelmeden önce fiyat zaten %{context['gain_before_signal_pct']:+.1f} hareket etmişti.")
+
+    lines.extend(["","🛡 Güvenlik özeti"])
     lines.append(
-        f"Güvenlik özeti: likiditenin korunan kısmı %{float(lp.get('protected_pct') or 0):.0f}; "
-        f"en büyük 10 cüzdanın toplam payı %{float(holder.get('top10_pct') or 0):.0f}."
+        f"• Likiditenin korunan kısmı yaklaşık %{float(lp.get('protected_pct') or 0):.0f}."
+    )
+    lines.append(
+        f"• En büyük 10 cüzdan toplamda yaklaşık %{float(holder.get('top10_pct') or 0):.0f} tutuyor."
     )
     if q1.get("loss_pct") is not None and q5.get("loss_pct") is not None:
         lines.append(
-            f"Satış testi: $1.000 işlemde yaklaşık %{float(q1['loss_pct']):.1f}, "
-            f"$5.000 işlemde %{float(q5['loss_pct']):.1f} fiyat kaybı."
+            f"• Satış testi: $1.000 işlemde ~%{float(q1['loss_pct']):.1f}, "
+            f"$5.000 işlemde ~%{float(q5['loss_pct']):.1f} fiyat kaybı."
         )
+
+    lines.extend(["","🧭 Bu ne demek?"])
+    if c24>=20:
+        lines.append("Coin son 24 saatte çok hareket etmiş; geç kalma riski yüksek.")
+    elif c24>=10:
+        lines.append("Coin hareket etmiş durumda; bot devam edip etmediğini izliyor.")
+    else:
+        lines.append("Coin henüz 24 saatlik ölçekte aşırı kaçmış görünmüyor.")
     lines.extend([
+        "Güvenlik kontrollerinden geçmiş olması risksiz olduğu anlamına gelmez.",
         f"Tam kontrat: {contract}",
-        "Özet: Bot bu coinde alış/hacim davranışını sıra dışı buldu ve güvenlik kontrollerinden geçirdi.",
-        "Bu bir alım önerisi değil; bot hareketin devamını ölçmeye devam edecek.",
+        "📌 Bot sadece izliyor; hesabında işlem açmıyor.",
     ])
     return "\n".join(lines)
 
@@ -172,7 +188,7 @@ def gate_send_payload(token, chat, message, network, contract, signal_price=None
         kept.insert(5, f"Sinyalden beri: %{abs(change):.2f} " +
                     ("yukarıda" if change>=0 else "aşağıda"))
     message="\n".join(kept)
-    ok=send_photo_or_text(token, chat, message, live.get("logo"), session=session)
+    ok=send_photo_or_text(token, chat, message, None, session=session)
     return ok, current, live.get("logo")
 
 def send_gate_aux(token, chat, message, network, contract, session=requests):
@@ -180,7 +196,7 @@ def send_gate_aux(token, chat, message, network, contract, session=requests):
     current=live.get("price")
     if current is not None and "Şu anki fiyat:" not in message:
         message += f"\nŞu anki fiyat: ${fmt_price(current)}"
-    return send_photo_or_text(token, chat, message, live.get("logo"), session=session)
+    return send_photo_or_text(token, chat, message, None, session=session)
 
 
 def send_gate_followups(token, chat, con, session=requests):
@@ -200,7 +216,7 @@ def send_gate_followups(token, chat, con, session=requests):
               f"Sinyalden beri: %{abs(row['change']):.2f} {direction}\n"
               f"Önceki bildirime göre: %{abs(row['since_last'] or 0):.2f} {last_dir}\n"
               "Bot sonucu izlemeye devam ediyor; bu bir işlem talimatı değil.")
-        if send_photo_or_text(token,chat,text,row.get("logo"),session=session):
+        if send_photo_or_text(token,chat,text,None,session=session):
             mark_followup(con,"gate_telegram_price_history",row["key"],
                           row["current"],row["change"])
             sent+=1
