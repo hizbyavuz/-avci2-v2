@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 
 from snapshot_deposu import snapshot_kaydet, son_snapshot, snapshot_sayisi
 from gate_early_observer import record_scan, record_candidate_risk
+from gate_expanded_observer import collect_extra_observations
 from gate_intelligence import (creator_reputation, lp_lock_health,
                                x_contract_mentions)
 
@@ -5540,6 +5541,21 @@ for network_id, network_name in NETWORKS.items():
     )
 
     time.sleep(7)
+
+# Expand only the research cohort. Frozen V5 candidates and controls above
+# keep their original first-page inputs and their existing safety gates.
+extra_observations, extra_page_errors, extra_pages = collect_extra_observations(
+    NETWORKS,
+    api_get,
+    control_pool_from_payload,
+    time.sleep,
+)
+all_observation_pool.extend(extra_observations)
+print(
+    "Ek gözlem sayfaları:", extra_pages,
+    "| bulunan havuzlar:", len(extra_observations),
+    "| hatalar:", extra_page_errors,
+)
 
 all_candidates = deduplicate(
     all_candidates
