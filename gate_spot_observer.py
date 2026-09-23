@@ -102,14 +102,62 @@ def save_snapshot(path, batch, market, contracts, error=""):
             pair TEXT NOT NULL, network_id TEXT NOT NULL,
             token_contract TEXT NOT NULL,
             PRIMARY KEY (pair, network_id, token_contract))""")
+        con.execute("""CREATE TABLE IF NOT EXISTS gate_spot_history (
+            batch_id TEXT NOT NULL, pair TEXT NOT NULL, symbol TEXT NOT NULL,
+            last REAL NOT NULL, volume_24h REAL NOT NULL,
+            change_24h REAL NOT NULL,
+            PRIMARY KEY (batch_id, pair))""")
         con.execute("DELETE FROM gate_spot_market")
         con.execute("DELETE FROM gate_spot_contracts")
         con.executemany("INSERT INTO gate_spot_market VALUES (?, ?, ?, ?, ?, ?, ?)",
                         [(*row, batch) for row in market])
         con.executemany("INSERT INTO gate_spot_contracts VALUES (?, ?, ?)", contracts)
+        if not error:
+            con.executemany("""INSERT OR IGNORE INTO gate_spot_history
+                VALUES (?, ?, ?, ?, ?, ?)""",
+                [(batch, pair, symbol, last, volume, change)
+                 for pair, symbol, _name, last, volume, change in market
+                 if volume >= 30000])
         con.execute("INSERT OR REPLACE INTO gate_spot_health VALUES (?, ?, ?, ?, ?, ?)",
                     (batch, int(time.time()), "ERROR" if error else "VALID",
                      len(market), len(contracts), error[:300]))
+
+
+def coverage_report(path, batch, min_volume=30000):
+    """Measure missed Gate movers by verified contract, without making signals."""
+    with sqlite3.connect(path, timeout=30) as con:
+        con.row_factory = sqlite3.Row
+        health = con.execute("""SELECT batch_id, status, scan_ts
+            FROM gate_scan_health ORDER BY scan_ts DESC LIMIT 1""").fetchone()
+        if health is None:
+            return "Gate kapsama: on-chain tarama kaydı yok"
+        if health["status"] != "VALID" or time.time() - health["scan_ts"] > 3600:
+            return "Gate kapsama: güncel/geçerli on-chain tarama yok"
+        onchain_batch = health["batch_id"]
+        mapped = con.execute("""SELECT pair, network_id, token_contract
+            FROM gate_spot_contracts""").fetchall()
+        by_pair = {}
+        for row in mapped:
+            by_pair.setdefault(row["pair"], set()).add(
+                (row["network_id"], row["token_contract"].lower()))
+        seen = {(row[0], row[1]) for row in con.execute("""
+            SELECT network_id, lower(token_contract)
+            FROM gate_early_observations WHERE batch_id=?""",
+            (onchain_batch,))}
+        rows = con.execute("""SELECT pair, change_24h FROM gate_spot_history
+            WHERE batch_id=? AND volume_24h>=? AND change_24h>=10""",
+            (batch, min_volume)).fetchall()
+        if not rows:
+            return "Gate kapsama: +%10 hareketli, yeterli hacimli parite yok"
+        mapped_count = sum(bool(by_pair.get(row["pair"])) for row in rows)
+        seen_count = sum(bool(by_pair.get(row["pair"], set()) & seen)
+                         for row in rows)
+        large = sum(row["change_24h"] >= 20 for row in rows)
+        return (f"Gate kapsama (24s artış, hacim >= ${min_volume:,}): "
+                f"+%10 {len(rows)} parite, +%20 {large}; "
+                f"resmi kontratı eşleşen {mapped_count}, "
+                f"bu taramanın on-chain gözleminde görülen {seen_count}. "
+                "24s artış erken sinyal veya güvenli alım anlamına gelmez.")
 
 
 def main():
@@ -119,6 +167,7 @@ def main():
         save_snapshot("avci2.db", batch, market, contracts)
         print(f"Gate Spot gözlem: {len(market)} USDT paritesi, "
               f"{len(contracts)} ağ/kontrat eşleşmesi; alım bildirimi üretilmez.")
+        print(coverage_report("avci2.db", batch))
     except (error.URLError, TimeoutError, ValueError) as exc:
         save_snapshot("avci2.db", batch, [], [], type(exc).__name__)
         print(f"::warning::Gate Spot verisi alınamadı: {type(exc).__name__}")
