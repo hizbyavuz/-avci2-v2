@@ -1911,6 +1911,17 @@ def lp_protection_summary(raw_token):
             "holders_seen": 0,
         }
 
+    # Multiple LP sets may belong to different pools. The largest holder
+    # list is not a verified token-wide weighted LP exposure.
+    if len(lp_lists) > 1:
+        return {
+            "status": "MULTIPLE_POOLS_UNVERIFIED", "protected_pct": None,
+            "locked_pct": None, "burned_pct": None,
+            "unknown_unlocked_pct": None, "creator_unlocked_pct": None,
+            "holders_seen": sum(len(group) for group in lp_lists),
+            "pool_sets_seen": len(lp_lists),
+        }
+
     # En fazla holder bilgisi olan LP setini kullan.
     holders = max(
         lp_lists,
