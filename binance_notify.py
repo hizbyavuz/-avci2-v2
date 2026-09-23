@@ -661,7 +661,7 @@ def build_message(
     local_time = datetime.fromisoformat(scan_time.replace("Z", "+00:00"))
     local_time = local_time.astimezone(ZoneInfo("Europe/Istanbul"))
     lines = [
-        "🔎 AVCI 2 | YENİ İZLEME ADAYI",
+        "🔎 BINANCE AVCI 2 | YENİ İZLEME ADAYI",
         f"{local_time:%d.%m.%Y %H:%M} (Türkiye) • {len(candidates)} coin",
         "Bot bu coinlerde olağan dışı hareket gördü. Bu bir alım önerisi değil.",
         f"Piyasa: BTC {regime_text.lower()} • Taranan: {universe_size} coin",
@@ -779,7 +779,7 @@ def build_readable_candidate(scan, candidate, bridge=None):
     }.get(stage,"Coin normal davranışından ayrıştı.")
 
     lines=[
-        "🔎 BINANCE AVCI | YENİ ADAY",
+        "🔎 BINANCE AVCI 2 | YENİ ADAY",
         f"🪙 {identity}",
         f"💵 Şu an: {fmt_price(now_price)} USDT" if now_price is not None else "💵 Şu anki fiyat alınamadı",
         f"🎯 Sinyal geldiğinde: {fmt_price(signal_price)} USDT" if signal_price is not None else "🎯 Sinyal fiyatı yok",
@@ -864,7 +864,7 @@ def send_binance_followups(token, chat_id, connection):
         direction="yukarıda" if row["change"]>=0 else "aşağıda"
         last_dir="yükseldi" if (row["since_last"] or 0)>=0 else "düştü"
         text=(
-            f"📊 BINANCE AVCI | TAKİP\n"
+            f"📊 BINANCE AVCI 2 | TAKİP\n"
             f"🪙 {row['symbol']}\n"
             f"💵 Şu an: {fmt_price(row['current'])} USDT\n"
             f"🎯 İlk sinyal: {fmt_price(row['signal_price'])} USDT\n"
