@@ -7,6 +7,10 @@ paritelerini ve Gate'in resmi zincir adreslerini okur. En az $30.000 günlük
 hacmi olanların fiyatı tarama bazında saklanır; güncel taramada 24 saatlik
 +%10/+%20 hareketlerin kaçının on-chain gözleme girdiği Actions logunda
 sayılır. Bu sayı 24 saatlik geçmişi anlatır; erken alım sinyali değildir.
+Bağımsız `gate-spot-watch.yml` işi aynı gözlem kodunu ayrı bir veritabanında,
+uzun on-chain taramayı beklemeden yaklaşık 10 dakikalık UTC planıyla çalıştırır.
+GitHub zamanlanmış işleri geciktirebildiği için gerçek tarama aralıkları ayrıca
+kontrol edilmelidir. Arşiv ve önbellek bu ayrı kağıt izleme verisini korur.
 
 `gate_spot_watch.py` ayrı bir `gate-spot-watch-v0` araştırma kohortudur.
 En az 30 günlük Gate işlem geçmişi, $300.000 günlük hacim, dar alış-satış
