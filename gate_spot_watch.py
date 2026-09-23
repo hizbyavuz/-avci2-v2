@@ -17,6 +17,8 @@ def shortlist(con, now, batch):
         FROM gate_spot_history h JOIN gate_spot_quality q
           ON q.batch_id=h.batch_id AND q.pair=h.pair
         WHERE h.batch_id=?""", (batch,)).fetchall()
+    has_watch_table = con.execute("""SELECT 1 FROM sqlite_master
+        WHERE type='table' AND name='gate_spot_watch'""").fetchone()
     result = []
     for pair, symbol, price, volume, day_change, start, bid, ask in current:
         if (volume < 300000 or not 3 <= day_change <= 25 or
@@ -39,6 +41,13 @@ def shortlist(con, now, batch):
         addresses = con.execute("""SELECT network_id, token_contract
             FROM gate_spot_contracts WHERE pair=?""", (pair,)).fetchall()
         if not addresses:
+            continue
+        recent_watch = con.execute("""SELECT 1 FROM gate_spot_watch w
+            JOIN gate_spot_health g ON g.batch_id=w.batch_id
+            WHERE w.pair=? AND w.status='PAPER_WATCH'
+              AND g.scan_ts BETWEEN ? AND ? LIMIT 1""",
+            (pair, now - 24 * 3600, now)).fetchone() if has_watch_table else None
+        if recent_watch:
             continue
         result.append({"pair": pair, "symbol": symbol, "price": price,
                        "volume_24h": volume, "change_24h": day_change,
@@ -89,6 +98,24 @@ def fetch_book(pair):
         return json.load(response)
 
 
+def record_watch_paths(con, batch, now):
+    """Track sampled post-signal prices; never call them executable returns."""
+    con.execute("""CREATE TABLE IF NOT EXISTS gate_spot_watch_path (
+        watch_batch TEXT NOT NULL, pair TEXT NOT NULL,
+        observation_batch TEXT NOT NULL, elapsed_minutes REAL NOT NULL,
+        sampled_return_pct REAL NOT NULL,
+        PRIMARY KEY (watch_batch, pair, observation_batch))""")
+    con.execute("""INSERT OR IGNORE INTO gate_spot_watch_path
+        SELECT w.batch_id, w.pair, ?, (? - start.scan_ts) / 60.0,
+               100.0 * (h.last / w.price - 1.0)
+        FROM gate_spot_watch w
+        JOIN gate_spot_health start ON start.batch_id=w.batch_id
+        JOIN gate_spot_history h ON h.pair=w.pair AND h.batch_id=?
+        WHERE w.status='PAPER_WATCH' AND w.price>0
+          AND ? > start.scan_ts AND ? <= start.scan_ts + 72*3600""",
+        (batch, now, batch, now, now))
+
+
 def run(path=DB, book_fetch=fetch_book):
     with sqlite3.connect(path, timeout=30) as con:
         con.execute("""CREATE TABLE IF NOT EXISTS gate_spot_watch (
@@ -102,6 +129,7 @@ def run(path=DB, book_fetch=fetch_book):
         if not health or health[2] != "VALID":
             return "Gate Spot erken izleme: güncel veri yok; aday üretilmedi"
         batch, now, _ = health
+        record_watch_paths(con, batch, now)
         result = shortlist(con, now, batch)
         messages = []
         for item in result[:3]:
