@@ -37,9 +37,18 @@ def valid_contract(network, address):
 
 
 def observation_only_reason(reason):
-    """True only when a blocked signal lacks evidence, not when a hard risk was found."""
-    text = str(reason or "").upper()
+    """Allow research-only alerts for missing evidence, never for hard risk."""
+    text = str(reason or "").upper().strip()
     if not text:
+        return False
+    if "RİSK İŞARETLERİ VAR VEYA GÜVENLİK VERİSİ EKSİK:" in text:
+        text = text.split(":", 1)[1].strip()
+    elif "RISK ISARETLERI VAR VEYA GUVENLIK VERISI EKSIK:" in text:
+        text = text.split(":", 1)[1].strip()
+    elif text in (
+        "RİSK İŞARETLERİ VAR VEYA GÜVENLİK VERİSİ EKSİK",
+        "RISK ISARETLERI VAR VEYA GUVENLIK VERISI EKSIK",
+    ):
         return False
     hard = (
         "LOSS_HIGH", "LP_LOW_PROTECTION", "BUNDLE_SNIPER", "HONEYPOT",
@@ -47,14 +56,14 @@ def observation_only_reason(reason):
         "HOLDER YOGUN", "WASH", "KARŞILIKLI İŞLEM", "KARSILIKLI ISLEM",
         "CREATOR", "KÖTÜ NİYET", "KOTU NIYET", "PROXY YETK",
         "SELFDESTRUCT", "OWNER_CHANGE", "TAKE_BACK", "CLIMAX",
-        "ŞÜPHELİ", "SUPHELI", "RİSK İŞARETLERİ VAR:", "RISK ISARETLERI VAR:"
+        "ŞÜPHELİ", "SUPHELI",
     )
     if any(token in text for token in hard):
         return False
     missing = (
         "DATA_MISSING", "MISSING", "EKSİK", "EKSIK", "DOĞRULANAMADI",
         "DOGRULANAMADI", "ALINAMADI", "UNKNOWN", "BİLİNMİYOR", "BILINMIYOR",
-        "TAMAMLANAMADI", "ÖLÇÜLEMEDİ", "OLCULEMEDI"
+        "TAMAMLANAMADI", "ÖLÇÜLEMEDİ", "OLCULEMEDI",
     )
     return any(token in text for token in missing)
 
