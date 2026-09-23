@@ -16,6 +16,7 @@ from telegram_readable import (
 
 from binance_notify import find_chat_id, resolve_chat_id
 from gate_early_observer import candidate_risk_context, early_context
+from gate_security_confidence import one_line as security_confidence_line
 
 
 OBS_DB = "avci2.db"
@@ -91,6 +92,7 @@ def format_observation_alert(kind, item, network, contract, signal_price, reason
         "🛡 Neden temiz aday değil?",
         f"• {reason}",
         "",
+        "Güvenlik güveni: ZAYIF (kanıt eksik).",
         "Bu coinde hareket izi var ama güvenlik doğrulaması tamamlanmadı.",
         "Temiz aday değildir; bot yalnızca araştırma için izliyor.",
         f"Tam kontrat: {contract}",
@@ -207,6 +209,7 @@ def format_alert(event, item, context, risk_context=None):
             lines.append(f"• Sinyal gelmeden önce fiyat zaten %{context['gain_before_signal_pct']:+.1f} hareket etmişti.")
 
     lines.extend(["","🛡 Güvenlik özeti"])
+    lines.append(f"• {security_confidence_line(item)}")
     lines.append(
         f"• Likiditenin korunan kısmı yaklaşık %{float(lp.get('protected_pct') or 0):.0f}."
     )
