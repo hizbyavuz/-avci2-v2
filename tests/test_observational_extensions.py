@@ -7,6 +7,7 @@ from avci_checkpoints import due
 from binance_opportunity_observer import miss_reason
 from binance_deception_observer import classify_cex_evidence
 from gate_deception_observer import classify_gate_evidence
+from gate_notify import observation_only_reason
 from telegram_readable import record_initial, due_followups, mark_followup
 
 class ObservationalExtensionTests(unittest.TestCase):
@@ -51,6 +52,17 @@ class ObservationalExtensionTests(unittest.TestCase):
         self.assertIn("TOP10_CONCENTRATION_HIGH", flags)
         self.assertIn("LP_PROTECTION_LOW", flags)
         self.assertIn("BUYER_BREADTH_GROWTH", positives)
+
+    def test_gate_missing_only_reason_is_observation_not_clean_candidate(self):
+        self.assertTrue(observation_only_reason(
+            "Risk işaretleri var veya güvenlik verisi eksik: EVM_EXIT_DATA_MISSING"))
+        self.assertTrue(observation_only_reason("LP_DATA_MISSING"))
+        self.assertFalse(observation_only_reason(
+            "Risk işaretleri var veya güvenlik verisi eksik: LP_LOW_PROTECTION"))
+        self.assertFalse(observation_only_reason(
+            "Risk işaretleri var veya güvenlik verisi eksik: EXIT_1K_LOSS_HIGH"))
+        self.assertFalse(observation_only_reason(
+            "Risk işaretleri var veya güvenlik verisi eksik"))
 
     def test_followup_history_updates_without_new_candidate(self):
         with tempfile.TemporaryDirectory() as folder:
