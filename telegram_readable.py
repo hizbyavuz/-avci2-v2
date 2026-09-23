@@ -15,11 +15,18 @@ def pct(now, base):
         return None
 
 def binance_price(symbol, session=requests):
-    try:
-        r=session.get("https://api.binance.com/api/v3/ticker/price",params={"symbol":symbol},timeout=10)
-        r.raise_for_status(); return float(r.json()["price"])
-    except Exception:
-        return None
+    """Try Binance's public market-data endpoints in order; geo/API failures stay non-fatal."""
+    for base in ("https://data-api.binance.vision", "https://api.binance.com"):
+        try:
+            r=session.get(base + "/api/v3/ticker/price",
+                          params={"symbol":symbol}, timeout=10)
+            r.raise_for_status()
+            value=float(r.json()["price"])
+            if value > 0:
+                return value
+        except Exception:
+            continue
+    return None
 
 def coingecko_logo(symbol, verified_name=None, session=requests):
     """Only use a logo when identity is reasonably constrained."""
@@ -55,16 +62,15 @@ def gecko_token(network, contract, session=requests):
         return {"price":None,"logo":None,"name":None,"symbol":None}
 
 def send_photo_or_text(token, chat_id, text, logo=None, session=requests):
-    if logo:
-        try:
-            r=session.post(f"https://api.telegram.org/bot{token}/sendPhoto",
-                json={"chat_id":chat_id,"photo":logo,"caption":text[:1024]},timeout=20)
-            r.raise_for_status()
-            if r.json().get("ok"): return True
-        except Exception:
-            pass
+    """Send compact text only.
+
+    Telegram Bot API renders ordinary sendPhoto media as a large card. Avci messages
+    intentionally avoid that UI; coin identity is shown with a small inline coin marker.
+    The logo URL may still be cached for future UI use, but is never sent as a full image.
+    """
     r=session.post(f"https://api.telegram.org/bot{token}/sendMessage",
-        json={"chat_id":chat_id,"text":text[:4096],"disable_web_page_preview":True},timeout=20)
+        json={"chat_id":chat_id,"text":text[:4096],"disable_web_page_preview":True},
+        timeout=20)
     r.raise_for_status()
     return bool(r.json().get("ok"))
 
