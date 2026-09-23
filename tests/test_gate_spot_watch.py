@@ -50,6 +50,22 @@ class GateSpotWatchTest(unittest.TestCase):
             with sqlite3.connect(path) as con:
                 self.assertEqual(con.execute("""SELECT status FROM gate_spot_watch
                     WHERE pair='GOOD_USDT'""").fetchone()[0], "PAPER_WATCH")
+            save_snapshot(path, "later", [
+                ("GOOD_USDT", "GOOD", "Good", 1.07, 500000, 10),
+            ], [("GOOD_USDT", "eth", ADDRESS)],
+                quality=[("GOOD_USDT", age, 1.069, 1.071)])
+            with sqlite3.connect(path) as con:
+                con.execute("""UPDATE gate_spot_health SET scan_ts=?
+                    WHERE batch_id='later'""", (now + 20 * 60,))
+            run(path, lambda pair: {
+                "asks": [["1.071", "10000"]],
+                "bids": [["1.069", "10000"]],
+            })
+            with sqlite3.connect(path) as con:
+                self.assertEqual(con.execute("""SELECT count(*)
+                    FROM gate_spot_watch WHERE pair='GOOD_USDT'""").fetchone()[0], 1)
+                self.assertAlmostEqual(con.execute("""SELECT sampled_return_pct
+                    FROM gate_spot_watch_path""").fetchone()[0], 100 * (1.07 / 1.02 - 1))
 
     def test_unfillable_book_never_becomes_paper_watch(self):
         self.assertIsNone(round_trip_loss({
