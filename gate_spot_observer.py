@@ -77,6 +77,27 @@ def build_snapshot(currencies, pairs, tickers):
     return market, contracts
 
 
+def build_market_quality(pairs, tickers):
+    """Retain official listing dates and best quotes for separate Spot research."""
+    ticker_by_pair = {row.get("currency_pair"): row for row in tickers
+                      if isinstance(row, dict) and row.get("currency_pair")}
+    quality = []
+    for pair in pairs:
+        if not isinstance(pair, dict) or pair.get("quote") != "USDT":
+            continue
+        ticker = ticker_by_pair.get(pair.get("id")) or {}
+        bid = finite_number(ticker.get("highest_bid"))
+        ask = finite_number(ticker.get("lowest_ask"))
+        try:
+            buy_start = int(pair.get("buy_start") or 0)
+        except (ValueError, TypeError):
+            buy_start = 0
+        if bid is None or ask is None or bid <= 0 or ask < bid:
+            continue
+        quality.append((pair["id"], buy_start, bid, ask))
+    return quality
+
+
 def fetch_lists(open_url=request.urlopen):
     lists = []
     for path in ("currencies", "currency_pairs", "tickers"):
@@ -88,7 +109,7 @@ def fetch_lists(open_url=request.urlopen):
     return lists
 
 
-def save_snapshot(path, batch, market, contracts, error=""):
+def save_snapshot(path, batch, market, contracts, error="", quality=()):
     with sqlite3.connect(path, timeout=30) as con:
         con.execute("""CREATE TABLE IF NOT EXISTS gate_spot_health (
             batch_id TEXT PRIMARY KEY, scan_ts INTEGER NOT NULL,
@@ -107,6 +128,12 @@ def save_snapshot(path, batch, market, contracts, error=""):
             last REAL NOT NULL, volume_24h REAL NOT NULL,
             change_24h REAL NOT NULL,
             PRIMARY KEY (batch_id, pair))""")
+        con.execute("""CREATE INDEX IF NOT EXISTS idx_gate_spot_history_pair
+            ON gate_spot_history(pair, batch_id)""")
+        con.execute("""CREATE TABLE IF NOT EXISTS gate_spot_quality (
+            batch_id TEXT NOT NULL, pair TEXT NOT NULL,
+            buy_start INTEGER NOT NULL, bid REAL NOT NULL, ask REAL NOT NULL,
+            PRIMARY KEY (batch_id, pair))""")
         con.execute("DELETE FROM gate_spot_market")
         con.execute("DELETE FROM gate_spot_contracts")
         con.executemany("INSERT INTO gate_spot_market VALUES (?, ?, ?, ?, ?, ?, ?)",
@@ -118,6 +145,11 @@ def save_snapshot(path, batch, market, contracts, error=""):
                 [(batch, pair, symbol, last, volume, change)
                  for pair, symbol, _name, last, volume, change in market
                  if volume >= 30000])
+            market_pairs = {row[0] for row in market}
+            con.executemany("""INSERT OR IGNORE INTO gate_spot_quality
+                VALUES (?, ?, ?, ?, ?)""",
+                [(batch, pair, start, bid, ask)
+                 for pair, start, bid, ask in quality if pair in market_pairs])
         con.execute("INSERT OR REPLACE INTO gate_spot_health VALUES (?, ?, ?, ?, ?, ?)",
                     (batch, int(time.time()), "ERROR" if error else "VALID",
                      len(market), len(contracts), error[:300]))
@@ -163,8 +195,10 @@ def coverage_report(path, batch, min_volume=30000):
 def main():
     batch = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M")
     try:
-        market, contracts = build_snapshot(*fetch_lists())
-        save_snapshot("avci2.db", batch, market, contracts)
+        currencies, pairs, tickers = fetch_lists()
+        market, contracts = build_snapshot(currencies, pairs, tickers)
+        quality = build_market_quality(pairs, tickers)
+        save_snapshot("avci2.db", batch, market, contracts, quality=quality)
         print(f"Gate Spot gözlem: {len(market)} USDT paritesi, "
               f"{len(contracts)} ağ/kontrat eşleşmesi; alım bildirimi üretilmez.")
         print(coverage_report("avci2.db", batch))
