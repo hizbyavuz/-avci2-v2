@@ -313,16 +313,26 @@ def read_new_candidates(
     rows = connection.execute(
         """
         SELECT
-            symbol,
-            stage,
-            engine,
-            score,
-            signal_price,
-            validation_tier,
-            config_version
-        FROM signal_events
-        WHERE event_class = 'CANDIDATE'
-          AND signal_time_utc = ?
+            e.symbol,
+            e.stage,
+            e.engine,
+            e.score,
+            e.signal_price,
+            e.validation_tier,
+            e.config_version,
+            f.change_15m,
+            f.change_1h,
+            f.change_24h,
+            f.volume_mult_15m,
+            f.taker_buy_ratio_15m,
+            f.retention_proxy,
+            f.cross_sectional_rarity_pct
+        FROM signal_events e
+        LEFT JOIN features f
+          ON f.scan_time_utc=e.signal_time_utc
+         AND f.symbol=e.symbol
+        WHERE e.event_class = 'CANDIDATE'
+          AND e.signal_time_utc = ?
         ORDER BY
             score DESC,
             symbol ASC
@@ -752,29 +762,94 @@ def build_readable_candidate(scan, candidate, bridge=None):
     signal_price=candidate.get("signal_price")
     change=pct(now_price, signal_price)
     stage=candidate.get("stage")
-    engine=candidate.get("engine")
-    score=candidate.get("score")
-    why=STAGE_EXPLANATIONS.get(stage, STAGE_NAMES.get(stage, stage or "İzleme"))
-    engine_text=ENGINE_NAMES.get(engine, engine or "karma").lower()
+    score=int(candidate.get("score") or 0)
+    c15=candidate.get("change_15m")
+    c1h=candidate.get("change_1h")
+    c24=candidate.get("change_24h")
+    vm=candidate.get("volume_mult_15m")
+    buy_ratio=candidate.get("taker_buy_ratio_15m")
+    retention=candidate.get("retention_proxy")
+
+    stage_plain={
+        "WAKE_UP":"Bot ilk sıra dışı hareketi yeni fark etti.",
+        "CONTINUATION":"İlk hareketten sonra ilgi sönmedi; coin hareketi koruyor.",
+        "REIGNITION":"İlk hareket yavaşladıktan sonra yeniden hızlanma başladı.",
+        "TRIGGER":"Birden fazla olumlu işaret aynı anda güçlendi.",
+        "OBSERVE":"Coin dikkat çekiyor ama henüz güçlü aday seviyesinde değil.",
+    }.get(stage,"Coin normal davranışından ayrıştı.")
+
     lines=[
         "🔎 BINANCE AVCI | YENİ ADAY",
-        identity,
-        f"Şu anki fiyat: {fmt_price(now_price)} USDT" if now_price is not None else "Şu anki fiyat alınamadı",
-        f"Sinyal fiyatı: {fmt_price(signal_price)} USDT" if signal_price is not None else "Sinyal fiyatı yok",
+        f"🪙 {identity}",
+        f"💵 Şu an: {fmt_price(now_price)} USDT" if now_price is not None else "💵 Şu anki fiyat alınamadı",
+        f"🎯 Sinyal geldiğinde: {fmt_price(signal_price)} USDT" if signal_price is not None else "🎯 Sinyal fiyatı yok",
     ]
     if change is not None:
-        direction="yukarıda" if change>=0 else "aşağıda"
-        lines.append(f"Sinyalden beri: %{abs(change):.2f} {direction}")
+        lines.append(f"📊 Sinyalden beri: %{change:+.2f}")
+    moves=[]
+    if c15 is not None: moves.append(f"15 dk %{float(c15):+.1f}")
+    if c1h is not None: moves.append(f"1 sa %{float(c1h):+.1f}")
+    if c24 is not None: moves.append(f"24 sa %{float(c24):+.1f}")
+    if moves:
+        lines.append("⏱ Hareket: " + " • ".join(moves))
+
     lines.extend([
-        f"Neden dikkat çekti? {why}",
-        f"Kısaca hareket: {engine_text}. Botun {score}/8 kuralı aynı anda sağlandı.",
-        f"Piyasa durumu: BTC {REGIME_NAMES.get(scan.get('btc_regime'), scan.get('btc_regime','?')).lower()}.",
+        "",
+        "👀 Neden geldi?",
+        f"• {stage_plain}",
     ])
-    if bridge:
-        cls=CLASS_NAMES.get(bridge.get("classification"), "yetersiz veri").lower()
-        lines.append(f"Geçmiş örneklerle görünüm: {cls}.")
+    if vm is not None:
+        lines.append(f"• Son 15 dk hacmi kendi normalinin yaklaşık {float(vm):.1f} katı.")
+    if buy_ratio is not None:
+        br=float(buy_ratio)
+        if br>=0.58:
+            lines.append("• Alım tarafı satış tarafına göre daha baskın.")
+        elif br<=0.42:
+            lines.append("• Satış tarafı hâlâ güçlü; bu yüzden dikkatli izleniyor.")
+        else:
+            lines.append("• Alım-satım dengesi henüz net biçimde tek tarafa dönmemiş.")
+    if retention is not None:
+        rp=float(retention)
+        if rp>=0.70:
+            lines.append("• İlk yükselişin büyük kısmını geri vermedi.")
+        elif rp>=0.50:
+            lines.append("• İlk hareketin yaklaşık yarısını koruyor.")
+        else:
+            lines.append("• İlk hareketi koruma gücü zayıf.")
+
+    regime=REGIME_NAMES.get(scan.get("btc_regime"),scan.get("btc_regime","?")).lower()
+    if scan.get("btc_regime")=="DOWN":
+        lines.append("• BTC düşerken bu coin görece direnç gösterdiği için ayrıca dikkat çekti.")
+    else:
+        lines.append(f"• Genel piyasa şu an BTC tarafında {regime}.")
+
     lines.extend([
-        "Bu bir alım önerisi değil; bot hareketin devam edip etmediğini izleyecek.",
+        "",
+        "🧭 Bu ne demek?",
+        f"Botun aradığı 8 işaretten {score} tanesi aynı anda görüldü. Bu kazanma ihtimali değildir.",
+    ])
+    if c24 is not None:
+        if float(c24)>=20:
+            lines.append("Coin son 24 saatte zaten çok hareket etmiş; geç kalma riski yüksek.")
+        elif float(c24)>=10:
+            lines.append("Coin hareket etmiş durumda ama bot devam edip etmediğini ölçüyor.")
+        else:
+            lines.append("Coin henüz 24 saatlik ölçekte aşırı kaçmış görünmüyor.")
+
+    if bridge:
+        cls=bridge.get("classification")
+        if cls=="KAZANANA_BENZER":
+            lines.append("Geçmişte devam eden güçlü hareketlerle bazı ortak özellikleri var.")
+        elif cls=="KONTROLE_BENZER":
+            lines.append("Geçmişte sönümlenen örneklere de benzer tarafları var; temkinli izleniyor.")
+        elif cls=="KARMA":
+            lines.append("Geçmiş örneklerde hem devam eden hem sönen hareketlere benzeyen tarafları var.")
+        else:
+            lines.append("Geçmiş örnek karşılaştırması henüz net sonuç vermiyor.")
+
+    lines.extend([
+        "",
+        "📌 Bot sadece izliyor; hesabında işlem açmıyor.",
         f"Binance Spot: {market_url}",
     ])
     logo=coingecko_logo(base, VERIFIED_COIN_NAMES.get(base))
@@ -789,19 +864,20 @@ def send_binance_followups(token, chat_id, connection):
         direction="yukarıda" if row["change"]>=0 else "aşağıda"
         last_dir="yükseldi" if (row["since_last"] or 0)>=0 else "düştü"
         text=(
-            f"📊 BINANCE AVCI | TAKİP\n{row['symbol']}\n"
-            f"Şu an: {fmt_price(row['current'])} USDT\n"
-            f"Sinyalden beri: %{abs(row['change']):.2f} {direction}\n"
-            f"Önceki bildirime göre: %{abs(row['since_last'] or 0):.2f} {last_dir}\n"
-            "Bot hâlâ sonucu ölçüyor; bu bir işlem talimatı değil."
+            f"📊 BINANCE AVCI | TAKİP\n"
+            f"🪙 {row['symbol']}\n"
+            f"💵 Şu an: {fmt_price(row['current'])} USDT\n"
+            f"🎯 İlk sinyal: {fmt_price(row['signal_price'])} USDT\n"
+            f"📈 İlk sinyalden beri: %{abs(row['change']):.2f} {direction}\n"
+            f"🔄 Önceki bildirime göre: %{abs(row['since_last'] or 0):.2f} {last_dir}\n\n"
+            "Bot hareketin devamını ölçüyor; hesabında işlem açmıyor."
         )
-        if send_photo_or_text(token,chat_id,text,row.get("logo")):
+        if send_photo_or_text(token,chat_id,text,None):
             mark_followup(connection,"binance_telegram_price_history",
                           row["key"],row["current"],row["change"])
             sent+=1
     connection.commit()
     return sent
-
 
 def main():
     if not os.path.exists(
