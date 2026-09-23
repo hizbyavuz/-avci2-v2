@@ -36,6 +36,51 @@ def valid_contract(network, address):
     return bool(re.fullmatch(r"0x[0-9a-fA-F]{40}", address or ""))
 
 
+def observation_only_reason(reason):
+    """True only when a blocked signal lacks evidence, not when a hard risk was found."""
+    text = str(reason or "").upper()
+    if not text:
+        return False
+    hard = (
+        "LOSS_HIGH", "LP_LOW_PROTECTION", "BUNDLE_SNIPER", "HONEYPOT",
+        "BLACKLIST", "MINT ", "FREEZE", "DONDURMA", "HOLDER YOĞUN",
+        "HOLDER YOGUN", "WASH", "KARŞILIKLI İŞLEM", "KARSILIKLI ISLEM",
+        "CREATOR", "KÖTÜ NİYET", "KOTU NIYET", "PROXY YETK",
+        "SELFDESTRUCT", "OWNER_CHANGE", "TAKE_BACK", "CLIMAX",
+        "ŞÜPHELİ", "SUPHELI", "RİSK İŞARETLERİ VAR:", "RISK ISARETLERI VAR:"
+    )
+    if any(token in text for token in hard):
+        return False
+    missing = (
+        "DATA_MISSING", "MISSING", "EKSİK", "EKSIK", "DOĞRULANAMADI",
+        "DOGRULANAMADI", "ALINAMADI", "UNKNOWN", "BİLİNMİYOR", "BILINMIYOR",
+        "TAMAMLANAMADI", "ÖLÇÜLEMEDİ", "OLCULEMEDI"
+    )
+    return any(token in text for token in missing)
+
+
+def format_observation_alert(kind, item, network, contract, signal_price, reason, detail=""):
+    """Readable research-only alert for strong movement with incomplete safety evidence."""
+    name = item.get("name") or item.get("symbol") or "?"
+    lines = [
+        "🟡 GATE AVCI 2 | ERKEN İZ — GÜVENLİK BEKLİYOR",
+        f"🪙 {name} • {NETWORK_NAMES.get(network, network)}",
+        f"🎯 İz fiyatı: USD {price(signal_price)}",
+    ]
+    if detail:
+        lines.append(f"👀 {detail}")
+    lines.extend([
+        "",
+        "🛡 Neden temiz aday değil?",
+        f"• {reason}",
+        "",
+        "Bu coinde hareket izi var ama güvenlik doğrulaması tamamlanmadı.",
+        "Temiz aday değildir; bot yalnızca araştırma için izliyor.",
+        f"Tam kontrat: {contract}",
+    ])
+    return "\n".join(lines)
+
+
 def security_decision(item):
     """Conservative alert gate, separate from the frozen V5 candidate rules."""
     network = item.get("network_id")
