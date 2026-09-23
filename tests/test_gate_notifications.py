@@ -5,7 +5,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from gate_early_observer import early_context, record_scan
+from gate_early_observer import (candidate_risk_context, early_context,
+                                 record_candidate_risk, record_scan)
 from gate_notify import pending_alerts, security_decision, send_pending, valid_contract
 
 
@@ -70,6 +71,26 @@ class GateNotificationTests(unittest.TestCase):
         item = safe_item()
         item["adjusted_holder"] = {"ok": False}
         self.assertIn("Holder", security_decision(item))
+        item = safe_item()
+        item["lp_protection"]["creator_unlocked_pct"] = 12
+        self.assertIn("Deployer", security_decision(item))
+
+    def test_holder_change_uses_prior_sample_and_creator_is_observation_only(self):
+        with tempfile.TemporaryDirectory() as folder:
+            db = str(Path(folder) / "obs.db")
+            first = safe_item()
+            first["creator_address"] = "creator-1"
+            record_scan(db, "b1", [pool()], now_ts=10_000)
+            record_candidate_risk(db, "b1", [first])
+            second = safe_item()
+            second["creator_address"] = "creator-1"
+            second["adjusted_holder"]["top10_pct"] = 60
+            record_scan(db, "b2", [pool()], now_ts=10_600)
+            record_candidate_risk(db, "b2", [second])
+            with sqlite3.connect(db) as con:
+                context = candidate_risk_context(con, "b2", "solana", CONTRACT)
+            self.assertEqual(context["top10_change_pp"], 10)
+            self.assertEqual(context["creator_tokens_observed"], 1)
 
     def test_empty_clean_scan_is_valid(self):
         with tempfile.TemporaryDirectory() as folder:
