@@ -8,6 +8,7 @@ on:
       - "gate_*.py"
       - "telegram_readable.py"
       - "avci_checkpoints.py"
+      - "avci_observation_report.py"
       - "tests/test_*.py"
       - ".github/workflows/avci-v2.yml"
   schedule:
@@ -81,6 +82,10 @@ jobs:
       - name: Record fixed post-signal checkpoints
         continue-on-error: true
         run: python -u avci_checkpoints.py gate
+
+      - name: Summarize observational QA
+        continue-on-error: true
+        run: python -u avci_observation_report.py gate
 
       - name: Send verified Gate research candidates
         if: success()
