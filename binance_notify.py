@@ -12,6 +12,7 @@ import requests
 
 DB_FILE = "binance_avci2.db"
 TELEGRAM_LIMIT = 4096
+# Telegram chat ids are persisted in the restored research DB.
 
 # Only show names whose symbol-to-asset mapping has been checked. A ticker
 # alone is not enough to guess a project's name (several coins share tickers).
