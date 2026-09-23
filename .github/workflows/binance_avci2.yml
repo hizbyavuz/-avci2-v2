@@ -69,6 +69,7 @@ jobs:
       - name: Install dependencies
         run: pip install -r binance_requirements.txt
 
+      # Cross-module regression tests intentionally include Gate notification compatibility.
       - name: Run permanent tests
         run: python -m unittest discover -s tests -v
 
