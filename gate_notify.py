@@ -52,9 +52,15 @@ def security_decision(item):
             return "Düzeltilmiş holder yoğunluğu yüksek veya ölçülemedi"
     if float(lp.get("protected_pct") or 0) < 50:
         return "Likidite koruması yetersiz"
+    if "EXPIRES_SOON" in (lp.get("lock_expiry_statuses") or []):
+        return "LP kilidi 24 saat içinde açılabilir"
     if (lp.get("creator_unlocked_pct") is not None and
             float(lp["creator_unlocked_pct"]) >= 10):
         return "Deployer cüzdanında kilitsiz LP payı yüksek"
+    if (item.get("creator_reputation") or {}).get("status") == "FLAGGED":
+        return "GoPlus creator adresinde kötü niyet kaydı buldu"
+    if (item.get("trade_cluster") or {}).get("wash_proxy") is True:
+        return "Aynı blokta benzer tutarlı karşılıklı işlemler görüldü"
 
     if network == "solana":
         profile = item.get("solana_security") or {}
@@ -113,6 +119,11 @@ def format_alert(event, item, context, risk_context=None):
     ]
     if context["own_volume_ratio"] is not None:
         lines.append(f"Hacim kendi yakın geçmişine göre: {context['own_volume_ratio']:.1f} kat")
+    if context.get("unique_buyers_5m") is not None:
+        buyer_note = (f" • kendi geçmişine göre {context['buyer_ratio']:.1f} kat"
+                      if context.get("buyer_ratio") is not None else "")
+        lines.append(f"Son 5 dk farklı alıcı: {context['unique_buyers_5m']}"
+                     f"{buyer_note} (havuz verisi)")
     if context["first_anomaly_ts"] is not None:
         delta = max(0, (event["signal_ts"] - context["first_anomaly_ts"]) // 60)
         lines.append(f"İlk kaydedilen anomali: sinyalden {delta} dk önce")
@@ -128,6 +139,8 @@ def format_alert(event, item, context, risk_context=None):
     if lp.get("creator_unlocked_pct") is not None:
         lines.append(f"Deployer'da kilitsiz LP: "
                      f"%{float(lp['creator_unlocked_pct']):.1f}")
+    if lp.get("nearest_unlock"):
+        lines.append(f"Bilinen en yakın LP kilit bitişi: {lp['nearest_unlock']}")
     if cluster.get("ok"):
         lines.append(f"Son örneklenen {cluster['trades_seen']} işlemde "
                      f"{cluster['unique_buyers_sample']} farklı alıcı "
@@ -144,6 +157,18 @@ def format_alert(event, item, context, risk_context=None):
         lines.append(f"Aynı deployer'ın botun gördüğü coin sayısı: "
                      f"{risk_context['creator_tokens_observed']} "
                      "(geçmiş rug kanıtı değil)")
+    rep = item.get("creator_reputation") or {}
+    if rep.get("status") == "NO_FINDING":
+        lines.append("Creator adresi GoPlus taramasında işaretlenmedi "
+                     "(güvenli olduğu kanıtı değil)")
+    elif rep.get("status") == "UNKNOWN":
+        lines.append("Creator adresi için dış güvenlik kaydı doğrulanamadı")
+    social = item.get("social_signal") or {}
+    if social.get("status") == "OBSERVED":
+        lines.append(f"X'te tam kontrat geçen gönderi: son 15 dk "
+                     f"{social['last_15m']}, önceki 45 dk "
+                     f"{social['previous_45m']} "
+                     "(organik ilgi kanıtı değil)")
     lines.extend([
         f"Tahmini satış kaybı ($1.000 / $5.000): %{float((item.get('exit_1k') if network == 'solana' else item.get('evm_exit_1k'))['loss_pct']):.1f} / "
         f"%{float((item.get('exit_5k') if network == 'solana' else item.get('evm_exit_5k'))['loss_pct']):.1f}",
