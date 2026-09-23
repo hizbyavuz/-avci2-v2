@@ -2,8 +2,9 @@ import tempfile
 import unittest
 from pathlib import Path
 import sqlite3
+import time
 
-from gate_spot_observer import build_snapshot, save_snapshot
+from gate_spot_observer import build_snapshot, coverage_report, save_snapshot
 
 
 ADDRESS = "0x" + "a" * 40
@@ -39,7 +40,7 @@ class GateSpotObserverTest(unittest.TestCase):
     def test_error_clears_stale_market_data(self):
         with tempfile.TemporaryDirectory() as directory:
             db = str(Path(directory) / "state.db")
-            save_snapshot(db, "batch1", [("GOOD_USDT", "GOOD", "Good", 1, 2, 3)],
+            save_snapshot(db, "batch1", [("GOOD_USDT", "GOOD", "Good", 1, 40000, 3)],
                           [("GOOD_USDT", "eth", ADDRESS)])
             save_snapshot(db, "batch2", [], [], "RequestException")
             with sqlite3.connect(db) as con:
@@ -48,6 +49,29 @@ class GateSpotObserverTest(unittest.TestCase):
                 self.assertEqual(con.execute(
                     "SELECT status FROM gate_spot_health WHERE batch_id='batch2'"
                 ).fetchone()[0], "ERROR")
+                self.assertEqual(con.execute(
+                    "SELECT count(*) FROM gate_spot_history").fetchone()[0], 1)
+
+    def test_mover_coverage_requires_official_contract_match(self):
+        with tempfile.TemporaryDirectory() as directory:
+            db = str(Path(directory) / "state.db")
+            save_snapshot(db, "gate1", [
+                ("GOOD_USDT", "GOOD", "Good", 1, 40000, 22),
+                ("OTHER_USDT", "OTHER", "Other", 1, 40000, 15),
+            ], [("GOOD_USDT", "eth", ADDRESS)])
+            with sqlite3.connect(db) as con:
+                con.execute("""CREATE TABLE gate_scan_health (
+                    batch_id TEXT, status TEXT, scan_ts INTEGER)""")
+                con.execute("""INSERT INTO gate_scan_health VALUES
+                    ('chain1', 'VALID', ?)""", (int(time.time()),))
+                con.execute("""CREATE TABLE gate_early_observations (
+                    batch_id TEXT, network_id TEXT, token_contract TEXT)""")
+                con.execute("""INSERT INTO gate_early_observations VALUES
+                    ('chain1', 'eth', ?)""", (ADDRESS,))
+            result = coverage_report(db, "gate1")
+            self.assertIn("+%10 2 parite, +%20 1", result)
+            self.assertIn("resmi kontratı eşleşen 1", result)
+            self.assertIn("on-chain gözleminde görülen 1", result)
 
 
 if __name__ == "__main__":
