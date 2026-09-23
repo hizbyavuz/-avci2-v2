@@ -92,6 +92,10 @@ jobs:
         continue-on-error: true
         run: python -u avci_observation_report.py gate
 
+      - name: Calibrate Gate security confidence against past outcomes
+        continue-on-error: true
+        run: python -u gate_security_calibration.py
+
       - name: Send Gate early traces waiting on safety evidence
         if: success()
         continue-on-error: true
