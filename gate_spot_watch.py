@@ -153,6 +153,74 @@ def fetch_book(pair):
         return json.load(response)
 
 
+def orderbook_pressure(orderbook, levels=20):
+    """Top-of-book notional imbalance; observational, never a safety verdict."""
+    try:
+        bids = sum(float(p) * float(q) for p, q in orderbook["bids"][:levels]
+                   if float(p) > 0 and float(q) > 0)
+        asks = sum(float(p) * float(q) for p, q in orderbook["asks"][:levels]
+                   if float(p) > 0 and float(q) > 0)
+        if asks <= 0 or bids <= 0:
+            return None
+        return bids / asks
+    except (KeyError, TypeError, ValueError, OverflowError):
+        return None
+
+
+def orderbook_candidates(con, now, batch, existing_pairs, book_fetch):
+    """Independent path: quiet price + strong bid depth on verified Gate pairs."""
+    rows = con.execute("""SELECT h.pair,h.symbol,h.last,h.volume_24h,h.change_24h,
+        q.buy_start,q.bid,q.ask FROM gate_spot_history h
+        JOIN gate_spot_quality q ON q.batch_id=h.batch_id AND q.pair=h.pair
+        WHERE h.batch_id=? ORDER BY h.volume_24h DESC LIMIT 120""",
+        (batch,)).fetchall()
+    out = []
+    for pair, symbol, price, volume, day_change, start, bid, ask in rows:
+        if pair in existing_pairs or volume < 500000 or not 0 <= day_change <= 15:
+            continue
+        if start <= 0 or now - start < 30 * 86400 or ask <= 0:
+            continue
+        if 100 * (ask - bid) / ask > .35:
+            continue
+        prior = con.execute("""SELECT h.last FROM gate_spot_history h
+            JOIN gate_spot_health g ON g.batch_id=h.batch_id
+            WHERE h.pair=? AND g.status='VALID' AND g.scan_ts BETWEEN ? AND ?
+            ORDER BY g.scan_ts DESC LIMIT 1""",
+            (pair, now - 3600, now - 18 * 60)).fetchone()
+        if not prior or prior[0] <= 0:
+            continue
+        rise = 100 * (price / prior[0] - 1)
+        if not -0.4 <= rise <= 1.0:
+            continue
+        addresses = con.execute("""SELECT network_id,token_contract
+            FROM gate_spot_contracts WHERE pair=?""", (pair,)).fetchall()
+        if not addresses:
+            continue
+        recent = con.execute("""SELECT 1 FROM gate_spot_watch w
+            JOIN gate_spot_health g ON g.batch_id=w.batch_id
+            WHERE w.pair=? AND w.status='PAPER_WATCH'
+              AND g.scan_ts BETWEEN ? AND ? LIMIT 1""",
+            (pair, now - 24*3600, now)).fetchone()
+        if recent:
+            continue
+        try:
+            book = book_fetch(pair)
+        except (OSError, TimeoutError, ValueError):
+            continue
+        imbalance = orderbook_pressure(book)
+        if imbalance is None or imbalance < 1.8:
+            continue
+        out.append({"pair":pair,"symbol":symbol,"price":price,
+            "volume_24h":volume,"change_24h":day_change,"rise_pct":rise,
+            "spread_pct":100*(ask-bid)/ask,"network":addresses[0][0],
+            "contract":addresses[0][1],"age_days":(now-start)/86400,
+            "entry_path":"ORDERBOOK_PRESSURE","path_strength":min(imbalance,4),
+            "volume_accel_pct":None,"orderbook_imbalance":imbalance,
+            "_book":book})
+    return sorted(out, key=lambda x:(x["path_strength"],x["volume_24h"]),
+                  reverse=True)
+
+
 def record_watch_paths(con, batch, now):
     """Track sampled post-signal prices; never call them executable returns."""
     con.execute("""CREATE TABLE IF NOT EXISTS gate_spot_watch_path (
@@ -191,10 +259,15 @@ def run(path=DB, book_fetch=fetch_book):
         record_watch_paths(con, batch, now)
         counts = {}
         result = shortlist(con, now, batch, counts)
+        existing = {item["pair"] for item in result}
+        book_rows = orderbook_candidates(con, now, batch, existing, book_fetch)
+        counts["orderbook"] = len(book_rows)
+        result = sorted(result + book_rows,
+            key=lambda x: (x["path_strength"], x["volume_24h"]), reverse=True)
         messages = []
-        for item in result[:3]:
+        for item in result[:5]:
             try:
-                loss = round_trip_loss(book_fetch(item["pair"]))
+                loss = round_trip_loss(item.get("_book") or book_fetch(item["pair"]))
             except (OSError, TimeoutError, ValueError):
                 loss = None
             status = "PAPER_WATCH" if loss is not None and loss <= 3 else "BOOK_UNVERIFIED"
@@ -218,7 +291,8 @@ def run(path=DB, book_fetch=fetch_book):
                 f"önceki fiyat {counts['history']}, çoklu-yol eşleşme "
                 f"{counts['rising']} (momentum {counts['momentum']}, "
                 f"retention {counts['retention']}, pre-breakout "
-                f"{counts['prebreakout']}), resmi kontrat {counts['mapped']}. " +
+                f"{counts['prebreakout']}, order-book {counts['orderbook']}), "
+                f"resmi kontrat {counts['mapped']}. " +
                 (" | ".join(messages) if messages else "Temiz izleme yok."))
 
 
