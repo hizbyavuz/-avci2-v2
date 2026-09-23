@@ -13,7 +13,7 @@ import json
 import math
 import sqlite3
 import statistics
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from binance_scanner import spot_api_get, futures_api_get
 
@@ -257,9 +257,11 @@ def main(path=DB):
                  1 if "BTC_DECOUPLING_RETENTION" in flags else 0,
                  json.dumps(decoupling)))
             if "BTC_DECOUPLING_STRENGTH" in decoupling and row["price"]:
+                cutoff = (datetime.fromisoformat(scan[0].replace("Z", "+00:00"))
+                          - timedelta(hours=6)).isoformat()
                 recent_event = con.execute("""SELECT 1 FROM btc_decoupling_events
-                    WHERE symbol=? AND signal_time_utc>=datetime(?, '-6 hours')
-                    LIMIT 1""", (symbol, scan[0])).fetchone()
+                    WHERE symbol=? AND signal_time_utc>=?
+                    LIMIT 1""", (symbol, cutoff)).fetchone()
                 if not recent_event:
                     snapshot = dict(row)
                     snapshot.update({
