@@ -71,7 +71,16 @@ class GateSpotObserverTest(unittest.TestCase):
             result = coverage_report(db, "gate1")
             self.assertIn("+%10 2 parite, +%20 1", result)
             self.assertIn("resmi kontratı eşleşen 1", result)
-            self.assertIn("on-chain gözleminde görülen 1", result)
+            self.assertIn("on-chain gözlemde görülen 1", result)
+
+    def test_standalone_spot_coverage_without_onchain_tables(self):
+        with tempfile.TemporaryDirectory() as directory:
+            db = str(Path(directory) / "state.db")
+            save_snapshot(db, "spot1", [
+                ("GOOD_USDT", "GOOD", "Good", 1, 40000, 12),
+            ], [("GOOD_USDT", "eth", ADDRESS)])
+            self.assertIn("on-chain gözlemde görülen karşılaştırma yok",
+                          coverage_report(db, "spot1"))
 
 
 if __name__ == "__main__":
