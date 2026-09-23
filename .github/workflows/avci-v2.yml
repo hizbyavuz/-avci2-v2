@@ -63,6 +63,10 @@ jobs:
         continue-on-error: true
         run: python -u gate_btc_divergence.py
 
+      - name: Observe missed movers, leaders, followers, and silent accumulation
+        continue-on-error: true
+        run: python -u gate_opportunity_observer.py
+
       - name: Run Avci 2 V2
         env:
          JUPITER_API_KEY: ${{ secrets.JUPITER_API_KEY }}
