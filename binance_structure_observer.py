@@ -18,7 +18,7 @@ from datetime import datetime
 from binance_scanner import spot_api_get, futures_api_get
 
 DB = "binance_avci2.db"
-VERSION = "binance-structure-observer-v0.2-20260923"
+VERSION = "binance-structure-observer-v0.3-20260923"
 
 SECTORS = {
     "AI": {"TAO","FET","RENDER","VIRTUAL","ARKM","WLD","NEAR","ICP","GRT"},
@@ -148,6 +148,20 @@ def main(path=DB):
             retained INTEGER NOT NULL DEFAULT 0,
             flags_json TEXT NOT NULL,
             PRIMARY KEY(scan_time_utc,symbol,version))""")
+        con.execute("""CREATE TABLE IF NOT EXISTS btc_decoupling_events (
+            event_id TEXT PRIMARY KEY, signal_time_utc TEXT NOT NULL,
+            symbol TEXT NOT NULL, signal_price REAL NOT NULL,
+            version TEXT NOT NULL, sector TEXT,
+            btc_return_15m REAL, coin_return_15m REAL,
+            btc_excess_15m REAL, market_excess_15m REAL,
+            sector_excess_15m REAL, volume_rarity_pct REAL,
+            cross_sectional_rarity_pct REAL, oi_change_1h_pct REAL,
+            oi_anomaly_z REAL, funding_rate REAL,
+            funding_acceleration REAL, book_bid_ask_ratio REAL,
+            lead_lag TEXT, spot_return_15m REAL,
+            futures_return_15m REAL, stage TEXT, score INTEGER,
+            feature_snapshot_json TEXT NOT NULL,
+            outcome_status TEXT NOT NULL DEFAULT 'OPEN')""")
         scan, rows = latest_candidates(con)
         if not scan:
             print("Binance yapı gözlemi: geçerli tarama yok")
@@ -242,6 +256,42 @@ def main(path=DB):
                  market_excess,
                  1 if "BTC_DECOUPLING_RETENTION" in flags else 0,
                  json.dumps(decoupling)))
+            if "BTC_DECOUPLING_STRENGTH" in decoupling and row["price"]:
+                recent_event = con.execute("""SELECT 1 FROM btc_decoupling_events
+                    WHERE symbol=? AND signal_time_utc>=datetime(?, '-6 hours')
+                    LIMIT 1""", (symbol, scan[0])).fetchone()
+                if not recent_event:
+                    snapshot = dict(row)
+                    snapshot.update({
+                        "sector": sec,
+                        "sector_excess_15m": sector_excess,
+                        "market_excess_15m": market_excess,
+                        "btc_return_15m": btc_return_15m,
+                        "btc_excess_15m": btc_excess,
+                        "oi_anomaly_z": oi_z,
+                        "funding_acceleration": funding_accel,
+                        "book_bid_ask_ratio": pressure,
+                        "lead_lag": lead,
+                        "spot_return_15m": sret,
+                        "futures_return_15m": fret,
+                        "flags": flags,
+                    })
+                    event_id = f"DEC:{symbol}:{scan[0]}"
+                    con.execute("""INSERT OR IGNORE INTO btc_decoupling_events
+                        (event_id,signal_time_utc,symbol,signal_price,version,sector,
+                         btc_return_15m,coin_return_15m,btc_excess_15m,market_excess_15m,
+                         sector_excess_15m,volume_rarity_pct,cross_sectional_rarity_pct,
+                         oi_change_1h_pct,oi_anomaly_z,funding_rate,funding_acceleration,
+                         book_bid_ask_ratio,lead_lag,spot_return_15m,futures_return_15m,
+                         stage,score,feature_snapshot_json)
+                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                        (event_id, scan[0], symbol, float(row["price"]), VERSION, sec,
+                         btc_return_15m, row["change_15m"], btc_excess, market_excess,
+                         sector_excess, row["volume_rarity_pct"],
+                         row["cross_sectional_rarity_pct"], row["oi_change_1h_pct"],
+                         oi_z, row["funding_rate"], funding_accel, pressure, lead,
+                         sret, fret, row["stage"], row["score"],
+                         json.dumps(snapshot, default=str)))
             written += 1
             if flags:
                 print(f"Yapı gözlemi {symbol}: {', '.join(flags)}")
