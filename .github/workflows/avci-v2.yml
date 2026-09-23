@@ -92,6 +92,14 @@ jobs:
         continue-on-error: true
         run: python -u avci_observation_report.py gate
 
+      - name: Send Gate early traces waiting on safety evidence
+        if: success()
+        continue-on-error: true
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python -u gate_missing_evidence_notify.py
+
       - name: Send verified Gate research candidates
         if: success()
         env:
