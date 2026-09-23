@@ -38,9 +38,17 @@ def valid_contract(network, address):
 
 def observation_only_reason(reason):
     """Allow research-only alerts for missing evidence, never for hard risk."""
-    text = str(reason or "").upper().strip()
-    if not text:
+    raw = str(reason or "").strip()
+    if not raw:
         return False
+    # Keep the generic mixed verdict blocked. It contains no specific
+    # missing-only cause and must never be promoted to a research alert.
+    if raw in (
+        "Risk işaretleri var veya güvenlik verisi eksik",
+        "RISK ISARETLERI VAR VEYA GUVENLIK VERISI EKSIK",
+    ):
+        return False
+    text = raw.upper()
     if "RİSK İŞARETLERİ VAR VEYA GÜVENLİK VERİSİ EKSİK:" in text:
         text = text.split(":", 1)[1].strip()
     elif "RISK ISARETLERI VAR VEYA GUVENLIK VERISI EKSIK:" in text:
