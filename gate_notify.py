@@ -208,7 +208,7 @@ def format_alert(event, item, context, risk_context=None):
         if context.get("gain_before_signal_pct") is not None:
             lines.append(f"• Sinyal gelmeden önce fiyat zaten %{context['gain_before_signal_pct']:+.1f} hareket etmişti.")
 
-    lines.extend(["","🛡 Güvenlik özeti"])
+    lines.extend(["","🛡 Güvenlik"])
     lines.append(f"• {security_confidence_line(item)}")
     lines.append(
         f"• Likiditenin korunan kısmı yaklaşık %{float(lp.get('protected_pct') or 0):.0f}."
@@ -231,6 +231,7 @@ def format_alert(event, item, context, risk_context=None):
         lines.append("Coin henüz 24 saatlik ölçekte aşırı kaçmış görünmüyor.")
     lines.extend([
         "Güvenlik kontrollerinden geçmiş olması risksiz olduğu anlamına gelmez.",
+        "Bu coin temiz araştırma adayıdır; kesin alım sinyali değildir.",
         f"Tam kontrat: {contract}",
         "📌 Bot sadece izliyor; hesabında işlem açmıyor.",
     ])
