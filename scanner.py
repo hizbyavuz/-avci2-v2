@@ -8,6 +8,7 @@ from collections import Counter, defaultdict
 from datetime import datetime, timezone
 
 from snapshot_deposu import snapshot_kaydet, son_snapshot, snapshot_sayisi
+from gate_early_observer import record_scan
 
 # ============================================================
 # AVCI 2 V3 — COMPLETE CORE
@@ -312,7 +313,8 @@ def api_get(path):
 
     return {
         "data": [],
-        "included": []
+        "included": [],
+        "_avci_data_error": True,
     }
 
 
@@ -588,6 +590,8 @@ def solana_mint_profile(mint):
         "holder_sample_unique": None,
         "holder_sample_accounts": None,
         "holder_sample_truncated": None,
+        "token_program": None,
+        "token_extensions": [],
     }
 
     rpc_url = solana_rpc_url()
@@ -607,10 +611,16 @@ def solana_mint_profile(mint):
     if account_res["ok"]:
         value = (account_res.get("result") or {}).get("value")
         data = (value or {}).get("data") or {}
+        result["token_program"] = (value or {}).get("owner")
 
         if isinstance(data, dict):
             parsed = data.get("parsed") or {}
             info = parsed.get("info") or {}
+            extensions = info.get("extensions") or []
+            result["token_extensions"] = [
+                str(x.get("extension") or x.get("type") or "UNKNOWN")
+                for x in extensions if isinstance(x, dict)
+            ]
 
             result["decimals"] = int_or_zero(
                 info.get("decimals")
@@ -5377,6 +5387,7 @@ print(
 
 all_candidates = []
 all_control_pool = []
+feed_errors = []
 
 for network_id, network_name in NETWORKS.items():
     print()
@@ -5391,6 +5402,10 @@ for network_id, network_name in NETWORKS.items():
         f"?include="
         f"base_token,quote_token"
     )
+    if (not isinstance(trending, dict) or trending.get("_avci_data_error")
+            or not isinstance(trending.get("data"), list)):
+        feed_errors.append(f"{network_id}:trending")
+        trending = {"data": [], "included": []}
 
     all_candidates.extend(
         scan_payload(
@@ -5419,6 +5434,10 @@ for network_id, network_name in NETWORKS.items():
         f"?include="
         f"base_token,quote_token"
     )
+    if (not isinstance(new_pools, dict) or new_pools.get("_avci_data_error")
+            or not isinstance(new_pools.get("data"), list)):
+        feed_errors.append(f"{network_id}:new_pools")
+        new_pools = {"data": [], "included": []}
 
     all_candidates.extend(
         scan_payload(
@@ -5489,6 +5508,13 @@ batch_id = (
     datetime.now(timezone.utc)
     .strftime("%Y%m%dT%H%M")
 )
+
+# V5 selection remains frozen. This separate v5.1 observation records
+# the broader eligible pool history and whether any feed failed.
+observer_health = record_scan(
+    "avci2.db", batch_id, all_control_pool + all_candidates, feed_errors
+)
+print("Erken izleme verisi:", observer_health)
 
 # Candidate ve controls AYNI entry/outcome kuraliyla validation DB'ye.
 for c in all_candidates:

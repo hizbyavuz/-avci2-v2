@@ -1,0 +1,100 @@
+"""Append-only, observational Gate/on-chain history. V5 rules are unchanged."""
+
+import sqlite3
+import statistics
+import time
+
+
+OBSERVATION_VERSION = "gate-early-observation-v1"
+
+
+def record_scan(path, batch_id, pools, feed_errors=(), now_ts=None):
+    """Record the eligible pool universe, including controls, before alerting."""
+    now_ts = int(now_ts or time.time())
+    best = {}
+    for item in pools:
+        network, contract = item.get("network_id"), item.get("token_contract")
+        if not network or not contract:
+            continue
+        key = (network, contract.lower())
+        if key not in best or float(item.get("liquidity") or 0) > float(
+                best[key].get("liquidity") or 0):
+            best[key] = item
+
+    con = sqlite3.connect(path, timeout=30)
+    try:
+        con.execute("""CREATE TABLE IF NOT EXISTS gate_scan_health (
+            batch_id TEXT PRIMARY KEY, scan_ts INTEGER NOT NULL,
+            observation_version TEXT NOT NULL, source_errors TEXT NOT NULL,
+            observed_tokens INTEGER NOT NULL, status TEXT NOT NULL)""")
+        con.execute("""CREATE TABLE IF NOT EXISTS gate_early_observations (
+            batch_id TEXT NOT NULL, scan_ts INTEGER NOT NULL,
+            network_id TEXT NOT NULL, token_contract TEXT NOT NULL,
+            pool TEXT, price REAL, liquidity REAL, volume_5m REAL,
+            volume_1h REAL, buys_5m REAL, sells_5m REAL,
+            change_24h REAL, own_volume_ratio REAL,
+            observed_anomaly INTEGER NOT NULL DEFAULT 0,
+            PRIMARY KEY (batch_id, network_id, token_contract))""")
+        con.execute("""CREATE INDEX IF NOT EXISTS idx_gate_early_history
+            ON gate_early_observations(network_id, token_contract, scan_ts)""")
+        errors = tuple(feed_errors)
+        # Zero eligible pools can be a valid scan; only source failures invalidate it.
+        status = "INVALID" if errors else "VALID"
+        con.execute("""INSERT OR REPLACE INTO gate_scan_health VALUES
+            (?, ?, ?, ?, ?, ?)""",
+            (batch_id, now_ts, OBSERVATION_VERSION,
+             "; ".join(errors), len(best), status))
+
+        for (network, contract), item in best.items():
+            price = float(item.get("price_usd") or 0)
+            volume = float(item.get("volume_5m") or 0)
+            buys = float(item.get("buys_5m") or 0)
+            sells = float(item.get("sells_5m") or 0)
+            liquidity = float(item.get("liquidity") or 0)
+            previous = con.execute("""SELECT scan_ts, volume_5m, liquidity
+                FROM gate_early_observations
+                WHERE network_id=? AND token_contract=? AND scan_ts<?
+                AND scan_ts>=? ORDER BY scan_ts DESC LIMIT 36""",
+                (network, contract, now_ts, now_ts - 6 * 3600)).fetchall()
+            # Rolling 5m volume is compared with the token's own prior
+            # observations. Insufficient history stays explicitly unknown.
+            baseline = [row[1] for row in previous if row[1] and row[1] > 0]
+            ratio = None
+            anomaly = False
+            if len(baseline) >= 3 and now_ts - previous[-1][0] >= 20 * 60:
+                ratio = volume / statistics.median(baseline)
+                recent_liquidity = previous[0][2] or 0
+                anomaly = bool(price > 0 and liquidity >= recent_liquidity * .8
+                               and ratio >= 2.5 and buys >= 1.2 * max(sells, 1)
+                               and float(item.get("change_24h") or 0) < 40)
+            con.execute("""INSERT OR REPLACE INTO gate_early_observations
+                (batch_id, scan_ts, network_id, token_contract, pool, price,
+                 liquidity, volume_5m, volume_1h, buys_5m, sells_5m,
+                 change_24h, own_volume_ratio, observed_anomaly)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (batch_id, now_ts, network, contract, item.get("pool"),
+                 price, liquidity, volume, float(item.get("volume_1h") or 0),
+                 buys, sells, float(item.get("change_24h") or 0),
+                 ratio, int(anomaly)))
+        con.commit()
+        return {"status": status, "observed": len(best), "errors": errors}
+    finally:
+        con.close()
+
+
+def early_context(con, batch_id, network, contract, signal_price):
+    """Return known first anomaly and pre-signal change, never post-signal PNL."""
+    rows = con.execute("""SELECT scan_ts, price, own_volume_ratio,
+        observed_anomaly FROM gate_early_observations
+        WHERE network_id=? AND token_contract=? AND
+        scan_ts >= (SELECT scan_ts - 72*3600 FROM gate_scan_health
+                    WHERE batch_id=?)
+        ORDER BY scan_ts""", (network, contract.lower(), batch_id)).fetchall()
+    first = next((row for row in rows if row[3] and row[1] > 0), None)
+    current = rows[-1] if rows else None
+    if first is None:
+        return {"first_anomaly_ts": None, "gain_before_signal_pct": None,
+                "own_volume_ratio": current[2] if current else None}
+    return {"first_anomaly_ts": first[0],
+            "gain_before_signal_pct": 100 * (signal_price / first[1] - 1),
+            "own_volume_ratio": current[2] if current else None}
