@@ -135,6 +135,43 @@ class GateNotificationTests(unittest.TestCase):
                 self.assertEqual(send_pending(obs, val, session), 0)
             self.assertEqual(len(session.calls), 1)
 
+    def test_missing_chat_id_uses_same_private_chat_discovery_as_binance(self):
+        with tempfile.TemporaryDirectory() as folder:
+            obs = str(Path(folder) / "obs.db")
+            val = str(Path(folder) / "val.db")
+            record_scan(obs, "b", [], now_ts=10_000)
+            with sqlite3.connect(obs) as con:
+                con.execute("""CREATE TABLE gate_alert_audit (
+                    validation_id INTEGER PRIMARY KEY, decided_at_utc TEXT,
+                    status TEXT, reason TEXT, message TEXT)""")
+                con.execute("INSERT INTO gate_alert_audit VALUES (1, '', 'PENDING', '', 'TEST')")
+            with sqlite3.connect(val) as con:
+                con.execute("""CREATE TABLE validation_events (
+                    id INTEGER, batch_id TEXT, group_type TEXT, rulesets TEXT,
+                    network_id TEXT, token_contract TEXT, signal_ts INTEGER,
+                    signal_iso TEXT, signal_price REAL)""")
+
+            class Session:
+                def __init__(self):
+                    self.chat_ids = []
+
+                def post(self, url, **kwargs):
+                    self.chat_ids.append(kwargs["json"]["chat_id"])
+                    class Response:
+                        def raise_for_status(self):
+                            pass
+                        def json(self):
+                            return {"ok": True}
+                    return Response()
+
+            session = Session()
+            with patch.dict("os.environ", {"TELEGRAM_BOT_TOKEN": "test-token",
+                                         "TELEGRAM_CHAT_ID": ""}), \
+                 patch("gate_notify.find_chat_id", return_value="binance-chat") as finder:
+                self.assertEqual(send_pending(obs, val, session), 1)
+            finder.assert_called_once_with("test-token")
+            self.assertEqual(session.chat_ids, ["binance-chat"])
+
 
 if __name__ == "__main__":
     unittest.main()
