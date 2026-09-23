@@ -9,7 +9,7 @@ from zoneinfo import ZoneInfo
 
 import requests
 
-from binance_notify import resolve_chat_id
+from binance_notify import find_chat_id, resolve_chat_id
 from gate_early_observer import candidate_risk_context, early_context
 
 
