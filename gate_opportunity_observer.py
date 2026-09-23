@@ -48,8 +48,9 @@ def main(path=DB):
                           and pacc is not None and pacc>=2 and float(r["change_24h"])>0)
             if follower: flags.append("POSSIBLE_FOLLOWER"); followers+=1
             mapped=con.execute("SELECT 1 FROM gate_spot_contracts WHERE pair=? LIMIT 1",(r["pair"],)).fetchone()
+            early_table=con.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='gate_early_observations'").fetchone()
             seen=False
-            if mapped:
+            if mapped and early_table:
                 seen=bool(con.execute("""SELECT 1 FROM gate_early_observations e
                     JOIN gate_spot_contracts c ON c.network_id=e.network_id
                     AND c.token_contract=e.token_contract
