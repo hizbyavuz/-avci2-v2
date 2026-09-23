@@ -85,7 +85,7 @@ def main(path=DB):
                 pass
             risk,flags,pos=classify_cex_evidence(row["book_bid_ask_ratio"],tape,cross)
             con.execute("""INSERT OR REPLACE INTO binance_deception_evidence
-              VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+              VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
               (ts,row["symbol"],VERSION,risk,json.dumps(flags),json.dumps(pos),
                row["book_bid_ask_ratio"],tape.get("repeated_notional_ratio"),
                tape.get("side_alternation_ratio"),tape.get("top5_notional_share"),
