@@ -6,7 +6,7 @@ import os
 import sqlite3
 from urllib import parse, request
 
-DB = "avci2.db"
+DB = os.getenv("GATE_SPOT_DB", "avci2.db")
 VERSION = "gate-spot-watch-v0-20260923"
 
 
