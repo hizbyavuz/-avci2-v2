@@ -5,7 +5,7 @@ from gate_expanded_observer import collect_extra_observations
 
 class ExpandedObservationTest(unittest.TestCase):
     def test_pages_extend_research_only_and_report_optional_failure(self):
-        urls, parsed, sleeps = [], [], []
+        urls, parsed, sleeps, screened = [], [], [], []
 
         def fetch(url):
             urls.append(url)
@@ -19,7 +19,9 @@ class ExpandedObservationTest(unittest.TestCase):
             return payload["data"]
 
         rows, errors, count = collect_extra_observations(
-            {"solana": "Solana"}, fetch, parse, sleeps.append
+            {"solana": "Solana"}, fetch, parse, sleeps.append,
+            on_payload=lambda payload, network, name, source:
+                screened.append((network, source, payload["data"][0]["id"]))
         )
         self.assertEqual(count, 3)
         self.assertEqual(len(rows), 3)
@@ -27,6 +29,8 @@ class ExpandedObservationTest(unittest.TestCase):
             errors, ["solana:new_pools:page3"]
         )
         self.assertEqual(len(urls), 4)
+        self.assertEqual(len(screened), 3)
+        self.assertTrue(all("page=" in row[2] for row in screened))
         self.assertEqual(sleeps, [7, 7, 7])
         self.assertEqual(parsed, [
             ("solana", "TRENDING"), ("solana", "TRENDING"),
