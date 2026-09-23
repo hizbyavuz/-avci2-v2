@@ -108,6 +108,39 @@ class GateNotificationTests(unittest.TestCase):
             self.assertEqual(result["status"], "VALID")
             self.assertEqual(result["observed"], 0)
 
+    def test_expanded_candidate_needs_same_pool_security_even_with_second_source(self):
+        with tempfile.TemporaryDirectory() as folder:
+            obs = str(Path(folder) / "obs.db")
+            val = str(Path(folder) / "val.db")
+            record_scan(obs, "batch", [pool()], now_ts=10_000)
+            with sqlite3.connect(val) as con:
+                con.execute("""CREATE TABLE validation_events
+                    (id INTEGER, batch_id TEXT, group_type TEXT,
+                     network_id TEXT, token_contract TEXT, signal_ts INTEGER,
+                     signal_iso TEXT, signal_price REAL, rulesets TEXT)""")
+                con.execute("INSERT INTO validation_events VALUES (?,?,?,?,?,?,?,?,?)",
+                            (4, "batch", "EXPANDED_CANDIDATE", "solana", CONTRACT,
+                             10_000, "2026-09-23T00:00:00+00:00", 1,
+                             "R1_WAKEUP_STRICT"))
+            with sqlite3.connect(obs) as con:
+                con.execute("""CREATE TABLE snapshots (id INTEGER PRIMARY KEY,
+                    network_id TEXT, token_contract TEXT, zaman_utc TEXT,
+                    raw_json TEXT)""")
+                item = safe_item()
+                item["validation_event_id"] = 4
+                item["lp_protection"] = {"status": "DATA_MISSING"}
+                item["lp_crosscheck"] = {"status": "OBSERVED", "source": "Rugcheck",
+                                          "token_lp_locked_pct": 100,
+                                          "pool_match_verified": False}
+                con.execute("INSERT INTO snapshots VALUES (1,?,?,?,?)",
+                            ("solana", CONTRACT, "2026-09-23T00:00:01+00:00",
+                             json.dumps(item)))
+            self.assertEqual(pending_alerts(obs, val), [])
+            with sqlite3.connect(obs) as con:
+                self.assertEqual(con.execute("SELECT status FROM gate_alert_audit "
+                                             "WHERE validation_id=4").fetchone()[0],
+                                 "WITHHELD")
+
     def test_only_frozen_rule_candidate_is_queued_once(self):
         with tempfile.TemporaryDirectory() as folder:
             obs = str(Path(folder) / "obs.db")

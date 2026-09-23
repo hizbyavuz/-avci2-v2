@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from snapshot_deposu import snapshot_kaydet, son_snapshot, snapshot_sayisi
 from gate_early_observer import record_scan, record_candidate_risk
 from gate_expanded_observer import collect_extra_observations
+from gate_lp_crosscheck import fetch_lp_summary
 from gate_intelligence import (creator_reputation, lp_lock_health,
                                x_contract_mentions)
 
@@ -4601,7 +4602,7 @@ def validation_record_event(
 
     rulesets = ""
 
-    if group_type == "CANDIDATE":
+    if group_type in ("CANDIDATE", "EXPANDED_CANDIDATE"):
         rulesets = ",".join(
             frozen_rulesets_for_candidate(
                 item
@@ -4650,7 +4651,8 @@ def validation_record_event(
         )
         """,
         (
-            CONFIG_VERSION,
+            ("v5.1-expanded-20260923" if group_type == "EXPANDED_CANDIDATE"
+             else CONFIG_VERSION),
             batch_id,
             group_type,
             item.get(
@@ -5456,6 +5458,7 @@ print(
 )
 
 all_candidates = []
+expanded_candidates = []
 all_control_pool = []
 all_observation_pool = []
 feed_errors = []
@@ -5549,6 +5552,10 @@ extra_observations, extra_page_errors, extra_pages = collect_extra_observations(
     api_get,
     control_pool_from_payload,
     time.sleep,
+    on_payload=lambda payload, network_id, network_name, source:
+        expanded_candidates.extend(
+            scan_payload(payload, network_id, network_name, source)
+        ),
 )
 all_observation_pool.extend(extra_observations)
 print(
@@ -5691,6 +5698,51 @@ for candidate in all_candidates:
         candidate,
         CONFIG_VERSION
     )
+
+# Keep frozen V5 events and controls intact. Extra-page candidates form a
+# separately labeled cohort, with the SAME rule and security checks.
+original_tokens = {
+    (candidate["network_id"], candidate["token_contract"].lower())
+    for candidate in all_candidates
+}
+expanded_candidates = [
+    candidate for candidate in deduplicate(expanded_candidates)
+    if (candidate["network_id"], candidate["token_contract"].lower())
+    not in original_tokens
+]
+for candidate in expanded_candidates:
+    candidate["frozen_rulesets"] = frozen_rulesets_for_candidate(candidate)
+expanded_qualified = [
+    candidate for candidate in expanded_candidates
+    if candidate["frozen_rulesets"]
+]
+expanded_qualified.sort(
+    key=lambda c: (c["score"], c["motor_passed"],
+                   c["volume_liquidity_ratio"]), reverse=True
+)
+expanded_enriched = []
+for candidate in expanded_qualified[:2]:
+    enrich_candidate(candidate)
+    candidate["candidate_stream"] = "V5_1_EXPANDED"
+    if (candidate["network_id"] == "solana"
+            and (candidate.get("lp_protection") or {}).get("status")
+            == "DATA_MISSING"):
+        candidate["lp_crosscheck"] = fetch_lp_summary(
+            candidate["token_contract"]
+        )
+    try:
+        candidate["validation_event_id"] = validation_record_event(
+            candidate, "EXPANDED_CANDIDATE", batch_id, regime
+        )
+        snapshot_kaydet(candidate, "v5.1-expanded-20260923")
+        expanded_enriched.append(candidate)
+    except Exception as exc:
+        print("Expanded candidate record error:", type(exc).__name__)
+if expanded_enriched:
+    record_candidate_risk("avci2.db", batch_id, expanded_enriched)
+print("V5.1 ek sayfa: aday", len(expanded_candidates),
+      "| kurallara uyan", len(expanded_qualified),
+      "| güvenlik incelenen", len(expanded_enriched))
 
 print(
     "Snapshot toplam:",
