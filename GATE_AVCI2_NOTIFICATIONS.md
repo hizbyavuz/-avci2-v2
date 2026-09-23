@@ -3,7 +3,9 @@
 ## Gate Spot için ayrı erken kağıt izleme
 
 `gate_spot_observer.py` Gate'in tradable, normal, ST işareti olmayan USDT
-paritelerini ve Gate'in resmi zincir adreslerini okur. En az $30.000 günlük
+paritelerini ve Gate'in resmi zincir adreslerini okur. Gate'in resmi ETF
+alanları ve kaldıraçlı ürün isimleri ayrıca dışlanır; `type=normal` tek başına
+gerçek coin olduğunu doğrulamaz. En az $30.000 günlük
 hacmi olanların fiyatı tarama bazında saklanır; güncel taramada 24 saatlik
 +%10/+%20 hareketlerin kaçının on-chain gözleme girdiği Actions logunda
 sayılır. Bu sayı 24 saatlik geçmişi anlatır; erken alım sinyali değildir.
