@@ -105,6 +105,10 @@ jobs:
         continue-on-error: true
         run: python -u binance_decoupling_labeler.py
 
+      - name: Observe missed movers, leaders, followers, and silent accumulation
+        continue-on-error: true
+        run: python -u binance_opportunity_observer.py
+
       - name: Record order-book, trade, and derivative observations
         continue-on-error: true
         run: python -u binance_flow_observer.py
