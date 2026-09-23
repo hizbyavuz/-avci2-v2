@@ -44,6 +44,12 @@ jobs:
       - name: Install requests
         run: pip install requests
 
+      - name: Observe Gate Spot and record separate early movement
+        continue-on-error: true
+        run: |
+          python gate_spot_observer.py
+          python gate_spot_watch.py
+
       - name: Run Avci 2 V2
         env:
          JUPITER_API_KEY: ${{ secrets.JUPITER_API_KEY }}
@@ -52,10 +58,6 @@ jobs:
          GOPLUS_ACCESS_TOKEN: ${{ secrets.GOPLUS_ACCESS_TOKEN }}
          X_API_BEARER_TOKEN: ${{ secrets.X_API_BEARER_TOKEN }}
         run: python scanner.py
-      - name: Observe Gate Spot markets without alerts
-        if: success()
-        continue-on-error: true
-        run: python gate_spot_observer.py
       - name: Send verified Gate research candidates
         if: success()
         env:

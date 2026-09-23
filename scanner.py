@@ -3974,6 +3974,7 @@ def control_pool_from_payload(
     network_name,
     source,
     observation=False,
+    allow_old_pool=False,
 ):
     inc = included_map(payload)
     rows = []
@@ -4053,7 +4054,7 @@ def control_pool_from_payload(
             if not (CONTROL_MIN_CHANGE_24H <= change_24h <= CONTROL_MAX_CHANGE_24H):
                 continue
 
-        if (
+        if (not allow_old_pool and
             age_minutes is not None
             and age_minutes > MAX_POOL_AGE_MINUTES
         ):
@@ -5743,6 +5744,18 @@ if expanded_enriched:
 print("V5.1 ek sayfa: aday", len(expanded_candidates),
       "| kurallara uyan", len(expanded_qualified),
       "| güvenlik incelenen", len(expanded_enriched))
+
+# Independent Gate Spot momentum stream. It starts from Gate's exact official
+# contract and requires a matching DEX pool plus the SAME alert security gate.
+# No row from this stream enters the frozen V5 candidate/control statistics.
+try:
+    from gate_spot_bridge import review as review_gate_spot
+    bridge_counts = review_gate_spot(
+        "avci2.db", api_get, control_pool_from_payload, enrich_candidate,
+        (compute_climax, compute_trap_proxy), time.sleep)
+    print("Gate Spot ayrı güvenlik köprüsü:", bridge_counts)
+except (OSError, ValueError, sqlite3.Error) as exc:
+    print("::warning::Gate Spot köprüsü kullanılamadı:", type(exc).__name__)
 
 print(
     "Snapshot toplam:",

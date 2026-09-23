@@ -29,6 +29,11 @@ def valid_address(network, address):
     return bool(pattern.fullmatch(address or ""))
 
 
+def identity(network, address):
+    # Solana base58 mint addresses are case sensitive; EVM hex is not.
+    return address if network == "solana" else address.lower()
+
+
 def finite_number(value):
     try:
         number = float(value)
@@ -83,9 +88,9 @@ def build_snapshot(currencies, pairs, tickers):
             address = str(chain.get("addr") or "").strip()
             if not network or not valid_address(network, address):
                 continue
-            key = network, address.lower()
+            key = network, identity(network, address)
             owners.setdefault(key, set()).add(pair_id)
-            contracts.append((pair_id, network, address.lower()))
+            contracts.append((pair_id, network, key[1]))
     # If the official feed maps one address to multiple pairs, keep it unknown.
     contracts = sorted(set(row for row in contracts
                            if len(owners[(row[1], row[2])]) == 1))
@@ -183,9 +188,9 @@ def coverage_report(path, batch, min_volume=30000):
         by_pair = {}
         for row in mapped:
             by_pair.setdefault(row["pair"], set()).add(
-                (row["network_id"], row["token_contract"].lower()))
-        seen = {(row[0], row[1]) for row in con.execute("""
-            SELECT network_id, lower(token_contract)
+                (row["network_id"], identity(row["network_id"], row["token_contract"])))
+        seen = {(row[0], identity(row[0], row[1])) for row in con.execute("""
+            SELECT network_id, token_contract
             FROM gate_early_observations WHERE batch_id=?""",
             (health["batch_id"],))} if health and health["status"] == "VALID" \
                 and time.time() - health["scan_ts"] <= 3600 else None

@@ -28,6 +28,24 @@ Ardışık snapshot henüz yoksa temiz izleme olmaması beklenir. Takip edilen
 olayların sonradan gerçekleşen getirisi ve kaçırılan yükselişler ölçülmeden
 bu ayrı kolun başarısı hakkında hüküm verilmez.
 
+## Gate Spot'tan bağımsız doğrulanmış erken sinyal
+
+Ana Gate iş akışı artık kendi `avci2.db` arşivinde Gate Spot gözlemini ve
+`gate_spot_watch.py` ölçümünü on-chain taramadan **önce** çalıştırır. Yeni
+`gate_spot_bridge.py`, en fazla 20 dakika önce kaydedilmiş ayrı Spot izleme
+olayını yalnızca Gate'in resmi ağ + tam kontrat adresiyle DEX havuzuna bağlar.
+En likit uygun havuzun adresi/DEX fiyatı ve son 5 dakika işlem akışı ayrıca
+kontrol edilir. Sırf Gate'in 24 saatlik artışı bu katmanda sinyal değildir.
+
+Bu ayrı akışın Telegram araştırma bildirimi, ancak mevcut `security_decision`
+kapısından (holder yoğunluğu, LP, mint/sözleşme yetkileri ve gerçek $1.000 ile
+$5.000 DEX satış teklifleri dahil) geçerse `PENDING` olur. Eksik veri ve
+fiyat ayrışması `WITHHELD` olarak kaydedilir. En fazla üç yeni olay incelenir;
+aynı kontrat için 24 saat tekrar bildirim gönderilmez. Bildirim `GATE SPOT |
+AYRI ERKEN GÖZLEM` başlığını taşır ve V5 adayı, güvenli yatırım veya otomatik
+alım anlamına gelmez. Bağımsız `gate-spot-watch.yml` işi hâlâ Telegram
+göndermez. Donmuş V5 kuralları ve başarı sayıları değişmez.
+
 Bu katman mevcut V5 taramasının seçim eşiklerini değiştirmez. Her 10 dakikalık
 taramanın trending/new-pools kaynaklarında görünen geniş gözlem havuzunu ve
 kaynak hatalarını `avci2.db` içine kaydeder. Gözlem için en az $5.000

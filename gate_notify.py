@@ -294,6 +294,38 @@ def send_pending(observation_path=OBS_DB, validation_path=VALIDATION_DB,
             except Exception as exc:
                 print(f"Gate Telegram gönderilemedi, kayıt beklemede: {type(exc).__name__}")
                 break
+        # The separate Gate Spot stream has its own audit and never enters V5.
+        if con.execute("""SELECT 1 FROM sqlite_master WHERE type='table'
+            AND name='gate_spot_bridge_audit'""").fetchone():
+            bridge = con.execute("""SELECT a.watch_batch, a.network_id,
+                a.token_contract, a.message, h.scan_ts
+                FROM gate_spot_bridge_audit a JOIN gate_spot_health h
+                  ON h.batch_id=a.watch_batch
+                WHERE a.status='PENDING' ORDER BY a.decided_at LIMIT 3""").fetchall()
+            for batch, network, contract, message, signal_ts in bridge:
+                if datetime.now(timezone.utc).timestamp() - signal_ts > 20 * 60:
+                    con.execute("""UPDATE gate_spot_bridge_audit
+                        SET status='EXPIRED', reason='Sinyal 20 dakikayı geçti'
+                        WHERE watch_batch=? AND network_id=? AND token_contract=?""",
+                        (batch, network, contract))
+                    con.commit()
+                    continue
+                try:
+                    r = session.post(f"https://api.telegram.org/bot{token}/sendMessage",
+                        json={"chat_id": chat, "text": message[:4096]}, timeout=20)
+                    r.raise_for_status()
+                    if not r.json().get("ok"):
+                        raise RuntimeError("Telegram API gönderimi onaylamadı")
+                    con.execute("""UPDATE gate_spot_bridge_audit
+                        SET status='SENT', decided_at=strftime('%s','now')
+                        WHERE watch_batch=? AND network_id=? AND token_contract=?""",
+                        (batch, network, contract))
+                    con.commit()
+                    sent += 1
+                except Exception as exc:
+                    print("Gate Spot Telegram gönderilemedi, kayıt beklemede:",
+                          type(exc).__name__)
+                    break
         return sent
 
 
