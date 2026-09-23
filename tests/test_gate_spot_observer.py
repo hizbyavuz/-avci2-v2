@@ -19,6 +19,8 @@ class GateSpotObserverTest(unittest.TestCase):
                         {"name": "OTHER", "addr": ADDRESS}]},
             {"currency": "BAD", "name": "Bad", "delisted": False,
              "trade_disabled": False, "chains": [{"name": "ETH", "addr": ""}]},
+            {"currency": "BCH5L", "name": "BCH5xLong", "delisted": False,
+             "trade_disabled": False, "chains": []},
         ]
         pairs = [
             {"id": "GOOD_USDT", "base": "GOOD", "quote": "USDT",
@@ -27,15 +29,21 @@ class GateSpotObserverTest(unittest.TestCase):
              "trade_status": "tradable", "type": "normal"},
             {"id": "GOOD_BTC", "base": "GOOD", "quote": "BTC",
              "trade_status": "tradable", "type": "normal"},
+            {"id": "BCH5L_USDT", "base": "BCH5L", "quote": "USDT",
+             "trade_status": "tradable", "type": "normal"},
         ]
         tickers = [
             {"currency_pair": pair["id"], "last": "1",
              "quote_volume": "40000", "change_percentage": "12"}
             for pair in pairs
         ]
+        tickers[-1]["etf_leverage"] = "3.7"
         market, contracts = build_snapshot(currencies, pairs, tickers)
         self.assertEqual({row[0] for row in market}, {"GOOD_USDT", "BAD_USDT"})
         self.assertEqual(contracts, [("GOOD_USDT", "eth", ADDRESS)])
+        del tickers[-1]["etf_leverage"]
+        self.assertNotIn("BCH5L_USDT", {row[0] for row in build_snapshot(
+            currencies, pairs, tickers)[0]})
 
     def test_error_clears_stale_market_data(self):
         with tempfile.TemporaryDirectory() as directory:
