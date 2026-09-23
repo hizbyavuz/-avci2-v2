@@ -54,6 +54,7 @@ jobs:
         run: python scanner.py
       - name: Observe Gate Spot markets without alerts
         if: success()
+        continue-on-error: true
         run: python gate_spot_observer.py
       - name: Send verified Gate research candidates
         if: success()
