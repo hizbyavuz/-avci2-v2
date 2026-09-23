@@ -365,6 +365,67 @@ def send_pending(observation_path=OBS_DB, validation_path=VALIDATION_DB,
                 except Exception as exc:
                     print("Hacim uyanışı Telegram gönderilemedi:", type(exc).__name__)
                     break
+
+        # Buyer acceleration and liquidity expansion share the same safety gate.
+        if con.execute("""SELECT 1 FROM sqlite_master WHERE type='table'
+            AND name='gate_activity_alert_audit'""").fetchone():
+            rows = con.execute("""SELECT a.batch_id,a.network_id,a.token_contract,
+                a.engine,a.message,h.scan_ts FROM gate_activity_alert_audit a
+                JOIN gate_scan_health h ON h.batch_id=a.batch_id
+                WHERE a.status='PENDING' ORDER BY a.decided_at LIMIT 4""").fetchall()
+            for batch, network, contract, engine, message, signal_ts in rows:
+                if datetime.now(timezone.utc).timestamp() - signal_ts > 20*60:
+                    con.execute("""UPDATE gate_activity_alert_audit
+                        SET status='EXPIRED',reason='Sinyal 20 dakikayı geçti'
+                        WHERE batch_id=? AND network_id=? AND token_contract=?
+                          AND engine=?""", (batch,network,contract,engine))
+                    con.commit()
+                    continue
+                try:
+                    r=session.post(f"https://api.telegram.org/bot{token}/sendMessage",
+                        json={"chat_id":chat,"text":message[:4096]},timeout=20)
+                    r.raise_for_status()
+                    if not r.json().get("ok"):
+                        raise RuntimeError("Telegram API gönderimi onaylamadı")
+                    con.execute("""UPDATE gate_activity_alert_audit
+                        SET status='SENT',decided_at=strftime('%s','now')
+                        WHERE batch_id=? AND network_id=? AND token_contract=?
+                          AND engine=?""", (batch,network,contract,engine))
+                    con.commit()
+                    sent += 1
+                except Exception as exc:
+                    print("Erken aktivite Telegram gönderilemedi:", type(exc).__name__)
+                    break
+
+        if con.execute("""SELECT 1 FROM sqlite_master WHERE type='table'
+            AND name='gate_cross_venue_alert_audit'""").fetchone():
+            rows = con.execute("""SELECT a.batch_id,a.pair,a.network_id,
+                a.token_contract,a.message,h.scan_ts FROM gate_cross_venue_alert_audit a
+                JOIN gate_scan_health h ON h.batch_id=a.batch_id
+                WHERE a.status='PENDING' ORDER BY a.decided_at LIMIT 3""").fetchall()
+            for batch,pair,network,contract,message,signal_ts in rows:
+                if datetime.now(timezone.utc).timestamp()-signal_ts > 20*60:
+                    con.execute("""UPDATE gate_cross_venue_alert_audit
+                        SET status='EXPIRED',reason='Sinyal 20 dakikayı geçti'
+                        WHERE batch_id=? AND pair=? AND network_id=? AND token_contract=?""",
+                        (batch,pair,network,contract))
+                    con.commit()
+                    continue
+                try:
+                    r=session.post(f"https://api.telegram.org/bot{token}/sendMessage",
+                        json={"chat_id":chat,"text":message[:4096]},timeout=20)
+                    r.raise_for_status()
+                    if not r.json().get("ok"):
+                        raise RuntimeError("Telegram API gönderimi onaylamadı")
+                    con.execute("""UPDATE gate_cross_venue_alert_audit
+                        SET status='SENT',decided_at=strftime('%s','now')
+                        WHERE batch_id=? AND pair=? AND network_id=? AND token_contract=?""",
+                        (batch,pair,network,contract))
+                    con.commit()
+                    sent += 1
+                except Exception as exc:
+                    print("Cross-venue Telegram gönderilemedi:", type(exc).__name__)
+                    break
         return sent
 
 
