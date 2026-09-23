@@ -14,7 +14,7 @@ uzun on-chain taramayı beklemeden yaklaşık 10 dakikalık UTC planıyla çalı
 GitHub zamanlanmış işleri geciktirebildiği için gerçek tarama aralıkları ayrıca
 kontrol edilmelidir. Arşiv ve önbellek bu ayrı kağıt izleme verisini korur.
 
-`gate_spot_watch.py` ayrı bir `gate-spot-watch-v0` araştırma kohortudur.
+`gate_spot_watch.py` ayrı bir `gate-spot-watch-v0.1` araştırma kohortudur.
 En az 30 günlük Gate işlem geçmişi, $300.000 günlük hacim, dar alış-satış
 farkı, en az 18 dakika aralıklı iki gerçek fiyat ölçümü, erken fiyat aralığı,
 resmi kontrat eşleşmesi ve Gate emir defterinde $1.000 alıp tekrar satabilme
