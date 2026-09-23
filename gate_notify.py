@@ -9,6 +9,7 @@ from zoneinfo import ZoneInfo
 
 import requests
 
+from binance_notify import find_chat_id
 from gate_early_observer import early_context
 
 
@@ -200,16 +201,21 @@ def send_pending(observation_path=OBS_DB, validation_path=VALIDATION_DB,
         summary = con.execute("""SELECT status, reason, COUNT(*)
             FROM gate_alert_audit GROUP BY status, reason ORDER BY status, reason""").fetchall()
         print("Gate bildirim denetimi:", summary[-15:])
-    token = os.getenv("TELEGRAM_BOT_TOKEN")
-    chat = os.getenv("TELEGRAM_CHAT_ID")
-    if not token or not chat:
-        missing = ", ".join(name for name, value in
-                            (("TELEGRAM_BOT_TOKEN", token),
-                             ("TELEGRAM_CHAT_ID", chat)) if not value)
-        print(f"::warning::Gate Telegram bildirimleri KAPALI: {missing} "
-              "GitHub Secrets içinde eksik. Onaylı adaylar kayıtlı bekler; "
-              "hiçbir mesaj gönderilmedi.")
+    token = (os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
+    chat = (os.getenv("TELEGRAM_CHAT_ID") or "").strip()
+    if not token:
+        print("::warning::Gate Telegram bildirimleri KAPALI: "
+              "TELEGRAM_BOT_TOKEN eksik. Onaylı adaylar kayıtlı bekler.")
         return 0
+    if not chat:
+        try:
+            # Use the same bot and private-chat discovery as Binance Avcı 2.
+            chat = find_chat_id(token)
+            print("Gate Telegram Chat ID otomatik bulundu")
+        except (requests.RequestException, RuntimeError, ValueError) as exc:
+            print(f"::warning::Gate Telegram sohbeti bulunamadı "
+                  f"({type(exc).__name__}); onaylı adaylar kayıtlı bekler.")
+            return 0
     with sqlite3.connect(observation_path) as con:
         rows = con.execute("""SELECT validation_id, message FROM gate_alert_audit
             WHERE status='PENDING' ORDER BY validation_id LIMIT 5""").fetchall()
