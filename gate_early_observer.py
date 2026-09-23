@@ -37,6 +37,13 @@ def record_scan(path, batch_id, pools, feed_errors=(), now_ts=None):
             PRIMARY KEY (batch_id, network_id, token_contract))""")
         con.execute("""CREATE INDEX IF NOT EXISTS idx_gate_early_history
             ON gate_early_observations(network_id, token_contract, scan_ts)""")
+        con.execute("""CREATE TABLE IF NOT EXISTS gate_buyer_observations (
+            batch_id TEXT NOT NULL, scan_ts INTEGER NOT NULL,
+            network_id TEXT NOT NULL, token_contract TEXT NOT NULL,
+            pool TEXT, buyers_5m INTEGER, buyers_1h INTEGER,
+            PRIMARY KEY(batch_id, network_id, token_contract))""")
+        con.execute("""CREATE INDEX IF NOT EXISTS idx_gate_buyers_history
+            ON gate_buyer_observations(network_id, token_contract, scan_ts)""")
         errors = tuple(feed_errors)
         # Zero eligible pools can be a valid scan; only source failures invalidate it.
         status = "INVALID" if errors else "VALID"
@@ -76,6 +83,10 @@ def record_scan(path, batch_id, pools, feed_errors=(), now_ts=None):
                  price, liquidity, volume, float(item.get("volume_1h") or 0),
                  buys, sells, float(item.get("change_24h") or 0),
                  ratio, int(anomaly)))
+            con.execute("""INSERT OR REPLACE INTO gate_buyer_observations
+                VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                (batch_id, now_ts, network, contract, item.get("pool"),
+                 item.get("unique_buyers_5m"), item.get("unique_buyers_1h")))
         con.commit()
         return {"status": status, "observed": len(best), "errors": errors}
     finally:
@@ -92,12 +103,31 @@ def early_context(con, batch_id, network, contract, signal_price):
         ORDER BY scan_ts""", (network, contract.lower(), batch_id)).fetchall()
     first = next((row for row in rows if row[3] and row[1] > 0), None)
     current = rows[-1] if rows else None
-    if first is None:
-        return {"first_anomaly_ts": None, "gain_before_signal_pct": None,
-                "own_volume_ratio": current[2] if current else None}
-    return {"first_anomaly_ts": first[0],
-            "gain_before_signal_pct": 100 * (signal_price / first[1] - 1),
-            "own_volume_ratio": current[2] if current else None}
+    try:
+        buyer_rows = con.execute("""SELECT scan_ts, buyers_5m, buyers_1h
+            FROM gate_buyer_observations WHERE network_id=?
+            AND token_contract=? AND scan_ts <=
+                (SELECT scan_ts FROM gate_scan_health WHERE batch_id=?)
+            AND scan_ts >=
+                (SELECT scan_ts - 6*3600 FROM gate_scan_health WHERE batch_id=?)
+            ORDER BY scan_ts DESC LIMIT 36""",
+            (network, contract.lower(), batch_id, batch_id)).fetchall()
+    except sqlite3.OperationalError:
+        buyer_rows = []
+    current_buyers = buyer_rows[0][1] if buyer_rows else None
+    prior = [(ts, count) for ts, count, _ in buyer_rows[1:]
+             if count is not None and count > 0]
+    buyer_ratio = None
+    if (current_buyers is not None and len(prior) >= 3 and
+            buyer_rows[0][0] - prior[-1][0] >= 1200):
+        buyer_ratio = current_buyers / statistics.median(
+            count for _, count in prior)
+    return {"first_anomaly_ts": first[0] if first else None,
+            "gain_before_signal_pct":
+                100 * (signal_price / first[1] - 1) if first else None,
+            "own_volume_ratio": current[2] if current else None,
+            "unique_buyers_5m": current_buyers,
+            "buyer_ratio": buyer_ratio}
 
 
 def record_candidate_risk(path, batch_id, candidates):
@@ -113,6 +143,12 @@ def record_candidate_risk(path, batch_id, candidates):
             PRIMARY KEY(batch_id, network_id, token_contract))""")
         con.execute("""CREATE INDEX IF NOT EXISTS idx_gate_candidate_risk_history
             ON gate_candidate_risk_history(network_id, token_contract, scan_ts)""")
+        con.execute("""CREATE TABLE IF NOT EXISTS gate_optional_context (
+            batch_id TEXT NOT NULL, network_id TEXT NOT NULL,
+            token_contract TEXT NOT NULL, creator_risk_status TEXT,
+            sampled_wash_proxy INTEGER, social_status TEXT,
+            x_mentions_15m INTEGER, x_mentions_prev_45m INTEGER,
+            PRIMARY KEY(batch_id, network_id, token_contract))""")
         scan = con.execute("SELECT scan_ts FROM gate_scan_health WHERE batch_id=?",
                            (batch_id,)).fetchone()
         if not scan:
@@ -135,6 +171,14 @@ def record_candidate_risk(path, batch_id, candidates):
                  lp.get("creator_unlocked_pct"), holder.get("top10_pct"),
                  cluster.get("trades_seen"), cluster.get("unique_buyers_sample"),
                  cluster.get("roundtrip_wallets_sample")))
+            social = item.get("social_signal") or {}
+            reputation = item.get("creator_reputation") or {}
+            con.execute("""INSERT OR IGNORE INTO gate_optional_context
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                (batch_id, network, contract.lower(), reputation.get("status"),
+                 int(cluster["wash_proxy"]) if cluster.get("wash_proxy") is not None
+                 else None, social.get("status"), social.get("last_15m"),
+                 social.get("previous_45m")))
             written += 1
         return written
 
