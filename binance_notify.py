@@ -334,8 +334,8 @@ def read_new_candidates(
         WHERE e.event_class = 'CANDIDATE'
           AND e.signal_time_utc = ?
         ORDER BY
-            score DESC,
-            symbol ASC
+            e.score DESC,
+            e.symbol ASC
         """,
         (scan_time,),
     ).fetchall()
