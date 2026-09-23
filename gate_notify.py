@@ -9,7 +9,7 @@ from zoneinfo import ZoneInfo
 
 import requests
 
-from binance_notify import find_chat_id
+from binance_notify import resolve_chat_id
 from gate_early_observer import candidate_risk_context, early_context
 
 
@@ -274,15 +274,13 @@ def send_pending(observation_path=OBS_DB, validation_path=VALIDATION_DB,
         print("::warning::Gate Telegram bildirimleri KAPALI: "
               "TELEGRAM_BOT_TOKEN eksik. Onaylı adaylar kayıtlı bekler.")
         return 0
-    if not chat:
-        try:
-            # Use the same bot and private-chat discovery as Binance Avcı 2.
-            chat = find_chat_id(token)
-            print("Gate Telegram Chat ID otomatik bulundu")
-        except (requests.RequestException, RuntimeError, ValueError) as exc:
-            print(f"::warning::Gate Telegram sohbeti bulunamadı "
-                  f"({type(exc).__name__}); onaylı adaylar kayıtlı bekler.")
-            return 0
+    try:
+        chat = resolve_chat_id(token, chat, observation_path, "Gate Telegram")
+    except (requests.RequestException, RuntimeError, ValueError) as exc:
+        print(f"::warning::Gate Telegram sohbeti bulunamadı "
+              f"({type(exc).__name__}); onaylı adaylar kayıtlı bekler. "
+              "Botta bir kez /start veya mesaj gelince ID kalıcı saklanacak.")
+        return 0
     with sqlite3.connect(observation_path) as con:
         rows = con.execute("""SELECT validation_id, message FROM gate_alert_audit
             WHERE status='PENDING' ORDER BY validation_id LIMIT 5""").fetchall()
