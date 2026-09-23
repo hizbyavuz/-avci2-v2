@@ -4,7 +4,8 @@ EXTRA_PAGES = (2, 3)
 FEEDS = (("TRENDING", "trending_pools"), ("NEW", "new_pools"))
 
 
-def collect_extra_observations(networks, fetch, parse, pause, pages=EXTRA_PAGES):
+def collect_extra_observations(networks, fetch, parse, pause, pages=EXTRA_PAGES,
+                               on_payload=None):
     """Collect additional research rows without changing candidate selection.
 
     Failed optional pages are reported separately. They must not invalidate
@@ -27,6 +28,8 @@ def collect_extra_observations(networks, fetch, parse, pause, pages=EXTRA_PAGES)
                 observed.extend(parse(
                     payload, network_id, network_name, source, observation=True
                 ))
+                if on_payload is not None:
+                    on_payload(payload, network_id, network_name, source)
                 pause(7)
                 if not payload["data"]:
                     break
