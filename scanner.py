@@ -8,7 +8,7 @@ from collections import Counter, defaultdict
 from datetime import datetime, timezone
 
 from snapshot_deposu import snapshot_kaydet, son_snapshot, snapshot_sayisi
-from gate_early_observer import record_scan
+from gate_early_observer import record_scan, record_candidate_risk
 
 # ============================================================
 # AVCI 2 V3 — COMPLETE CORE
@@ -1910,6 +1910,9 @@ def lp_protection_summary(raw_token):
     locked = 0.0
     burned = 0.0
     unknown_unlocked = 0.0
+    creator = str((raw_token or {}).get("creator_address") or
+                  (raw_token or {}).get("creator") or "").lower()
+    creator_lp = 0.0
 
     for h in holders:
         p = num(h.get("percent")) * 100.0
@@ -1934,6 +1937,8 @@ def lp_protection_summary(raw_token):
             locked += p
         else:
             unknown_unlocked += p
+            if creator and str(h.get("address") or "").lower() == creator:
+                creator_lp += p
 
     protected = locked + burned
 
@@ -1950,6 +1955,7 @@ def lp_protection_summary(raw_token):
         "locked_pct": locked,
         "burned_pct": burned,
         "unknown_unlocked_pct": unknown_unlocked,
+        "creator_unlocked_pct": creator_lp if creator else None,
         "holders_seen": len(holders),
     }
 
@@ -2000,6 +2006,11 @@ def gecko_recent_trade_cluster(
     )
 
     unique_wallets = len(wallet_counts)
+    buyer_wallets = {str(x["wallet"]).lower() for x in parsed
+                     if x["kind"] == "buy"}
+    seller_wallets = {str(x["wallet"]).lower() for x in parsed
+                      if x["kind"] == "sell"}
+    roundtrip_wallets = buyer_wallets & seller_wallets
     total = len(parsed)
     top_wallet_count = (
         wallet_counts.most_common(1)[0][1]
@@ -2047,6 +2058,10 @@ def gecko_recent_trade_cluster(
         "error": None,
         "trades_seen": total,
         "unique_wallets": unique_wallets,
+        "unique_buyers_sample": len(buyer_wallets),
+        "unique_sellers_sample": len(seller_wallets),
+        "roundtrip_wallets_sample": len(roundtrip_wallets),
+        "sample_limited": True,
         "top_wallet_trade_share":
             top_wallet_trade_share,
         "max_same_block_buys":
@@ -5524,6 +5539,9 @@ observer_health = record_scan(
     "avci2.db", batch_id, all_observation_pool + all_candidates, feed_errors
 )
 print("Erken izleme verisi:", observer_health)
+print("Aday güvenlik geçmişi:", record_candidate_risk(
+    "avci2.db", batch_id, all_candidates
+))
 
 # Candidate ve controls AYNI entry/outcome kuraliyla validation DB'ye.
 for c in all_candidates:
