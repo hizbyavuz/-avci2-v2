@@ -58,7 +58,9 @@ gösterilir; yanlış bir kara liste etiketi üretilmez.
 GoPlus kilit detayında `end_time` varsa bitiş zamanı saklanır; kilidi 24 saat
 içinde açılacak aday bekletilir, geçmişte bitmiş kilit korumaya dahil edilmez.
 Kilidin bitişi dönmüyorsa süre bilinmiyor diye raporlanır. Multi-pool ve
-NFT tabanlı likidite farklı sözleşmelerde ayrıca doğrulama gerektirebilir.
+NFT tabanlı likidite farklı sözleşmelerde ayrıca doğrulama gerektirebilir;
+birden fazla LP holder seti varsa ağırlıkları doğrulanmadığı için alarm
+bekletilir.
 
 Sosyal veri opsiyonel: GitHub Secrets içine `X_API_BEARER_TOKEN` konursa,
 X'in resmi `/2/tweets/counts/recent` API'sinde yalnızca **tam kontrat adresini**
