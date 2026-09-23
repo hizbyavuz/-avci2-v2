@@ -9,6 +9,8 @@ from datetime import datetime, timezone
 
 from snapshot_deposu import snapshot_kaydet, son_snapshot, snapshot_sayisi
 from gate_early_observer import record_scan, record_candidate_risk
+from gate_intelligence import (creator_reputation, lp_lock_health,
+                               x_contract_mentions)
 
 # ============================================================
 # AVCI 2 V3 — COMPLETE CORE
@@ -1304,6 +1306,12 @@ def scan_payload(
         buys_5m = num(
             tx5.get("buys")
         )
+        unique_buyers_5m = (
+            int(num(tx5["buyers"])) if tx5.get("buyers") is not None else None
+        )
+        unique_buyers_1h = (
+            int(num(tx1["buyers"])) if tx1.get("buyers") is not None else None
+        )
 
         sells_5m = num(
             tx5.get("sells")
@@ -1564,6 +1572,8 @@ def scan_payload(
             "buys_1h": buys_1h,
             "sells_1h": sells_1h,
             "buys_5m": buys_5m,
+            "unique_buyers_5m": unique_buyers_5m,
+            "unique_buyers_1h": unique_buyers_1h,
             "sells_5m": sells_5m,
             "tx_count_1h": tx_count_1h,
             "tx_count_5m": tx_count_5m,
@@ -1910,6 +1920,8 @@ def lp_protection_summary(raw_token):
     locked = 0.0
     burned = 0.0
     unknown_unlocked = 0.0
+    lock_expiry_statuses = []
+    nearest_unlock = None
     creator = str((raw_token or {}).get("creator_address") or
                   (raw_token or {}).get("creator") or "").lower()
     creator_lp = 0.0
@@ -1934,7 +1946,17 @@ def lp_protection_summary(raw_token):
         if is_burn:
             burned += p
         elif is_locked is True:
-            locked += p
+            lock_state = lp_lock_health(h)
+            lock_expiry_statuses.append(lock_state["status"])
+            if lock_state["earliest_end"]:
+                nearest_unlock = min(nearest_unlock or lock_state["earliest_end"],
+                                     lock_state["earliest_end"])
+            if lock_state["status"] == "EXPIRED_OR_PARTIAL":
+                unknown_unlocked += p
+                if creator and str(h.get("address") or "").lower() == creator:
+                    creator_lp += p
+            else:
+                locked += p
         else:
             unknown_unlocked += p
             if creator and str(h.get("address") or "").lower() == creator:
@@ -1956,6 +1978,8 @@ def lp_protection_summary(raw_token):
         "burned_pct": burned,
         "unknown_unlocked_pct": unknown_unlocked,
         "creator_unlocked_pct": creator_lp if creator else None,
+        "lock_expiry_statuses": lock_expiry_statuses,
+        "nearest_unlock": nearest_unlock,
         "holders_seen": len(holders),
     }
 
@@ -2011,6 +2035,19 @@ def gecko_recent_trade_cluster(
     seller_wallets = {str(x["wallet"]).lower() for x in parsed
                       if x["kind"] == "sell"}
     roundtrip_wallets = buyer_wallets & seller_wallets
+    paired = {}
+    for trade in parsed:
+        if trade["block"] is None or trade["kind"] not in ("buy", "sell"):
+            continue
+        key = (str(trade["wallet"]).lower(), trade["block"])
+        paired.setdefault(key, {}).setdefault(trade["kind"], []).append(
+            trade["volume"])
+    same_block_roundtrips = sum(
+        1 for sides in paired.values()
+        if sides.get("buy") and sides.get("sell") and
+        any(abs(buy - sell) <= max(buy, sell) * .05
+            for buy in sides["buy"] for sell in sides["sell"])
+    )
     total = len(parsed)
     top_wallet_count = (
         wallet_counts.most_common(1)[0][1]
@@ -2061,6 +2098,8 @@ def gecko_recent_trade_cluster(
         "unique_buyers_sample": len(buyer_wallets),
         "unique_sellers_sample": len(seller_wallets),
         "roundtrip_wallets_sample": len(roundtrip_wallets),
+        "same_block_roundtrips_sample": same_block_roundtrips,
+        "wash_proxy": same_block_roundtrips >= 2 and len(parsed) >= 20,
         "sample_limited": True,
         "top_wallet_trade_share":
             top_wallet_trade_share,
@@ -3966,6 +4005,12 @@ def control_pool_from_payload(
         buys_1h = num(h1.get("buys"))
         sells_1h = num(h1.get("sells"))
         buys_5m = num(m5.get("buys"))
+        unique_buyers_5m = (
+            int(num(m5["buyers"])) if m5.get("buyers") is not None else None
+        )
+        unique_buyers_1h = (
+            int(num(h1["buyers"])) if h1.get("buyers") is not None else None
+        )
         sells_5m = num(m5.get("sells"))
 
         base_token = token_from_included(
@@ -4044,6 +4089,8 @@ def control_pool_from_payload(
             "buys_1h": buys_1h,
             "sells_1h": sells_1h,
             "buys_5m": buys_5m,
+            "unique_buyers_5m": unique_buyers_5m,
+            "unique_buyers_1h": unique_buyers_1h,
             "sells_5m": sells_5m,
         })
 
@@ -5519,6 +5566,16 @@ for c in all_candidates:
     c["frozen_rulesets"] = (
         frozen_rulesets_for_candidate(c)
     )
+
+# Additional source-labelled research is never used by frozen V5 membership.
+# Spend limited external calls on the first three rule-qualified candidates.
+for c in [row for row in all_candidates if row["frozen_rulesets"]][:3]:
+    if c["network_id"] in EVM_CHAIN_IDS:
+        c["creator_reputation"] = creator_reputation(
+            c["network_id"], c.get("creator_address"))
+    if os.getenv("X_API_BEARER_TOKEN"):
+        c["social_signal"] = x_contract_mentions(
+            c["network_id"], c["token_contract"])
 
 # Candidate ile benzer near-miss + random controls.
 validation_controls = (
