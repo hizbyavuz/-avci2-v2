@@ -1,5 +1,24 @@
 # Gate Avcı 2: erken gözlem ve Telegram
 
+## Gate Spot için ayrı erken kağıt izleme
+
+`gate_spot_observer.py` Gate'in tradable, normal, ST işareti olmayan USDT
+paritelerini ve Gate'in resmi zincir adreslerini okur. En az $30.000 günlük
+hacmi olanların fiyatı tarama bazında saklanır; güncel taramada 24 saatlik
++%10/+%20 hareketlerin kaçının on-chain gözleme girdiği Actions logunda
+sayılır. Bu sayı 24 saatlik geçmişi anlatır; erken alım sinyali değildir.
+
+`gate_spot_watch.py` ayrı bir `gate-spot-watch-v0` araştırma kohortudur.
+En az 30 günlük Gate işlem geçmişi, $300.000 günlük hacim, dar alış-satış
+farkı, en az 18 dakika aralıklı iki gerçek fiyat ölçümü, erken fiyat aralığı,
+resmi kontrat eşleşmesi ve Gate emir defterinde $1.000 alıp tekrar satabilme
+koşullarını arar. Sonucu `gate_spot_watch` tablosuna ve Actions özetine yazar.
+Bu sonuçlar **yalnızca kağıt izleme** içindir; alış emri veya Telegram alım
+adayı üretilmez. On-chain V5 seçim, güvenlik ve bildirim kuralları değişmez.
+Ardışık snapshot henüz yoksa temiz izleme olmaması beklenir. Takip edilen
+olayların sonradan gerçekleşen getirisi ve kaçırılan yükselişler ölçülmeden
+bu ayrı kolun başarısı hakkında hüküm verilmez.
+
 Bu katman mevcut V5 taramasının seçim eşiklerini değiştirmez. Her 10 dakikalık
 taramanın trending/new-pools kaynaklarında görünen geniş gözlem havuzunu ve
 kaynak hatalarını `avci2.db` içine kaydeder. Gözlem için en az $5.000
