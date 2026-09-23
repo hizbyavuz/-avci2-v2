@@ -10,7 +10,7 @@ from zoneinfo import ZoneInfo
 import requests
 
 from binance_notify import find_chat_id
-from gate_early_observer import early_context
+from gate_early_observer import candidate_risk_context, early_context
 
 
 OBS_DB = "avci2.db"
@@ -52,6 +52,9 @@ def security_decision(item):
             return "Düzeltilmiş holder yoğunluğu yüksek veya ölçülemedi"
     if float(lp.get("protected_pct") or 0) < 50:
         return "Likidite koruması yetersiz"
+    if (lp.get("creator_unlocked_pct") is not None and
+            float(lp["creator_unlocked_pct"]) >= 10):
+        return "Deployer cüzdanında kilitsiz LP payı yüksek"
 
     if network == "solana":
         profile = item.get("solana_security") or {}
@@ -91,7 +94,7 @@ def price(value):
     return f"{float(value):.10f}".rstrip("0").rstrip(".")
 
 
-def format_alert(event, item, context):
+def format_alert(event, item, context, risk_context=None):
     local = datetime.fromtimestamp(event["signal_ts"], timezone.utc)
     local = local.astimezone(ZoneInfo("Europe/Istanbul"))
     network, contract = event["network_id"], event["token_contract"]
@@ -117,6 +120,30 @@ def format_alert(event, item, context):
                      "(botun başarısına dahil değil)")
     else:
         lines.append("İlk anomali: yeterli önceki gözlem yok")
+    lp = item.get("lp_protection") or {}
+    holder = item.get("adjusted_holder") or {}
+    cluster = item.get("trade_cluster") or {}
+    lines.append(f"LP kilit/yakım: %{float(lp['protected_pct']):.1f} "
+                 f"• İlk 10 holder: %{float(holder['top10_pct']):.1f}")
+    if lp.get("creator_unlocked_pct") is not None:
+        lines.append(f"Deployer'da kilitsiz LP: "
+                     f"%{float(lp['creator_unlocked_pct']):.1f}")
+    if cluster.get("ok"):
+        lines.append(f"Son örneklenen {cluster['trades_seen']} işlemde "
+                     f"{cluster['unique_buyers_sample']} farklı alıcı "
+                     "(tüm alıcılar değil)")
+        if cluster.get("roundtrip_wallets_sample"):
+            lines.append(f"Aynı örnekte hem alan hem satan cüzdan: "
+                         f"{cluster['roundtrip_wallets_sample']} "
+                         "(tek başına sahte işlem kanıtı değil)")
+    risk_context = risk_context or {}
+    if risk_context.get("top10_change_pp") is not None:
+        lines.append(f"İlk 10 holder payı önceki ölçüme göre "
+                     f"{risk_context['top10_change_pp']:+.1f} puan değişti")
+    if risk_context.get("creator_tokens_observed") is not None:
+        lines.append(f"Aynı deployer'ın botun gördüğü coin sayısı: "
+                     f"{risk_context['creator_tokens_observed']} "
+                     "(geçmiş rug kanıtı değil)")
     lines.extend([
         f"Tahmini satış kaybı ($1.000 / $5.000): %{float((item.get('exit_1k') if network == 'solana' else item.get('evm_exit_1k'))['loss_pct']):.1f} / "
         f"%{float((item.get('exit_5k') if network == 'solana' else item.get('evm_exit_5k'))['loss_pct']):.1f}",
@@ -183,7 +210,9 @@ def pending_alerts(observation_path=OBS_DB, validation_path=VALIDATION_DB):
             else:
                 context = early_context(obs, batch, e["network_id"],
                                         e["token_contract"], e["signal_price"])
-                message = format_alert(event, item, context)
+                risk_context = candidate_risk_context(
+                    obs, batch, e["network_id"], e["token_contract"])
+                message = format_alert(event, item, context, risk_context)
                 obs.execute("""INSERT OR IGNORE INTO gate_alert_audit
                     VALUES (?, ?, 'PENDING', '', ?)""", (event["id"], now, message))
                 alerts.append((event["id"], message))
