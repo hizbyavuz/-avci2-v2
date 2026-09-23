@@ -132,6 +132,10 @@ jobs:
       - name: Compare timestamped signals between venues
         run: python -u cross_venue_observer.py
 
+      - name: Build anti-manipulation counter-evidence
+        continue-on-error: true
+        run: python -u binance_deception_observer.py
+
       - name: Record fixed post-signal checkpoints
         continue-on-error: true
         run: python -u avci_checkpoints.py binance
