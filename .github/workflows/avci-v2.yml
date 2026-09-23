@@ -7,6 +7,7 @@ on:
       - "scanner.py"
       - "gate_*.py"
       - "telegram_readable.py"
+      - "avci_checkpoints.py"
       - "tests/test_gate_*.py"
       - ".github/workflows/avci-v2.yml"
   schedule:
@@ -51,8 +52,8 @@ jobs:
       - name: Install requests
         run: pip install requests
 
-      - name: Run Gate engine regression tests
-        run: python -m unittest tests.test_gate_spot_watch tests.test_gate_spot_bridge tests.test_gate_spot_observer tests.test_gate_activity_bridges tests.test_gate_btc_divergence
+      - name: Run complete regression test suite
+        run: python -m unittest discover -s tests -v
 
       - name: Observe Gate Spot and record separate early movement
         continue-on-error: true
@@ -76,6 +77,10 @@ jobs:
          GOPLUS_ACCESS_TOKEN: ${{ secrets.GOPLUS_ACCESS_TOKEN }}
          X_API_BEARER_TOKEN: ${{ secrets.X_API_BEARER_TOKEN }}
         run: python scanner.py
+      - name: Record fixed post-signal checkpoints
+        continue-on-error: true
+        run: python -u avci_checkpoints.py gate
+
       - name: Send verified Gate research candidates
         if: success()
         env:
