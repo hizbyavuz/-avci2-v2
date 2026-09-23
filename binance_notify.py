@@ -164,6 +164,59 @@ def find_chat_id(token):
     return private_chat_ids[-1]
 
 
+def load_cached_chat_id(db_path=DB_FILE):
+    """Return the last successfully used private Telegram chat id."""
+    if not db_path or not os.path.exists(db_path):
+        return ""
+    try:
+        with sqlite3.connect(db_path, timeout=10) as con:
+            con.execute("""CREATE TABLE IF NOT EXISTS runtime_settings (
+                key TEXT PRIMARY KEY, value TEXT NOT NULL,
+                updated_at TEXT NOT NULL)""")
+            row = con.execute(
+                "SELECT value FROM runtime_settings WHERE key='telegram_chat_id'"
+            ).fetchone()
+            return str(row[0]).strip() if row and row[0] else ""
+    except sqlite3.Error:
+        return ""
+
+
+def save_cached_chat_id(chat_id, db_path=DB_FILE):
+    """Persist a working chat id in the scanner state artifact."""
+    chat_id = str(chat_id or "").strip()
+    if not chat_id or not db_path:
+        return
+    try:
+        with sqlite3.connect(db_path, timeout=10) as con:
+            con.execute("""CREATE TABLE IF NOT EXISTS runtime_settings (
+                key TEXT PRIMARY KEY, value TEXT NOT NULL,
+                updated_at TEXT NOT NULL)""")
+            con.execute("""INSERT OR REPLACE INTO runtime_settings
+                (key, value, updated_at) VALUES
+                ('telegram_chat_id', ?, datetime('now'))""", (chat_id,))
+    except sqlite3.Error as exc:
+        print("::warning::Telegram Chat ID cache yazılamadı:", type(exc).__name__)
+
+
+def resolve_chat_id(token, configured_chat_id="", db_path=DB_FILE,
+                    label="Telegram"):
+    """Resolve configured -> cached -> getUpdates and persist success."""
+    chat_id = str(configured_chat_id or "").strip()
+    if chat_id:
+        save_cached_chat_id(chat_id, db_path)
+        return chat_id
+
+    cached = load_cached_chat_id(db_path)
+    if cached:
+        print(f"{label} Chat ID kalıcı cache'den bulundu")
+        return cached
+
+    chat_id = find_chat_id(token)
+    save_cached_chat_id(chat_id, db_path)
+    print(f"{label} Chat ID otomatik bulundu ve kalıcı kaydedildi")
+    return chat_id
+
+
 def get_telegram_settings():
     token = os.environ.get(
         "TELEGRAM_BOT_TOKEN"
@@ -184,22 +237,12 @@ def get_telegram_settings():
             "GitHub secret içinde olmalı."
         )
 
-    chat_id = os.environ.get(
-        "TELEGRAM_CHAT_ID"
+    chat_id = resolve_chat_id(
+        token,
+        os.environ.get("TELEGRAM_CHAT_ID") or "",
+        DB_FILE,
+        "Binance Telegram",
     )
-
-    if chat_id:
-        chat_id = chat_id.strip()
-
-    if not chat_id:
-        chat_id = find_chat_id(
-            token
-        )
-
-        print(
-            "Telegram Chat ID "
-            "otomatik bulundu"
-        )
 
     return token, chat_id
 
