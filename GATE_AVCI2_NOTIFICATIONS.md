@@ -34,3 +34,14 @@ verilmez. Hiçbir API anahtarı kaynak koduna veya Telegram mesajına yazılmaz.
 Bot anahtarı eksikse veya sohbet bulunamazsa GitHub Actions uyarı üretir. Başarılı workflow
 tek başına Telegram mesajının ulaştığını kanıtlamaz; gönderilen aday sayısı
 ve bot ayarı ayrıca kontrol edilmelidir.
+
+Ek risk gözlemi: zenginleştirilmiş adaylarda deployer adresiyle eşleşen
+kilitsiz LP payı, düzeltilmiş ilk 10 holder payının en az 10 dakika arayla
+değişimi, son işlem örneğindeki benzersiz alıcı ve çift yönlü işlem yapan
+cüzdan sayısı ayrı kaydedilir. Bilinen deployer kilitsiz LP payı %10 veya
+üstündeyse Telegram adayı bekletilir; V5 sinyal eşiği değişmez. Örneklenen
+işlemler bütün ağın alıcı sayısı veya kesin wash-trade kanıtı değildir.
+Aynı deployer'ın botun gözlediği farklı coin sayısı geçmiş rug kanıtı
+sayılmaz. Harici doğrulama olmadan deployer kara listesi ya da sosyal medya
+mention skoru üretilmez. LP kilidinin bitiş zamanı ayrıca doğrulanmadığı
+için kilit yüzdesi tek başına güvenlik garantisi değildir.
