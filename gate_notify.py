@@ -178,6 +178,14 @@ def gate_send_payload(token, chat, message, network, contract, signal_price=None
     ok=send_photo_or_text(token, chat, message, live.get("logo"), session=session)
     return ok, current, live.get("logo")
 
+def send_gate_aux(token, chat, message, network, contract, session=requests):
+    live=gecko_token(network, contract, session=session)
+    current=live.get("price")
+    if current is not None and "Şu anki fiyat:" not in message:
+        message += f"\nŞu anki fiyat: ${fmt_price(current)}"
+    return send_photo_or_text(token, chat, message, live.get("logo"), session=session)
+
+
 def send_gate_followups(token, chat, con, session=requests):
     def getter(_key, symbol):
         try:
@@ -352,10 +360,7 @@ def send_pending(observation_path=OBS_DB, validation_path=VALIDATION_DB,
                     con.commit()
                     continue
                 try:
-                    r = session.post(f"https://api.telegram.org/bot{token}/sendMessage",
-                        json={"chat_id": chat, "text": message[:4096]}, timeout=20)
-                    r.raise_for_status()
-                    if not r.json().get("ok"):
+                    if not send_gate_aux(token,chat,message,network,contract,session=session):
                         raise RuntimeError("Telegram API gönderimi onaylamadı")
                     con.execute("""UPDATE gate_spot_bridge_audit
                         SET status='SENT', decided_at=strftime('%s','now')
@@ -383,10 +388,7 @@ def send_pending(observation_path=OBS_DB, validation_path=VALIDATION_DB,
                     con.commit()
                     continue
                 try:
-                    r = session.post(f"https://api.telegram.org/bot{token}/sendMessage",
-                        json={"chat_id": chat, "text": message[:4096]}, timeout=20)
-                    r.raise_for_status()
-                    if not r.json().get("ok"):
+                    if not send_gate_aux(token,chat,message,network,contract,session=session):
                         raise RuntimeError("Telegram API gönderimi onaylamadı")
                     con.execute("""UPDATE gate_volume_alert_audit
                         SET status='SENT',decided_at=strftime('%s','now')
@@ -414,10 +416,7 @@ def send_pending(observation_path=OBS_DB, validation_path=VALIDATION_DB,
                     con.commit()
                     continue
                 try:
-                    r=session.post(f"https://api.telegram.org/bot{token}/sendMessage",
-                        json={"chat_id":chat,"text":message[:4096]},timeout=20)
-                    r.raise_for_status()
-                    if not r.json().get("ok"):
+                    if not send_gate_aux(token,chat,message,network,contract,session=session):
                         raise RuntimeError("Telegram API gönderimi onaylamadı")
                     con.execute("""UPDATE gate_activity_alert_audit
                         SET status='SENT',decided_at=strftime('%s','now')
@@ -444,10 +443,7 @@ def send_pending(observation_path=OBS_DB, validation_path=VALIDATION_DB,
                     con.commit()
                     continue
                 try:
-                    r=session.post(f"https://api.telegram.org/bot{token}/sendMessage",
-                        json={"chat_id":chat,"text":message[:4096]},timeout=20)
-                    r.raise_for_status()
-                    if not r.json().get("ok"):
+                    if not send_gate_aux(token,chat,message,network,contract,session=session):
                         raise RuntimeError("Telegram API gönderimi onaylamadı")
                     con.execute("""UPDATE gate_cross_venue_alert_audit
                         SET status='SENT',decided_at=strftime('%s','now')
