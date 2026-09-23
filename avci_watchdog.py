@@ -74,7 +74,8 @@ def main():
     now = datetime.now(timezone.utc)
     problems = []
     for workflow, label in (("binance_avci2.yml", "Binance"),
-                            ("avci-v2.yml", "Gate")):
+                            ("avci-v2.yml", "Gate on-chain"),
+                            ("gate-spot-watch.yml", "Gate Spot")):
         response = gh_json(f"repos/{repo}/actions/workflows/{workflow}/runs?per_page=30")
         problem = workflow_problem(response["workflow_runs"], label, now)
         if problem:
@@ -89,7 +90,8 @@ def main():
         print("; ".join(problems))
         send_warning(problems)
     else:
-        print("Binance ve Gate son taramalari saglikli; Binance verisi okunabildi")
+        print("Binance, Gate on-chain ve Gate Spot son taramalari saglikli; "
+              "Binance verisi okunabildi")
 
 
 if __name__ == "__main__":
