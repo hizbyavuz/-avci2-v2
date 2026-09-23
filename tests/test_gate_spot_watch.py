@@ -67,6 +67,48 @@ class GateSpotWatchTest(unittest.TestCase):
                 self.assertAlmostEqual(con.execute("""SELECT sampled_return_pct
                     FROM gate_spot_watch_path""").fetchone()[0], 100 * (1.07 / 1.02 - 1))
 
+    def test_retention_and_prebreakout_paths_do_not_require_fresh_one_percent_jump(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = str(Path(directory) / "data.db")
+            now = int(time.time())
+            age = now - 40 * 86400
+            contracts = [
+                ("HOLD_USDT", "eth", ADDRESS),
+                ("EARLY_USDT", "eth", "0x" + "b" * 40),
+            ]
+            save_snapshot(path, "older", [
+                ("HOLD_USDT", "HOLD", "Hold", 1.00, 500000, 3),
+                ("EARLY_USDT", "EARLY", "Early", 1.00, 500000, 3),
+            ], contracts, quality=[
+                ("HOLD_USDT", age, .999, 1.001),
+                ("EARLY_USDT", age, .999, 1.001),
+            ])
+            with sqlite3.connect(path) as con:
+                con.execute("""UPDATE gate_spot_health SET scan_ts=?
+                    WHERE batch_id='older'""", (now - 50 * 60,))
+            save_snapshot(path, "prior", [
+                ("HOLD_USDT", "HOLD", "Hold", 1.03, 500000, 5),
+                ("EARLY_USDT", "EARLY", "Early", 1.00, 500000, 4),
+            ], contracts, quality=[
+                ("HOLD_USDT", age, 1.029, 1.031),
+                ("EARLY_USDT", age, .999, 1.001),
+            ])
+            with sqlite3.connect(path) as con:
+                con.execute("""UPDATE gate_spot_health SET scan_ts=?
+                    WHERE batch_id='prior'""", (now - 25 * 60,))
+            save_snapshot(path, "latest", [
+                ("HOLD_USDT", "HOLD", "Hold", 1.025, 500000, 5),
+                ("EARLY_USDT", "EARLY", "Early", 1.005, 510000, 5),
+            ], contracts, quality=[
+                ("HOLD_USDT", age, 1.024, 1.026),
+                ("EARLY_USDT", age, 1.004, 1.006),
+            ])
+            with sqlite3.connect(path) as con:
+                rows = shortlist(con, now, "latest")
+            paths = {row["pair"]: row["entry_path"] for row in rows}
+            self.assertEqual(paths["HOLD_USDT"], "RETENTION")
+            self.assertEqual(paths["EARLY_USDT"], "PRE_BREAKOUT")
+
     def test_unfillable_book_never_becomes_paper_watch(self):
         self.assertIsNone(round_trip_loss({
             "asks": [["1.01", "2000"]], "bids": [["1", "1"]]
