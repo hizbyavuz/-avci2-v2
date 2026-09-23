@@ -46,8 +46,18 @@ class DailyFollowupTests(unittest.TestCase):
                                    tzinfo=timezone.utc), "ABC", "solana", "addr",
                                    2, None, "v5", "mum yok")
         self.assertIsNone(row["24s_degisimi_yuzde"])
-        self.assertIn("olculemeyen 1", followup.build_message(
+        self.assertIn("verisi eksik: 1", followup.build_message(
             date(2026, 9, 22), [row], "hizbyavuz/-avci2-v2", "123"))
+
+    def test_report_describes_24h_snapshot_not_profit(self):
+        row = followup.result_row("Binance", datetime(2026, 9, 22, 10,
+                                  tzinfo=timezone.utc), "XPLUSDT", "", "",
+                                  .096, .1056, "v2.4", "")
+        message = followup.build_message(date(2026, 9, 22), [row],
+                                         "hizbyavuz/-avci2-v2", "123")
+        self.assertIn("+10.00%", message)
+        self.assertIn("Arada erişilen en yüksek fiyatı", message)
+        self.assertIn("Bot hesabında işlem yapmadı", message)
 
 
 if __name__ == "__main__":

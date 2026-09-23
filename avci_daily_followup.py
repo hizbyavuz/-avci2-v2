@@ -157,24 +157,27 @@ def format_price(value):
 
 def build_message(day, rows, repo, run_id):
     available = [r for r in rows if r["24s_degisimi_yuzde"] is not None]
-    lines = [f"AVCI - {day} ONERILERININ 24 SAAT SONRAKI DURUMU",
-             "Saatler Turkiye saatidir. Ilk fiyat kaydedilen sinyal fiyatidir; "
-             "ikinci fiyat tam 24 saatin doldugu 1 dakikalik mumun kapanisidir "
-             "(en fazla 1 dakika fark). Gercek alim/satim degildir.", ""]
+    lines = [f"📊 AVCI | {day} SİNYALLERİNİN 24 SAAT SONRAKİ DURUMU",
+             "Bu rapor sinyalden tam 24 saat sonraki fiyatı karşılaştırır. "
+             "Arada erişilen en yüksek fiyatı veya gerçekleşen kârı göstermez.",
+             "Saatler Türkiye saatidir. Bot hesabında işlem yapmadı.", ""]
     if not rows:
-        lines.append("Bu gun iki sistemde de yeni temiz aday kaydi yok.")
+        lines.append("Bu gün iki sistemde de yeni izleme adayı yok.")
     for item in rows[:16]:
         move = (f"{item['24s_degisimi_yuzde']:+.2f}%" if item["24s_degisimi_yuzde"]
-                is not None else "olculemedi")
+                 is not None else "ölçülemedi")
         extra = f" ({item['ag']}, {item['kontrat'][:8]}...)" if item["ag"] else ""
-        lines.append(f"{item['sistem']} {item['coin']}{extra} | {item['sinyal_zamani_turkiye']} "
+        lines.append(f"• {item['sistem']} {item['coin']}{extra} | {move}")
+        lines.append(f"  Sinyal: {item['sinyal_zamani_turkiye']} • "
                      f"{format_price(item['sinyal_fiyati_usd'])} → "
-                     f"{format_price(item['24s_fiyati_usd'])} | {move}")
+                     f"24 saat sonra {format_price(item['24s_fiyati_usd'])}")
+        if item["24s_degisimi_yuzde"] is None:
+            lines.append(f"  Neden: {item['olcum']}")
     if len(rows) > 16:
-        lines.append(f"Diger {len(rows)-16} aday tabloda.")
-    lines.extend(["", f"Toplam {len(rows)} aday; 24s fiyati olculen {len(available)}, "
-                  f"olculemeyen {len(rows)-len(available)}.",
-                  "Tum adaylarin tek tek tablosu:",
+        lines.append(f"Diğer {len(rows)-16} adayın kaydı bağlantıda.")
+    lines.extend(["", f"Toplam {len(rows)} aday • 24 saatlik fiyatı ölçülen: {len(available)} "
+                   f"• Henüz ölçülemeyen/verisi eksik: {len(rows)-len(available)}.",
+                   "Bütün adayların tablosu:",
                   f"https://github.com/{repo}/actions/runs/{run_id}"])
     return "\n".join(lines)
 

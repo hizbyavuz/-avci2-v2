@@ -27,8 +27,8 @@ class OperationsTests(unittest.TestCase):
         ]
         message = notify.format_paper_alerts(alerts)
         self.assertIn("Hesabından alım veya satım yapılmadı", message)
-        self.assertIn("Kâr seviyesine gelenler (1)", message)
-        self.assertIn("Zarar sınırına gelenler (1)", message)
+        self.assertIn("Kâğıt üzerinde +%10 görülenler", message)
+        self.assertIn("Kâğıt üzerinde -%7 görülenler", message)
         self.assertIn("İzleme uyarıları (1)", message)
         self.assertIn("0.00000486 USDT", message)
         self.assertNotIn("SATIŞ UYARISI", message)
@@ -40,6 +40,27 @@ class OperationsTests(unittest.TestCase):
         unknown, link = notify.candidate_identity("UNKNOWNUSDT")
         self.assertEqual(unknown, "UNKNOWN | Spot UNKNOWN/USDT")
         self.assertIn("UNKNOWN_USDT?type=spot", link)
+
+    def test_candidate_notification_separates_signal_and_paper_entry(self):
+        scan = {"scan_time_utc": "2026-09-22T23:35:27+00:00",
+                "health_status": "VALID_SPOT_OBSERVATION", "btc_regime": "SIDEWAYS",
+                "universe_size": 111, "config_version": "v2.4",
+                "config_hash": "abc", "git_sha": "def", "btc_flash_crash": False}
+        candidates = [{"symbol": "XPLUSDT", "stage": "TRIGGER",
+                       "engine": "SPOT_LED_DEMAND", "score": 5,
+                       "signal_price": .09681,
+                       "validation_tier": "OBSERVATIONAL"}]
+        message = notify.build_message(scan, candidates, {})
+        self.assertIn("Plasma (XPL)", message)
+        self.assertIn("Sinyal anındaki fiyat: 0.09681 USDT", message)
+        self.assertIn("şu anki fiyat değil", message)
+        self.assertIn("vadeli piyasa desteği kontrol edilemedi", message)
+        self.assertNotIn("Sürüm:", message)
+        paper = notify.format_paper_alerts([{
+            "symbol": "XPLUSDT", "price": .09681,
+            "alert_kind": "PAPER_ENTRY", "reason": "test"}])
+        self.assertIn("senin alış fiyatın değildir", paper)
+        self.assertIn("kâğıt üzerinde giriş", paper)
 
     def test_watchdog_detects_missing_recent_success(self):
         now = datetime(2026, 9, 22, 20, 0, tzinfo=timezone.utc)

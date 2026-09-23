@@ -25,6 +25,7 @@ VERIFIED_COIN_NAMES = {
     "LTC": "Litecoin",
     "PENGU": "Pudgy Penguins",
     "QNT": "Quant",
+    "XPL": "Plasma",
     "VIRTUAL": "Virtuals Protocol",
 }
 
@@ -46,6 +47,14 @@ STAGE_NAMES = {
     "CONTINUATION": "DEVAM",
     "WAKE_UP": "UYANIŞ",
     "OBSERVE": "GÖZLEM",
+}
+
+STAGE_EXPLANATIONS = {
+    "TRIGGER": "Birden fazla hareket şartı aynı anda görüldü.",
+    "REIGNITION": "İlk hareketten sonra fiyat ve ilgi yeniden hızlandı.",
+    "CONTINUATION": "İlk hareketten sonra ilgi sürüyor.",
+    "WAKE_UP": "İlk olağan dışı hareket görüldü.",
+    "OBSERVE": "İzleme aşamasında.",
 }
 
 
@@ -259,6 +268,7 @@ def read_new_candidates(
             stage,
             engine,
             score,
+            signal_price,
             validation_tier,
             config_version
         FROM signal_events
@@ -292,14 +302,14 @@ def format_paper_price(price):
 
 
 def format_paper_alerts(alerts):
-    """Make paper observations readable without suggesting real orders."""
+    """Separate simulated price observations from actual account activity."""
     groups = {"profit": [], "loss": [], "watch": [], "entry": []}
     for alert in alerts:
         symbol = alert["symbol"]
         price = format_paper_price(alert["price"])
         reason = alert["reason"]
         if alert["alert_kind"] == "PAPER_ENTRY":
-            key, detail = "entry", "Deneme alımı için şartlar oluştu"
+            key, detail = "entry", "Bot bu fiyatı kâğıt üzerinde giriş olarak işaretledi"
         elif "%10 yukarıda" in reason:
             key, detail = "profit", "Deneme girişinden en az %10 yukarıda"
         elif "%7 aşağıda" in reason:
@@ -308,15 +318,15 @@ def format_paper_alerts(alerts):
             key, detail = "watch", "İşaretlendiği fiyattan %1,5 geriledi"
         else:
             key, detail = "watch", reason
-        groups[key].append(f"• {symbol}: {price} USDT — {detail}")
+        identity, _ = candidate_identity(symbol)
+        groups[key].append(f"• {identity}: {price} USDT — {detail}")
 
-    lines = ["📋 AVCI - DENEME İŞLEMLERİNİN DURUMU",
-             "Bunlar geçmiş sinyallerin kağıt üzerindeki takibidir.",
-             "Hesabından alım veya satım yapılmadı.",
-             "Bugünün adaylarının 24 saatlik toplu raporu ayrı gelir."]
-    for key, title in (("profit", "Kâr seviyesine gelenler"),
-                       ("loss", "Zarar sınırına gelenler"),
-                       ("entry", "Yeni deneme alımları"),
+    lines = ["🧪 BOTUN KÂĞIT ÜZERİNDEKİ İŞLEM TAKİBİ",
+             "Aşağıdaki fiyatlar botun test kaydıdır; senin alış fiyatın değildir.",
+             "Hesabından alım veya satım yapılmadı."]
+    for key, title in (("profit", "Kâğıt üzerinde +%10 görülenler (kâr gerçekleşmedi)"),
+                       ("loss", "Kâğıt üzerinde -%7 görülenler"),
+                        ("entry", "Yeni kâğıt üzeri girişler"),
                        ("watch", "İzleme uyarıları")):
         items = groups[key]
         if not items:
@@ -589,22 +599,19 @@ def build_message(
         regime,
     )
 
+    local_time = datetime.fromisoformat(scan_time.replace("Z", "+00:00"))
+    local_time = local_time.astimezone(ZoneInfo("Europe/Istanbul"))
     lines = [
-        "🚨 BINANCE AVCI 2 - YENİ ADAY",
-        "",
-        f"Tarama zamanı: {scan_time}",
-        f"Sürüm: {scan['config_version']} | ayar: {(scan['config_hash'] or '-')[:12]} | kod: {(scan['git_sha'] or '-')[:12]}",
-        f"Veri sağlığı: {health_text}",
-        f"BTC rejimi: {regime_text}",
-        f"Tarama evreni: {universe_size} coin",
-        f"Yeni temiz aday: {len(candidates)}",
+        "🔎 AVCI 2 | YENİ İZLEME ADAYI",
+        f"{local_time:%d.%m.%Y %H:%M} (Türkiye) • {len(candidates)} coin",
+        "Bot bu coinlerde olağan dışı hareket gördü. Bu bir alım önerisi değil.",
+        f"Piyasa: BTC {regime_text.lower()} • Taranan: {universe_size} coin",
         "",
     ]
 
     if health == "VALID_SPOT_OBSERVATION":
         lines.extend([
-            "⚠️ Bu taramada futures verisi yok.",
-            "OI ve fonlama doğrulaması yapılamadı.",
+            "⚠️ Yalnızca spot verisi var; vadeli piyasa desteği kontrol edilemedi.",
             "",
         ])
 
@@ -652,13 +659,18 @@ def build_message(
         )
 
         identity, market_url = candidate_identity(candidate["symbol"])
+        signal_price = candidate.get("signal_price")
         lines.extend([
             f"{index}. {identity}",
+            *( [f"Sinyal anındaki fiyat: {format_paper_price(signal_price)} USDT"
+                " (şu anki fiyat değil)."] if signal_price is not None else [] ),
+            f"Ne görüldü? {STAGE_EXPLANATIONS.get(stage, stage_text)}",
+            f"Hareketin türü: {engine_text.lower()} • Sağlanan kural: {score}/8",
+            "Bu sayı kazanma ihtimali değildir.",
+            f"Veri düzeyi: {validation_text.lower()}",
             f"Binance Spot: {market_url}",
-            f"Aşama: {stage_text}",
-            f"Hareket tipi: {engine_text}",
-            f"Puan: {score}/8",
-            f"Doğrulama: {validation_text}",
+            "Bu coin için henüz sonuç yok; sinyalden sonraki hareket ölçülecek.",
+            "",
         ])
 
         bridge = bridge_scores.get(
@@ -667,21 +679,16 @@ def build_message(
             ]
         )
 
-        add_bridge_lines(
-            lines,
-            bridge,
-        )
+        if bridge:
+            classification = CLASS_NAMES.get(
+                bridge.get("classification"), "YETERSİZ VERİ")
+            lines.append(f"Geçmiş örneklerle karşılaştırma: {classification.lower()}.")
+            lines.append("Bu benzerlik kazanma olasılığı değildir.")
+            lines.append("")
 
     lines.extend([
-        "Açıklama:",
-        "UYANIŞ = İlk olağan dışı hareket.",
-        "DEVAM = Hacim ve ilgi sürüyor.",
-        "YENİDEN CANLANMA = Hareket tekrar hızlanıyor.",
-        "TETİK = Birden fazla şart aynı anda oluştu.",
-        "",
-        "Geçmiş kazanan benzerliği başarı ihtimali değildir.",
-        "Bu bildirim otomatik alım emri değildir.",
-        "İlk aşama paper-trade ve araştırma amaçlıdır.",
+        "Bot yalnızca izler; hesabında işlem açmaz.",
+        "Kâğıt üzerindeki test kaydı varsa aşağıda ayrıca gösterilir.",
     ])
 
     return "\n".join(lines)
@@ -770,18 +777,14 @@ def main():
     scan_time_local = datetime.fromisoformat(scan["scan_time_utc"])
     scan_time_local = scan_time_local.astimezone(
         ZoneInfo("Europe/Istanbul")).strftime("%d.%m.%Y %H:%M")
-    message = (build_message(scan, candidates, bridge_scores)
-               if candidates else f"Tarama: {scan_time_local} (Türkiye)\n")
+    if candidates:
+        message = build_message(scan, candidates, bridge_scores)
+        print(message)
+        send_telegram(token, chat_id, message)
     if trade_alerts:
-        message += "\n" + format_paper_alerts(trade_alerts)
-
-    print(message)
-
-    send_telegram(
-        token,
-        chat_id,
-        message,
-    )
+        paper_message = f"{scan_time_local} (Türkiye)\n" + format_paper_alerts(trade_alerts)
+        print(paper_message)
+        send_telegram(token, chat_id, paper_message)
 
     print(
         "Binance Avcı 2 Türkçe Telegram "
