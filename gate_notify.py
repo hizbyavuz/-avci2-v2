@@ -121,7 +121,7 @@ def format_alert(event, item, context, risk_context=None):
     c24=float(item.get("change_24h") or 0)
 
     lines=[
-        "🔎 GATE AVCI | YENİ ADAY",
+        "🔎 GATE AVCI 2 | YENİ ADAY",
         f"🪙 {item.get('name') or '?'} ({item.get('symbol') or '?'}) • {NETWORK_NAMES.get(network,network)}",
         f"🕒 {local:%d.%m.%Y %H:%M}",
         f"🎯 Sinyal geldiğinde: ${price(event['signal_price'])}",
@@ -211,7 +211,7 @@ def send_gate_followups(token, chat, con, session=requests):
     for row in rows[:5]:
         direction="yukarıda" if row["change"]>=0 else "aşağıda"
         last_dir="yükseldi" if (row["since_last"] or 0)>=0 else "düştü"
-        text=(f"📊 GATE AVCI | TAKİP\n{row['symbol']}\n"
+        text=(f"📊 GATE AVCI 2 | TAKİP\n{row['symbol']}\n"
               f"Şu an: ${fmt_price(row['current'])}\n"
               f"Sinyalden beri: %{abs(row['change']):.2f} {direction}\n"
               f"Önceki bildirime göre: %{abs(row['since_last'] or 0):.2f} {last_dir}\n"
