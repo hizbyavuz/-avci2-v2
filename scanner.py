@@ -5399,6 +5399,77 @@ def print_validation_summary(summary):
 
 
 # ============================================================
+
+def collect_gate_official_observations(db_path="avci2.db", limit=24):
+    """Seed the observational pool from Gate's exact official contracts.
+
+    This is research-only. It never enters frozen V5 candidate membership.
+    The purpose is to stop Gate-listed assets from being invisible merely
+    because GeckoTerminal trending/new pages did not contain their pool.
+    """
+    if not os.path.exists(db_path):
+        return [], ["gate_official:no_db"], 0
+    rows = []
+    errors = []
+    try:
+        with sqlite3.connect(db_path, timeout=20) as con:
+            con.row_factory = sqlite3.Row
+            health = con.execute("""SELECT batch_id,status,scan_ts
+                FROM gate_spot_health ORDER BY scan_ts DESC LIMIT 1""").fetchone()
+            if not health or health["status"] != "VALID":
+                return [], ["gate_official:spot_health"], 0
+            candidates = con.execute("""SELECT m.pair,m.volume_24h,m.change_24h,
+                    c.network_id,c.token_contract
+                FROM gate_spot_market m
+                JOIN gate_spot_contracts c ON c.pair=m.pair
+                WHERE m.volume_24h>=30000
+                  AND m.change_24h BETWEEN -10 AND 35
+                ORDER BY
+                  CASE WHEN m.change_24h BETWEEN 0 AND 20 THEN 0 ELSE 1 END,
+                  m.volume_24h DESC
+                LIMIT ?""", (limit * 3,)).fetchall()
+    except sqlite3.Error:
+        return [], ["gate_official:db_error"], 0
+
+    # Diversify by pair/network and cap external calls.
+    picked = []
+    seen = set()
+    for row in candidates:
+        key = (row["network_id"], row["token_contract"])
+        if key in seen:
+            continue
+        seen.add(key)
+        picked.append(row)
+        if len(picked) >= limit:
+            break
+
+    from gate_spot_observer import identity
+    for row in picked:
+        network = row["network_id"]
+        contract = row["token_contract"]
+        payload = api_get(
+            f"/networks/{network}/tokens/{contract}/pools"
+            "?include=base_token,quote_token"
+        )
+        if (not isinstance(payload, dict) or payload.get("_avci_data_error")
+                or not isinstance(payload.get("data"), list)):
+            errors.append(f"gate_official:{network}:{row['pair']}")
+            continue
+        parsed = control_pool_from_payload(
+            payload, network, NETWORKS.get(network, network),
+            "GATE_OFFICIAL_SEED", observation=True, allow_old_pool=True
+        )
+        exact = [
+            item for item in parsed
+            if identity(network, str(item.get("token_contract") or ""))
+               == identity(network, contract)
+        ]
+        rows.extend(exact)
+        time.sleep(0.20)
+
+    return rows, errors, len(picked)
+
+
 # ============================================================
 # MAIN
 # ============================================================
@@ -5563,6 +5634,20 @@ print(
     "Ek gözlem sayfaları:", extra_pages,
     "| bulunan havuzlar:", len(extra_observations),
     "| hatalar:", extra_page_errors,
+)
+
+# Gate's official contracts are an additional observation source only.
+# They close a coverage blind spot without changing frozen V5 rules.
+gate_seed_rows, gate_seed_errors, gate_seed_requested = (
+    collect_gate_official_observations("avci2.db")
+)
+all_observation_pool.extend(gate_seed_rows)
+feed_errors.extend(gate_seed_errors)
+print(
+    "Gate resmi kontrat on-chain tohumu:",
+    gate_seed_requested, "kontrat sorgulandı |",
+    len(gate_seed_rows), "eşleşen havuz |",
+    len(gate_seed_errors), "kaynak hatası",
 )
 
 all_candidates = deduplicate(
