@@ -18,7 +18,7 @@ from datetime import datetime
 from binance_scanner import spot_api_get, futures_api_get
 
 DB = "binance_avci2.db"
-VERSION = "binance-structure-observer-v0.1-20260923"
+VERSION = "binance-structure-observer-v0.2-20260923"
 
 SECTORS = {
     "AI": {"TAO","FET","RENDER","VIRTUAL","ARKM","WLD","NEAR","ICP","GRT"},
@@ -96,6 +96,22 @@ def lead_lag(symbol):
     return "BALANCED", sret, fret
 
 
+def decoupling_flags(coin_return, btc_return, prior_excesses=None):
+    """Observe positive coin/BTC divergence without changing candidate scoring."""
+    if coin_return is None or btc_return is None:
+        return None, []
+    excess = float(coin_return) - float(btc_return)
+    flags = []
+    if float(btc_return) <= -0.40 and float(coin_return) >= 0 and excess >= 1.50:
+        flags.append("BTC_DECOUPLING_STRENGTH")
+    history = [float(x) for x in (prior_excesses or []) if x is not None]
+    recent = history[:3]
+    if ("BTC_DECOUPLING_STRENGTH" in flags and len(recent) >= 2
+            and sum(x >= 1.0 for x in recent) >= 2):
+        flags.append("BTC_DECOUPLING_RETENTION")
+    return excess, flags
+
+
 def latest_candidates(con):
     scan = con.execute("""SELECT scan_time_utc,data_mode,health_status
         FROM scans ORDER BY scan_time_utc DESC LIMIT 1""").fetchone()
@@ -124,6 +140,14 @@ def main(path=DB):
             spot_return_15m REAL, futures_return_15m REAL,
             structure_flags_json TEXT NOT NULL,
             PRIMARY KEY(scan_time_utc,symbol,version))""")
+        con.execute("""CREATE TABLE IF NOT EXISTS btc_decoupling_observations (
+            scan_time_utc TEXT NOT NULL, symbol TEXT NOT NULL,
+            version TEXT NOT NULL, btc_return_15m REAL,
+            coin_return_15m REAL, btc_excess_15m REAL,
+            market_median_return_15m REAL, market_excess_15m REAL,
+            retained INTEGER NOT NULL DEFAULT 0,
+            flags_json TEXT NOT NULL,
+            PRIMARY KEY(scan_time_utc,symbol,version))""")
         scan, rows = latest_candidates(con)
         if not scan:
             print("Binance yapı gözlemi: geçerli tarama yok")
@@ -132,6 +156,13 @@ def main(path=DB):
         sector_returns = {}
         all_latest = con.execute("""SELECT symbol,change_15m FROM features
             WHERE scan_time_utc=?""", (scan[0],)).fetchall()
+        current_returns = {
+            r["symbol"]: float(r["change_15m"])
+            for r in all_latest if r["change_15m"] is not None
+        }
+        btc_return_15m = current_returns.get("BTCUSDT")
+        market_values = [v for s, v in current_returns.items() if s != "BTCUSDT"]
+        market_median_15m = statistics.median(market_values) if market_values else None
         for r in all_latest:
             sec = sector_for(r["symbol"])
             if sec and r["change_15m"] is not None:
@@ -172,6 +203,23 @@ def main(path=DB):
                         lead = None
 
             flags = []
+            prior_excesses = [
+                x[0] for x in con.execute("""SELECT btc_excess_15m
+                    FROM btc_decoupling_observations
+                    WHERE symbol=? AND scan_time_utc<?
+                    ORDER BY scan_time_utc DESC LIMIT 3""",
+                    (symbol, scan[0])).fetchall()
+            ]
+            btc_excess, decoupling = decoupling_flags(
+                row["change_15m"], btc_return_15m, prior_excesses)
+            flags.extend(decoupling)
+            market_excess = (
+                float(row["change_15m"]) - market_median_15m
+                if row["change_15m"] is not None and market_median_15m is not None
+                else None
+            )
+            if market_excess is not None and market_excess >= 1.5:
+                flags.append("MARKET_OUTPERFORMANCE")
             if sector_excess is not None and sector_excess >= 1.0:
                 flags.append("SECTOR_OUTPERFORMANCE")
             if oi_z is not None and oi_z >= 2.5:
@@ -187,6 +235,13 @@ def main(path=DB):
                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (scan[0],symbol,VERSION,sec,sector_excess,oi_z,funding_accel,
                  pressure,lead,sret,fret,json.dumps(flags)))
+            con.execute("""INSERT OR REPLACE INTO btc_decoupling_observations
+                VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                (scan[0], symbol, VERSION, btc_return_15m,
+                 row["change_15m"], btc_excess, market_median_15m,
+                 market_excess,
+                 1 if "BTC_DECOUPLING_RETENTION" in flags else 0,
+                 json.dumps(decoupling)))
             written += 1
             if flags:
                 print(f"Yapı gözlemi {symbol}: {', '.join(flags)}")
