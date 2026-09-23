@@ -31,6 +31,7 @@ on:
     paths:
       - "binance_*.py"
       - "telegram_readable.py"
+      - "avci_checkpoints.py"
       - "tests/test_core.py"
       - ".github/workflows/binance_avci2.yml"
 
@@ -128,6 +129,10 @@ jobs:
 
       - name: Compare timestamped signals between venues
         run: python -u cross_venue_observer.py
+
+      - name: Record fixed post-signal checkpoints
+        continue-on-error: true
+        run: python -u avci_checkpoints.py binance
 
       - name: Run outcome labeler
         run: python -u binance_outcome_labeler.py
