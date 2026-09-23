@@ -1,7 +1,9 @@
 # Gate Avcı 2: erken gözlem ve Telegram
 
 Bu katman mevcut V5 taramasının seçim eşiklerini değiştirmez. Her 10 dakikalık
-taramanın görünen uygun havuzlarını ve kaynak hatalarını `avci2.db` içine kaydeder.
+taramanın trending/new-pools kaynaklarında görünen geniş gözlem havuzunu ve
+kaynak hatalarını `avci2.db` içine kaydeder. Gözlem için en az $5.000
+likidite ve $1.000 24 saatlik hacim yeterlidir; bu coinler V5 adayı sayılmaz.
 En az üç önceki gözlem ve 20 dakikalık geçmiş varsa 5 dakikalık hacmi tokenin
 kendi medyan hacmiyle karşılaştırır. İlk anomali zamanı ve sinyal öncesi getiri
 yalnızca gözlem alanıdır; V5 başarı ölçümüne dahil edilmez.
@@ -27,3 +29,6 @@ Gereken GitHub Secrets: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`,
 `JUPITER_API_KEY`. `HELIUS_API_KEY`, `GOPLUS_ACCESS_TOKEN` ve `ZEROX_API_KEY`
 mevcutsa zenginleştirme için okunur; EVM çıkış doğrulaması olmadan EVM alarmı
 verilmez. Hiçbir API anahtarı kaynak koduna veya Telegram mesajına yazılmaz.
+Telegram değişkenleri boşsa GitHub Actions uyarı üretir. Başarılı workflow
+tek başına Telegram mesajının ulaştığını kanıtlamaz; gönderilen aday sayısı
+ve bot ayarı ayrıca kontrol edilmelidir.
