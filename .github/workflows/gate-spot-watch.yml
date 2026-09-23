@@ -20,6 +20,7 @@ concurrency:
 jobs:
   observe:
     runs-on: ubuntu-latest
+    timeout-minutes: 8
     env:
       GATE_SPOT_DB: gate_spot_state.db
     steps:
