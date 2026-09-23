@@ -202,7 +202,11 @@ def main():
         save_snapshot(DB_PATH, batch, market, contracts, quality=quality)
         print(f"Gate Spot gözlem: {len(market)} USDT paritesi, "
               f"{len(contracts)} ağ/kontrat eşleşmesi; alım bildirimi üretilmez.")
-        print(coverage_report(DB_PATH, batch))
+        report = coverage_report(DB_PATH, batch)
+        print(report)
+        if os.getenv("GITHUB_STEP_SUMMARY"):
+            with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
+                summary.write("\n## Gate Spot piyasa kapsaması\n\n" + report + "\n")
     except (error.URLError, TimeoutError, ValueError) as exc:
         save_snapshot(DB_PATH, batch, [], [], type(exc).__name__)
         print(f"::warning::Gate Spot verisi alınamadı: {type(exc).__name__}")
