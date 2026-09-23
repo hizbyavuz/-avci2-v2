@@ -98,3 +98,69 @@ def early_context(con, batch_id, network, contract, signal_price):
     return {"first_anomaly_ts": first[0],
             "gain_before_signal_pct": 100 * (signal_price / first[1] - 1),
             "own_volume_ratio": current[2] if current else None}
+
+
+def record_candidate_risk(path, batch_id, candidates):
+    """Keep observed security samples; no inferred rug labels or V5 rule edits."""
+    with sqlite3.connect(path, timeout=30) as con:
+        con.execute("""CREATE TABLE IF NOT EXISTS gate_candidate_risk_history (
+            batch_id TEXT NOT NULL, scan_ts INTEGER NOT NULL,
+            network_id TEXT NOT NULL, token_contract TEXT NOT NULL,
+            creator_address TEXT, lp_protected_pct REAL,
+            creator_unlocked_lp_pct REAL, top10_adjusted_pct REAL,
+            trades_sampled INTEGER, unique_buyers_sample INTEGER,
+            roundtrip_wallets_sample INTEGER,
+            PRIMARY KEY(batch_id, network_id, token_contract))""")
+        con.execute("""CREATE INDEX IF NOT EXISTS idx_gate_candidate_risk_history
+            ON gate_candidate_risk_history(network_id, token_contract, scan_ts)""")
+        scan = con.execute("SELECT scan_ts FROM gate_scan_health WHERE batch_id=?",
+                           (batch_id,)).fetchone()
+        if not scan:
+            raise ValueError("Risk history requires a recorded scan")
+        written = 0
+        for item in candidates:
+            network = item.get("network_id")
+            contract = item.get("token_contract")
+            if not network or not contract:
+                continue
+            lp = item.get("lp_protection") or {}
+            holder = item.get("adjusted_holder") or {}
+            cluster = item.get("trade_cluster") or {}
+            creator = item.get("creator_address")
+            creator = creator if isinstance(creator, str) else None
+            con.execute("""INSERT OR IGNORE INTO gate_candidate_risk_history
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (batch_id, scan[0], network, contract.lower(),
+                 creator, lp.get("protected_pct"),
+                 lp.get("creator_unlocked_pct"), holder.get("top10_pct"),
+                 cluster.get("trades_seen"), cluster.get("unique_buyers_sample"),
+                 cluster.get("roundtrip_wallets_sample")))
+            written += 1
+        return written
+
+
+def candidate_risk_context(con, batch_id, network, contract):
+    """Top-10 holder change from a prior sample at least ten minutes earlier."""
+    try:
+        current = con.execute("""SELECT scan_ts, top10_adjusted_pct,
+            creator_address FROM gate_candidate_risk_history
+            WHERE batch_id=? AND network_id=? AND token_contract=?""",
+            (batch_id, network, contract.lower())).fetchone()
+    except sqlite3.OperationalError:
+        current = None
+    if not current or current[1] is None:
+        return {"top10_change_pp": None, "creator_tokens_observed": None}
+    older = con.execute("""SELECT top10_adjusted_pct
+        FROM gate_candidate_risk_history WHERE network_id=?
+        AND token_contract=? AND scan_ts<=? AND scan_ts>=?
+        AND top10_adjusted_pct IS NOT NULL ORDER BY scan_ts DESC LIMIT 1""",
+        (network, contract.lower(), current[0] - 600,
+         current[0] - 6 * 3600)).fetchone()
+    creator_count = None
+    if current[2]:
+        creator_count = con.execute("""SELECT COUNT(DISTINCT token_contract)
+            FROM gate_candidate_risk_history
+            WHERE network_id=? AND lower(creator_address)=?""",
+            (network, current[2].lower())).fetchone()[0]
+    return {"top10_change_pp": current[1] - older[0] if older else None,
+            "creator_tokens_observed": creator_count}
