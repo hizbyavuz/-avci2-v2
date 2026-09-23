@@ -6,6 +6,7 @@ on:
     paths:
       - "scanner.py"
       - "gate_*.py"
+      - "telegram_readable.py"
       - "tests/test_gate_*.py"
       - ".github/workflows/avci-v2.yml"
   schedule:
