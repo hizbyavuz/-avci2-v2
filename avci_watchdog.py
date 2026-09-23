@@ -50,6 +50,38 @@ def latest_binance_scan_problem(now):
     return None
 
 
+
+def latest_gate_scan_problem(now):
+    saved = artifacts("gate-avci2-signal-history")
+    if not saved:
+        return "Gate: kayitli son veri bulunamadi"
+    with tempfile.TemporaryDirectory() as folder:
+        download(saved[0], folder)
+        path = Path(folder) / "avci2.db"
+        if not valid_database(path, "gate_scan_health"):
+            return "Gate: son veritabani bozuk veya scan-health eksik"
+        with sqlite3.connect(f"file:{path}?mode=ro", uri=True) as conn:
+            row = conn.execute("""SELECT scan_ts,status,source_errors
+                FROM gate_scan_health ORDER BY scan_ts DESC LIMIT 1""").fetchone()
+            spot = conn.execute("""SELECT scan_ts,status,error
+                FROM gate_spot_health ORDER BY scan_ts DESC LIMIT 1""").fetchone() \
+                if conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='gate_spot_health'").fetchone() else None
+        if not row:
+            return "Gate: veritabaninda gercek tarama kaydi yok"
+        age=(now-datetime.fromtimestamp(int(row[0]),timezone.utc)).total_seconds()/60
+        if age>LIMIT_MINUTES:
+            return f"Gate: son gercek tarama {age:.0f} dakika once"
+        if row[1]!="VALID":
+            return f"Gate: son on-chain veri sagligi {row[1]} ({row[2] or 'kaynak hatasi'})"
+        if spot:
+            spot_age=(now-datetime.fromtimestamp(int(spot[0]),timezone.utc)).total_seconds()/60
+            if spot_age>LIMIT_MINUTES:
+                return f"Gate Spot: son veri {spot_age:.0f} dakika once"
+            if spot[1]!="VALID":
+                return f"Gate Spot: veri sagligi {spot[1]} ({spot[2] or 'kaynak hatasi'})"
+    return None
+
+
 def send_warning(problems):
     token = os.getenv("TELEGRAM_BOT_TOKEN")
     if not token:
@@ -86,6 +118,12 @@ def main():
             problems.append(problem)
     except Exception as error:
         problems.append(f"Binance: kaydedilen tarama okunamadi ({type(error).__name__})")
+    try:
+        problem = latest_gate_scan_problem(now)
+        if problem:
+            problems.append(problem)
+    except Exception as error:
+        problems.append(f"Gate: kaydedilen tarama okunamadi ({type(error).__name__})")
     if problems:
         print("; ".join(problems))
         send_warning(problems)
