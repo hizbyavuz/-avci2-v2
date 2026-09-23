@@ -108,7 +108,9 @@ def format_alert(event, item, context, risk_context=None):
     rules = [RULE_NAMES.get(rule, rule)
              for rule in event["rulesets"].split(",") if rule]
     lines = [
-        "🔎 GATE AVCI 2 | YENİ ON-CHAIN ADAY",
+        ("🔎 GATE AVCI 2 | GENİŞ TARAMA ON-CHAIN ADAY"
+         if event.get("group_type") == "EXPANDED_CANDIDATE"
+         else "🔎 GATE AVCI 2 | YENİ ON-CHAIN ADAY"),
         f"{local:%d.%m.%Y %H:%M} (Türkiye)",
         f"{item.get('name') or '?'} ({item.get('symbol') or '?'}) • {NETWORK_NAMES.get(network, network)}",
         f"Tam kontrat: {contract}",
@@ -214,9 +216,10 @@ def pending_alerts(observation_path=OBS_DB, validation_path=VALIDATION_DB):
         if not latest:
             return []
         batch = latest["batch_id"]
-        events = val.execute("""SELECT id, batch_id, network_id, token_contract,
+        events = val.execute("""SELECT id, batch_id, group_type, network_id, token_contract,
             signal_ts, signal_iso, signal_price, rulesets FROM validation_events
-            WHERE batch_id=? AND group_type='CANDIDATE' AND rulesets!=''
+            WHERE batch_id=? AND group_type IN ('CANDIDATE', 'EXPANDED_CANDIDATE')
+                AND rulesets!=''
             ORDER BY id LIMIT 50""", (batch,)).fetchall()
         alerts = []
         for e in events:
