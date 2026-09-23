@@ -8,6 +8,11 @@ import time
 OBSERVATION_VERSION = "gate-early-observation-v1"
 
 
+def contract_key(network, contract):
+    # Solana base58 addresses are case sensitive. EVM hex addresses are not.
+    return contract if network == "solana" else contract.lower()
+
+
 def record_scan(path, batch_id, pools, feed_errors=(), now_ts=None):
     """Record the eligible pool universe, including controls, before alerting."""
     now_ts = int(now_ts or time.time())
@@ -16,7 +21,7 @@ def record_scan(path, batch_id, pools, feed_errors=(), now_ts=None):
         network, contract = item.get("network_id"), item.get("token_contract")
         if not network or not contract:
             continue
-        key = (network, contract.lower())
+        key = (network, contract_key(network, contract))
         if key not in best or float(item.get("liquidity") or 0) > float(
                 best[key].get("liquidity") or 0):
             best[key] = item
@@ -100,7 +105,7 @@ def early_context(con, batch_id, network, contract, signal_price):
         WHERE network_id=? AND token_contract=? AND
         scan_ts >= (SELECT scan_ts - 72*3600 FROM gate_scan_health
                     WHERE batch_id=?)
-        ORDER BY scan_ts""", (network, contract.lower(), batch_id)).fetchall()
+        ORDER BY scan_ts""", (network, contract_key(network, contract), batch_id)).fetchall()
     first = next((row for row in rows if row[3] and row[1] > 0), None)
     current = rows[-1] if rows else None
     try:
@@ -111,7 +116,7 @@ def early_context(con, batch_id, network, contract, signal_price):
             AND scan_ts >=
                 (SELECT scan_ts - 6*3600 FROM gate_scan_health WHERE batch_id=?)
             ORDER BY scan_ts DESC LIMIT 36""",
-            (network, contract.lower(), batch_id, batch_id)).fetchall()
+            (network, contract_key(network, contract), batch_id, batch_id)).fetchall()
     except sqlite3.OperationalError:
         buyer_rows = []
     current_buyers = buyer_rows[0][1] if buyer_rows else None
@@ -166,7 +171,7 @@ def record_candidate_risk(path, batch_id, candidates):
             creator = creator if isinstance(creator, str) else None
             con.execute("""INSERT OR IGNORE INTO gate_candidate_risk_history
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (batch_id, scan[0], network, contract.lower(),
+                (batch_id, scan[0], network, contract_key(network, contract),
                  creator, lp.get("protected_pct"),
                  lp.get("creator_unlocked_pct"), holder.get("top10_pct"),
                  cluster.get("trades_seen"), cluster.get("unique_buyers_sample"),
@@ -175,7 +180,7 @@ def record_candidate_risk(path, batch_id, candidates):
             reputation = item.get("creator_reputation") or {}
             con.execute("""INSERT OR IGNORE INTO gate_optional_context
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-                (batch_id, network, contract.lower(), reputation.get("status"),
+                (batch_id, network, contract_key(network, contract), reputation.get("status"),
                  int(cluster["wash_proxy"]) if cluster.get("wash_proxy") is not None
                  else None, social.get("status"), social.get("last_15m"),
                  social.get("previous_45m")))
@@ -189,7 +194,7 @@ def candidate_risk_context(con, batch_id, network, contract):
         current = con.execute("""SELECT scan_ts, top10_adjusted_pct,
             creator_address FROM gate_candidate_risk_history
             WHERE batch_id=? AND network_id=? AND token_contract=?""",
-            (batch_id, network, contract.lower())).fetchone()
+            (batch_id, network, contract_key(network, contract))).fetchone()
     except sqlite3.OperationalError:
         current = None
     if not current or current[1] is None:
@@ -198,7 +203,7 @@ def candidate_risk_context(con, batch_id, network, contract):
         FROM gate_candidate_risk_history WHERE network_id=?
         AND token_contract=? AND scan_ts<=? AND scan_ts>=?
         AND top10_adjusted_pct IS NOT NULL ORDER BY scan_ts DESC LIMIT 1""",
-        (network, contract.lower(), current[0] - 600,
+        (network, contract_key(network, contract), current[0] - 600,
          current[0] - 6 * 3600)).fetchone()
     creator_count = None
     if current[2]:

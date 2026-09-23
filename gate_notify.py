@@ -37,7 +37,10 @@ def security_decision(item):
     if not valid_contract(network, item.get("token_contract")):
         return "Kontrat adresi doğrulanamadı"
     if item.get("risk_band") != "LOW_FLAGS":
-        return "Risk işaretleri var veya güvenlik verisi eksik"
+        flags = item.get("security_risk_reasons") or []
+        return ("Risk işaretleri var veya güvenlik verisi eksik: "
+                + ", ".join(str(flag) for flag in flags[:4])) if flags else (
+                "Risk işaretleri var veya güvenlik verisi eksik")
     if item.get("security_risk_reasons"):
         return "Güvenlik uyarıları var"
     if (item.get("climax") or {}).get("risk") or (item.get("trap_proxy") or {}).get("risk"):
@@ -186,11 +189,17 @@ def format_alert(event, item, context, risk_context=None):
 
 def candidate_snapshot(db, event):
     # Match the immutable validation id, not the ticker (tickers are reused).
+    contract = event["token_contract"]
     rows = db.execute("""SELECT raw_json FROM snapshots WHERE network_id=?
-        AND lower(token_contract)=? AND zaman_utc>=?
+        AND token_contract=? COLLATE NOCASE AND zaman_utc>=?
         ORDER BY id ASC LIMIT 30""",
-        (event["network_id"], event["token_contract"].lower(),
+        (event["network_id"], contract,
          event["signal_iso"])).fetchall()
+    if event["network_id"] == "solana":
+        rows = db.execute("""SELECT raw_json FROM snapshots WHERE network_id=?
+            AND token_contract=? AND zaman_utc>=?
+            ORDER BY id ASC LIMIT 30""",
+            (event["network_id"], contract, event["signal_iso"])).fetchall()
     for row in rows:
         try:
             item = json.loads(row[0])
@@ -325,6 +334,36 @@ def send_pending(observation_path=OBS_DB, validation_path=VALIDATION_DB,
                 except Exception as exc:
                     print("Gate Spot Telegram gönderilemedi, kayıt beklemede:",
                           type(exc).__name__)
+                    break
+        if con.execute("""SELECT 1 FROM sqlite_master WHERE type='table'
+            AND name='gate_volume_alert_audit'""").fetchone():
+            volume = con.execute("""SELECT a.batch_id,a.network_id,
+                a.token_contract,a.message,h.scan_ts
+                FROM gate_volume_alert_audit a JOIN gate_scan_health h
+                  ON h.batch_id=a.batch_id
+                WHERE a.status='PENDING' ORDER BY a.decided_at LIMIT 2""").fetchall()
+            for batch, network, contract, message, signal_ts in volume:
+                if datetime.now(timezone.utc).timestamp() - signal_ts > 20*60:
+                    con.execute("""UPDATE gate_volume_alert_audit
+                        SET status='EXPIRED',reason='Sinyal 20 dakikayı geçti'
+                        WHERE batch_id=? AND network_id=? AND token_contract=?""",
+                        (batch, network, contract))
+                    con.commit()
+                    continue
+                try:
+                    r = session.post(f"https://api.telegram.org/bot{token}/sendMessage",
+                        json={"chat_id": chat, "text": message[:4096]}, timeout=20)
+                    r.raise_for_status()
+                    if not r.json().get("ok"):
+                        raise RuntimeError("Telegram API gönderimi onaylamadı")
+                    con.execute("""UPDATE gate_volume_alert_audit
+                        SET status='SENT',decided_at=strftime('%s','now')
+                        WHERE batch_id=? AND network_id=? AND token_contract=?""",
+                        (batch, network, contract))
+                    con.commit()
+                    sent += 1
+                except Exception as exc:
+                    print("Hacim uyanışı Telegram gönderilemedi:", type(exc).__name__)
                     break
         return sent
 

@@ -46,6 +46,24 @@ AYRI ERKEN GÖZLEM` başlığını taşır ve V5 adayı, güvenli yatırım veya
 alım anlamına gelmez. Bağımsız `gate-spot-watch.yml` işi hâlâ Telegram
 göndermez. Donmuş V5 kuralları ve başarı sayıları değişmez.
 
+## Kendi geçmişine göre hacim uyanışı
+
+`gate_volume_bridge.py` aynı on-chain havuzun en az üç önceki taramasını
+kullanır. Anlık beş dakikalık hacim medyanın en az üç katına çıkmalı,
+likidite korunmalı, alışlar satışlardan güçlü olmalı ve önceki yaklaşık
+20–90 dakikaya göre fiyat henüz en fazla %15 artmış olmalıdır. Aşırı
+24 saat hareketi ve eksik geçmiş gözlem dışındadır. En fazla iki olay
+mevcut `security_decision` kontrollerine girer. Bilinmeyen LP/holder,
+tehlikeli yetki, eksik $1.000/$5.000 satış teklifi veya geç tarama
+Telegram uyarısı oluşturmaz. Mesaj `AYRI HACİM UYANIŞI` olarak etiketlenir;
+bu kohort V5 kurallarına veya V5 performans ölçümüne eklenmez.
+
+Solana kontratları büyük/küçük harfe duyarlıdır. Gate Spot ile on-chain
+geçmişte artık orijinal mint adresi saklanır; EVM adresleri küçük harfle
+eşleştirilir. Eski küçültülmüş Solana gözlemleri güvenilir biçimde geri
+dönüştürülemeyeceği için yeni gözlemler birikene kadar hacim uyanışı
+tetiklenmez.
+
 Bu katman mevcut V5 taramasının seçim eşiklerini değiştirmez. Her 10 dakikalık
 taramanın trending/new-pools kaynaklarında görünen geniş gözlem havuzunu ve
 kaynak hatalarını `avci2.db` içine kaydeder. Gözlem için en az $5.000

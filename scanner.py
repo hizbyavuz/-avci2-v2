@@ -5757,6 +5757,15 @@ try:
 except (OSError, ValueError, sqlite3.Error) as exc:
     print("::warning::Gate Spot köprüsü kullanılamadı:", type(exc).__name__)
 
+try:
+    from gate_volume_bridge import review as review_volume_wakeup
+    volume_counts = review_volume_wakeup(
+        "avci2.db", batch_id, all_observation_pool + all_candidates,
+        enrich_candidate, (compute_climax, compute_trap_proxy))
+    print("On-chain hacim uyanışı ayrı güvenlik incelemesi:", volume_counts)
+except (OSError, ValueError, sqlite3.Error) as exc:
+    print("::warning::Hacim uyanışı katmanı kullanılamadı:", type(exc).__name__)
+
 print(
     "Snapshot toplam:",
     snapshot_sayisi()

@@ -8,6 +8,8 @@ from unittest.mock import patch
 from gate_spot_bridge import exact_pool, review
 from gate_spot_observer import save_snapshot
 from gate_spot_observer import identity
+from gate_early_observer import record_scan
+from gate_volume_bridge import review as review_volume
 
 
 ADDRESS = "0x" + "a" * 40
@@ -19,6 +21,41 @@ class GateSpotBridgeTest(unittest.TestCase):
         mint = "So11111111111111111111111111111111111111112"
         self.assertEqual(identity("solana", mint), mint)
         self.assertNotEqual(identity("solana", mint), mint.lower())
+
+    def test_onchain_history_keeps_solana_mint_case(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = str(Path(directory) / "state.db")
+            mint = "So11111111111111111111111111111111111111112"
+            record_scan(path, "batch", [{"network_id": "solana",
+                "token_contract": mint, "pool": "pool", "price_usd": 1,
+                "liquidity": 100000, "volume_5m": 1000}], now_ts=100000)
+            with sqlite3.connect(path) as con:
+                self.assertEqual(con.execute("""SELECT token_contract FROM
+                    gate_early_observations""").fetchone()[0], mint)
+
+    def test_volume_anomaly_requires_complete_security(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = str(Path(directory) / "state.db")
+            base = 100000
+            item = {"network_id": "eth", "token_contract": ADDRESS,
+                    "pool": "pool", "price_usd": 1, "liquidity": 50000,
+                    "volume_5m": 1000, "volume_24h": 100000,
+                    "buys_5m": 20, "sells_5m": 10,
+                    "buys_24h": 200, "sells_24h": 100,
+                    "change_24h": 5}
+            for index in range(3):
+                record_scan(path, str(index), [item], now_ts=base + index*600)
+            current = {**item, "price_usd": 1.05, "volume_5m": 4000,
+                       "buys_5m": 60, "sells_5m": 20}
+            record_scan(path, "current", [current], now_ts=base + 1800)
+            result = review_volume(path, "current", [current], lambda _: None,
+                (lambda _: {"risk": False}, lambda _: {"risk": False}),
+                now=base + 1810)
+            self.assertEqual(result["qualified"], 1)
+            self.assertEqual(result["pending"], 0)
+            with sqlite3.connect(path) as con:
+                self.assertEqual(con.execute("""SELECT status FROM
+                    gate_volume_alert_audit""").fetchone()[0], "WITHHELD")
 
     def test_exact_contract_and_price_are_required(self):
         base = {"network_id": "eth", "token_contract": OTHER,
