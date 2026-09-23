@@ -9,6 +9,11 @@ from zoneinfo import ZoneInfo
 
 import requests
 
+from telegram_readable import (
+    gecko_token, fmt_price, pct, record_initial, send_photo_or_text,
+    due_followups, mark_followup,
+)
+
 from binance_notify import find_chat_id, resolve_chat_id
 from gate_early_observer import candidate_risk_context, early_context
 
@@ -110,6 +115,9 @@ def format_alert(event, item, context, risk_context=None):
     network, contract = event["network_id"], event["token_contract"]
     rules = [RULE_NAMES.get(rule, rule)
              for rule in event["rulesets"].split(",") if rule]
+    live = gecko_token(network, contract)
+    live_price = live.get("price")
+    live_change = pct(live_price, event["signal_price"])
     lines = [
         ("🔎 GATE AVCI 2 | GENİŞ TARAMA ON-CHAIN ADAY"
          if event.get("group_type") == "EXPANDED_CANDIDATE"
@@ -118,7 +126,9 @@ def format_alert(event, item, context, risk_context=None):
         f"{item.get('name') or '?'} ({item.get('symbol') or '?'}) • {NETWORK_NAMES.get(network, network)}",
         f"Tam kontrat: {contract}",
         f"Neden izleniyor? {', '.join(rules)}.",
-        f"Sinyal fiyatı: ${price(event['signal_price'])} (şu anki fiyat değil)",
+        f"Sinyal fiyatı: ${price(event['signal_price'])}",
+        *( [f"Şu anki fiyat: ${fmt_price(live_price)}"] if live_price is not None else ["Şu anki fiyat alınamadı"] ),
+        *( [f"Sinyalden beri: %{abs(live_change):.2f} " + ("yukarıda" if live_change >= 0 else "aşağıda")] if live_change is not None else [] ),
         f"Son 24 saat hareketi: %{float(item.get('change_24h') or 0):+.1f}",
         f"Likidite: ${float(item.get('liquidity') or 0):,.0f} • Son 1 saat hacim: ${float(item.get('volume_1h') or 0):,.0f}",
         f"Son 5 dk işlem: {int(item.get('buys_5m') or 0)} alış / {int(item.get('sells_5m') or 0)} satış",
@@ -180,11 +190,52 @@ def format_alert(event, item, context, risk_context=None):
         f"%{float((item.get('exit_5k') if network == 'solana' else item.get('evm_exit_5k'))['loss_pct']):.1f}",
         "Kontrat sayfası: https://www.geckoterminal.com/"
         f"{network}/tokens/{contract}",
-        "Bu on-chain araştırma sinyalidir; Gate borsasında listelendiği anlamına gelmez.",
-        "Cüzdan kümeleri ve olası yapay işlemler kesin olarak doğrulanmış değildir.",
-        "Bot hesabından alım/satım yapmaz. Sonuç, sinyalden sonra ayrıca ölçülür.",
+        "Özet: Bot bu coinde normalden farklı alım/hacim davranışı ve yeterli güvenlik kontrolleri gördü.",
+        "Bu bir alım önerisi değil. Bot hesabından işlem açmaz; hareketin devamı ayrıca ölçülür.",
     ])
     return "\n".join(lines)
+
+
+
+def gate_send_payload(token, chat, message, network, contract, signal_price=None,
+                      session=requests):
+    live=gecko_token(network, contract, session=session)
+    current=live.get("price")
+    extra=[]
+    if current is not None and "Şu anki fiyat:" not in message:
+        extra.append(f"Şu anki fiyat: ${fmt_price(current)}")
+    change=pct(current, signal_price)
+    if change is not None and "Sinyalden beri:" not in message:
+        extra.append(f"Sinyalden beri: %{abs(change):.2f} " +
+                     ("yukarıda" if change>=0 else "aşağıda"))
+    if extra:
+        message="\n".join([message,"",*extra])
+    ok=send_photo_or_text(token, chat, message, live.get("logo"), session=session)
+    return ok, current, live.get("logo")
+
+def send_gate_followups(token, chat, con, session=requests):
+    def getter(_key, symbol):
+        try:
+            network, contract=symbol.split("|",1)
+        except ValueError:
+            return None
+        return gecko_token(network, contract, session=session).get("price")
+    rows=due_followups(con,"gate_telegram_price_history",getter,min_pp=3.0)
+    sent=0
+    for row in rows[:5]:
+        direction="yukarıda" if row["change"]>=0 else "aşağıda"
+        last_dir="yükseldi" if (row["since_last"] or 0)>=0 else "düştü"
+        text=(f"📊 GATE AVCI | TAKİP\n{row['symbol']}\n"
+              f"Şu an: ${fmt_price(row['current'])}\n"
+              f"Sinyalden beri: %{abs(row['change']):.2f} {direction}\n"
+              f"Önceki bildirime göre: %{abs(row['since_last'] or 0):.2f} {last_dir}\n"
+              "Bot sonucu izlemeye devam ediyor; bu bir işlem talimatı değil.")
+        if send_photo_or_text(token,chat,text,row.get("logo"),session=session):
+            mark_followup(con,"gate_telegram_price_history",row["key"],
+                          row["current"],row["change"])
+            sent+=1
+    con.commit()
+    return sent
 
 
 def candidate_snapshot(db, event):
@@ -285,22 +336,30 @@ def send_pending(observation_path=OBS_DB, validation_path=VALIDATION_DB,
         rows = con.execute("""SELECT validation_id, message FROM gate_alert_audit
             WHERE status='PENDING' ORDER BY validation_id LIMIT 5""").fetchall()
         sent = 0
-        for event_id, message in rows:
-            try:
-                r = session.post(f"https://api.telegram.org/bot{token}/sendMessage",
-                                 json={"chat_id": chat, "text": message[:4096]},
-                                 timeout=20)
-                r.raise_for_status()
-                if not r.json().get("ok"):
-                    raise RuntimeError("Telegram API gönderimi onaylamadı")
-                con.execute("""UPDATE gate_alert_audit SET status='SENT',
-                    decided_at_utc=? WHERE validation_id=?""",
-                    (datetime.now(timezone.utc).isoformat(), event_id))
-                con.commit()
-                sent += 1
-            except Exception as exc:
-                print(f"Gate Telegram gönderilemedi, kayıt beklemede: {type(exc).__name__}")
-                break
+        with sqlite3.connect(f"file:{validation_path}?mode=ro", uri=True) as val:
+            val.row_factory=sqlite3.Row
+            for event_id, message in rows:
+                try:
+                    ev=val.execute("""SELECT network_id,token_contract,signal_price
+                        FROM validation_events WHERE id=?""",(event_id,)).fetchone()
+                    if not ev:
+                        raise RuntimeError("Validation event bulunamadı")
+                    ok,current,logo=gate_send_payload(
+                        token,chat,message,ev["network_id"],ev["token_contract"],
+                        ev["signal_price"],session=session)
+                    if not ok:
+                        raise RuntimeError("Telegram API gönderimi onaylamadı")
+                    con.execute("""UPDATE gate_alert_audit SET status='SENT',
+                        decided_at_utc=? WHERE validation_id=?""",
+                        (datetime.now(timezone.utc).isoformat(), event_id))
+                    record_initial(con,"gate_telegram_price_history",event_id,
+                        f"{ev['network_id']}|{ev['token_contract']}",
+                        ev["signal_price"],current,logo)
+                    con.commit()
+                    sent += 1
+                except Exception as exc:
+                    print(f"Gate Telegram gönderilemedi, kayıt beklemede: {type(exc).__name__}")
+                    break
         # The separate Gate Spot stream has its own audit and never enters V5.
         if con.execute("""SELECT 1 FROM sqlite_master WHERE type='table'
             AND name='gate_spot_bridge_audit'""").fetchone():
@@ -424,7 +483,10 @@ def send_pending(observation_path=OBS_DB, validation_path=VALIDATION_DB,
                 except Exception as exc:
                     print("Cross-venue Telegram gönderilemedi:", type(exc).__name__)
                     break
-        return sent
+        followups=send_gate_followups(token,chat,con,session=session)
+        if followups:
+            print(f"Gate takip bildirimi: {followups}")
+        return sent + followups
 
 
 if __name__ == "__main__":
