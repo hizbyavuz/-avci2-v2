@@ -9,6 +9,7 @@ from binance_deception_observer import classify_cex_evidence
 from gate_deception_observer import classify_gate_evidence
 from gate_notify import observation_only_reason
 from gate_security_confidence import assess
+from gate_missing_evidence_notify import build_message as build_gate_watch_message
 from telegram_readable import record_initial, due_followups, mark_followup
 
 class ObservationalExtensionTests(unittest.TestCase):
@@ -87,6 +88,17 @@ class ObservationalExtensionTests(unittest.TestCase):
         weak = {"network_id":"bsc","token_contract":"0x"+"1"*40,
                 "security_risk_reasons":["SECURITY_API_UNAVAILABLE"]}
         self.assertEqual(assess(weak)["label"], "WEAK")
+
+    def test_gate_watch_message_matches_readable_candidate_shape(self):
+        message = build_gate_watch_message(
+            "VOLUME", "solana", "A"*32, "LP_DATA_MISSING",
+            {"price":0.01,"change_24h":7.5,"volume_ratio":3.2,
+             "buys_5m":20,"sells_5m":8,"liquidity":50000})
+        self.assertIn("GATE AVCI 2 | YENİ İZLEME ADAYI", message)
+        self.assertIn("👀 Neden geldi?", message)
+        self.assertIn("🛡 Güvenlik", message)
+        self.assertIn("🧭 Bu ne demek?", message)
+        self.assertIn("Güvenlik güveni: ZAYIF", message)
 
     def test_followup_history_updates_without_new_candidate(self):
         with tempfile.TemporaryDirectory() as folder:
