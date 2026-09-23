@@ -10,7 +10,7 @@ import time
 from gate_notify import security_decision
 from gate_spot_observer import identity
 
-VERSION = "gate-spot-bridge-v0.1-20260923"
+VERSION = "gate-spot-bridge-v0.2-multipath-20260923"
 
 
 def recent_watches(db_path, now=None):
@@ -26,8 +26,11 @@ def recent_watches(db_path, now=None):
         exists = con.execute("SELECT 1 FROM sqlite_master WHERE name='gate_spot_watch'").fetchone()
         if not exists:
             return []
-        return con.execute("""SELECT w.batch_id, w.pair, w.price, w.rise_pct,
-            w.round_trip_1k_pct, g.scan_ts, c.network_id, c.token_contract
+        columns = {row[1] for row in con.execute("PRAGMA table_info(gate_spot_watch)")}
+        path_sql = "COALESCE(w.entry_path, 'MOMENTUM')" if "entry_path" in columns else "'MOMENTUM'"
+        return con.execute(f"""SELECT w.batch_id, w.pair, w.price, w.rise_pct,
+            w.round_trip_1k_pct, g.scan_ts, c.network_id, c.token_contract,
+            {path_sql}
             FROM gate_spot_watch w JOIN gate_spot_health g ON g.batch_id=w.batch_id
             JOIN gate_spot_contracts c ON c.pair=w.pair
             WHERE w.status='PAPER_WATCH' AND g.status='VALID'
@@ -72,7 +75,7 @@ def review(db_path, api_get, rows_from_payload, enrich, risk_shapes,
             signal_price REAL NOT NULL, gate_rise_pct REAL NOT NULL,
             message TEXT, PRIMARY KEY(watch_batch, network_id, token_contract))""")
         counts = {"seen": len(watches), "pending": 0, "withheld": 0}
-        for batch, pair, gate_price, rise, loss, scan_ts, network, contract in watches[:3]:
+        for batch, pair, gate_price, rise, loss, scan_ts, network, contract, entry_path in watches[:3]:
             if con.execute("""SELECT 1 FROM gate_spot_bridge_audit
                 WHERE watch_batch=? AND network_id=? AND token_contract=?""",
                 (batch, network, contract)).fetchone():
@@ -116,7 +119,7 @@ def review(db_path, api_get, rows_from_payload, enrich, risk_shapes,
                 status = "PENDING"
                 message = (f"🔎 GATE SPOT | AYRI ERKEN GÖZLEM\n{pair}\n"
                     f"Ağ ve resmi kontrat: {network} {contract}\n"
-                    f"Gate ~20 dk: +%{rise:.1f} • Sinyal fiyatı: ${gate_price:.8g}\n"
+                    f"Giriş yolu: {entry_path} • Yakın dönem: %{rise:+.1f} • Sinyal fiyatı: ${gate_price:.8g}\n"
                     f"Gate $1.000 gidiş-dönüş: ~%{loss:.1f}\n"
                     f"DEX fiyat/akış, holder, LP, sözleşme ve satış teklifleri doğrulandı.\n"
                     "V5 sinyali değildir; ayrı kağıt araştırma sinyalidir. "
