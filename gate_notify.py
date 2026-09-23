@@ -118,84 +118,49 @@ def format_alert(event, item, context, risk_context=None):
     live = gecko_token(network, contract)
     live_price = live.get("price")
     live_change = pct(live_price, event["signal_price"])
-    lines = [
-        ("🔎 GATE AVCI 2 | GENİŞ TARAMA ON-CHAIN ADAY"
-         if event.get("group_type") == "EXPANDED_CANDIDATE"
-         else "🔎 GATE AVCI 2 | YENİ ON-CHAIN ADAY"),
-        f"{local:%d.%m.%Y %H:%M} (Türkiye)",
-        f"{item.get('name') or '?'} ({item.get('symbol') or '?'}) • {NETWORK_NAMES.get(network, network)}",
-        f"Tam kontrat: {contract}",
-        f"Neden izleniyor? {', '.join(rules)}.",
-        f"Sinyal fiyatı: ${price(event['signal_price'])}",
-        *( [f"Şu anki fiyat: ${fmt_price(live_price)}"] if live_price is not None else ["Şu anki fiyat alınamadı"] ),
-        *( [f"Sinyalden beri: %{abs(live_change):.2f} " + ("yukarıda" if live_change >= 0 else "aşağıda")] if live_change is not None else [] ),
-        f"Son 24 saat hareketi: %{float(item.get('change_24h') or 0):+.1f}",
-        f"Likidite: ${float(item.get('liquidity') or 0):,.0f} • Son 1 saat hacim: ${float(item.get('volume_1h') or 0):,.0f}",
-        f"Son 5 dk işlem: {int(item.get('buys_5m') or 0)} alış / {int(item.get('sells_5m') or 0)} satış",
-    ]
-    if context["own_volume_ratio"] is not None:
-        lines.append(f"Hacim kendi yakın geçmişine göre: {context['own_volume_ratio']:.1f} kat")
-    if context.get("unique_buyers_5m") is not None:
-        buyer_note = (f" • kendi geçmişine göre {context['buyer_ratio']:.1f} kat"
-                      if context.get("buyer_ratio") is not None else "")
-        lines.append(f"Son 5 dk farklı alıcı: {context['unique_buyers_5m']}"
-                     f"{buyer_note} (havuz verisi)")
-    if context["first_anomaly_ts"] is not None:
-        delta = max(0, (event["signal_ts"] - context["first_anomaly_ts"]) // 60)
-        lines.append(f"İlk kaydedilen anomali: sinyalden {delta} dk önce")
-        lines.append(f"Sinyalden önceki fiyat değişimi: %{context['gain_before_signal_pct']:+.1f} "
-                     "(botun başarısına dahil değil)")
-    else:
-        lines.append("İlk anomali: yeterli önceki gözlem yok")
     lp = item.get("lp_protection") or {}
     holder = item.get("adjusted_holder") or {}
-    cluster = item.get("trade_cluster") or {}
-    lines.append(f"LP kilit/yakım: %{float(lp['protected_pct']):.1f} "
-                 f"• İlk 10 holder: %{float(holder['top10_pct']):.1f}")
-    if lp.get("creator_unlocked_pct") is not None:
-        lines.append(f"Deployer'da kilitsiz LP: "
-                     f"%{float(lp['creator_unlocked_pct']):.1f}")
-    if lp.get("nearest_unlock"):
-        lines.append(f"Bilinen en yakın LP kilit bitişi: {lp['nearest_unlock']}")
-    if cluster.get("ok"):
-        lines.append(f"Son örneklenen {cluster['trades_seen']} işlemde "
-                     f"{cluster['unique_buyers_sample']} farklı alıcı "
-                     "(tüm alıcılar değil)")
-        if cluster.get("roundtrip_wallets_sample"):
-            lines.append(f"Aynı örnekte hem alan hem satan cüzdan: "
-                         f"{cluster['roundtrip_wallets_sample']} "
-                         "(tek başına sahte işlem kanıtı değil)")
-    risk_context = risk_context or {}
-    if risk_context.get("top10_change_pp") is not None:
-        lines.append(f"İlk 10 holder payı önceki ölçüme göre "
-                     f"{risk_context['top10_change_pp']:+.1f} puan değişti")
-    if risk_context.get("creator_tokens_observed") is not None:
-        lines.append(f"Aynı deployer'ın botun gördüğü coin sayısı: "
-                     f"{risk_context['creator_tokens_observed']} "
-                     "(geçmiş rug kanıtı değil)")
-    rep = item.get("creator_reputation") or {}
-    if rep.get("status") == "NO_FINDING":
-        lines.append("Creator adresi GoPlus taramasında işaretlenmedi "
-                     "(güvenli olduğu kanıtı değil)")
-    elif rep.get("status") == "UNKNOWN":
-        lines.append("Creator adresi için dış güvenlik kaydı doğrulanamadı")
-    social = item.get("social_signal") or {}
-    if social.get("status") == "OBSERVED":
-        lines.append(f"X'te tam kontrat geçen gönderi: son 15 dk "
-                     f"{social['last_15m']}, önceki 45 dk "
-                     f"{social['previous_45m']} "
-                     "(organik ilgi kanıtı değil)")
+    q1=(item.get("exit_1k") if network=="solana" else item.get("evm_exit_1k")) or {}
+    q5=(item.get("exit_5k") if network=="solana" else item.get("evm_exit_5k")) or {}
+
+    lines=[
+        "🔎 GATE AVCI | YENİ ADAY",
+        f"{item.get('name') or '?'} ({item.get('symbol') or '?'}) • {NETWORK_NAMES.get(network,network)}",
+        f"{local:%d.%m.%Y %H:%M} (Türkiye)",
+        f"Şu anki fiyat: ${fmt_price(live_price)}" if live_price is not None else "Şu anki fiyat alınamadı",
+        f"Sinyal fiyatı: ${price(event['signal_price'])}",
+    ]
+    if live_change is not None:
+        lines.append(f"Sinyalden beri: %{abs(live_change):.2f} " +
+                     ("yukarıda" if live_change>=0 else "aşağıda"))
     lines.extend([
-        f"Tahmini satış kaybı ($1.000 / $5.000): %{float((item.get('exit_1k') if network == 'solana' else item.get('evm_exit_1k'))['loss_pct']):.1f} / "
-        f"%{float((item.get('exit_5k') if network == 'solana' else item.get('evm_exit_5k'))['loss_pct']):.1f}",
-        "Kontrat sayfası: https://www.geckoterminal.com/"
-        f"{network}/tokens/{contract}",
-        "Özet: Bot bu coinde normalden farklı alım/hacim davranışı ve yeterli güvenlik kontrolleri gördü.",
-        "Bu bir alım önerisi değil. Bot hesabından işlem açmaz; hareketin devamı ayrıca ölçülür.",
+        f"Son 24 saat: %{float(item.get('change_24h') or 0):+.1f}",
+        "Neden dikkat çekti? " + ", ".join(rules) + ".",
+    ])
+    if context.get("own_volume_ratio") is not None:
+        lines.append(f"Hacim normaline göre yaklaşık {context['own_volume_ratio']:.1f} kat.")
+    buys=int(item.get("buys_5m") or 0); sells=int(item.get("sells_5m") or 0)
+    lines.append(f"Son 5 dk: {buys} alış / {sells} satış.")
+    if context.get("first_anomaly_ts") is not None:
+        delta=max(0,(event["signal_ts"]-context["first_anomaly_ts"])//60)
+        lines.append(f"Bot ilk sıra dışı hareketi sinyalden {delta} dk önce görmüş.")
+        if context.get("gain_before_signal_pct") is not None:
+            lines.append(f"Sinyal gelmeden önce zaten %{context['gain_before_signal_pct']:+.1f} hareket etmişti.")
+    lines.append(
+        f"Güvenlik özeti: likiditenin korunan kısmı %{float(lp.get('protected_pct') or 0):.0f}; "
+        f"en büyük 10 cüzdanın toplam payı %{float(holder.get('top10_pct') or 0):.0f}."
+    )
+    if q1.get("loss_pct") is not None and q5.get("loss_pct") is not None:
+        lines.append(
+            f"Satış testi: $1.000 işlemde yaklaşık %{float(q1['loss_pct']):.1f}, "
+            f"$5.000 işlemde %{float(q5['loss_pct']):.1f} fiyat kaybı."
+        )
+    lines.extend([
+        f"Kontrat: {contract}",
+        "Özet: Bot bu coinde alış/hacim davranışını sıra dışı buldu ve güvenlik kontrollerinden geçirdi.",
+        "Bu bir alım önerisi değil; bot hareketin devamını ölçmeye devam edecek.",
     ])
     return "\n".join(lines)
-
-
 
 def gate_send_payload(token, chat, message, network, contract, signal_price=None,
                       session=requests):
