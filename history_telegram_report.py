@@ -204,6 +204,17 @@ def validation_summary(c):
           AND discovery_effect IS NOT NULL AND validation_effect IS NOT NULL""",(run[6],)).fetchall()
     return run,rows,regimes,specs,regime_rows
 
+def diagnostics_summary(c):
+    exists=c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='validation_diagnostics'").fetchone()
+    if not exists:
+        return {}
+    out={}
+    for row in c.execute("""SELECT diag_key,scope,feature,offset_h,value,text_value
+        FROM validation_diagnostics
+        WHERE version='history-diagnostics-v0.1-20260924'"""):
+        out[(row[0],row[1],row[2],int(row[3] or 0))]=(row[4],row[5])
+    return out
+
 def fmt(x):
     if x is None: return "—"
     ax=abs(x)
@@ -225,6 +236,7 @@ def main():
         activation_diffs=strongest_activation_differences(c)
         path_rows,path_earliest,path_counts=hourly_path_summary(c)
         val_run,val_rows,val_regimes,val_specs,val_regime_rows=validation_summary(c)
+        diagnostics=diagnostics_summary(c)
     attempted,ok,bars,events,controls=run
     pairs,done,short_skips,total_bars,total_events,total_controls=total
     lines=[
@@ -348,9 +360,25 @@ def main():
               f"• İlk erken fark yaklaşık T{early_off} civarında {early_label} tarafında görülüyor.",
               "• Sonra coin dipten uzaklaşıyor; T-6/T-3/T-1'e gelince hareket zaten görünürleşiyor.",
               "• Henüz canlı alım kuralı değil; araştırma ve doğrulama devam ediyor."]
+        br=diagnostics.get(("hit20_rate","BASE_RATE","",0),(None,None))[0]
+        ft=diagnostics.get(("fdr_tested","MULTIPLE_TEST","",0),(None,None))[0]
+        fp=diagnostics.get(("fdr_passed","MULTIPLE_TEST","",0),(None,None))[0]
+        lines += ["","🧯 SAĞLAMLIK KONTROLLERİ"]
+        if br is not None:
+            lines.append(f"• +20% / 60 gün taban oranı: %{100*float(br):.1f}")
+            if br>=0.50:
+                lines.append("  → Bu hedef piyasada çok sık oluyor; tek başına seçici bir 'patlama' etiketi sayılmaz.")
+            elif br>=0.25:
+                lines.append("  → Bu hedef orta sıklıkta görülüyor; sinyal gücünü yorumlarken taban oranı mutlaka hesaba katılmalı.")
+            else:
+                lines.append("  → Bu hedef görece seçici; yine de tek başına başarı ölçüsü değil.")
+        if ft is not None and fp is not None:
+            lines.append(f"• Çoklu test kontrolü (FDR): {int(fp)}/{int(ft)} test ek filtreden geçti.")
+            lines.append("  → Çok sayıda özelliği aynı anda denediğimiz için, tesadüfen iyi görünenleri ayıklamak amacıyla ek kontrol uygulanıyor.")
         lines += ["","📌 METODOLOJİ NOTLARI",
                   "• Eşleştirme kuralı donduruldu; doğrulama setine bakıp eşikler/özellikler ince ayar yapılmayacak.",
-                  "• Survivorship notu: mevcut arşiv hâlâ aktif Gate paritelerinden başlıyor; delist geçmişi ayrıca tamamlanmalı.",
+                  "• DELIST UYARISI: arşiv hâlâ aktif Gate paritelerinden başlıyor. Ezilip geri dönemeyen/delist olan coinler eksik olabilir; bu yüzden 'ezilmiş coin → patlar' sonucu henüz tam evren sonucu değildir.",
+                  "• Delist/suspend geçmişi ayrı backfill ile tamamlanmadan survivorship bias çözülmüş sayılmayacak.",
                   "• Manipülasyon notu: geçmiş holder/wash-trade verisi yoksa organik/manipülatif ayrımı 'bilinmiyor' kalır."]
     chat=resolve_chat_id(token,configured,DB,"History Miner")
     send_telegram(token,chat,"\n".join(lines))
