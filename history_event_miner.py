@@ -184,10 +184,10 @@ def save_labels(pair,bars,events,controls):
               (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
               (pair,ts,"CONTROL",*feat,VERSION))
 
-def mark(pair,ok,err=None):
+def mark(pair,status,err=None):
     with con() as c:
         c.execute("""UPDATE cex_pairs SET status=?,attempts=attempts+1,last_run_utc=?,
-          last_error=? WHERE pair=?""",("DONE" if ok else "RETRY",utcnow(),err,pair))
+          last_error=? WHERE pair=?""",(status,utcnow(),err,pair))
 
 def main():
     init_db(); seeded=seed_pairs()
@@ -199,15 +199,19 @@ def main():
         pair=row["pair"]; attempted+=1
         try:
             bars=fetch_daily(pair)
-            if len(bars)<120: raise ValueError(f"short_history:{len(bars)}")
+            if len(bars)<120:
+                mark(pair,"SKIP_SHORT",f"short_history:{len(bars)}")
+                print(f"{pair}: SKIP short_history:{len(bars)}")
+                time.sleep(SLEEP)
+                continue
             save_bars(pair,bars)
             ev,ctl=build_labels(pair,bars)
             save_labels(pair,bars,ev,ctl)
-            mark(pair,True)
+            mark(pair,"DONE")
             okn+=1; barsn+=len(bars); evn+=len(ev); ctln+=len(ctl)
             print(f"{pair}: bars={len(bars)} rise_events={len(ev)} controls={len(ctl)}")
         except (error.URLError,TimeoutError,ValueError,OSError) as e:
-            mark(pair,False,type(e).__name__+":"+str(e)[:100])
+            mark(pair,"RETRY",type(e).__name__+":"+str(e)[:100])
             print(f"{pair}: ERROR {type(e).__name__} {str(e)[:80]}")
         time.sleep(SLEEP)
     with con() as c:
