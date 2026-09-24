@@ -7,7 +7,6 @@ on:
       - "scanner.py"
       - "gate_*.py"
       - "telegram_readable.py"
-      - "telegram_heartbeat.py"
       - "avci_checkpoints.py"
       - "avci_observation_report.py"
       - "tests/test_*.py"
@@ -114,14 +113,6 @@ jobs:
       - name: Summarize Gate candidates and controls
         if: success()
         run: python gate_research_report.py
-
-      - name: Send Gate 10-minute Telegram heartbeat
-        if: success()
-        continue-on-error: true
-        env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: python -u telegram_heartbeat.py gate
 
       - name: Save Avci DB
         if: success()
