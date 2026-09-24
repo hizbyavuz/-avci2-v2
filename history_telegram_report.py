@@ -349,6 +349,9 @@ def split_telegram_report(text, limit=3800):
             line.startswith("🧠 ") or
             line.startswith("🧯 ") or
             line.startswith("🧭 ") or
+            line.startswith("🧱 ") or
+            line.startswith("🔄 ") or
+            line.startswith("🧮 ") or
             line.startswith("📌 ")
         )
         if is_header and current:
