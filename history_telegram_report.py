@@ -45,6 +45,7 @@ def totals(c):
     return (
       c.execute("SELECT COUNT(*) FROM cex_pairs").fetchone()[0],
       c.execute("SELECT COUNT(*) FROM cex_pairs WHERE status='DONE'").fetchone()[0],
+      c.execute("SELECT COUNT(*) FROM cex_pairs WHERE status='SKIP_SHORT'").fetchone()[0],
       c.execute("SELECT COUNT(*) FROM daily_bars").fetchone()[0],
       c.execute("SELECT COUNT(*) FROM rise_events").fetchone()[0],
       c.execute("SELECT COUNT(*) FROM event_features WHERE label='CONTROL'").fetchone()[0],
@@ -149,7 +150,7 @@ def main():
         activation_diffs=strongest_activation_differences(c)
         path_rows,path_earliest,path_counts=hourly_path_summary(c)
     attempted,ok,bars,events,controls=run
-    pairs,done,total_bars,total_events,total_controls=total
+    pairs,done,short_skips,total_bars,total_events,total_controls=total
     lines=[
       "⛏ GEÇMİŞ KAZICI | SON TUR",
       f"• Bu tur taranan parite: {attempted} (başarılı {ok})",
@@ -159,6 +160,7 @@ def main():
       "",
       "📚 TOPLAM ARŞİV",
       f"• Geçmişi işlenen parite: {done}/{pairs}",
+      f"• Yetersiz geçmiş nedeniyle ayrılan: {short_skips}",
       f"• Günlük mum: {total_bars:,}",
       f"• Yükseliş olayı: {total_events}",
       f"• Kontrol dönemi: {total_controls}",
