@@ -6,7 +6,6 @@ on:
   push:
     paths:
       - .github/workflows/gate-spot-watch.yml
-      - telegram_heartbeat.py
   schedule:
     - cron: "4,14,24,34,44,54 * * * *"
 
@@ -49,13 +48,6 @@ jobs:
       - name: Record separate paper watches and sampled outcomes
         run: python gate_spot_watch.py
 
-      - name: Send Gate Spot 10-minute Telegram heartbeat
-        if: success()
-        continue-on-error: true
-        env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: python -u telegram_heartbeat.py spot
 
       - name: Save paper observations
         uses: actions/cache/save@v4
