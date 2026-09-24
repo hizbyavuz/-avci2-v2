@@ -342,9 +342,10 @@ def main():
                 elif grade=="FAILED_DIRECTION":
                     lines.append("    → Eski dönemdeki davranış yeni dönemde tekrar etmedi.")
         if path_earliest:
+            _score,early_off,early_label,_direction,_rm,_cm,_nr,_nc=path_earliest
             lines += ["","🧠 ŞU ANKİ BASİT HİKÂYE",
               "• Önceden ezilmiş / eski zirvesinden uzak coinler daha sık öne çıkıyor.",
-              "• İlk erken fark yaklaşık T-72 civarında hacimde görülüyor.",
+              f"• İlk erken fark yaklaşık T{early_off} civarında {early_label} tarafında görülüyor.",
               "• Sonra coin dipten uzaklaşıyor; T-6/T-3/T-1'e gelince hareket zaten görünürleşiyor.",
               "• Henüz canlı alım kuralı değil; araştırma ve doğrulama devam ediyor."]
         lines += ["","📌 METODOLOJİ NOTLARI",
