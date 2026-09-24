@@ -238,7 +238,7 @@ def v3_summary(c):
     if not exists:
         return [],None
     rows=c.execute("""SELECT horizon_days,threshold_pct,feature,
-      raw_rise_n,nonoverlap_rise_n,overlap_reduction_pct,
+      raw_rise_n,nonoverlap_rise_n,unique_coin_n,overlap_reduction_pct,
       folds_tested,same_direction_folds,effect_pass_folds,
       median_fold_effect,overall_effect
       FROM v3_summary
@@ -267,6 +267,18 @@ def cross_venue_summary(c):
       FROM cross_venue_cases WHERE version=? AND label='RISE'
         AND lead_hours IS NOT NULL""",(version,))]
     lead_med=statistics.median(leads) if leads else None
+    lead_q1=lead_q3=None
+    if leads:
+        s=sorted(leads)
+        qs=statistics.quantiles(s,n=4,method="inclusive") if len(s)>=2 else [s[0],s[0],s[0]]
+        lead_q1,lead_q3=qs[0],qs[2]
+    lead_bins={
+      "binance_6h_early":sum(1 for x in leads if x<=-6),
+      "near_1h":sum(1 for x in leads if -1<=x<=1),
+      "gate_6h_late":sum(1 for x in leads if x>=6),
+      "binance_12h_early":sum(1 for x in leads if x<=-12),
+      "gate_12h_late":sum(1 for x in leads if x>=12),
+    }
 
     def earliest(group,venue):
         rows=c.execute("""SELECT feature,offset_h,rise_n,control_n,effect
@@ -286,6 +298,9 @@ def cross_venue_summary(c):
     return {
       "counts":counts,
       "lead_median":lead_med,
+      "lead_q1":lead_q1,
+      "lead_q3":lead_q3,
+      "lead_bins":lead_bins,
       "lead_n":len(leads),
       "binance_earliest":earliest("BINANCE_SYMBOL_MATCH","BINANCE"),
       "gate_shared_earliest":earliest("BINANCE_SYMBOL_MATCH","GATE"),
@@ -538,11 +553,11 @@ def main():
             if v3_overlap_avg is not None:
                 lines.append(f"• Aynı coin yakın olaylarını tekilleştirince ortalama olay azalması: %{v3_overlap_avg:.1f}")
             lines.append("• En az 3 ayrı zaman penceresinde aynı yönü koruyan sonuçlar:")
-            for h,t,feature,raw_n,ind_n,red,folds,same,passed,med_eff,overall_eff in v3_rows[:5]:
+            for h,t,feature,raw_n,ind_n,unique_n,red,folds,same,passed,med_eff,overall_eff in v3_rows[:5]:
                 lines.append(
                     f"  - {h}g +%{t} | {human_feature(feature)} | "
                     f"yön {same}/{folds} dönem | güçlü-etki {passed}/{folds} | "
-                    f"etki medyan {fmt(med_eff)} | olay {raw_n}→{ind_n}"
+                    f"etki medyan {fmt(med_eff)} | olay {raw_n}→{ind_n} | benzersiz coin {unique_n}"
                 )
             lines.append("  → Bu katman V2'yi değiştirmez; aynı bulguları overlap azaltılmış ve 4 zaman penceresinde daha sert sınar.")
             lines.append("  → BTC rejimi 'en güvenilir' etiketleri bağımsız doğrulama gelene kadar yalnızca hipotez kabul edilir.")
@@ -556,12 +571,14 @@ def main():
             lines.append(f"• Binance saatlik karşılaştırması hazır: {matched} olay | Gate-only: {gate_only} | Binance'de olay zamanı geçmişi yok: {nohist}")
             if cross_venue["lead_median"] is not None:
                 lead=float(cross_venue["lead_median"])
-                if lead < 0:
-                    lines.append(f"• +10% geçişi medyan olarak Binance'de {abs(lead):.1f} saat DAHA ERKEN | n={cross_venue['lead_n']}")
-                elif lead > 0:
-                    lines.append(f"• +10% geçişi medyan olarak Binance'de {lead:.1f} saat DAHA GEÇ | n={cross_venue['lead_n']}")
-                else:
-                    lines.append(f"• +10% geçişi medyan olarak iki borsada aynı saate denk geliyor | n={cross_venue['lead_n']}")
+                lines.append(f"• +10% geçişi lead/lag medyanı: {lead:+.1f} saat | n={cross_venue['lead_n']} (negatif = Binance daha erken)")
+                if cross_venue["lead_q1"] is not None and cross_venue["lead_q3"] is not None:
+                    lines.append(f"• Dağılım orta %50: {cross_venue['lead_q1']:+.1f} ile {cross_venue['lead_q3']:+.1f} saat")
+                b=cross_venue["lead_bins"]
+                lines.append(f"• Dağılım: Binance ≥6s erken {b['binance_6h_early']} | ±1s yakın {b['near_1h']} | Gate ≥6s geç {b['gate_6h_late']}")
+                lines.append(f"• Uç farklar: Binance ≥12s erken {b['binance_12h_early']} | Gate ≥12s geç {b['gate_12h_late']}")
+                if cross_venue["lead_n"]<100:
+                    lines.append("  → Örneklem hâlâ küçük; medyan 0 olsa bile sonuç 'gecikme yok' değil, 'henüz belirsiz' kabul edilir.")
             labels=(
               ("Binance ortak coinler",cross_venue["binance_earliest"]),
               ("Gate aynı ortak coinler",cross_venue["gate_shared_earliest"]),
