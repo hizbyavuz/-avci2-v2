@@ -400,7 +400,7 @@ def main():
               "x 7/14/30d x +50/+100; Fisher enrichment + BH FDR. Hourly features aligned "
               "to V4 signal close, not future onset.")
         c.execute("""INSERT OR REPLACE INTO v5_runs
-          VALUES(?,?,?,?,?,?,?,?,?,?)""",(
+          VALUES(?,?,?,?,?,?,?,?,?,?,?)""",(
           run_id,datetime.now(timezone.utc).isoformat(),datetime.now(timezone.utc).isoformat(),
           dtotal,ddone,vtotal,vdone,result_rows,1 if frozen else 0,note,VERSION
         ))
