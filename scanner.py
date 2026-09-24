@@ -49,6 +49,26 @@ EVM_CHAIN_IDS = {
     "base": "8453",
 }
 
+
+# Stablecoins are useful quote/exit assets but are not Avci pump candidates.
+# Keep this independent from the frozen signal mathematics: they are excluded
+# from candidate/control/observation input before anomaly engines run.
+STABLECOIN_SYMBOLS = {
+    "USDT", "USDC", "USDE", "USDS", "DAI", "FDUSD", "TUSD",
+    "PYUSD", "USDD", "FRAX", "GUSD", "LUSD", "USDP", "USD0", "USD1",
+}
+
+def is_stablecoin_token(token):
+    symbol = str((token or {}).get("symbol") or "").strip().upper()
+    name = str((token or {}).get("name") or "").strip().upper()
+    if symbol in STABLECOIN_SYMBOLS:
+        return True
+    # Avoid loose "USD" substring matching: it could hide unrelated tokens.
+    return name in {
+        "USD COIN", "TETHER USD", "TETHER", "DAI", "FIRST DIGITAL USD",
+        "TRUEUSD", "PAYPAL USD", "ETHENA USDE", "USDD",
+    }
+
 JUPITER_API_KEY = os.getenv("JUPITER_API_KEY", "")
 JUPITER_QUOTE_URL = "https://api.jup.ag/swap/v1/quote"
 
@@ -1350,6 +1370,9 @@ def scan_payload(
         )
 
         if not token_contract:
+            continue
+
+        if is_stablecoin_token(base_token):
             continue
 
         # ----------------------------------------------------
@@ -4042,6 +4065,9 @@ def control_pool_from_payload(
         )
 
         if not token_contract:
+            continue
+
+        if is_stablecoin_token(base_token):
             continue
 
         # The observation cohort is deliberately broader than the frozen V5
