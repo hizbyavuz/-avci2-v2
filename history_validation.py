@@ -23,7 +23,11 @@ import statistics
 from datetime import datetime, timezone
 
 DB = os.getenv("HISTORY_DB", "history_miner.db")
-VERSION = "history-validation-v0.1-20260924"
+VERSION = "history-validation-v0.2-20260924"
+MATCH_SPEC_VERSION = "match-spec-v1-frozen-20260924"
+MIN_EFFECT = 0.50
+STRONG_EFFECT = 1.00
+MIN_VALIDATION_N = 40
 DEFAULT_CUTOFF = os.getenv("HISTORY_VALIDATION_CUTOFF", "2025-09-01")
 MATCH_WINDOW_DAYS = int(os.getenv("HISTORY_MATCH_WINDOW_DAYS", "45"))
 
@@ -101,6 +105,7 @@ def init_db(c):
       discovery_effect REAL,
       validation_effect REAL,
       direction_replicated INTEGER,
+      validation_grade TEXT NOT NULL DEFAULT 'INSUFFICIENT',
       phase TEXT NOT NULL,
       version TEXT NOT NULL,
       PRIMARY KEY(feature_scope,feature,offset_h,regime,version)
@@ -115,6 +120,20 @@ def init_db(c):
       replicated INTEGER NOT NULL DEFAULT 0,
       tested INTEGER NOT NULL DEFAULT 0,
       notes TEXT,
+      version TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS validation_regime_counts(
+      split TEXT NOT NULL,
+      label TEXT NOT NULL,
+      btc_regime TEXT NOT NULL,
+      n INTEGER NOT NULL,
+      version TEXT NOT NULL,
+      PRIMARY KEY(split,label,btc_regime,version)
+    );
+    CREATE TABLE IF NOT EXISTS validation_spec(
+      spec_key TEXT PRIMARY KEY,
+      spec_value TEXT NOT NULL,
+      frozen_utc TEXT NOT NULL,
       version TEXT NOT NULL
     );
     """)
@@ -134,6 +153,32 @@ def btc_regime(c, ts):
     if r <= -10.0:
         return "DOWN"
     return "SIDEWAYS"
+
+def freeze_spec(c):
+    spec={
+      "match_spec_version": MATCH_SPEC_VERSION,
+      "match_features": "ret_30d,drawdown_30d,realized_vol_30d,log1p(pre_volume30)",
+      "match_scales": "20,20,5,2",
+      "match_time_window_days": str(MATCH_WINDOW_DAYS),
+      "match_same_split": "required",
+      "match_same_btc_regime": "required_when_known",
+      "max_controls_per_rise": "3",
+      "good_distance_max": "0.75",
+      "ok_distance_max": "1.50",
+      "min_effect": str(MIN_EFFECT),
+      "strong_effect": str(STRONG_EFFECT),
+      "min_validation_n_per_side": str(MIN_VALIDATION_N),
+      "discovery_validation_cutoff": DEFAULT_CUTOFF,
+      "validation_tuning_rule": "validation set may not be used to tune this spec; changes require a new version"
+    }
+    now=utcnow()
+    for k,v in spec.items():
+        old=c.execute("SELECT spec_value,version FROM validation_spec WHERE spec_key=?",(k,)).fetchone()
+        if old and (old["spec_value"]!=v or old["version"]!=VERSION):
+            # Do not silently rewrite a frozen spec for the same key.
+            continue
+        c.execute("""INSERT OR IGNORE INTO validation_spec(spec_key,spec_value,frozen_utc,version)
+          VALUES(?,?,?,?)""",(k,v,now,VERSION))
 
 def populate_cases(c, cutoff_ts):
     c.execute("DELETE FROM validation_cases WHERE version=?", (VERSION,))
@@ -233,13 +278,31 @@ def effect(rise, ctl):
         scale=max(abs(cm),1.0)
     return (rm-cm)/scale
 
+def grade_result(de,ve,vr,vc):
+    if de is None or ve is None:
+        return "INSUFFICIENT"
+    same = de*ve>0
+    if not same:
+        return "FAILED_DIRECTION"
+    if len(vr)<MIN_VALIDATION_N or len(vc)<MIN_VALIDATION_N:
+        return "DIRECTION_ONLY_LOW_N"
+    if abs(de)<MIN_EFFECT or abs(ve)<MIN_EFFECT:
+        return "DIRECTION_ONLY_WEAK"
+    if abs(ve)>=STRONG_EFFECT and abs(de)>=MIN_EFFECT:
+        return "STRONG"
+    return "CONSISTENT"
+
 def store_result(c, scope, feature, off, regime, phase, dr,dc,vr,vc):
     de=effect(dr,dc); ve=effect(vr,vc)
     repl = int(de is not None and ve is not None and de*ve>0)
+    grade=grade_result(de,ve,vr,vc)
     c.execute("""INSERT OR REPLACE INTO validation_results
-      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+      (feature_scope,feature,offset_h,regime,discovery_rise_n,discovery_control_n,
+       validation_rise_n,validation_control_n,discovery_effect,validation_effect,
+       direction_replicated,validation_grade,phase,version)
+      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
       (scope,feature,off,regime,len(dr),len(dc),len(vr),len(vc),
-       de,ve,repl,phase,VERSION))
+       de,ve,repl,grade,phase,VERSION))
 
 def compute_results(c):
     c.execute("DELETE FROM validation_results WHERE version=?", (VERSION,))
@@ -263,6 +326,15 @@ def compute_results(c):
                     vc=values_hourly(c,feature,off,"VALIDATION","CONTROL",regime)
                     store_result(c,"HOURLY",feature,off,regime,phase,dr,dc,vr,vc)
 
+def save_regime_counts(c):
+    c.execute("DELETE FROM validation_regime_counts WHERE version=?",(VERSION,))
+    rows=c.execute("""SELECT split,label,btc_regime,COUNT(*) n
+      FROM validation_cases WHERE version=?
+      GROUP BY split,label,btc_regime""",(VERSION,)).fetchall()
+    for r in rows:
+        c.execute("""INSERT OR REPLACE INTO validation_regime_counts
+          VALUES(?,?,?,?,?)""",(r["split"],r["label"],r["btc_regime"],r["n"],VERSION))
+
 def main():
     if not os.path.exists(DB):
         print("History Validation: DB yok"); return
@@ -274,7 +346,9 @@ def main():
           (run_id,started_utc,cutoff_utc,notes,version) VALUES(?,?,?,?,?)""",
           (run_id,utcnow(),DEFAULT_CUTOFF,
            "Raw archive preserved; active-pair survivorship coverage is still incomplete.",VERSION))
+        freeze_spec(c)
         populate_cases(c,cutoff_ts)
+        save_regime_counts(c)
         build_matches(c)
         compute_results(c)
         cases=c.execute("SELECT COUNT(*) FROM validation_cases WHERE version=?",(VERSION,)).fetchone()[0]
@@ -282,13 +356,12 @@ def main():
         tested=c.execute("""SELECT COUNT(*) FROM validation_results
           WHERE version=? AND discovery_effect IS NOT NULL AND validation_effect IS NOT NULL""",(VERSION,)).fetchone()[0]
         replicated=c.execute("""SELECT COUNT(*) FROM validation_results
-          WHERE version=? AND direction_replicated=1
-            AND discovery_effect IS NOT NULL AND validation_effect IS NOT NULL""",(VERSION,)).fetchone()[0]
+          WHERE version=? AND validation_grade IN ('CONSISTENT','STRONG')""",(VERSION,)).fetchone()[0]
         c.execute("""UPDATE validation_runs SET finished_utc=?,cases=?,matches=?,
           replicated=?,tested=? WHERE run_id=?""",
           (utcnow(),cases,matches,replicated,tested,run_id))
         c.commit()
-    print(f"History Validation: cutoff={DEFAULT_CUTOFF} cases={cases} matches={matches} replicated={replicated}/{tested}")
+    print(f"History Validation: cutoff={DEFAULT_CUTOFF} cases={cases} matches={matches} validated={replicated}/{tested}")
     print("Coverage: survivorship=ACTIVE_PAIR_ARCHIVE_ONLY manipulation_history=UNKNOWN")
 
 if __name__=="__main__":
