@@ -16,7 +16,7 @@ on:
       - "history_cross_venue.py"
       - ".github/workflows/history-miner.yml"
   schedule:
-    - cron: "6,21,36,51 * * * *"
+    - cron: "6,16,26,36,46,56 * * * *"
 
 permissions:
   contents: read
