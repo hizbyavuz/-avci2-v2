@@ -2,6 +2,11 @@ name: Gate History Miner
 
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - "history_miner.py"
+      - "HISTORY_MINER.md"
+      - ".github/workflows/history-miner.yml"
   schedule:
     - cron: "17 * * * *"
 
