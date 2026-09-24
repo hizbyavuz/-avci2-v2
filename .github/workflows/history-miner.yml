@@ -12,6 +12,7 @@ on:
       - "history_validation_v2.py"
       - "history_validation_v3.py"
       - "history_validation_v4.py"
+      - "history_validation_v5.py"
       - "history_cross_venue.py"
       - ".github/workflows/history-miner.yml"
   schedule:
@@ -84,6 +85,13 @@ jobs:
         env:
           HISTORY_VALIDATION_CUTOFF: "2025-09-01"
         run: python -u history_validation_v4.py
+
+      - name: Build V5 activation validation
+        env:
+          HISTORY_VALIDATION_CUTOFF: "2025-09-01"
+          HISTORY_V5_BUDGET: "120"
+          HISTORY_V5_SLEEP: "0.15"
+        run: python -u history_validation_v5.py
 
       - name: Refresh current on-chain snapshots
         env:
