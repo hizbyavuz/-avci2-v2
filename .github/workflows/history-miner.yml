@@ -1,0 +1,57 @@
+name: Gate History Miner
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 * * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gate-history-miner
+  cancel-in-progress: false
+
+jobs:
+  mine:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Restore history state
+        uses: actions/cache/restore@v4
+        with:
+          path: history_miner.db
+          key: history-miner-${{ github.run_id }}
+          restore-keys: |
+            history-miner-
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        run: pip install requests
+
+      - name: Mine next history batch
+        env:
+          HISTORY_BATCH: "24"
+          HISTORY_SLEEP_SECONDS: "6.2"
+          HISTORY_LOOKBACK_DAYS: "730"
+        run: python -u history_miner.py
+
+      - name: Save history state
+        if: success()
+        uses: actions/cache/save@v4
+        with:
+          path: history_miner.db
+          key: history-miner-${{ github.run_id }}
+
+      - name: Publish small checkpoint
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: history-miner-latest
+          path: history_miner.db
+          retention-days: 3
