@@ -34,6 +34,7 @@ GECKO_BASE="https://api.geckoterminal.com/api/v2"
 BATCH=int(os.getenv("HISTORY_BATCH","24"))
 SLEEP=float(os.getenv("HISTORY_SLEEP_SECONDS","6.2"))
 LOOKBACK_DAYS=int(os.getenv("HISTORY_LOOKBACK_DAYS","730"))
+MAX_RUN_SECONDS=int(os.getenv("HISTORY_MAX_RUN_SECONDS","1200"))
 UA="GateAvci-HistoryMiner/0.1"
 
 
@@ -277,7 +278,11 @@ def main():
         c.execute("INSERT INTO run_stats(run_id,started_utc,notes) VALUES (?,?,?)",
                   (run_id,utcnow(),f"seeded={seeded};lookback={LOOKBACK_DAYS}d"))
     attempted=okn=0
+    started_monotonic=time.monotonic()
     for row in due_rows(BATCH):
+        if time.monotonic() - started_monotonic >= MAX_RUN_SECONDS:
+            print(f"History Miner time budget reached after {attempted} tokens")
+            break
         attempted+=1
         ok,reason=process_one(row["network_id"],row["contract"])
         reschedule(row["network_id"],row["contract"],ok,reason)
