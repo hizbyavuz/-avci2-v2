@@ -215,6 +215,24 @@ def diagnostics_summary(c):
         out[(row[0],row[1],row[2],int(row[3] or 0))]=(row[4],row[5])
     return out
 
+def v2_summary(c):
+    exists=c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='v2_base_rates'").fetchone()
+    if not exists:
+        return [],[]
+    rates=c.execute("""SELECT horizon_days,threshold_pct,eligible_n,hit_n,base_rate
+      FROM v2_base_rates
+      WHERE version='history-v2-outcomes-matched-v0.1-20260924'
+      ORDER BY horizon_days,threshold_pct""").fetchall()
+    results=c.execute("""SELECT horizon_days,threshold_pct,feature,
+      validation_effect,validation_grade,validation_rise_n,validation_control_n
+      FROM v2_matched_results
+      WHERE version='history-v2-outcomes-matched-v0.1-20260924'
+        AND validation_grade IN ('STRONG','CONSISTENT')
+      ORDER BY CASE validation_grade WHEN 'STRONG' THEN 0 ELSE 1 END,
+               ABS(validation_effect) DESC
+      LIMIT 8""").fetchall()
+    return rates,results
+
 def fmt(x):
     if x is None: return "—"
     ax=abs(x)
@@ -237,6 +255,7 @@ def main():
         path_rows,path_earliest,path_counts=hourly_path_summary(c)
         val_run,val_rows,val_regimes,val_specs,val_regime_rows=validation_summary(c)
         diagnostics=diagnostics_summary(c)
+        v2_rates,v2_results=v2_summary(c)
     attempted,ok,bars,events,controls=run
     pairs,done,short_skips,total_bars,total_events,total_controls=total
     lines=[
@@ -375,6 +394,23 @@ def main():
         if ft is not None and fp is not None:
             lines.append(f"• Çoklu test kontrolü (FDR): {int(fp)}/{int(ft)} test ek filtreden geçti.")
             lines.append("  → Çok sayıda özelliği aynı anda denediğimiz için, tesadüfen iyi görünenleri ayıklamak amacıyla ek kontrol uygulanıyor.")
+        if v2_rates:
+            lines += ["","🧭 V2 | BÜYÜK HAREKET TESTİ"]
+            for h in (7,14,30,60):
+                vals={int(r[1]):float(r[4]) for r in v2_rates if int(r[0])==h}
+                if vals:
+                    parts=[]
+                    for t in (20,50,100):
+                        if t in vals: parts.append(f"+%{t}: %{100*vals[t]:.1f}")
+                    lines.append(f"• {h} gün içinde: " + " | ".join(parts))
+            lines.append("  → Amaç: T-72 ve diğer geçmiş özelliklerin sıradan +20 hareketten çok +50/+100 hareketlerde güçlenip güçlenmediğini görmek.")
+            if v2_results:
+                lines.append("• Eşleşmiş kontrollerle şimdilik en sağlam V2 sonuçları:")
+                for h,t,feature,ve,grade,nr,nc in v2_results[:5]:
+                    gt="GÜÇLÜ" if grade=="STRONG" else "TUTARLI"
+                    lines.append(f"  - {h}g +%{t} | {human_feature(feature)}: {gt} | etki {fmt(ve)} | n={nr}/{nc}")
+                lines.append("  → Bu V2 effect'leri eski genel kontrol havuzuyla değil, yalnızca eşleşmiş kontrollerle hesaplanıyor.")
+
         lines += ["","📌 METODOLOJİ NOTLARI",
                   "• Eşleştirme kuralı donduruldu; doğrulama setine bakıp eşikler/özellikler ince ayar yapılmayacak.",
                   "• DELIST UYARISI: arşiv hâlâ aktif Gate paritelerinden başlıyor. Ezilip geri dönemeyen/delist olan coinler eksik olabilir; bu yüzden 'ezilmiş coin → patlar' sonucu henüz tam evren sonucu değildir.",
