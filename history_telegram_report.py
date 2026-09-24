@@ -240,6 +240,24 @@ def fmt(x):
     if ax>=10: return f"{x:.1f}"
     return f"{x:.2f}"
 
+def split_telegram_report(text, limit=3800):
+    """Split a long report on line boundaries so Telegram does not truncate it."""
+    chunks=[]
+    current=[]
+    current_len=0
+    for line in text.splitlines():
+        extra=len(line) + (1 if current else 0)
+        if current and current_len + extra > limit:
+            chunks.append("\n".join(current))
+            current=[line]
+            current_len=len(line)
+        else:
+            current.append(line)
+            current_len += extra
+    if current:
+        chunks.append("\n".join(current))
+    return chunks
+
 def main():
     if not os.path.exists(DB):
         print("History report: DB yok"); return
@@ -417,8 +435,13 @@ def main():
                   "• Delist/suspend geçmişi ayrı backfill ile tamamlanmadan survivorship bias çözülmüş sayılmayacak.",
                   "• Manipülasyon notu: geçmiş holder/wash-trade verisi yoksa organik/manipülatif ayrımı 'bilinmiyor' kalır."]
     chat=resolve_chat_id(token,configured,DB,"History Miner")
-    send_telegram(token,chat,"\n".join(lines))
-    print("History research report sent")
+    report="\n".join(lines)
+    chunks=split_telegram_report(report)
+    for idx,chunk in enumerate(chunks,1):
+        if len(chunks)>1:
+            chunk=f"⛏ GEÇMİŞ KAZICI | BÖLÜM {idx}/{len(chunks)}\n"+chunk
+        send_telegram(token,chat,chunk)
+    print(f"History research report sent in {len(chunks)} part(s)")
 
 if __name__=="__main__":
     main()
