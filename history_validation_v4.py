@@ -128,7 +128,7 @@ def build_anchor_features(c):
             hi30=max(highs[i-29:i+1])
             dist_high=pct(hi90,cur)
             drawdown=pct(hi30,cur)
-            rv=realized_vol_30(closes[:i+1])
+            rv=realized_vol_30(closes[i-30:i+1])
             if None in (dist_high,drawdown,rv):
                 continue
             out[(pair,int(r["ts"]))]={
