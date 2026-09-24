@@ -51,6 +51,12 @@ jobs:
           HISTORY_EVENT_SLEEP: "0.25"
         run: python -u history_event_miner.py
 
+      - name: Mine hourly pre-rise paths
+        env:
+          HISTORY_PATH_BUDGET: "60"
+          HISTORY_PATH_SLEEP: "0.20"
+        run: python -u history_hourly_path_miner.py
+
       - name: Refresh current on-chain snapshots
         env:
           HISTORY_BATCH: "1000"
