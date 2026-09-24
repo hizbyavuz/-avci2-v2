@@ -35,3 +35,20 @@ The purpose is not to assume one indicator causes pumps. The purpose is to compa
 Deep wallet/holder work remains a second-stage drill-down only after broad features show repeatable separation.
 
 Important: event labels use future data only as the outcome. Every feature is calculated strictly from data available on or before the event timestamp. This avoids look-ahead leakage in later modelling.
+
+
+## Bias-aware validation layer (v0.3)
+
+The raw archive remains untouched. `history_validation.py` adds a separate research/validation layer:
+- fixed time split: discovery before 2025-09-01, validation from 2025-09-01 onward
+- BTC regime tags (UP / SIDEWAYS / DOWN) using only data available at the case timestamp
+- up to three controls matched within the same time split/regime using pre-event volume, volatility, drawdown and return
+- hourly evidence split into EARLY (-72/-48/-24/-12h) and ONSET_RISK (-6/-3/-1h)
+- a replication table that asks whether the direction found in discovery also appears in the untouched validation period
+- explicit coverage flags rather than pretending missing evidence is solved
+
+Known gaps remain explicit:
+- the current broad miner is seeded from currently active Gate markets, so delisted/historical-market coverage is incomplete and survivorship bias is not yet fully removed
+- historical holder concentration, float and wash-trade evidence is not available in this layer, so manipulation status remains UNKNOWN until a separate source is backfilled
+
+No validation result changes live Avci thresholds automatically. A repeated pattern is only a research candidate until it also survives forward testing.
