@@ -8,7 +8,7 @@ on:
       - "HISTORY_MINER.md"
       - ".github/workflows/history-miner.yml"
   schedule:
-    - cron: "17 * * * *"
+    - cron: "*/20 * * * *"
 
 permissions:
   contents: read
@@ -46,7 +46,7 @@ jobs:
         env:
           HISTORY_BATCH: "1000"
           HISTORY_SLEEP_SECONDS: "6.2"
-          HISTORY_MAX_RUN_SECONDS: "1200"
+          HISTORY_MAX_RUN_SECONDS: "1080"
           HISTORY_LOOKBACK_DAYS: "730"
         run: python -u history_miner.py
 
