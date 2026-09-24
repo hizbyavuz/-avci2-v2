@@ -6,6 +6,19 @@ import requests
 from binance_notify import resolve_chat_id, send_telegram
 
 DB=os.getenv("HISTORY_DB","history_miner.db")
+ACTIVATION_FEATURES=[
+ ("ret_1d","son 1 günlük getiri"),
+ ("ret_3d","son 3 günlük getiri"),
+ ("ret_7d","son 7 günlük getiri"),
+ ("vol_ratio_1_30","son gün hacmi / 30g normal hacim"),
+ ("vol_ratio_3_30","son 3g hacmi / 30g normal hacim"),
+ ("range_ratio_1_30","son gün hareket genişliği / 30g normali"),
+ ("close_location_1d","kapanışın gün içi gücü"),
+ ("dist_low_7d","7 günlük dipten uzaklaşma"),
+ ("dist_high_30d","30 günlük tepeye uzaklık"),
+ ("green_ratio_3d","son 3 gün yeşil oranı"),
+]
+
 FEATURES=[
  ("ret_7d","7 günlük getiri"),
  ("ret_30d","30 günlük getiri"),
@@ -56,6 +69,24 @@ def strongest_differences(c, limit=4):
     out.sort(reverse=True,key=lambda x:x[0])
     return out[:limit]
 
+def strongest_activation_differences(c, limit=5):
+    exists=c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='activation_features'").fetchone()
+    if not exists: return []
+    out=[]
+    for col,label in ACTIVATION_FEATURES:
+        rise=[r[0] for r in c.execute(f"SELECT {col} FROM activation_features WHERE label='RISE' AND {col} IS NOT NULL")]
+        ctl=[r[0] for r in c.execute(f"SELECT {col} FROM activation_features WHERE label='CONTROL' AND {col} IS NOT NULL")]
+        if len(rise)<20 or len(ctl)<20: continue
+        rm,cm=med(rise),med(ctl)
+        if rm is None or cm is None: continue
+        scale=statistics.median([abs(float(x)-cm) for x in ctl if x is not None]) if ctl else 0
+        if not scale or scale<1e-9: scale=max(abs(cm),1.0)
+        score=abs(rm-cm)/scale
+        direction="daha yüksek" if rm>cm else "daha düşük"
+        out.append((score,label,direction,rm,cm,len(rise),len(ctl)))
+    out.sort(reverse=True,key=lambda x:x[0])
+    return out[:limit]
+
 def fmt(x):
     if x is None: return "—"
     ax=abs(x)
@@ -74,6 +105,7 @@ def main():
         run=latest_run(c)
         total=totals(c)
         diffs=strongest_differences(c)
+        activation_diffs=strongest_activation_differences(c)
     attempted,ok,bars,events,controls=run
     pairs,done,total_bars,total_events,total_controls=total
     lines=[
@@ -97,6 +129,12 @@ def main():
         lines.append("Not: Bunlar henüz korelasyon. Örneklem büyüdükçe kalıcı mı, tesadüf mü göreceğiz.")
     else:
         lines += ["","🔎 BENZERLİK","• Henüz karşılaştırma için yeterli yükseliş/kontrol örneği yok."]
+
+    if activation_diffs:
+        lines += ["","⚡ UYANIŞ İZLERİ | PATLAYAN vs PATLAMAYAN"]
+        for _score,label,direction,rm,cm,nr,nc in activation_diffs:
+            lines.append(f"• {label}: patlayanlarda {direction} (medyan {fmt(rm)} vs {fmt(cm)})")
+        lines += ["","Yorum: Burada aradığımız şey 'düşmüş coin' değil; düşmüşken içeride aktivitesi değişmeye başlayan coin."]
     chat=resolve_chat_id(token,configured,DB,"History Miner")
     send_telegram(token,chat,"\n".join(lines))
     print("History research report sent")
