@@ -125,6 +125,7 @@ def build_outcomes(c):
     c.execute("DELETE FROM v2_base_rates WHERE version=?",(VERSION,))
     totals={(h,t):[0,0] for h in HORIZONS for t in THRESHOLDS}
     pairs=c.execute("SELECT DISTINCT pair FROM daily_bars").fetchall()
+    batch=[]
     for pr in pairs:
         pair=pr[0]
         bars=c.execute("""SELECT ts,high,close FROM daily_bars
@@ -140,23 +141,53 @@ def build_outcomes(c):
                 mx=max(float(r["high"]) for r in future)
                 ret=100.0*(mx/base-1.0)
                 hits={t:int(ret>=t) for t in THRESHOLDS}
-                c.execute("""INSERT OR REPLACE INTO v2_outcomes
-                    VALUES(?,?,?,?,?,?,?,?)""",
-                    (pair,int(bars[i]["ts"]),h,ret,hits[20],hits[50],hits[100],VERSION))
+                batch.append((pair,int(bars[i]["ts"]),h,ret,hits[20],hits[50],hits[100],VERSION))
+                if len(batch)>=5000:
+                    c.executemany("""INSERT OR REPLACE INTO v2_outcomes
+                        VALUES(?,?,?,?,?,?,?,?)""",batch)
+                    batch.clear()
                 for t in THRESHOLDS:
                     totals[(h,t)][0]+=1
                     totals[(h,t)][1]+=hits[t]
+    if batch:
+        c.executemany("""INSERT OR REPLACE INTO v2_outcomes
+            VALUES(?,?,?,?,?,?,?,?)""",batch)
     for (h,t),(eligible,hit) in totals.items():
         if eligible:
             c.execute("""INSERT OR REPLACE INTO v2_base_rates
                 VALUES(?,?,?,?,?,?)""",(h,t,eligible,hit,hit/eligible,VERSION))
 
-def feature_value(c,pair,ts,feature):
-    row=c.execute(f"""SELECT {feature} FROM event_features
-        WHERE pair=? AND event_ts=? AND {feature} IS NOT NULL
-        ORDER BY CASE label WHEN 'RISE' THEN 0 ELSE 1 END,rowid DESC LIMIT 1""",
-        (pair,ts)).fetchone()
-    return row[0] if row else None
+def build_feature_cache(c):
+    """Cache the exact row-selection semantics of feature_value()."""
+    cols=",".join(FEATURES)
+    rows=c.execute(f"""SELECT rowid,pair,event_ts,label,{cols}
+      FROM event_features
+      ORDER BY pair,event_ts,
+               CASE label WHEN 'RISE' THEN 0 ELSE 1 END,
+               rowid DESC""").fetchall()
+    cache={}
+    for r in rows:
+        key=(r["pair"],int(r["event_ts"]))
+        entry=cache.setdefault(key,{})
+        for feature in FEATURES:
+            if feature not in entry and r[feature] is not None:
+                entry[feature]=r[feature]
+    return cache
+
+def build_match_cache(c):
+    """Cache the same ORDER BY distance ASC LIMIT 3 result used previously."""
+    rows=c.execute("""SELECT split,rise_pair,rise_ts,control_pair,control_ts,distance
+      FROM validation_control_matches
+      WHERE version=?
+      ORDER BY split,rise_pair,rise_ts,distance ASC""",
+      (SOURCE_VALIDATION_VERSION,)).fetchall()
+    cache={}
+    for r in rows:
+        key=(r["split"],r["rise_pair"],int(r["rise_ts"]))
+        arr=cache.setdefault(key,[])
+        if len(arr)<3:
+            arr.append((r["control_pair"],int(r["control_ts"])))
+    return cache
 
 def selected_rises(c,split,horizon,threshold):
     hitcol=f"hit{threshold}"
@@ -167,24 +198,19 @@ def selected_rises(c,split,horizon,threshold):
         AND o.version=? AND o.horizon_days=? AND o.{hitcol}=1""",
       (SOURCE_VALIDATION_VERSION,split,VERSION,horizon)).fetchall()
 
-def matched_values(c,split,horizon,threshold,feature):
+def matched_values(c,split,horizon,threshold,feature,feature_cache,match_cache):
     rises=selected_rises(c,split,horizon,threshold)
     rise_vals=[]
     control_vals=[]
     seen_ctl=set()
     for r in rises:
-        rv=feature_value(c,r["pair"],r["event_ts"],feature)
+        rkey=(r["pair"],int(r["event_ts"]))
+        rv=feature_cache.get(rkey,{}).get(feature)
         if rv is not None:
             rise_vals.append(rv)
-        matches=c.execute("""SELECT control_pair,control_ts
-          FROM validation_control_matches
-          WHERE version=? AND split=? AND rise_pair=? AND rise_ts=?
-          ORDER BY distance ASC LIMIT 3""",
-          (SOURCE_VALIDATION_VERSION,split,r["pair"],r["event_ts"])).fetchall()
-        for m in matches:
-            key=(m["control_pair"],int(m["control_ts"]))
+        for key in match_cache.get((split,r["pair"],int(r["event_ts"])),()):
             if key in seen_ctl:continue
-            cv=feature_value(c,key[0],key[1],feature)
+            cv=feature_cache.get(key,{}).get(feature)
             if cv is not None:
                 seen_ctl.add(key)
                 control_vals.append(cv)
@@ -192,16 +218,19 @@ def matched_values(c,split,horizon,threshold,feature):
 
 def build_matched_results(c):
     c.execute("DELETE FROM v2_matched_results WHERE version=?",(VERSION,))
+    feature_cache=build_feature_cache(c)
+    match_cache=build_match_cache(c)
+    rows=[]
     for h in HORIZONS:
         for t in THRESHOLDS:
             for feature in FEATURES:
-                dr,dc=matched_values(c,"DISCOVERY",h,t,feature)
-                vr,vc=matched_values(c,"VALIDATION",h,t,feature)
+                dr,dc=matched_values(c,"DISCOVERY",h,t,feature,feature_cache,match_cache)
+                vr,vc=matched_values(c,"VALIDATION",h,t,feature,feature_cache,match_cache)
                 de=effect(dr,dc); ve=effect(vr,vc)
                 g=grade(de,ve,len(vr),len(vc))
-                c.execute("""INSERT OR REPLACE INTO v2_matched_results
-                  VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""",
-                  (h,t,feature,len(dr),len(dc),len(vr),len(vc),de,ve,g,VERSION))
+                rows.append((h,t,feature,len(dr),len(dc),len(vr),len(vc),de,ve,g,VERSION))
+    c.executemany("""INSERT OR REPLACE INTO v2_matched_results
+      VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""",rows)
 
 def main():
     if not os.path.exists(DB):
@@ -212,7 +241,7 @@ def main():
         c.execute("""INSERT OR REPLACE INTO v2_runs
           (run_id,started_utc,notes,version) VALUES(?,?,?,?)""",
           (run_id,utcnow(),
-           "Separate observational V2. Frozen V0 labels/matching unchanged; effects use frozen matched controls only.",
+           "Separate observational V2. Frozen V0 labels/matching unchanged; effects use frozen matched controls only. Performance optimization is calculation-equivalent: SQL lookups are cached/batched, formulas and selection rules unchanged.",
            VERSION))
         build_outcomes(c)
         build_matched_results(c)
