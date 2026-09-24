@@ -251,6 +251,23 @@ def v3_summary(c):
       FROM v3_summary WHERE version='history-v3-stress-v0.1-20260924'""").fetchone()
     return rows,(float(avg[0]) if avg and avg[0] is not None else None)
 
+def v4_summary(c):
+    exists=c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='v4_pattern_results'").fetchone()
+    if not exists:
+        return [],[]
+    version='history-v4-pattern-first-v0.1-20260925'
+    counts=c.execute("""SELECT split,pattern_name,raw_matching_days,first_entry_signals,unique_coin_n
+      FROM v4_pattern_counts WHERE version=?
+      ORDER BY split,pattern_name""",(version,)).fetchall()
+    rows=c.execute("""SELECT pattern_name,horizon_days,threshold_pct,signal_n,hit_n,miss_n,
+      unique_coin_n,precision,false_positive_rate,recall,raw_base_rate,lift_vs_raw_base
+      FROM v4_pattern_results
+      WHERE version=? AND split='VALIDATION' AND threshold_pct IN (50,100)
+        AND signal_n>=20
+      ORDER BY threshold_pct DESC,lift_vs_raw_base DESC,signal_n DESC
+      LIMIT 8""",(version,)).fetchall()
+    return counts,rows
+
 def cross_venue_summary(c):
     exists=c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='cross_venue_cases'").fetchone()
     if not exists:
@@ -392,6 +409,7 @@ def main():
         diagnostics=diagnostics_summary(c)
         v2_rates,v2_results=v2_summary(c)
         v3_rows,v3_overlap_avg=v3_summary(c)
+        v4_counts,v4_rows=v4_summary(c)
         cross_venue=cross_venue_summary(c)
     attempted,ok,bars,events,controls=run
     pairs,done,short_skips,total_bars,total_events,total_controls=total
@@ -590,6 +608,23 @@ def main():
                     lines.append(f"• {name}: ilk belirgin ayrışma T{off}s | {human_feature(feature)} | etki {fmt(eff)} | n={nr}/{nc}")
             lines.append("  → Amaç: T-24 bulgusunun gerçek piyasa davranışı mı, yoksa Gate gecikmesi mi olduğunu ayırmak.")
             lines.append("  ⚠️ Binance eşleşmesi şu an ticker/sembol bazlıdır; aynı token kimliği kontratla doğrulanana kadar sonuç 'kimlik doğrulanmamış' kabul edilir.")
+
+        if v4_rows:
+            lines += ["","🧮 V4 | PATTERN-FIRST TEST"]
+            lines.append("• Soru: Bu pattern ÖNCE görülürse, sonradan gerçekten kaç tanesi +50/+100 yapıyor?")
+            for name,h,t,n,hits,misses,coins,precision,fpr,recall,base,lift in v4_rows[:6]:
+                pname={
+                  "P1_FAR_FROM_HIGH":"P1 zirveden uzak",
+                  "P2_FAR_PLUS_VOL":"P2 zirveden uzak + oynak",
+                  "P3_FAR_VOL_DRAWDOWN":"P3 uzak + oynak + sert geri çekilme",
+                }.get(name,name)
+                lines.append(
+                  f"• {pname} | {h}g +%{t}: başarı %{100*precision:.1f} "
+                  f"({hits}/{n}) | boş sinyal %{100*fpr:.1f} | taban %{100*base:.1f} "
+                  f"| lift {lift:.2f}x | benzersiz coin {coins}"
+                )
+            lines.append("  → Burada ilk kez 'kazananlarda pattern var mı?' değil, 'pattern varsa kaç tanesi kazanıyor?' ölçülüyor.")
+            lines.append("  → Eşikler sadece keşif dönemindeki feature dağılımından donduruldu; gelecekteki getiriler eşik seçmek için kullanılmadı.")
 
         lines += ["","📌 METODOLOJİ NOTLARI",
                   "• Eşleştirme kuralı donduruldu; doğrulama setine bakıp eşikler/özellikler ince ayar yapılmayacak.",
