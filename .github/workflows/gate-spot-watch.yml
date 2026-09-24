@@ -1,14 +1,9 @@
 name: Gate Spot independent paper watch
 # This separate observation job never places orders or sends Telegram alerts.
 
+# TEMPORARY RESEARCH FOCUS: automatic runs paused; manual dispatch remains available.
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - .github/workflows/gate-spot-watch.yml
-  schedule:
-    - cron: "4,14,24,34,44,54 * * * *"
-
 permissions:
   contents: read
   actions: write
