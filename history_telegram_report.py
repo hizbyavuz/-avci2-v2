@@ -241,11 +241,29 @@ def fmt(x):
     return f"{x:.2f}"
 
 def split_telegram_report(text, limit=3800):
-    """Split a long report on line boundaries so Telegram does not truncate it."""
+    """Split cleanly by research sections, then fall back to line-safe chunks."""
+    lines=text.splitlines()
+
+    # Prefer a clean section boundary before V2 so robustness commentary
+    # stays together and V2 + methodology arrive in the second message.
+    v2_idx=None
+    for i,line in enumerate(lines):
+        if line.startswith("🧭 V2 |"):
+            v2_idx=i
+            break
+
+    preferred=[]
+    if v2_idx is not None:
+        left="\n".join(lines[:v2_idx]).strip()
+        right="\n".join(lines[v2_idx:]).strip()
+        if left and right and len(left)<=limit and len(right)<=limit:
+            return [left,right]
+
+    # Fallback: preserve complete lines and never exceed Telegram's limit.
     chunks=[]
     current=[]
     current_len=0
-    for line in text.splitlines():
+    for line in lines:
         extra=len(line) + (1 if current else 0)
         if current and current_len + extra > limit:
             chunks.append("\n".join(current))
