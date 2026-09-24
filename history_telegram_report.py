@@ -268,6 +268,28 @@ def v4_summary(c):
       LIMIT 8""",(version,)).fetchall()
     return counts,rows
 
+def v5_summary(c):
+    exists=c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='v5_runs'").fetchone()
+    if not exists:
+        return None,[],[]
+    version='history-v5-activation-v0.1-20260925'
+    run=c.execute("""SELECT discovery_total,discovery_done,validation_total,validation_done,
+      result_rows,spec_frozen,notes
+      FROM v5_runs WHERE version=? ORDER BY started_utc DESC LIMIT 1""",(version,)).fetchone()
+    specs=c.execute("""SELECT feature,operator,threshold,quantile
+      FROM v5_activation_spec WHERE version=? ORDER BY feature""",(version,)).fetchall()
+    rows=[]
+    if run and int(run[5] or 0)==1:
+        rows=c.execute("""SELECT pattern_name,activation_name,horizon_days,threshold_pct,
+          signal_n,hit_n,unique_coin_n,precision,false_positive_rate,parent_precision,
+          lift_vs_parent,raw_base_rate,lift_vs_raw_base,p_value,q_value,fdr_pass
+          FROM v5_activation_results
+          WHERE version=? AND split='VALIDATION' AND activation_name!='BASE'
+            AND signal_n>=20
+          ORDER BY fdr_pass DESC, COALESCE(q_value,1), COALESCE(lift_vs_parent,0) DESC
+          LIMIT 8""",(version,)).fetchall()
+    return run,specs,rows
+
 def cross_venue_summary(c):
     exists=c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='cross_venue_cases'").fetchone()
     if not exists:
@@ -352,6 +374,7 @@ def split_telegram_report(text, limit=3800):
             line.startswith("🧱 ") or
             line.startswith("🔄 ") or
             line.startswith("🧮 ") or
+            line.startswith("🚦 ") or
             line.startswith("📌 ")
         )
         if is_header and current:
@@ -413,6 +436,7 @@ def main():
         v2_rates,v2_results=v2_summary(c)
         v3_rows,v3_overlap_avg=v3_summary(c)
         v4_counts,v4_rows=v4_summary(c)
+        v5_run,v5_specs,v5_rows=v5_summary(c)
         cross_venue=cross_venue_summary(c)
     attempted,ok,bars,events,controls=run
     pairs,done,short_skips,total_bars,total_events,total_controls=total
@@ -628,6 +652,35 @@ def main():
                 )
             lines.append("  → Burada ilk kez 'kazananlarda pattern var mı?' değil, 'pattern varsa kaç tanesi kazanıyor?' ölçülüyor.")
             lines.append("  → Eşikler sadece keşif dönemindeki feature dağılımından donduruldu; gelecekteki getiriler eşik seçmek için kullanılmadı.")
+
+        if v5_run:
+            dtotal,ddone,vtotal,vdone,result_rows,spec_frozen,v5_notes=v5_run
+            lines += ["","🚦 V5 | AKTİVASYON TESTİ"]
+            lines.append(f"• Saatlik aktivasyon verisi: keşif {ddone}/{dtotal} | doğrulama {vdone}/{vtotal}")
+            if not int(spec_frozen or 0):
+                lines.append("• Durum: Eşikler henüz dondurulmadı; keşif adaylarının saatlik geçmişi tamamlanıyor.")
+                lines.append("  → Sonuca bakarak eşik seçmemek için V5 başarı oranı, keşif verisi tamamlanmadan ana sonuç olarak raporlanmayacak.")
+            else:
+                if v5_specs:
+                    sp={r[0]:float(r[2]) for r in v5_specs}
+                    if "vol_ratio_3_24" in sp and "dist_low_24h" in sp:
+                        lines.append(f"• Dondurulmuş aktivasyon eşikleri: 3s hacim oranı ≥ {sp['vol_ratio_3_24']:.2f} | 24s dipten uzaklaşma ≥ %{sp['dist_low_24h']:.2f}")
+                if v5_rows:
+                    lines.append("• Doğrulamada en güçlü aktivasyon sonuçları:")
+                    for p,act,h,t,n,hits,coins,prec,fpr,parent,lift_parent,base,lift_raw,pval,qval,fdr in v5_rows[:6]:
+                        pname="P2" if p=="P2_FAR_PLUS_VOL" else "P3"
+                        aname={"VOL":"hacim","DIP":"dipten ayrışma","VOL_DIP":"hacim + dip"}.get(act,act)
+                        fdr_txt="FDR GEÇTİ" if int(fdr or 0) else "FDR GEÇMEDİ"
+                        qtxt=f"{float(qval):.3g}" if qval is not None else "—"
+                        lines.append(
+                          f"  - {pname} + {aname} | {h}g +%{t}: başarı %{100*prec:.1f} "
+                          f"({hits}/{n}) | P2/P3 tabanı %{100*parent:.1f} | artış {lift_parent:.2f}x "
+                          f"| q={qtxt} {fdr_txt} | coin {coins}"
+                        )
+                else:
+                    lines.append("• Eşikler donduruldu; doğrulama saatlik örnekleri birikiyor.")
+            lines.append("  → Cross-Venue/Binance öncülüğü ana V5 hesabına dahil değil; kararsız olduğu için ayrı deneysel katmanda kalıyor.")
+            lines.append("  → Çoklu test riski için yalnızca önceden belirlenen 36 ana teste BH-FDR uygulanıyor.")
 
         lines += ["","📌 METODOLOJİ NOTLARI",
                   "• Eşleştirme kuralı donduruldu; doğrulama setine bakıp eşikler/özellikler ince ayar yapılmayacak.",
