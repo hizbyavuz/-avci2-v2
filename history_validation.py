@@ -137,6 +137,9 @@ def init_db(c):
       version TEXT NOT NULL
     );
     """)
+    cols={r["name"] for r in c.execute("PRAGMA table_info(validation_results)")}
+    if "validation_grade" not in cols:
+        c.execute("ALTER TABLE validation_results ADD COLUMN validation_grade TEXT NOT NULL DEFAULT 'INSUFFICIENT'")
 
 def btc_regime(c, ts):
     rows = c.execute("""SELECT ts,close FROM daily_bars
