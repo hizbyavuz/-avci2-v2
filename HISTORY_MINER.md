@@ -52,3 +52,36 @@ Known gaps remain explicit:
 - historical holder concentration, float and wash-trade evidence is not available in this layer, so manipulation status remains UNKNOWN until a separate source is backfilled
 
 No validation result changes live Avci thresholds automatically. A repeated pattern is only a research candidate until it also survives forward testing.
+
+
+## Frozen matching and blind validation protocol (v0.3.1)
+
+The matching design is now frozen as `match-spec-v1-frozen-20260924`.
+For this version, each RISE case may receive up to three CONTROL matches. Controls must:
+- be in the same discovery/validation split
+- be within ±45 calendar days of the RISE case
+- use the same BTC regime when regime information is available
+- be ranked only with pre-event observables: 30-day return, 30-day drawdown, 30-day realized volatility, and log-transformed 30-day average quote volume
+- use fixed distance scales: 20, 20, 5 and 2 respectively
+- be tagged GOOD at distance <=0.75, OK at <=1.50, otherwise WEAK
+
+This matching specification must not be tuned after examining the validation set. Any change to features, distance scales, windows, thresholds or regime logic requires a new version and a new untouched validation period.
+
+Validation grades are fixed for this version:
+- DIRECTION_ONLY_LOW_N: same direction, but fewer than 40 validation observations on either side
+- DIRECTION_ONLY_WEAK: same direction, but discovery or validation effect magnitude is below 0.50
+- CONSISTENT: same direction, at least 40 validation observations per side, and both effect magnitudes are at least 0.50
+- STRONG: CONSISTENT plus validation effect magnitude at least 1.00
+- FAILED_DIRECTION / INSUFFICIENT are kept explicitly
+
+The Telegram report now prints discovery/validation regime counts so a result is not treated as general if the two time splits have materially different BTC-regime mixtures.
+
+### Delisted-market backfill target
+
+Current broad coverage is still seeded from active Gate markets, so survivorship bias remains a known limitation. The explicit next backfill target is a historical Gate market universe including delisted/suspended USDT pairs, with:
+1. historical pair identity and listing/delisting dates,
+2. recoverable daily/hourly candles,
+3. the same event/control labels and pre-event features,
+4. a separate coverage flag when historical data is incomplete.
+
+Until that backfill exists, reports must keep the survivorship warning visible and must not describe the historical sample as the full Gate universe.
