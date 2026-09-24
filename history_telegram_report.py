@@ -396,6 +396,12 @@ def main():
             lines.append("  → Çok sayıda özelliği aynı anda denediğimiz için, tesadüfen iyi görünenleri ayıklamak amacıyla ek kontrol uygulanıyor.")
         if v2_rates:
             lines += ["","🧭 V2 | BÜYÜK HAREKET TESTİ"]
+            if v2_results:
+                lines.append("• Eşleşmiş kontrollerle şimdilik en sağlam V2 sonuçları:")
+                for h,t,feature,ve,grade,nr,nc in v2_results[:5]:
+                    gt="GÜÇLÜ" if grade=="STRONG" else "TUTARLI"
+                    lines.append(f"  - {h}g +%{t} | {human_feature(feature)}: {gt} | etki {fmt(ve)} | n={nr}/{nc}")
+                lines.append("  → Bunlar yalnızca eşleşmiş kontrollerle hesaplanan sonuçlar.")
             for h in (7,14,30,60):
                 vals={int(r[1]):float(r[4]) for r in v2_rates if int(r[0])==h}
                 if vals:
@@ -403,13 +409,7 @@ def main():
                     for t in (20,50,100):
                         if t in vals: parts.append(f"+%{t}: %{100*vals[t]:.1f}")
                     lines.append(f"• {h} gün içinde: " + " | ".join(parts))
-            lines.append("  → Amaç: T-72 ve diğer geçmiş özelliklerin sıradan +20 hareketten çok +50/+100 hareketlerde güçlenip güçlenmediğini görmek.")
-            if v2_results:
-                lines.append("• Eşleşmiş kontrollerle şimdilik en sağlam V2 sonuçları:")
-                for h,t,feature,ve,grade,nr,nc in v2_results[:5]:
-                    gt="GÜÇLÜ" if grade=="STRONG" else "TUTARLI"
-                    lines.append(f"  - {h}g +%{t} | {human_feature(feature)}: {gt} | etki {fmt(ve)} | n={nr}/{nc}")
-                lines.append("  → Bu V2 effect'leri eski genel kontrol havuzuyla değil, yalnızca eşleşmiş kontrollerle hesaplanıyor.")
+            lines.append("  → Amaç: erken yapının sıradan +20 yerine +50/+100 hareketlerde güçlenip güçlenmediğini görmek.")
 
         lines += ["","📌 METODOLOJİ NOTLARI",
                   "• Eşleştirme kuralı donduruldu; doğrulama setine bakıp eşikler/özellikler ince ayar yapılmayacak.",
