@@ -106,3 +106,22 @@ Telegram now adds one plain-language label to each displayed validated feature:
 The label is chosen only from the current validation version, first by validation grade
 (STRONG > CONSISTENT > WEAK > LOW_N), then by absolute validation effect. Older validation
 versions are excluded from the same report so regime rows cannot be duplicated.
+
+
+## Robustness diagnostics (v0.3.2)
+
+These diagnostics do not alter the frozen event labels, matching specification, or validation grades. They are an observational robustness layer.
+
+### +20% / 60-day base rate
+The miner now measures the unconditional share of every eligible historical day-window whose next 60-day maximum high reaches at least +20%. It also records +50% and +100% base rates. This answers whether the current RISE threshold is genuinely selective or common in the sampled crypto universe.
+
+### Multiple-testing control
+For the untouched VALIDATION period, daily and hourly features receive a two-sided Mann-Whitney U rank test using a tie-corrected normal approximation. The family of available ALL-regime feature tests is then adjusted with Benjamini-Hochberg FDR at q <= 0.05.
+
+FDR output is diagnostic only in this frozen version:
+- existing STRONG / CONSISTENT / WEAK grades are not rewritten,
+- the Telegram report separately states how many tested features also survive the FDR screen,
+- future versions may use this evidence when defining a new frozen specification.
+
+### Survivorship warning
+The report now explicitly states that missing delisted/suspended markets are plausible counterexamples to the current "previously crushed coin" pattern. Until a historical delisted-market backfill is completed, results must not be described as representative of the complete Gate historical universe.
