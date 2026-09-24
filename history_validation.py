@@ -28,6 +28,8 @@ MATCH_SPEC_VERSION = "match-spec-v1-frozen-20260924"
 MIN_EFFECT = 0.50
 STRONG_EFFECT = 1.00
 MIN_VALIDATION_N = 40
+DIAGNOSTICS_VERSION = "history-diagnostics-v0.1-20260924"
+FDR_ALPHA = 0.05
 DEFAULT_CUTOFF = os.getenv("HISTORY_VALIDATION_CUTOFF", "2025-09-01")
 MATCH_WINDOW_DAYS = int(os.getenv("HISTORY_MATCH_WINDOW_DAYS", "45"))
 
@@ -135,6 +137,17 @@ def init_db(c):
       spec_value TEXT NOT NULL,
       frozen_utc TEXT NOT NULL,
       version TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS validation_diagnostics(
+      diag_key TEXT NOT NULL,
+      scope TEXT NOT NULL,
+      feature TEXT NOT NULL DEFAULT '',
+      offset_h INTEGER NOT NULL DEFAULT 0,
+      regime TEXT NOT NULL DEFAULT 'ALL',
+      value REAL,
+      text_value TEXT,
+      version TEXT NOT NULL,
+      PRIMARY KEY(diag_key,scope,feature,offset_h,regime,version)
     );
     """)
     cols={r["name"] for r in c.execute("PRAGMA table_info(validation_results)")}
@@ -281,6 +294,125 @@ def effect(rise, ctl):
         scale=max(abs(cm),1.0)
     return (rm-cm)/scale
 
+def mann_whitney_p(a,b):
+    """Two-sided Mann-Whitney U p-value using tie-corrected normal approximation."""
+    x=[float(v) for v in a if v is not None and math.isfinite(float(v))]
+    y=[float(v) for v in b if v is not None and math.isfinite(float(v))]
+    n1,n2=len(x),len(y)
+    if n1<8 or n2<8:
+        return None
+    vals=[(v,0) for v in x]+[(v,1) for v in y]
+    vals.sort(key=lambda z:z[0])
+    ranks=[0.0]*len(vals)
+    tie_sum=0.0
+    i=0
+    while i<len(vals):
+        j=i+1
+        while j<len(vals) and vals[j][0]==vals[i][0]:
+            j+=1
+        avg_rank=(i+1+j)/2.0
+        for k in range(i,j):
+            ranks[k]=avg_rank
+        t=j-i
+        if t>1:
+            tie_sum += t**3-t
+        i=j
+    r1=sum(r for r,(_,g) in zip(ranks,vals) if g==0)
+    u1=r1-n1*(n1+1)/2.0
+    mean=n1*n2/2.0
+    n=n1+n2
+    tie_corr=tie_sum/(n*(n-1)) if n>1 else 0.0
+    var=n1*n2/12.0*((n+1)-tie_corr)
+    if var<=0:
+        return 1.0
+    z=(u1-mean)/math.sqrt(var)
+    # two-sided p from standard normal via erfc
+    return math.erfc(abs(z)/math.sqrt(2.0))
+
+def bh_fdr(pairs, alpha=FDR_ALPHA):
+    """Benjamini-Hochberg q-values. pairs=[(key,p)]."""
+    valid=[(k,float(p)) for k,p in pairs if p is not None and math.isfinite(float(p))]
+    valid.sort(key=lambda z:z[1])
+    m=len(valid)
+    if not m:
+        return {}
+    q={}
+    running=1.0
+    for idx in range(m-1,-1,-1):
+        k,p=valid[idx]
+        rank=idx+1
+        raw=min(1.0,p*m/rank)
+        running=min(running,raw)
+        q[k]=running
+    return {k:(p,q[k],q[k]<=alpha) for k,p in valid}
+
+def compute_base_rate(c):
+    total=hit20=hit50=hit100=0
+    pairs=c.execute("SELECT DISTINCT pair FROM daily_bars").fetchall()
+    for pr in pairs:
+        bars=c.execute("""SELECT ts,high,close FROM daily_bars
+          WHERE pair=? ORDER BY ts""",(pr[0],)).fetchall()
+        n=len(bars)
+        for i in range(90,n-61):
+            base=float(bars[i]["close"])
+            if base<=0: continue
+            mx=max(float(r["high"]) for r in bars[i+1:min(n,i+61)])
+            ret=100.0*(mx/base-1.0)
+            total+=1
+            hit20 += int(ret>=20.0)
+            hit50 += int(ret>=50.0)
+            hit100 += int(ret>=100.0)
+    return {
+      "eligible_windows":total,
+      "hit20_windows":hit20,
+      "hit50_windows":hit50,
+      "hit100_windows":hit100,
+      "hit20_rate":(hit20/total if total else None),
+      "hit50_rate":(hit50/total if total else None),
+      "hit100_rate":(hit100/total if total else None),
+    }
+
+def compute_diagnostics(c):
+    c.execute("DELETE FROM validation_diagnostics WHERE version=?",(DIAGNOSTICS_VERSION,))
+    # Base rate is descriptive only; it does not relabel events.
+    base=compute_base_rate(c)
+    for k,v in base.items():
+        c.execute("""INSERT OR REPLACE INTO validation_diagnostics
+          (diag_key,scope,value,version) VALUES(?,?,?,?)""",(k,"BASE_RATE",v,DIAGNOSTICS_VERSION))
+
+    # Multiple-testing check uses untouched VALIDATION samples, ALL regime only.
+    tests=[]
+    for feature in DAILY_FEATURES:
+        vr=values_daily(c,feature,"VALIDATION","RISE","ALL")
+        vc=values_daily(c,feature,"VALIDATION","CONTROL","ALL")
+        tests.append((("DAILY",feature,0),mann_whitney_p(vr,vc)))
+    has_hourly=c.execute("""SELECT 1 FROM sqlite_master
+        WHERE type='table' AND name='hourly_path_snapshots'""").fetchone()
+    if has_hourly:
+        for off in OFFSETS:
+            for feature in HOURLY_FEATURES:
+                vr=values_hourly(c,feature,off,"VALIDATION","RISE","ALL")
+                vc=values_hourly(c,feature,off,"VALIDATION","CONTROL","ALL")
+                tests.append((("HOURLY",feature,off),mann_whitney_p(vr,vc)))
+    adjusted=bh_fdr(tests,FDR_ALPHA)
+    for (scope,feature,off),(p,q,passed) in adjusted.items():
+        c.execute("""INSERT OR REPLACE INTO validation_diagnostics
+          (diag_key,scope,feature,offset_h,regime,value,text_value,version)
+          VALUES(?,?,?,?,?,?,?,?)""",
+          ("mw_p",scope,feature,off,"ALL",p,None,DIAGNOSTICS_VERSION))
+        c.execute("""INSERT OR REPLACE INTO validation_diagnostics
+          (diag_key,scope,feature,offset_h,regime,value,text_value,version)
+          VALUES(?,?,?,?,?,?,?,?)""",
+          ("bh_q",scope,feature,off,"ALL",q,("PASS" if passed else "FAIL"),DIAGNOSTICS_VERSION))
+    tested=len(adjusted)
+    passed=sum(1 for _k,(_p,_q,ok) in adjusted.items() if ok)
+    c.execute("""INSERT OR REPLACE INTO validation_diagnostics
+      (diag_key,scope,value,text_value,version) VALUES(?,?,?,?,?)""",
+      ("fdr_tested","MULTIPLE_TEST",tested,f"alpha={FDR_ALPHA}",DIAGNOSTICS_VERSION))
+    c.execute("""INSERT OR REPLACE INTO validation_diagnostics
+      (diag_key,scope,value,text_value,version) VALUES(?,?,?,?,?)""",
+      ("fdr_passed","MULTIPLE_TEST",passed,f"alpha={FDR_ALPHA}",DIAGNOSTICS_VERSION))
+
 def grade_result(de,ve,vr,vc):
     if de is None or ve is None:
         return "INSUFFICIENT"
@@ -354,6 +486,7 @@ def main():
         save_regime_counts(c)
         build_matches(c)
         compute_results(c)
+        compute_diagnostics(c)
         cases=c.execute("SELECT COUNT(*) FROM validation_cases WHERE version=?",(VERSION,)).fetchone()[0]
         matches=c.execute("SELECT COUNT(*) FROM validation_control_matches WHERE version=?",(VERSION,)).fetchone()[0]
         tested=c.execute("""SELECT COUNT(*) FROM validation_results
@@ -365,6 +498,14 @@ def main():
           (utcnow(),cases,matches,replicated,tested,run_id))
         c.commit()
     print(f"History Validation: cutoff={DEFAULT_CUTOFF} cases={cases} matches={matches} validated={replicated}/{tested}")
+    with con() as c:
+        br=c.execute("""SELECT value FROM validation_diagnostics
+          WHERE version=? AND diag_key='hit20_rate' AND scope='BASE_RATE'""",(DIAGNOSTICS_VERSION,)).fetchone()
+        ft=c.execute("""SELECT value FROM validation_diagnostics
+          WHERE version=? AND diag_key='fdr_tested' AND scope='MULTIPLE_TEST'""",(DIAGNOSTICS_VERSION,)).fetchone()
+        fp=c.execute("""SELECT value FROM validation_diagnostics
+          WHERE version=? AND diag_key='fdr_passed' AND scope='MULTIPLE_TEST'""",(DIAGNOSTICS_VERSION,)).fetchone()
+    print(f"Diagnostics: +20/60d base_rate={(100*br[0] if br and br[0] is not None else 0):.1f}% FDR_pass={int(fp[0]) if fp else 0}/{int(ft[0]) if ft else 0}")
     print("Coverage: survivorship=ACTIVE_PAIR_ARCHIVE_ONLY manipulation_history=UNKNOWN")
 
 if __name__=="__main__":
