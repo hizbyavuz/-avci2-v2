@@ -1,5 +1,6 @@
 name: Avci candidate 24 hour follow-up
 
+# TEMPORARY RESEARCH FOCUS: automatic runs paused; manual dispatch remains available.
 on:
   workflow_dispatch:
     inputs:
@@ -7,9 +8,6 @@ on:
         description: "Turkiye sinyal tarihi YYYY-MM-DD; bos birakirsan iki gun once"
         required: false
         type: string
-  schedule:
-    - cron: "13 2 * * *"
-
 permissions:
   contents: read
   actions: read
