@@ -31,14 +31,13 @@ on:
     paths:
       - "binance_*.py"
       - "telegram_readable.py"
-      - "telegram_heartbeat.py"
       - "avci_checkpoints.py"
       - "avci_observation_report.py"
       - "tests/test_*.py"
       - ".github/workflows/binance_avci2.yml"
 
   schedule:
-    - cron: "2,12,22,32,42,52 * * * *"
+    - cron: "7,22,37,52 * * * *"
 
 permissions:
   contents: read
@@ -168,13 +167,6 @@ jobs:
         run: python -u binance_notify.py
 
 
-      - name: Send Binance 10-minute Telegram heartbeat
-        if: success()
-        continue-on-error: true
-        env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: python -u telegram_heartbeat.py binance
 
       - name: Upload research state
         uses: actions/upload-artifact@v4
