@@ -125,3 +125,22 @@ FDR output is diagnostic only in this frozen version:
 
 ### Survivorship warning
 The report now explicitly states that missing delisted/suspended markets are plausible counterexamples to the current "previously crushed coin" pattern. Until a historical delisted-market backfill is completed, results must not be described as representative of the complete Gate historical universe.
+
+
+## V2 multi-horizon matched-control research
+
+`history_validation_v2.py` is a separate observational layer. It does not overwrite the frozen V0 event labels, match specification, or validation grades.
+
+It reuses the existing `daily_bars` archive and computes outcome/base-rate matrices for:
+- horizons: 7 / 14 / 30 / 60 days
+- thresholds: +20% / +50% / +100%
+
+For feature validation, V2 uses the controls already selected by the frozen `validation_control_matches` table instead of comparing against the whole raw CONTROL pool. This directly tests whether previously observed daily features remain separated after matched-control restriction.
+
+V2 results are stored separately in:
+- `v2_outcomes`
+- `v2_base_rates`
+- `v2_matched_results`
+- `v2_runs`
+
+The Telegram report shows the horizon/threshold base-rate matrix and the strongest matched-control V2 results. V2 remains research-only and does not create live trade signals.
