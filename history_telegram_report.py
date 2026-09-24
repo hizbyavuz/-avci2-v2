@@ -241,40 +241,65 @@ def fmt(x):
     return f"{x:.2f}"
 
 def split_telegram_report(text, limit=3800):
-    """Split cleanly by research sections, then fall back to line-safe chunks."""
+    """Keep logical research sections together whenever possible."""
     lines=text.splitlines()
 
-    # Prefer a clean section boundary before V2 so robustness commentary
-    # stays together and V2 + methodology arrive in the second message.
-    v2_idx=None
-    for i,line in enumerate(lines):
-        if line.startswith("🧭 V2 |"):
-            v2_idx=i
-            break
-
-    preferred=[]
-    if v2_idx is not None:
-        left="\n".join(lines[:v2_idx]).strip()
-        right="\n".join(lines[v2_idx:]).strip()
-        if left and right and len(left)<=limit and len(right)<=limit:
-            return [left,right]
-
-    # Fallback: preserve complete lines and never exceed Telegram's limit.
-    chunks=[]
+    # Build logical sections from emoji/title headers. Continuation/explanation
+    # lines remain attached to the section they explain.
+    sections=[]
     current=[]
-    current_len=0
     for line in lines:
-        extra=len(line) + (1 if current else 0)
-        if current and current_len + extra > limit:
-            chunks.append("\n".join(current))
+        is_header=(
+            line.startswith("📚 ") or
+            line.startswith("🔎 ") or
+            line.startswith("⚡ ") or
+            line.startswith("🎞 ") or
+            line.startswith("🧪 ") or
+            line.startswith("🧠 ") or
+            line.startswith("🧯 ") or
+            line.startswith("🧭 ") or
+            line.startswith("📌 ")
+        )
+        if is_header and current:
+            sections.append("\n".join(current).strip())
             current=[line]
-            current_len=len(line)
         else:
             current.append(line)
-            current_len += extra
     if current:
-        chunks.append("\n".join(current))
-    return chunks
+        sections.append("\n".join(current).strip())
+
+    chunks=[]
+    current_chunk=""
+    for section in sections:
+        candidate=section if not current_chunk else current_chunk+"\n\n"+section
+        if current_chunk and len(candidate)>limit:
+            chunks.append(current_chunk)
+            current_chunk=section
+        else:
+            current_chunk=candidate
+    if current_chunk:
+        chunks.append(current_chunk)
+
+    # Last-resort safety for an unusually large single section.
+    safe=[]
+    for chunk in chunks:
+        if len(chunk)<=limit:
+            safe.append(chunk)
+            continue
+        cur=[]
+        cur_len=0
+        for line in chunk.splitlines():
+            extra=len(line)+(1 if cur else 0)
+            if cur and cur_len+extra>limit:
+                safe.append("\n".join(cur))
+                cur=[line]
+                cur_len=len(line)
+            else:
+                cur.append(line)
+                cur_len+=extra
+        if cur:
+            safe.append("\n".join(cur))
+    return safe
 
 def main():
     if not os.path.exists(DB):
