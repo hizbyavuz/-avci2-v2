@@ -85,3 +85,12 @@ Current broad coverage is still seeded from active Gate markets, so survivorship
 4. a separate coverage flag when historical data is incomplete.
 
 Until that backfill exists, reports must keep the survivorship warning visible and must not describe the historical sample as the full Gate universe.
+
+
+### Per-regime result display
+
+For every globally STRONG or CONSISTENT feature shown in the Telegram validation section,
+the report also displays its validation grade separately for BTC UP, SIDEWAYS and DOWN
+regimes when enough data exists. This prevents a globally positive feature from being
+mistaken for a regime-independent signal. Missing or weak regime evidence remains explicit
+as WEAK / LOW_N / FAILED_DIRECTION / INSUFFICIENT rather than being hidden.
