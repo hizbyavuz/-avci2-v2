@@ -94,7 +94,8 @@ def seed_pairs():
 def due_pairs(limit):
     with con() as c:
         return c.execute("""SELECT pair,symbol FROM cex_pairs
-            ORDER BY CASE status WHEN 'QUEUED' THEN 0 WHEN 'RETRY' THEN 1 ELSE 2 END,
+            WHERE status IN ('QUEUED','RETRY')
+            ORDER BY CASE status WHEN 'QUEUED' THEN 0 ELSE 1 END,
                      attempts ASC,priority ASC,pair LIMIT ?""",(limit,)).fetchall()
 
 def fetch_daily(pair):
