@@ -233,6 +233,24 @@ def v2_summary(c):
       LIMIT 8""").fetchall()
     return rates,results
 
+def v3_summary(c):
+    exists=c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='v3_summary'").fetchone()
+    if not exists:
+        return [],None
+    rows=c.execute("""SELECT horizon_days,threshold_pct,feature,
+      raw_rise_n,nonoverlap_rise_n,overlap_reduction_pct,
+      folds_tested,same_direction_folds,effect_pass_folds,
+      median_fold_effect,overall_effect
+      FROM v3_summary
+      WHERE version='history-v3-stress-v0.1-20260924'
+        AND folds_tested>=3 AND same_direction_folds>=3
+      ORDER BY effect_pass_folds DESC, threshold_pct DESC,
+               ABS(COALESCE(median_fold_effect,0)) DESC
+      LIMIT 8""").fetchall()
+    avg=c.execute("""SELECT AVG(overlap_reduction_pct)
+      FROM v3_summary WHERE version='history-v3-stress-v0.1-20260924'""").fetchone()
+    return rows,(float(avg[0]) if avg and avg[0] is not None else None)
+
 def fmt(x):
     if x is None: return "—"
     ax=abs(x)
@@ -317,6 +335,7 @@ def main():
         val_run,val_rows,val_regimes,val_specs,val_regime_rows=validation_summary(c)
         diagnostics=diagnostics_summary(c)
         v2_rates,v2_results=v2_summary(c)
+        v3_rows,v3_overlap_avg=v3_summary(c)
     attempted,ok,bars,events,controls=run
     pairs,done,short_skips,total_bars,total_events,total_controls=total
     lines=[
@@ -471,6 +490,20 @@ def main():
                         if t in vals: parts.append(f"+%{t}: %{100*vals[t]:.1f}")
                     lines.append(f"• {h} gün içinde: " + " | ".join(parts))
             lines.append("  → Amaç: erken yapının sıradan +20 yerine +50/+100 hareketlerde güçlenip güçlenmediğini görmek.")
+
+        if v3_rows:
+            lines += ["","🧱 V3 | STRES TESTİ"]
+            if v3_overlap_avg is not None:
+                lines.append(f"• Aynı coin yakın olaylarını tekilleştirince ortalama olay azalması: %{v3_overlap_avg:.1f}")
+            lines.append("• En az 3 ayrı zaman penceresinde aynı yönü koruyan sonuçlar:")
+            for h,t,feature,raw_n,ind_n,red,folds,same,passed,med_eff,overall_eff in v3_rows[:5]:
+                lines.append(
+                    f"  - {h}g +%{t} | {human_feature(feature)} | "
+                    f"yön {same}/{folds} dönem | güçlü-etki {passed}/{folds} | "
+                    f"etki medyan {fmt(med_eff)} | olay {raw_n}→{ind_n}"
+                )
+            lines.append("  → Bu katman V2'yi değiştirmez; aynı bulguları overlap azaltılmış ve 4 zaman penceresinde daha sert sınar.")
+            lines.append("  → BTC rejimi 'en güvenilir' etiketleri bağımsız doğrulama gelene kadar yalnızca hipotez kabul edilir.")
 
         lines += ["","📌 METODOLOJİ NOTLARI",
                   "• Eşleştirme kuralı donduruldu; doğrulama setine bakıp eşikler/özellikler ince ayar yapılmayacak.",
