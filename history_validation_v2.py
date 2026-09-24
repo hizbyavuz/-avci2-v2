@@ -230,7 +230,7 @@ def build_matched_results(c):
                 g=grade(de,ve,len(vr),len(vc))
                 rows.append((h,t,feature,len(dr),len(dc),len(vr),len(vc),de,ve,g,VERSION))
     c.executemany("""INSERT OR REPLACE INTO v2_matched_results
-      VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""",rows)
+      VALUES(?,?,?,?,?,?,?,?,?,?,?)""",rows)
 
 def main():
     if not os.path.exists(DB):
