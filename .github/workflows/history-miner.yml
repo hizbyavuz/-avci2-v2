@@ -11,6 +11,7 @@ on:
       - "history_validation.py"
       - "history_validation_v2.py"
       - "history_validation_v3.py"
+      - "history_cross_venue.py"
       - ".github/workflows/history-miner.yml"
   schedule:
     - cron: "6,16,26,36,46,56 * * * *"
@@ -59,6 +60,12 @@ jobs:
           HISTORY_PATH_BUDGET: "120"
           HISTORY_PATH_SLEEP: "0.20"
         run: python -u history_hourly_path_miner.py
+
+      - name: Build Gate vs Binance cross-venue validation
+        env:
+          CROSS_VENUE_BUDGET: "60"
+          CROSS_VENUE_SLEEP: "0.12"
+        run: python -u history_cross_venue.py
 
       - name: Build bias-aware validation layer
         env:
