@@ -7,7 +7,15 @@ import sqlite3
 from urllib import parse, request
 
 DB = os.getenv("GATE_SPOT_DB", "avci2.db")
-VERSION = "gate-spot-watch-v0.2-multipath-20260923"
+VERSION = "gate-spot-watch-v0.3-no-stables-20260924"
+
+STABLE_SYMBOLS = {
+    "USDT", "USDC", "USDE", "USDS", "DAI", "FDUSD", "TUSD",
+    "PYUSD", "USDD", "FRAX", "GUSD", "LUSD", "USDP", "USD0", "USD1",
+}
+
+def is_stable_symbol(symbol):
+    return str(symbol or "").strip().upper() in STABLE_SYMBOLS
 
 
 def shortlist(con, now, batch, diagnostics=None):
@@ -25,6 +33,8 @@ def shortlist(con, now, batch, diagnostics=None):
     counts["momentum"] = counts["retention"] = counts["prebreakout"] = 0
     result = []
     for pair, symbol, price, volume, day_change, start, bid, ask in current:
+        if is_stable_symbol(symbol):
+            continue
         if volume < 300000 or not 3 <= day_change <= 25:
             continue
         counts["liquid_early"] += 1
