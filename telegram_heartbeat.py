@@ -94,7 +94,8 @@ def main():
         "history":os.getenv("HISTORY_DB","history_miner.db"),"binance":"binance_avci2.db"}[mode]
     chat=resolve_chat_id(token,configured,db,f"{mode} heartbeat")
     title={"gate":"GATE AVCI","spot":"GATE SPOT","history":"HISTORY MINER","binance":"BINANCE AVCI"}[mode]
-    lines=["🟢 MOTOR DURUMU | "+title,"Tur tamamlandı."]
+    lines=(["⛏ GEÇMİŞ KAZICI | 10 DK RAPORU","Yeni tur tamamlandı."] if mode=="history"
+       else ["🟢 MOTOR DURUMU | "+title,"Tur tamamlandı."])
     lines.extend("• "+x for x in funcs[mode]())
     send_telegram(token,chat,"\n".join(lines))
     print("Telegram heartbeat sent:",mode)
