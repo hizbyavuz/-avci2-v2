@@ -132,19 +132,25 @@ def hourly_path_summary(c, min_n=8):
 def validation_summary(c):
     exists=c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='validation_runs'").fetchone()
     if not exists:
-        return None,[]
-    run=c.execute("""SELECT cutoff_utc,cases,matches,replicated,tested,notes
+        return None,[],[],[],[],[]
+    run=c.execute("""SELECT cutoff_utc,cases,matches,replicated,tested,notes,version
         FROM validation_runs ORDER BY started_utc DESC LIMIT 1""").fetchone()
     if not run:
         return None,[]
     rows=c.execute("""SELECT feature_scope,feature,offset_h,regime,
-        discovery_effect,validation_effect,direction_replicated,phase,
+        discovery_effect,validation_effect,direction_replicated,validation_grade,phase,
         discovery_rise_n,discovery_control_n,validation_rise_n,validation_control_n
         FROM validation_results
-        WHERE regime='ALL' AND direction_replicated=1
-          AND discovery_effect IS NOT NULL AND validation_effect IS NOT NULL
-        ORDER BY ABS(validation_effect) DESC LIMIT 5""").fetchall()
-    return run,rows
+        WHERE regime='ALL' AND discovery_effect IS NOT NULL AND validation_effect IS NOT NULL
+        ORDER BY CASE validation_grade WHEN 'STRONG' THEN 0 WHEN 'CONSISTENT' THEN 1
+                 WHEN 'DIRECTION_ONLY_WEAK' THEN 2 WHEN 'DIRECTION_ONLY_LOW_N' THEN 3
+                 ELSE 4 END, ABS(validation_effect) DESC LIMIT 6""").fetchall()
+    regimes=c.execute("""SELECT split,label,btc_regime,n
+        FROM validation_regime_counts
+        ORDER BY split,label,btc_regime""").fetchall()
+    specs=c.execute("""SELECT spec_key,spec_value FROM validation_spec
+        ORDER BY spec_key""").fetchall()
+    return run,rows,regimes,specs
 
 def fmt(x):
     if x is None: return "—"
@@ -166,7 +172,7 @@ def main():
         diffs=strongest_differences(c)
         activation_diffs=strongest_activation_differences(c)
         path_rows,path_earliest,path_counts=hourly_path_summary(c)
-        val_run,val_rows=validation_summary(c)
+        val_run,val_rows,val_regimes,val_specs=validation_summary(c)
     attempted,ok,bars,events,controls=run
     pairs,done,short_skips,total_bars,total_events,total_controls=total
     lines=[
@@ -211,18 +217,35 @@ def main():
         else:
             lines.append("• Saatlik örnekler toplanıyor; karşılaştırma için henüz yeterli iki taraflı veri yok.")
     if val_run:
-        cutoff,cases,matches,replicated,tested,notes=val_run
+        cutoff,cases,matches,replicated,tested,notes,val_version=val_run
         lines += ["","🧪 DOĞRULAMA KATMANI",
           f"• Zaman ayrımı: keşif < {cutoff} / doğrulama ≥ {cutoff}",
           f"• Etiketlenen vaka: {cases:,} | eşleşmiş kontrol: {matches:,}",
-          f"• Ayrı doğrulama döneminde yönü tekrar eden test: {replicated}/{tested}",
+          f"• Tutarlı/güçlü doğrulama: {replicated}/{tested}",
           "• T-72/T-48/T-24/T-12 = erken kanıt; T-6/T-3/T-1 = hareket başlamış olabilir."]
+        if val_regimes:
+            lines.append("• Rejim dağılımı:")
+            for split in ("DISCOVERY","VALIDATION"):
+                parts=[]
+                for regime in ("UP","SIDEWAYS","DOWN","UNKNOWN"):
+                    n=sum(int(r[3]) for r in val_regimes if r[0]==split and r[2]==regime)
+                    if n: parts.append(f"{regime}={n}")
+                if parts: lines.append(f"  - {split}: " + ", ".join(parts))
         if val_rows:
-            lines.append("• Doğrulamada da aynı yönde kalan en güçlü adaylar:")
-            for scope,feature,off,regime,de,ve,repl,phase,drn,dcn,vrn,vcn in val_rows[:3]:
+            lines.append("• Doğrulama durumu:")
+            grade_tr={
+              "STRONG":"GÜÇLÜ",
+              "CONSISTENT":"TUTARLI",
+              "DIRECTION_ONLY_WEAK":"AYNI YÖN AMA ZAYIF",
+              "DIRECTION_ONLY_LOW_N":"AYNI YÖN AMA ÖRNEK AZ",
+              "FAILED_DIRECTION":"YÖN TEKRARLANMADI",
+              "INSUFFICIENT":"YETERSİZ"
+            }
+            for scope,feature,off,regime,de,ve,repl,grade,phase,drn,dcn,vrn,vcn in val_rows[:4]:
                 where=f"T{off}s " if scope=="HOURLY" else ""
-                lines.append(f"  - {where}{feature} ({phase}): keşif {fmt(de)} → doğrulama {fmt(ve)}")
-        lines += ["• Survivorship notu: mevcut arşiv hâlâ aktif Gate paritelerinden başlıyor; delist geçmişi ayrıca tamamlanmalı.",
+                lines.append(f"  - {where}{feature}: {grade_tr.get(grade,grade)} | keşif {fmt(de)} → doğrulama {fmt(ve)} | n={vrn}/{vcn}")
+        lines += ["• Eşleştirme spec'i donduruldu; doğrulama setine bakıp eşikler/özellikler ince ayar yapılmayacak.",
+                  "• Survivorship notu: mevcut arşiv hâlâ aktif Gate paritelerinden başlıyor; delist geçmişi ayrıca tamamlanmalı.",
                   "• Manipülasyon notu: geçmiş holder/wash-trade verisi yoksa organik/manipülatif ayrımı 'bilinmiyor' kalır."]
     chat=resolve_chat_id(token,configured,DB,"History Miner")
     send_telegram(token,chat,"\n".join(lines))
