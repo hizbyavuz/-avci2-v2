@@ -32,6 +32,50 @@ FEATURES=[
  ("dist_high_90d","90 günlük tepeye uzaklık"),
 ]
 
+
+PLAIN_EXPLAIN={
+ "14 günlük yeşil gün oranı":"→ Patlayan coinler öncesinde sürekli yükselen coinler değil; daha zayıf/kararsız bir dönem geçiriyor.",
+ "90 günlük tepeye uzaklık":"→ Patlayan coinler genelde eski zirvesinden daha uzakta; yani önceden daha fazla ezilmiş oluyor.",
+ "7 günlük getiri":"→ Patlamadan önceki son hafta genellikle daha zayıf geçiyor.",
+ "30 günlük geri çekilme":"→ Patlayan coinler son 30 günde daha sert geri çekilmiş oluyor.",
+ "30 günlük getiri":"→ Son bir aylık geçmiş performansın patlamadan önce nasıl davrandığını gösterir.",
+ "90 günlük getiri":"→ Uzun süredir zayıf kalan coinlerde patlama öncesi ortak yapı olup olmadığını gösterir.",
+ "7g/30g hacim oranı":"→ Son haftadaki hacmin son 30 güne göre hızlanıp hızlanmadığını gösterir.",
+ "30g/90g hacim oranı":"→ Son ay hacminin daha eski normale göre değişip değişmediğini gösterir.",
+ "30 günlük oynaklık":"→ Coinin patlama öncesi ne kadar dalgalı olduğunu gösterir.",
+ "7g/30g sıkışma oranı":"→ Son hafta hareket alanının daralıp daralmadığını; yani sıkışma olup olmadığını gösterir.",
+}
+
+PATH_EXPLAIN={
+ "24s dipten uzaklaşma":"→ Coin dipten yavaş yavaş ayrılmaya başlıyor.",
+ "24 saatlik fiyat":"→ Fiyat hareketi artık görünür hale geliyor.",
+ "6 saatlik fiyat":"→ Son saatlerde momentum belirginleşiyor; bu erken sinyalden çok hareketin başlangıcı olabilir.",
+ "3s hacim / önceki 24s normali":"→ İlk erken işaret hacimde başlıyor; fiyat patlamadan önce aktivite artıyor olabilir.",
+ "1s hacim / önceki 24s normali":"→ Kısa vadeli hacim normalin üzerine çıkıyor.",
+}
+
+def human_feature(feature):
+    mapping={
+      "dist_high_90d":"90 günlük zirveye uzaklık",
+      "drawdown_30d":"30 günlük geri çekilme",
+      "ret_90d":"90 günlük getiri",
+      "ret_30d":"30 günlük getiri",
+      "ret_7d":"7 günlük getiri",
+      "green_ratio_14d":"14 günlük yeşil gün oranı",
+      "realized_vol_30d":"30 günlük oynaklık",
+      "range_compression_7_30":"7g/30g sıkışma oranı",
+      "vol_ratio_7_30":"7g/30g hacim oranı",
+      "vol_ratio_30_90":"30g/90g hacim oranı",
+      "vol_ratio_3_24":"3s hacim / önceki 24s normali",
+      "vol_ratio_1_24":"1s hacim / önceki 24s normali",
+      "dist_low_24h":"24s dipten uzaklaşma",
+      "ret_24h":"24 saatlik fiyat",
+      "ret_6h":"6 saatlik fiyat",
+      "ret_3h":"3 saatlik fiyat",
+      "ret_1h":"1 saatlik fiyat",
+    }
+    return mapping.get(feature,feature)
+
 def med(vals):
     vals=[float(x) for x in vals if x is not None]
     return statistics.median(vals) if vals else None
@@ -201,6 +245,8 @@ def main():
         lines += ["","🔎 ŞİMDİLİK EN BELİRGİN FARKLAR"]
         for _score,label,direction,rm,cm,nr,nc in diffs:
             lines.append(f"• {label}: yükselişlerde {direction} (medyan {fmt(rm)} vs {fmt(cm)})")
+            exp=PLAIN_EXPLAIN.get(label)
+            if exp: lines.append(f"  {exp}")
         lines.append("")
         lines.append("Not: Bunlar henüz korelasyon. Örneklem büyüdükçe kalıcı mı, tesadüf mü göreceğiz.")
     else:
@@ -218,9 +264,12 @@ def main():
         if path_rows:
             for score,off,label,direction,rm,cm,nr,nc in path_rows[-4:]:
                 lines.append(f"• T{off}s: {label} patlayanlarda {direction} ({fmt(rm)} vs {fmt(cm)})")
+                exp=PATH_EXPLAIN.get(label)
+                if exp: lines.append(f"  {exp}")
             if path_earliest:
                 _score,off,label,direction,rm,cm,nr,nc=path_earliest
                 lines.append(f"• İlk belirgin ayrışma adayı: T{off}s — {label}")
+                lines.append("  → Yani sistemin şu an gördüğü en erken fark, büyük yükselişten yaklaşık bu kadar önce başlıyor.")
             lines.append("Not: Saatlik film yeterli kontrol örneği biriktikçe güvenilirleşecek.")
         else:
             lines.append("• Saatlik örnekler toplanıyor; karşılaştırma için henüz yeterli iki taraflı veri yok.")
@@ -230,6 +279,7 @@ def main():
           f"• Zaman ayrımı: keşif < {cutoff} / doğrulama ≥ {cutoff}",
           f"• Etiketlenen vaka: {cases:,} | eşleşmiş kontrol: {matches:,}",
           f"• Tutarlı/güçlü doğrulama: {replicated}/{tested}",
+          "  → Test edilen işaretlerin sadece bu kadarı yeni dönemde de yeterince sağlam kaldı.",
           "• T-72/T-48/T-24/T-12 = erken kanıt; T-6/T-3/T-1 = hareket başlamış olabilir."]
         if val_regimes:
             lines.append("• Rejim dağılımı:")
@@ -279,8 +329,26 @@ def main():
                 suffix=(" | rejim " + ", ".join(regime_parts)) if regime_parts else ""
                 if best_regime and best_rank>0:
                     suffix += f" | EN GÜVENİLİR: {regime_name.get(best_regime[0],best_regime[0])}"
-                lines.append(f"  - {where}{feature}: {grade_tr.get(grade,grade)} | keşif {fmt(de)} → doğrulama {fmt(ve)} | n={vrn}/{vcn}{suffix}")
-        lines += ["• Eşleştirme spec'i donduruldu; doğrulama setine bakıp eşikler/özellikler ince ayar yapılmayacak.",
+                hname=human_feature(feature)
+                lines.append(f"  - {where}{hname}: {grade_tr.get(grade,grade)} | keşif {fmt(de)} → doğrulama {fmt(ve)} | n={vrn}/{vcn}{suffix}")
+                if grade=="STRONG":
+                    lines.append("    → Eski dönemde de yeni dönemde de net biçimde tekrar etti.")
+                elif grade=="CONSISTENT":
+                    lines.append("    → İki dönemde de aynı yapı var; güçlü ama kusursuz değil.")
+                elif grade=="DIRECTION_ONLY_WEAK":
+                    lines.append("    → Aynı yönde bir iz var ama tek başına güvenilecek kadar güçlü değil.")
+                elif grade=="DIRECTION_ONLY_LOW_N":
+                    lines.append("    → Aynı yönde görünüyor ama karar vermek için örnek sayısı az.")
+                elif grade=="FAILED_DIRECTION":
+                    lines.append("    → Eski dönemdeki davranış yeni dönemde tekrar etmedi.")
+        if path_earliest:
+            lines += ["","🧠 ŞU ANKİ BASİT HİKÂYE",
+              "• Önceden ezilmiş / eski zirvesinden uzak coinler daha sık öne çıkıyor.",
+              "• İlk erken fark yaklaşık T-72 civarında hacimde görülüyor.",
+              "• Sonra coin dipten uzaklaşıyor; T-6/T-3/T-1'e gelince hareket zaten görünürleşiyor.",
+              "• Henüz canlı alım kuralı değil; araştırma ve doğrulama devam ediyor."]
+        lines += ["","📌 METODOLOJİ NOTLARI",
+                  "• Eşleştirme kuralı donduruldu; doğrulama setine bakıp eşikler/özellikler ince ayar yapılmayacak.",
                   "• Survivorship notu: mevcut arşiv hâlâ aktif Gate paritelerinden başlıyor; delist geçmişi ayrıca tamamlanmalı.",
                   "• Manipülasyon notu: geçmiş holder/wash-trade verisi yoksa organik/manipülatif ayrımı 'bilinmiyor' kalır."]
     chat=resolve_chat_id(token,configured,DB,"History Miner")
