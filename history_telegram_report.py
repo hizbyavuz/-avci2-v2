@@ -129,6 +129,23 @@ def hourly_path_summary(c, min_n=8):
             if earliest is None and best[0]>=0.5: earliest=best
     return out,earliest,(cm.get("RISE",0),cm.get("CONTROL",0))
 
+def validation_summary(c):
+    exists=c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='validation_runs'").fetchone()
+    if not exists:
+        return None,[]
+    run=c.execute("""SELECT cutoff_utc,cases,matches,replicated,tested,notes
+        FROM validation_runs ORDER BY started_utc DESC LIMIT 1""").fetchone()
+    if not run:
+        return None,[]
+    rows=c.execute("""SELECT feature_scope,feature,offset_h,regime,
+        discovery_effect,validation_effect,direction_replicated,phase,
+        discovery_rise_n,discovery_control_n,validation_rise_n,validation_control_n
+        FROM validation_results
+        WHERE regime='ALL' AND direction_replicated=1
+          AND discovery_effect IS NOT NULL AND validation_effect IS NOT NULL
+        ORDER BY ABS(validation_effect) DESC LIMIT 5""").fetchall()
+    return run,rows
+
 def fmt(x):
     if x is None: return "—"
     ax=abs(x)
@@ -149,6 +166,7 @@ def main():
         diffs=strongest_differences(c)
         activation_diffs=strongest_activation_differences(c)
         path_rows,path_earliest,path_counts=hourly_path_summary(c)
+        val_run,val_rows=validation_summary(c)
     attempted,ok,bars,events,controls=run
     pairs,done,short_skips,total_bars,total_events,total_controls=total
     lines=[
@@ -192,6 +210,20 @@ def main():
             lines.append("Not: Saatlik film yeterli kontrol örneği biriktikçe güvenilirleşecek.")
         else:
             lines.append("• Saatlik örnekler toplanıyor; karşılaştırma için henüz yeterli iki taraflı veri yok.")
+    if val_run:
+        cutoff,cases,matches,replicated,tested,notes=val_run
+        lines += ["","🧪 DOĞRULAMA KATMANI",
+          f"• Zaman ayrımı: keşif < {cutoff} / doğrulama ≥ {cutoff}",
+          f"• Etiketlenen vaka: {cases:,} | eşleşmiş kontrol: {matches:,}",
+          f"• Ayrı doğrulama döneminde yönü tekrar eden test: {replicated}/{tested}",
+          "• T-72/T-48/T-24/T-12 = erken kanıt; T-6/T-3/T-1 = hareket başlamış olabilir."]
+        if val_rows:
+            lines.append("• Doğrulamada da aynı yönde kalan en güçlü adaylar:")
+            for scope,feature,off,regime,de,ve,repl,phase,drn,dcn,vrn,vcn in val_rows[:3]:
+                where=f"T{off}s " if scope=="HOURLY" else ""
+                lines.append(f"  - {where}{feature} ({phase}): keşif {fmt(de)} → doğrulama {fmt(ve)}")
+        lines += ["• Survivorship notu: mevcut arşiv hâlâ aktif Gate paritelerinden başlıyor; delist geçmişi ayrıca tamamlanmalı.",
+                  "• Manipülasyon notu: geçmiş holder/wash-trade verisi yoksa organik/manipülatif ayrımı 'bilinmiyor' kalır."]
     chat=resolve_chat_id(token,configured,DB,"History Miner")
     send_telegram(token,chat,"\n".join(lines))
     print("History research report sent")
