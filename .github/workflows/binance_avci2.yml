@@ -1,5 +1,6 @@
 name: Binance Avci 2
 
+# TEMPORARY RESEARCH FOCUS: automatic runs paused; manual dispatch remains available.
 on:
   workflow_dispatch:
     inputs:
@@ -26,18 +27,6 @@ on:
         description: "Optional decision note"
         required: false
         type: string
-
-  push:
-    paths:
-      - "binance_*.py"
-      - "telegram_readable.py"
-      - "avci_checkpoints.py"
-      - "avci_observation_report.py"
-      - "tests/test_*.py"
-      - ".github/workflows/binance_avci2.yml"
-
-  schedule:
-    - cron: "7,22,37,52 * * * *"
 
 permissions:
   contents: read
