@@ -87,6 +87,47 @@ def strongest_activation_differences(c, limit=5):
     out.sort(reverse=True,key=lambda x:x[0])
     return out[:limit]
 
+PATH_FEATURES=[
+ ("ret_1h","1 saatlik fiyat"),
+ ("ret_3h","3 saatlik fiyat"),
+ ("ret_6h","6 saatlik fiyat"),
+ ("ret_12h","12 saatlik fiyat"),
+ ("ret_24h","24 saatlik fiyat"),
+ ("vol_ratio_1_24","1s hacim / önceki 24s normali"),
+ ("vol_ratio_3_24","3s hacim / önceki 24s normali"),
+ ("range_ratio_1_24","saatlik hareket genişliği"),
+ ("close_location","saatlik kapanış gücü"),
+ ("dist_low_24h","24s dipten uzaklaşma"),
+ ("dist_high_24h","24s tepeye uzaklık"),
+]
+
+def hourly_path_summary(c, min_n=8):
+    exists=c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='hourly_path_snapshots'").fetchone()
+    if not exists: return [],None,(0,0)
+    counts=c.execute("""SELECT label,COUNT(DISTINCT pair||':'||anchor_ts)
+      FROM hourly_path_snapshots GROUP BY label""").fetchall()
+    cm={r[0]:r[1] for r in counts}
+    out=[]
+    earliest=None
+    for off in (-72,-48,-24,-12,-6,-3,-1):
+        best=None
+        for col,label in PATH_FEATURES:
+            rise=[r[0] for r in c.execute(f"SELECT {col} FROM hourly_path_snapshots WHERE label='RISE' AND offset_h=? AND {col} IS NOT NULL",(off,))]
+            ctl=[r[0] for r in c.execute(f"SELECT {col} FROM hourly_path_snapshots WHERE label='CONTROL' AND offset_h=? AND {col} IS NOT NULL",(off,))]
+            if len(rise)<min_n or len(ctl)<min_n: continue
+            rm,ctm=med(rise),med(ctl)
+            if rm is None or ctm is None: continue
+            scale=statistics.median([abs(float(x)-ctm) for x in ctl if x is not None]) if ctl else 0
+            if not scale or scale<1e-9: scale=max(abs(ctm),1.0)
+            score=abs(rm-ctm)/scale
+            direction="daha yüksek" if rm>ctm else "daha düşük"
+            cand=(score,off,label,direction,rm,ctm,len(rise),len(ctl))
+            if best is None or cand[0]>best[0]: best=cand
+        if best:
+            out.append(best)
+            if earliest is None and best[0]>=0.5: earliest=best
+    return out,earliest,(cm.get("RISE",0),cm.get("CONTROL",0))
+
 def fmt(x):
     if x is None: return "—"
     ax=abs(x)
@@ -106,6 +147,7 @@ def main():
         total=totals(c)
         diffs=strongest_differences(c)
         activation_diffs=strongest_activation_differences(c)
+        path_rows,path_earliest,path_counts=hourly_path_summary(c)
     attempted,ok,bars,events,controls=run
     pairs,done,total_bars,total_events,total_controls=total
     lines=[
@@ -135,6 +177,19 @@ def main():
         for _score,label,direction,rm,cm,nr,nc in activation_diffs:
             lines.append(f"• {label}: patlayanlarda {direction} (medyan {fmt(rm)} vs {fmt(cm)})")
         lines += ["","Yorum: Burada aradığımız şey 'düşmüş coin' değil; düşmüşken içeride aktivitesi değişmeye başlayan coin."]
+
+    pr,pc=path_counts
+    if pr or pc:
+        lines += ["",f"🎞 72 SAATLİK GERİ SARMA | örnek: {pr} yükseliş / {pc} kontrol"]
+        if path_rows:
+            for score,off,label,direction,rm,cm,nr,nc in path_rows[-4:]:
+                lines.append(f"• T{off}s: {label} patlayanlarda {direction} ({fmt(rm)} vs {fmt(cm)})")
+            if path_earliest:
+                _score,off,label,direction,rm,cm,nr,nc=path_earliest
+                lines.append(f"• İlk belirgin ayrışma adayı: T{off}s — {label}")
+            lines.append("Not: Saatlik film yeterli kontrol örneği biriktikçe güvenilirleşecek.")
+        else:
+            lines.append("• Saatlik örnekler toplanıyor; karşılaştırma için henüz yeterli iki taraflı veri yok.")
     chat=resolve_chat_id(token,configured,DB,"History Miner")
     send_telegram(token,chat,"\n".join(lines))
     print("History research report sent")
