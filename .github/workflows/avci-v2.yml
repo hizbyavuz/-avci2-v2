@@ -1,19 +1,8 @@
 name: Avci 2 V2 Multi-Chain
 
+# TEMPORARY RESEARCH FOCUS: automatic runs paused; manual dispatch remains available.
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - "scanner.py"
-      - "gate_*.py"
-      - "telegram_readable.py"
-      - "avci_checkpoints.py"
-      - "avci_observation_report.py"
-      - "tests/test_*.py"
-      - ".github/workflows/avci-v2.yml"
-  schedule:
-    - cron: "*/10 * * * *"
-
 permissions:
   contents: read
   actions: write
