@@ -90,6 +90,7 @@ def init_db(c):
       feature TEXT NOT NULL,
       raw_rise_n INTEGER NOT NULL,
       nonoverlap_rise_n INTEGER NOT NULL,
+      unique_coin_n INTEGER NOT NULL DEFAULT 0,
       overlap_reduction_pct REAL NOT NULL,
       folds_tested INTEGER NOT NULL,
       same_direction_folds INTEGER NOT NULL,
@@ -108,6 +109,9 @@ def init_db(c):
       version TEXT NOT NULL
     );
     """)
+    cols={r["name"] for r in c.execute("PRAGMA table_info(v3_summary)")}
+    if "unique_coin_n" not in cols:
+        c.execute("ALTER TABLE v3_summary ADD COLUMN unique_coin_n INTEGER NOT NULL DEFAULT 0")
 
 def build_feature_cache(c):
     cols=",".join(FEATURES)
@@ -207,6 +211,7 @@ def main():
                 raw=selected_raw_rises(c,h,t)
                 indep=nonoverlap_rises(raw,h)
                 reduction=(1.0-len(indep)/len(raw))*100.0 if raw else 0.0
+                unique_coin_n=len({pair for pair,_event_ts in indep})
 
                 for feature in FEATURES:
                     fold_effects=[]
@@ -238,12 +243,15 @@ def main():
                         same=passed=0
                         med_eff=None
                     summaries.append(
-                        (h,t,feature,len(raw),len(indep),reduction,tested,same,passed,
+                        (h,t,feature,len(raw),len(indep),unique_coin_n,reduction,tested,same,passed,
                          med_eff,overall,VERSION)
                     )
 
         c.executemany("""INSERT OR REPLACE INTO v3_summary
-          VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""",summaries)
+          (horizon_days,threshold_pct,feature,raw_rise_n,nonoverlap_rise_n,
+           unique_coin_n,overlap_reduction_pct,folds_tested,same_direction_folds,
+           effect_pass_folds,median_fold_effect,overall_effect,version)
+          VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",summaries)
         c.execute("""UPDATE v3_runs SET finished_utc=?,summary_rows=? WHERE run_id=?""",
                   (datetime.now(timezone.utc).isoformat(),len(summaries),run_id))
         c.commit()
