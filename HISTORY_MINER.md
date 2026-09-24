@@ -94,3 +94,15 @@ the report also displays its validation grade separately for BTC UP, SIDEWAYS an
 regimes when enough data exists. This prevents a globally positive feature from being
 mistaken for a regime-independent signal. Missing or weak regime evidence remains explicit
 as WEAK / LOW_N / FAILED_DIRECTION / INSUFFICIENT rather than being hidden.
+
+
+### Human-readable regime label
+
+Telegram now adds one plain-language label to each displayed validated feature:
+- EN GÜVENİLİR: BTC YÜKSELİRKEN
+- EN GÜVENİLİR: BTC YATAYKEN
+- EN GÜVENİLİR: BTC DÜŞERKEN
+
+The label is chosen only from the current validation version, first by validation grade
+(STRONG > CONSISTENT > WEAK > LOW_N), then by absolute validation effect. Older validation
+versions are excluded from the same report so regime rows cannot be duplicated.
