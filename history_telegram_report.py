@@ -251,6 +251,47 @@ def v3_summary(c):
       FROM v3_summary WHERE version='history-v3-stress-v0.1-20260924'""").fetchone()
     return rows,(float(avg[0]) if avg and avg[0] is not None else None)
 
+def cross_venue_summary(c):
+    exists=c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='cross_venue_cases'").fetchone()
+    if not exists:
+        return None
+
+    version='cross-venue-v0.1-20260924'
+    counts={}
+    for group,status,n in c.execute("""SELECT venue_group,history_status,COUNT(*)
+      FROM cross_venue_cases WHERE version=?
+      GROUP BY venue_group,history_status""",(version,)):
+        counts[(group,status)]=int(n)
+
+    leads=[float(r[0]) for r in c.execute("""SELECT lead_hours
+      FROM cross_venue_cases WHERE version=? AND label='RISE'
+        AND lead_hours IS NOT NULL""",(version,))]
+    lead_med=statistics.median(leads) if leads else None
+
+    def earliest(group,venue):
+        rows=c.execute("""SELECT feature,offset_h,rise_n,control_n,effect
+          FROM cross_venue_summary
+          WHERE version=? AND venue_group=? AND venue=?
+            AND effect IS NOT NULL
+          ORDER BY offset_h ASC""",(version,group,venue)).fetchall()
+        candidates=[]
+        for feature,off,nr,nc,eff in rows:
+            if int(nr)>=20 and int(nc)>=20 and abs(float(eff))>=0.50:
+                candidates.append((int(off),feature,float(eff),int(nr),int(nc)))
+        if not candidates:
+            return None
+        # Earliest means farthest before t0: -72 first, then -48, etc.
+        return sorted(candidates,key=lambda x:x[0])[0]
+
+    return {
+      "counts":counts,
+      "lead_median":lead_med,
+      "lead_n":len(leads),
+      "binance_earliest":earliest("BINANCE_SYMBOL_MATCH","BINANCE"),
+      "gate_shared_earliest":earliest("BINANCE_SYMBOL_MATCH","GATE"),
+      "gate_only_earliest":earliest("GATE_ONLY","GATE"),
+    }
+
 def fmt(x):
     if x is None: return "—"
     ax=abs(x)
@@ -336,6 +377,7 @@ def main():
         diagnostics=diagnostics_summary(c)
         v2_rates,v2_results=v2_summary(c)
         v3_rows,v3_overlap_avg=v3_summary(c)
+        cross_venue=cross_venue_summary(c)
     attempted,ok,bars,events,controls=run
     pairs,done,short_skips,total_bars,total_events,total_controls=total
     lines=[
@@ -504,6 +546,33 @@ def main():
                 )
             lines.append("  → Bu katman V2'yi değiştirmez; aynı bulguları overlap azaltılmış ve 4 zaman penceresinde daha sert sınar.")
             lines.append("  → BTC rejimi 'en güvenilir' etiketleri bağımsız doğrulama gelene kadar yalnızca hipotez kabul edilir.")
+
+        if cross_venue:
+            lines += ["","🔄 CROSS-VENUE | GATE vs BINANCE"]
+            counts=cross_venue["counts"]
+            matched=sum(n for (g,s),n in counts.items() if g=="BINANCE_SYMBOL_MATCH" and s in ("OK","PARTIAL"))
+            gate_only=sum(n for (g,s),n in counts.items() if g=="GATE_ONLY")
+            nohist=sum(n for (g,s),n in counts.items() if g=="BINANCE_SYMBOL_MATCH" and s=="NO_EVENT_TIME_HISTORY")
+            lines.append(f"• Binance saatlik karşılaştırması hazır: {matched} olay | Gate-only: {gate_only} | Binance'de olay zamanı geçmişi yok: {nohist}")
+            if cross_venue["lead_median"] is not None:
+                lead=float(cross_venue["lead_median"])
+                if lead < 0:
+                    lines.append(f"• +10% geçişi medyan olarak Binance'de {abs(lead):.1f} saat DAHA ERKEN | n={cross_venue['lead_n']}")
+                elif lead > 0:
+                    lines.append(f"• +10% geçişi medyan olarak Binance'de {lead:.1f} saat DAHA GEÇ | n={cross_venue['lead_n']}")
+                else:
+                    lines.append(f"• +10% geçişi medyan olarak iki borsada aynı saate denk geliyor | n={cross_venue['lead_n']}")
+            labels=(
+              ("Binance ortak coinler",cross_venue["binance_earliest"]),
+              ("Gate aynı ortak coinler",cross_venue["gate_shared_earliest"]),
+              ("Sadece Gate grubu",cross_venue["gate_only_earliest"]),
+            )
+            for name,row in labels:
+                if row:
+                    off,feature,eff,nr,nc=row
+                    lines.append(f"• {name}: ilk belirgin ayrışma T{off}s | {human_feature(feature)} | etki {fmt(eff)} | n={nr}/{nc}")
+            lines.append("  → Amaç: T-24 bulgusunun gerçek piyasa davranışı mı, yoksa Gate gecikmesi mi olduğunu ayırmak.")
+            lines.append("  ⚠️ Binance eşleşmesi şu an ticker/sembol bazlıdır; aynı token kimliği kontratla doğrulanana kadar sonuç 'kimlik doğrulanmamış' kabul edilir.")
 
         lines += ["","📌 METODOLOJİ NOTLARI",
                   "• Eşleştirme kuralı donduruldu; doğrulama setine bakıp eşikler/özellikler ince ayar yapılmayacak.",
