@@ -10,6 +10,7 @@ on:
       - "history_telegram_report.py"
       - "history_validation.py"
       - "history_validation_v2.py"
+      - "history_validation_v3.py"
       - ".github/workflows/history-miner.yml"
   schedule:
     - cron: "6,16,26,36,46,56 * * * *"
@@ -67,6 +68,9 @@ jobs:
 
       - name: Build V2 multi-horizon matched validation
         run: python -u history_validation_v2.py
+
+      - name: Build V3 overlap and walk-forward stress test
+        run: python -u history_validation_v3.py
 
       - name: Refresh current on-chain snapshots
         env:
