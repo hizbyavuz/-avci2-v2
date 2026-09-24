@@ -44,8 +44,9 @@ jobs:
 
       - name: Mine next history batch
         env:
-          HISTORY_BATCH: "20"
+          HISTORY_BATCH: "1000"
           HISTORY_SLEEP_SECONDS: "6.2"
+          HISTORY_MAX_RUN_SECONDS: "1200"
           HISTORY_LOOKBACK_DAYS: "730"
         run: python -u history_miner.py
 
