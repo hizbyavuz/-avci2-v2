@@ -1,5 +1,6 @@
 name: Avci monthly readable results
 
+# TEMPORARY RESEARCH FOCUS: automatic runs paused; manual dispatch remains available.
 on:
   workflow_dispatch:
     inputs:
@@ -7,10 +8,6 @@ on:
         description: "UTC month YYYY-MM; leave empty for previous month"
         required: false
         type: string
-  schedule:
-    # Wait for 72-hour outcomes from the last day of the previous month.
-    - cron: "13 8 4 * *"
-
 permissions:
   contents: read
   actions: read
