@@ -7,7 +7,7 @@ on:
       - "history_miner.py"
       - "history_event_miner.py"
       - "HISTORY_MINER.md"
-      - "telegram_heartbeat.py"
+      - "history_telegram_report.py"
       - ".github/workflows/history-miner.yml"
   schedule:
     - cron: "6,16,26,36,46,56 * * * *"
@@ -60,13 +60,13 @@ jobs:
         run: python -u history_miner.py
 
 
-      - name: Send History Miner 10-minute Telegram heartbeat
+      - name: Send History Miner research summary
         if: success()
         continue-on-error: true
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: python -u telegram_heartbeat.py history
+        run: python -u history_telegram_report.py
 
       - name: Save history state
         if: success()
