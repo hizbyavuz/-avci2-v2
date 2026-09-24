@@ -132,30 +132,32 @@ def hourly_path_summary(c, min_n=8):
 def validation_summary(c):
     exists=c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='validation_runs'").fetchone()
     if not exists:
-        return None,[],[],[]
+        return None,[],[],[],[]
     run=c.execute("""SELECT cutoff_utc,cases,matches,replicated,tested,notes,version
         FROM validation_runs ORDER BY started_utc DESC LIMIT 1""").fetchone()
     if not run:
-        return None,[],[],[]
+        return None,[],[],[],[]
     rows=c.execute("""SELECT feature_scope,feature,offset_h,regime,
         discovery_effect,validation_effect,direction_replicated,validation_grade,phase,
         discovery_rise_n,discovery_control_n,validation_rise_n,validation_control_n
         FROM validation_results
-        WHERE regime='ALL' AND discovery_effect IS NOT NULL AND validation_effect IS NOT NULL
+        WHERE version=? AND regime='ALL' AND discovery_effect IS NOT NULL AND validation_effect IS NOT NULL
         ORDER BY CASE validation_grade WHEN 'STRONG' THEN 0 WHEN 'CONSISTENT' THEN 1
                  WHEN 'DIRECTION_ONLY_WEAK' THEN 2 WHEN 'DIRECTION_ONLY_LOW_N' THEN 3
-                 ELSE 4 END, ABS(validation_effect) DESC LIMIT 6""").fetchall()
+                 ELSE 4 END, ABS(validation_effect) DESC LIMIT 6""",(run[6],)).fetchall()
     regimes=c.execute("""SELECT split,label,btc_regime,n
         FROM validation_regime_counts
-        ORDER BY split,label,btc_regime""").fetchall()
+        WHERE version=?
+        ORDER BY split,label,btc_regime""",(run[6],)).fetchall()
     specs=c.execute("""SELECT spec_key,spec_value FROM validation_spec
-        ORDER BY spec_key""").fetchall()
+        WHERE version=?
+        ORDER BY spec_key""",(run[6],)).fetchall()
     regime_rows=c.execute("""SELECT feature_scope,feature,offset_h,regime,
         validation_grade,discovery_effect,validation_effect,
         validation_rise_n,validation_control_n
         FROM validation_results
-        WHERE regime IN ('UP','SIDEWAYS','DOWN')
-          AND discovery_effect IS NOT NULL AND validation_effect IS NOT NULL""").fetchall()
+        WHERE version=? AND regime IN ('UP','SIDEWAYS','DOWN')
+          AND discovery_effect IS NOT NULL AND validation_effect IS NOT NULL""",(run[6],)).fetchall()
     return run,rows,regimes,specs,regime_rows
 
 def fmt(x):
@@ -262,7 +264,21 @@ def main():
                           "INSUFFICIENT":"YETERSİZ"
                         }.get(rgrade,rgrade)
                         regime_parts.append(f"{rregime}:{short}")
+                best_regime=None
+                best_rank=-1
+                best_effect=-1.0
+                rank_map={"STRONG":4,"CONSISTENT":3,"DIRECTION_ONLY_WEAK":2,"DIRECTION_ONLY_LOW_N":1}
+                regime_name={"UP":"BTC YÜKSELİRKEN","SIDEWAYS":"BTC YATAYKEN","DOWN":"BTC DÜŞERKEN"}
+                for rr in val_regime_rows:
+                    rscope,rfeature,roff,rregime,rgrade,rde,rve,rrn,rcn=rr
+                    if rscope==scope and rfeature==feature and int(roff)==int(off):
+                        rank=rank_map.get(rgrade,0)
+                        eff=abs(float(rve)) if rve is not None else -1.0
+                        if rank>best_rank or (rank==best_rank and eff>best_effect):
+                            best_rank=rank; best_effect=eff; best_regime=(rregime,rgrade)
                 suffix=(" | rejim " + ", ".join(regime_parts)) if regime_parts else ""
+                if best_regime and best_rank>0:
+                    suffix += f" | EN GÜVENİLİR: {regime_name.get(best_regime[0],best_regime[0])}"
                 lines.append(f"  - {where}{feature}: {grade_tr.get(grade,grade)} | keşif {fmt(de)} → doğrulama {fmt(ve)} | n={vrn}/{vcn}{suffix}")
         lines += ["• Eşleştirme spec'i donduruldu; doğrulama setine bakıp eşikler/özellikler ince ayar yapılmayacak.",
                   "• Survivorship notu: mevcut arşiv hâlâ aktif Gate paritelerinden başlıyor; delist geçmişi ayrıca tamamlanmalı.",
