@@ -162,13 +162,21 @@ def process_case(c,row):
     return saved
 
 def due(c,limit):
-    return c.execute("""SELECT e.pair,e.event_ts,e.label,e.pre_price
+    rise_n=max(1,int(limit*2/3))
+    ctl_n=max(1,limit-rise_n)
+    rise=c.execute("""SELECT e.pair,e.event_ts,e.label,e.pre_price
       FROM event_features e
       LEFT JOIN path_cases p
         ON p.pair=e.pair AND p.anchor_ts=e.event_ts AND p.label=e.label AND p.version=?
-      WHERE e.label IN ('RISE','CONTROL') AND e.pre_price IS NOT NULL AND p.pair IS NULL
-      ORDER BY CASE e.label WHEN 'RISE' THEN 0 ELSE 1 END, e.event_ts DESC
-      LIMIT ?""",(VERSION,limit)).fetchall()
+      WHERE e.label='RISE' AND e.pre_price IS NOT NULL AND p.pair IS NULL
+      ORDER BY e.event_ts DESC LIMIT ?""",(VERSION,rise_n)).fetchall()
+    ctl=c.execute("""SELECT e.pair,e.event_ts,e.label,e.pre_price
+      FROM event_features e
+      LEFT JOIN path_cases p
+        ON p.pair=e.pair AND p.anchor_ts=e.event_ts AND p.label=e.label AND p.version=?
+      WHERE e.label='CONTROL' AND e.pre_price IS NOT NULL AND p.pair IS NULL
+      ORDER BY e.event_ts DESC LIMIT ?""",(VERSION,ctl_n)).fetchall()
+    return list(rise)+list(ctl)
 
 def main():
     if not os.path.exists(DB):
