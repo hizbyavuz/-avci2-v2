@@ -2,6 +2,13 @@ name: Binance Early Signal Engine
 
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - "binance_scanner.py"
+      - "binance_flow_observer.py"
+      - "binance_derivatives_fallback.py"
+      - "binance_engine_status.py"
+      - ".github/workflows/binance-money-flow.yml"
   schedule:
     - cron: "2,22,42 * * * *"
 
