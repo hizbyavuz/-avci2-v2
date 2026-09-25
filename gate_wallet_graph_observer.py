@@ -121,6 +121,47 @@ def recent_buyers(pool):
     return buyers, None
 
 
+def recent_buyers_helius(pool, mint):
+    """Fallback: derive recipient wallets from recent pool transactions.
+
+    This is a sampled proxy: a transfer of the target mint to a user in a
+    transaction touching the pool is treated as buyer-like activity. It is
+    explicitly stored as HELIUS_POOL_TRANSFER_PROXY, not a canonical DEX trade.
+    """
+    result, err = helius_rpc(
+        "getTransactionsForAddress",
+        [pool, {"transactionDetails": "full", "sortOrder": "desc", "limit": 40,
+                "filters": {"status": "succeeded"}}],
+    )
+    if err:
+        return [], err
+    buyers = []
+    seen = set()
+    for tx in result_rows(result):
+        if not isinstance(tx, dict):
+            continue
+        transfers = tx.get("tokenTransfers") or tx.get("token_transfers") or []
+        for tr in transfers:
+            if not isinstance(tr, dict):
+                continue
+            tr_mint = str(tr.get("mint") or tr.get("tokenAddress") or "")
+            if tr_mint != mint:
+                continue
+            wallet = str(
+                tr.get("toUserAccount")
+                or tr.get("to")
+                or tr.get("destination")
+                or ""
+            ).strip()
+            if not wallet or wallet == pool or wallet in seen:
+                continue
+            seen.add(wallet)
+            buyers.append(wallet)
+            if len(buyers) >= MAX_BUYERS:
+                return buyers, None
+    return buyers, None if buyers else "NO_BUYER_LIKE_TRANSFERS"
+
+
 def ensure_table(con):
     con.execute("""CREATE TABLE IF NOT EXISTS gate_wallet_intelligence (
         batch_id TEXT NOT NULL,
@@ -181,7 +222,16 @@ def main():
             return
         for batch, contract, pool, raw in rows:
             status = "OK" if HELIUS_API_KEY else "NO_HELIUS_KEY"
+            buyer_source = "GECKOTERMINAL_TRADES"
             buyers, trade_err = recent_buyers(pool)
+            if (trade_err or not buyers) and HELIUS_API_KEY:
+                h_buyers, h_err = recent_buyers_helius(pool, contract)
+                if h_buyers:
+                    buyers = h_buyers
+                    trade_err = None
+                    buyer_source = "HELIUS_POOL_TRANSFER_PROXY"
+                else:
+                    trade_err = h_err or trade_err
             if trade_err:
                 status = "TRADE_SOURCE_ERROR"
             ages = []
@@ -206,7 +256,9 @@ def main():
             fresh30 = sum(x < 30 for x in ages) / len(ages) if ages else None
             sybil = int(bool(len(funders) >= 4 and common_ratio is not None and common_ratio >= .50
                              and fresh30 is not None and fresh30 >= .50))
-            details = {"buyers": buyers, "ages_days": ages, "funders": funders,
+            details = {"buyers": buyers, "buyer_source": buyer_source,
+                       "trade_source_error": trade_err,
+                       "ages_days": ages, "funders": funders,
                        "errors": errors[:20], "sample_proxy": True,
                        "note": "Common funder/fresh-wallet pattern is a Sybil proxy, not proof."}
             con.execute("""INSERT OR REPLACE INTO gate_wallet_intelligence
