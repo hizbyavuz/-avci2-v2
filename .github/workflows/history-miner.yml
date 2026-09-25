@@ -1,11 +1,9 @@
-name: Gate History Miner
+name: Gate History V5
 
 on:
   workflow_dispatch:
   push:
     paths:
-      - "history_delist_backfill.py"
-      - "history_twin_test.py"
       - "history_validation_v5.py"
       - "history_telegram_report.py"
       - ".github/workflows/history-miner.yml"
@@ -16,7 +14,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: gate-history-miner
+  group: gate-history-v5
   cancel-in-progress: false
 
 jobs:
@@ -40,19 +38,6 @@ jobs:
 
       - name: Install
         run: pip install requests
-
-      - name: Backfill known delisted and suspended Gate pairs
-        continue-on-error: true
-        env:
-          HISTORY_LOOKBACK_DAYS: "730"
-          HISTORY_DELIST_PAIR_BUDGET: "2"
-          HISTORY_DELIST_SLEEP: "0.20"
-        run: python -u history_delist_backfill.py
-
-      - name: Run matched-pair Twin Test
-        env:
-          HISTORY_VALIDATION_CUTOFF: "2025-09-01"
-        run: python -u history_twin_test.py
 
       - name: Build V5 activation validation
         env:
