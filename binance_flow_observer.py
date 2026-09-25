@@ -104,9 +104,24 @@ def main():
         latest = conn.execute("SELECT * FROM scans ORDER BY scan_time_utc DESC LIMIT 1").fetchone()
         if not latest or latest["health_status"] == "INVALID":
             return
-        events = conn.execute("""SELECT event_id, symbol, event_class FROM signal_events
-            WHERE signal_time_utc=? AND event_class IN
-            ('CANDIDATE','NEAR_MISS','RANDOM_CONTROL')""",
+        events = conn.execute("""SELECT
+                COALESCE(
+                    se.event_id,
+                    'FLOW|' || f.scan_time_utc || '|' || f.symbol || '|' || f.selection_class
+                ) AS event_id,
+                f.symbol,
+                f.selection_class AS event_class
+            FROM features f
+            LEFT JOIN signal_events se
+              ON se.signal_time_utc=f.scan_time_utc
+             AND se.symbol=f.symbol
+             AND se.event_class=f.selection_class
+            WHERE f.scan_time_utc=?
+              AND f.selection_class IN ('CANDIDATE','NEAR_MISS','RANDOM_CONTROL')
+            ORDER BY CASE f.selection_class
+                WHEN 'CANDIDATE' THEN 0
+                WHEN 'NEAR_MISS' THEN 1
+                ELSE 2 END, f.score DESC""",
             (latest["scan_time_utc"],)).fetchall()
         for event in events:
             symbol = event["symbol"]
