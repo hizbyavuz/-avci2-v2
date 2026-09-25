@@ -65,7 +65,7 @@ def main():
         con.row_factory = sqlite3.Row
         ensure(con)
         scan = con.execute(
-            "SELECT scan_time_utc,data_mode FROM scans WHERE health_status='VALID' ORDER BY scan_time_utc DESC LIMIT 1"
+            "SELECT scan_time_utc,data_mode FROM scans WHERE health_status!='INVALID' ORDER BY scan_time_utc DESC LIMIT 1"
         ).fetchone()
         if not scan:
             print("Binance derivatives fallback: valid scan yok")
