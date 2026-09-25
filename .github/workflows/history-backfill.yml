@@ -37,14 +37,6 @@ jobs:
           HISTORY_DELIST_PAIR_BUDGET: "2"
           HISTORY_DELIST_SLEEP: "0.20"
         run: python -u history_delist_backfill.py
-      - name: Send short Backfill status
-        if: success()
-        continue-on-error: true
-        env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: python -u history_backfill_status.py
-
       - name: Save updated base history
         if: success()
         uses: actions/cache/save@v4
