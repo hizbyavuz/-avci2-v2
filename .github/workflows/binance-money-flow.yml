@@ -79,9 +79,6 @@ jobs:
         continue-on-error: true
         run: python -u binance_activation_math.py
 
-      - name: Qualify Binance live candidates with validation evidence
-        continue-on-error: true
-        run: python -u binance_signal_qualifier.py
 
       - name: Send one consolidated Binance motor message
         if: success()
