@@ -1,8 +1,10 @@
 name: Avci 2 V2 Multi-Chain
 
-# TEMPORARY RESEARCH FOCUS: automatic runs paused; manual dispatch remains available.
+# Main Gate Web3 early-signal engine. Research-only; never places orders.
 on:
   workflow_dispatch:
+  schedule:
+    - cron: "8,28,48 * * * *"
 permissions:
   contents: read
   actions: write
@@ -34,6 +36,18 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: python avci_state_guard.py restore-gate
+
+      - name: Restore latest Gate History evidence
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p .history-state
+          run_id=$(gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts?name=history-v5-latest&per_page=100" \
+            --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | reverse | .[0].workflow_run.id // empty')
+          if test -n "$run_id"; then
+            gh run download "$run_id" --name history-v5-latest --dir .history-state
+          fi
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -69,6 +83,12 @@ jobs:
          X_API_BEARER_TOKEN: ${{ secrets.X_API_BEARER_TOKEN }}
         run: python scanner.py
 
+      - name: Build sampled buyer wallet / funding graph
+        continue-on-error: true
+        env:
+          HELIUS_API_KEY: ${{ secrets.HELIUS_API_KEY }}
+        run: python -u gate_wallet_graph_observer.py
+
       - name: Build anti-manipulation counter-evidence
         continue-on-error: true
         run: python -u gate_deception_observer.py
@@ -85,20 +105,15 @@ jobs:
         continue-on-error: true
         run: python -u gate_security_calibration.py
 
-      - name: Send Gate early traces waiting on safety evidence
+      - name: Send one consolidated Gate Web3 motor message
         if: success()
         continue-on-error: true
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: python -u gate_missing_evidence_notify.py
-
-      - name: Send verified Gate research candidates
-        if: success()
-        env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: python gate_notify.py
+          HELIUS_API_KEY: ${{ secrets.HELIUS_API_KEY }}
+          HISTORY_DB: .history-state/history_miner.db
+        run: python -u gate_engine_status.py
       - name: Summarize Gate candidates and controls
         if: success()
         run: python gate_research_report.py
