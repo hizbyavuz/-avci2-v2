@@ -127,9 +127,6 @@ jobs:
         continue-on-error: true
         run: python -u gate_activation_math.py
 
-      - name: Qualify Gate live candidates with validation evidence
-        continue-on-error: true
-        run: python -u gate_signal_qualifier.py
 
       - name: Send one consolidated Gate Web3 motor message
         if: success()
