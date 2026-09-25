@@ -104,16 +104,7 @@ def main():
                   AND signal_time_utc<=?
                 ORDER BY signal_time_utc DESC LIMIT 1""",
                 (feat["symbol"], ts)).fetchone()
-            qual = (
-                c.execute("""SELECT status,combo_label,selected_n,selected_rate,
-                    baseline_rate,lift,q_value,reason
-                    FROM binance_signal_qualifications
-                    WHERE scan_time_utc=? AND symbol=?
-                    ORDER BY created_at_utc DESC LIMIT 1""",
-                    (ts, feat["symbol"])).fetchone()
-                if table(c, "binance_signal_qualifications") else None
-            )
-            rows.append((feat, flow, st, op, wb, fb, ev, qual))
+            rows.append((feat, flow, st, op, wb, fb, ev))
 
         full = c.execute("""SELECT COUNT(*) FROM raw_derivs
             WHERE scan_time_utc=? AND data_mode!='SPOT_ONLY'""", (ts,)).fetchone()[0]
@@ -142,25 +133,10 @@ def main():
     if not rows:
         lines.append("• Bu tur temiz Candidate yok. 0 aday geçerli sonuçtur.")
 
-    for x, flow, st, op, wb, fb, ev, qual in rows[:3]:
-        tier_map = {
-            "RAW_CANDIDATE": "HAM ADAY",
-            "PROVISIONAL_EDGE": "GEÇİCİ AVANTAJ",
-            "VALIDATED_EDGE": "DOĞRULANMIŞ AVANTAJ",
-            "REJECT": "RED",
-            "WAIT": "BEKLE",
-        }
-        tier = tier_map.get(qual["status"] if qual else None, "HAM ADAY")
+    for x, flow, st, op, wb, fb, ev in rows[:3]:
         lines.append(
-            f"• {x['symbol']} | {x['stage']} / {x['engine']} | skor {x['score']} | {tier}"
+            f"• {x['symbol']} | {x['stage']} / {x['engine']} | skor {x['score']}"
         )
-        if qual and qual["combo_label"]:
-            lift_txt = "-" if qual["lift"] is None else f"{qual['lift']:.2f}x"
-            q_txt = "-" if qual["q_value"] is None else f"{qual['q_value']:.3f}"
-            lines.append(
-                f"  Kanıt izi: {qual['combo_label']} | n={qual['selected_n']} "
-                f"| lift {lift_txt} | q={q_txt}"
-            )
         lines.append(
             f"  Fiyat: 15dk %{x['change_15m']:+.2f} | 1s %{x['change_1h']:+.2f} "
             f"| 24s %{x['change_24h']:+.2f} | BTC'ye göre {x['btc_relative_24h']:+.2f}"
@@ -216,7 +192,7 @@ def main():
                 f"| örnek {wb['winner_sample_count']}/{wb['control_sample_count']}"
             )
 
-    lines.append("\n🧮 AKTİVASYON MATEMATİĞİ")
+    lines.append("\n🧮 ARAŞTIRMA MATEMATİĞİ")
     math_rows = []
     with sqlite3.connect(DB, timeout=30) as mc:
         mc.row_factory = sqlite3.Row
@@ -226,26 +202,17 @@ def main():
                 WHERE split='VALIDATION' ORDER BY CASE WHEN q_value IS NULL THEN 1 ELSE 0 END,
                 q_value ASC,lift DESC LIMIT 3""").fetchall()
     if math_rows:
-        proven = [r for r in math_rows if r["q_value"] is not None and r["q_value"] <= 0.05
-                  and r["selected_n"] >= 20 and r["baseline_n"] >= 20
-                  and (r["lift"] or 0) > 1]
-        if proven:
-            for r in proven[:2]:
-                lines.append(
-                    f"• KANITLI: {r['combo_label']} | +%{r['target_pct']} "
-                    f"%{100*r['selected_rate']:.1f} vs %{100*r['baseline_rate']:.1f} "
-                    f"| lift {r['lift']:.2f}x | q={r['q_value']:.3f} | n={r['selected_n']}"
-                )
-        else:
-            r = math_rows[0]
-            lift_txt = "-" if r["lift"] is None else f"{r['lift']:.2f}x"
-            q_txt = "-" if r["q_value"] is None else f"{r['q_value']:.3f}"
-            lines.append(
-                f"• Henüz kanıtlı kombinasyon yok. En iyi validation: {r['combo_label']} "
-                f"| +%{r['target_pct']} | n={r['selected_n']} | lift {lift_txt} | q={q_txt}"
-            )
+        r = math_rows[0]
+        lift_txt = "-" if r["lift"] is None else f"{r['lift']:.2f}x"
+        q_txt = "-" if r["q_value"] is None else f"{r['q_value']:.3f}"
+        lines.append(
+            f"• Canlı motoru ETKİLEMEZ. En iyi frozen OOS araştırma sonucu: "
+            f"{r['combo_label']} | +%{r['target_pct']} | n={r['selected_n']} | "
+            f"lift {lift_txt} | q={q_txt}"
+        )
+        lines.append("• Geçerse yalnızca sonraki sürüm (v1.1/v2) için kural adayı olur.")
     else:
-        lines.append("• Kapanmış olay örneklemi henüz matematik için yetersiz.")
+        lines.append("• Frozen OOS doğrulama için kapanmış olay örneklemi henüz yetersiz.")
 
     lines.append("\n📡 VERİ SAĞLIĞI")
     if audit:
