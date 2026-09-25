@@ -33,16 +33,7 @@ jobs:
         env:
           HISTORY_VALIDATION_CUTOFF: "2025-09-01"
           TWIN_PROGRESS_INTERVAL_SEC: "1200"
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python -u history_twin_test.py
-      - name: Send Twin Test final summary
-        if: success()
-        continue-on-error: true
-        env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: python -u history_twin_telegram.py
 
       - name: Save Twin lane state
         if: success()
