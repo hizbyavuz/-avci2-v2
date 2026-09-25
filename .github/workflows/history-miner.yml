@@ -4,18 +4,8 @@ on:
   workflow_dispatch:
   push:
     paths:
-      - "history_miner.py"
-      - "history_event_miner.py"
-      - "HISTORY_MINER.md"
-      - "history_telegram_report.py"
-      - "history_validation.py"
-      - "history_validation_v2.py"
-      - "history_validation_v3.py"
-      - "history_validation_v4.py"
       - "history_validation_v5.py"
-      - "history_twin_test.py"
-      - "history_twin_telegram.py"
-      - "history_cross_venue.py"
+      - "history_telegram_report.py"
       - ".github/workflows/history-miner.yml"
   schedule:
     - cron: "6,16,26,36,46,56 * * * *"
@@ -49,94 +39,20 @@ jobs:
       - name: Install
         run: pip install requests
 
-      - name: Choose alternating V5 / Twin lane
-        id: research_lane
-        shell: bash
-        run: |
-          slot=$(( $(date -u +%s) / 600 ))
-          if (( slot % 2 == 0 )); then
-            echo "lane=v5" >> "$GITHUB_OUTPUT"
-          else
-            echo "lane=twin" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Refresh Gate contract seed
-        run: python -u gate_spot_observer.py
-
-      - name: Mine broad historical rise events
-        env:
-          HISTORY_LOOKBACK_DAYS: "730"
-          HISTORY_EVENT_PAIR_BUDGET: "120"
-          HISTORY_EVENT_SLEEP: "0.25"
-        run: python -u history_event_miner.py
-
-      - name: Mine hourly pre-rise paths
-        env:
-          HISTORY_PATH_BUDGET: "120"
-          HISTORY_PATH_SLEEP: "0.20"
-        run: python -u history_hourly_path_miner.py
-
-      - name: Build Gate vs Binance cross-venue validation
-        env:
-          CROSS_VENUE_BUDGET: "60"
-          CROSS_VENUE_SLEEP: "0.12"
-        run: python -u history_cross_venue.py
-
-      - name: Build bias-aware validation layer
-        env:
-          HISTORY_VALIDATION_CUTOFF: "2025-09-01"
-          HISTORY_MATCH_WINDOW_DAYS: "45"
-        run: python -u history_validation.py
-
-      - name: Build V2 multi-horizon matched validation
-        run: python -u history_validation_v2.py
-
-      - name: Build V3 overlap and walk-forward stress test
-        run: python -u history_validation_v3.py
-
-      - name: Build V4 pattern-first validation
-        env:
-          HISTORY_VALIDATION_CUTOFF: "2025-09-01"
-        run: python -u history_validation_v4.py
-
       - name: Build V5 activation validation
-        if: steps.research_lane.outputs.lane == 'v5'
         env:
           HISTORY_VALIDATION_CUTOFF: "2025-09-01"
           HISTORY_V5_BUDGET: "120"
           HISTORY_V5_SLEEP: "0.15"
         run: python -u history_validation_v5.py
 
-      - name: Build matched-pair Twin Test
-        if: steps.research_lane.outputs.lane == 'twin'
-        env:
-          HISTORY_VALIDATION_CUTOFF: "2025-09-01"
-        run: python -u history_twin_test.py
-
-      - name: Refresh current on-chain snapshots
-        env:
-          HISTORY_BATCH: "1000"
-          HISTORY_SLEEP_SECONDS: "6.2"
-          HISTORY_MAX_RUN_SECONDS: "900"
-          HISTORY_LOOKBACK_DAYS: "730"
-        run: python -u history_miner.py
-
-
-      - name: Send History Miner research summary
+      - name: Send V5 progress summary
         if: success()
         continue-on-error: true
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python -u history_telegram_report.py
-
-      - name: Send Twin Test separate Telegram summary
-        if: success() && steps.research_lane.outputs.lane == 'twin'
-        continue-on-error: true
-        env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: python -u history_twin_telegram.py
 
       - name: Save history state
         if: success()
