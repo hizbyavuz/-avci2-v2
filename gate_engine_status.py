@@ -173,7 +173,16 @@ def main():
                     (batch, e["network_id"], e["token_contract"])).fetchone()
                 if exists_table(c, "gate_security_confidence_history") else None
             )
-            details.append((e, item, obs, wi, sec))
+            qual = (
+                c.execute("""SELECT status,combo_label,selected_n,selected_rate,
+                    baseline_rate,lift,q_value,reason
+                    FROM gate_signal_qualifications
+                    WHERE batch_id=? AND validation_id=?
+                    ORDER BY created_at_utc DESC LIMIT 1""",
+                    (batch, e["id"])).fetchone()
+                if exists_table(c, "gate_signal_qualifications") else None
+            )
+            details.append((e, item, obs, wi, sec, qual))
 
         candidate_keys = {
             (e["network_id"], str(e["token_contract"]).lower()) for e in candidates
@@ -219,10 +228,25 @@ def main():
     if not details and not extra:
         lines.append("• Bu tur temiz/izlenebilir erken sinyal yok. 0 aday geçerli sonuçtur.")
 
-    for e, item, obs, wi, sec in details[:3]:
+    for e, item, obs, wi, sec, qual in details[:3]:
         sym = item.get("symbol") or item.get("name") or e["token_contract"][:8]
         rules = e["rulesets"] or "HICBIRI"
-        parts = [f"• {sym} [{e['network_id']}] {rules}"]
+        tier_map = {
+            "RAW_CANDIDATE": "HAM ADAY",
+            "PROVISIONAL_EDGE": "GEÇİCİ AVANTAJ",
+            "VALIDATED_EDGE": "DOĞRULANMIŞ AVANTAJ",
+            "REJECT": "RED",
+            "WAIT": "BEKLE",
+        }
+        tier = tier_map.get(qual["status"] if qual else None, "HAM ADAY")
+        parts = [f"• {sym} [{e['network_id']}] {rules} | {tier}"]
+        if qual and qual["combo_label"]:
+            lift_txt = "-" if qual["lift"] is None else f"{qual['lift']:.2f}x"
+            q_txt = "-" if qual["q_value"] is None else f"{qual['q_value']:.3f}"
+            parts.append(
+                f"kanıt izi: {qual['combo_label']} | n={qual['selected_n']} "
+                f"| lift {lift_txt} | q={q_txt}"
+            )
         if obs:
             parts.append(
                 f"24s %{obs['change_24h']:+.1f}, vol-x {fmt(obs['own_volume_ratio'],1)}, "
