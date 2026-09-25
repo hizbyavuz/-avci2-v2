@@ -15,7 +15,7 @@ concurrency:
 jobs:
   twin:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - name: Restore latest base history
@@ -32,6 +32,9 @@ jobs:
       - name: Run matched-pair Twin Test
         env:
           HISTORY_VALIDATION_CUTOFF: "2025-09-01"
+          TWIN_PROGRESS_INTERVAL_SEC: "1200"
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python -u history_twin_test.py
       - name: Save Twin lane state
         if: success()
