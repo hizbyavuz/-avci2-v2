@@ -272,7 +272,7 @@ def v5_summary(c):
     exists=c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='v5_runs'").fetchone()
     if not exists:
         return None,[],[]
-    version='history-v5-activation-v0.1-20260925'
+    version='history-v5-activation-v0.2-20260925'
     run=c.execute("""SELECT discovery_total,discovery_done,validation_total,validation_done,
       result_rows,spec_frozen,notes
       FROM v5_runs WHERE version=? ORDER BY started_utc DESC LIMIT 1""",(version,)).fetchone()
