@@ -55,6 +55,18 @@ jobs:
             gh run download "$run_id" --name history-v5-latest --dir .history-state
           fi
 
+      - name: Restore latest Gate Twin evidence
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p .history-twin
+          run_id=$(gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts?name=history-twin-latest&per_page=100" \
+            --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | reverse | .[0].workflow_run.id // empty')
+          if test -n "$run_id"; then
+            gh run download "$run_id" --name history-twin-latest --dir .history-twin
+          fi
+
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
@@ -119,6 +131,7 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           HELIUS_API_KEY: ${{ secrets.HELIUS_API_KEY }}
           HISTORY_DB: .history-state/history_miner.db
+          TWIN_DB: .history-twin/history_miner.db
         run: python -u gate_engine_status.py
       - name: Summarize Gate candidates and controls
         if: success()
