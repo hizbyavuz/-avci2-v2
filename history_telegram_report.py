@@ -271,7 +271,7 @@ def v4_summary(c):
 def v5_summary(c):
     exists=c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='v5_runs'").fetchone()
     if not exists:
-        return None,[],[]
+        return None,[],[],(0,0,{})
     version='history-v5-activation-v0.3-20260925'
     run=c.execute("""SELECT discovery_total,discovery_done,validation_total,validation_done,
       result_rows,spec_frozen,notes
@@ -288,7 +288,13 @@ def v5_summary(c):
             AND signal_n>=20
           ORDER BY fdr_pass DESC, COALESCE(q_value,1), COALESCE(lift_vs_parent,0) DESC
           LIMIT 8""",(version,)).fetchall()
-    return run,specs,rows
+    good=c.execute("SELECT COUNT(*) FROM v5_activation_snapshots WHERE version=? AND status='DONE'",(version,)).fetchone()[0]
+    err=c.execute("SELECT COUNT(*) FROM v5_activation_snapshots WHERE version=? AND status='ERROR'",(version,)).fetchone()[0]
+    src={}
+    for r in c.execute("""SELECT last_error,COUNT(*) FROM v5_activation_snapshots
+      WHERE version=? AND status='DONE' GROUP BY last_error""",(version,)):
+        src[str(r[0] or "SOURCE=UNKNOWN").replace("SOURCE=","")]=int(r[1])
+    return run,specs,rows,(int(good),int(err),src)
 
 def cross_venue_summary(c):
     exists=c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='cross_venue_cases'").fetchone()
@@ -436,7 +442,7 @@ def main():
         v2_rates,v2_results=v2_summary(c)
         v3_rows,v3_overlap_avg=v3_summary(c)
         v4_counts,v4_rows=v4_summary(c)
-        v5_run,v5_specs,v5_rows=v5_summary(c)
+        v5_run,v5_specs,v5_rows,v5_health=v5_summary(c)
         cross_venue=cross_venue_summary(c)
     attempted,ok,bars,events,controls=run
     pairs,done,short_skips,total_bars,total_events,total_controls=total
@@ -656,7 +662,11 @@ def main():
         if v5_run:
             dtotal,ddone,vtotal,vdone,result_rows,spec_frozen,v5_notes=v5_run
             lines += ["","🚦 V5 | AKTİVASYON TESTİ"]
-            lines.append(f"• Saatlik aktivasyon verisi: keşif {ddone}/{dtotal} | doğrulama {vdone}/{vtotal}")
+            good_v5,err_v5,src_v5=v5_health
+            lines.append(f"• Saatlik aktivasyon: denenen keşif {ddone}/{dtotal} | doğrulama {vdone}/{vtotal}")
+            lines.append(f"• Kullanılabilir saatlik veri: {good_v5} | hata/eksik: {err_v5}")
+            if src_v5:
+                lines.append("• Kaynak: " + " | ".join(f"{k}={v}" for k,v in sorted(src_v5.items())))
             if not int(spec_frozen or 0):
                 lines.append("• Durum: Eşikler henüz dondurulmadı; keşif adaylarının saatlik geçmişi tamamlanıyor.")
                 lines.append("  → Sonuca bakarak eşik seçmemek için V5 başarı oranı, keşif verisi tamamlanmadan ana sonuç olarak raporlanmayacak.")
