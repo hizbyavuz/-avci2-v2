@@ -173,16 +173,7 @@ def main():
                     (batch, e["network_id"], e["token_contract"])).fetchone()
                 if exists_table(c, "gate_security_confidence_history") else None
             )
-            qual = (
-                c.execute("""SELECT status,combo_label,selected_n,selected_rate,
-                    baseline_rate,lift,q_value,reason
-                    FROM gate_signal_qualifications
-                    WHERE batch_id=? AND validation_id=?
-                    ORDER BY created_at_utc DESC LIMIT 1""",
-                    (batch, e["id"])).fetchone()
-                if exists_table(c, "gate_signal_qualifications") else None
-            )
-            details.append((e, item, obs, wi, sec, qual))
+            details.append((e, item, obs, wi, sec))
 
         candidate_keys = {
             (e["network_id"], str(e["token_contract"]).lower()) for e in candidates
@@ -228,25 +219,10 @@ def main():
     if not details and not extra:
         lines.append("• Bu tur temiz/izlenebilir erken sinyal yok. 0 aday geçerli sonuçtur.")
 
-    for e, item, obs, wi, sec, qual in details[:3]:
+    for e, item, obs, wi, sec in details[:3]:
         sym = item.get("symbol") or item.get("name") or e["token_contract"][:8]
         rules = e["rulesets"] or "HICBIRI"
-        tier_map = {
-            "RAW_CANDIDATE": "HAM ADAY",
-            "PROVISIONAL_EDGE": "GEÇİCİ AVANTAJ",
-            "VALIDATED_EDGE": "DOĞRULANMIŞ AVANTAJ",
-            "REJECT": "RED",
-            "WAIT": "BEKLE",
-        }
-        tier = tier_map.get(qual["status"] if qual else None, "HAM ADAY")
-        parts = [f"• {sym} [{e['network_id']}] {rules} | {tier}"]
-        if qual and qual["combo_label"]:
-            lift_txt = "-" if qual["lift"] is None else f"{qual['lift']:.2f}x"
-            q_txt = "-" if qual["q_value"] is None else f"{qual['q_value']:.3f}"
-            parts.append(
-                f"kanıt izi: {qual['combo_label']} | n={qual['selected_n']} "
-                f"| lift {lift_txt} | q={q_txt}"
-            )
+        parts = [f"• {sym} [{e['network_id']}] {rules}"]
         if obs:
             parts.append(
                 f"24s %{obs['change_24h']:+.1f}, vol-x {fmt(obs['own_volume_ratio'],1)}, "
@@ -279,7 +255,7 @@ def main():
             "V5 dışında ayrı erken aktivasyon izi, güvenlik kapısından geçmiş."
         )
 
-    lines.append("\n🧮 AKTİVASYON MATEMATİĞİ")
+    lines.append("\n🧮 ARAŞTIRMA MATEMATİĞİ")
     math_rows = []
     if exists_table(c, "gate_activation_math_results"):
         math_rows = c.execute("""SELECT combo_label,target_pct,selected_n,selected_rate,
@@ -287,27 +263,17 @@ def main():
             WHERE split='VALIDATION' ORDER BY CASE WHEN q_value IS NULL THEN 1 ELSE 0 END,
             q_value ASC,lift DESC LIMIT 3""").fetchall()
     if math_rows:
-        proven = [r for r in math_rows if r["q_value"] is not None and r["q_value"] <= 0.05
-                  and r["selected_n"] >= 20 and r["baseline_n"] >= 20
-                  and (r["lift"] or 0) > 1]
-        if proven:
-            for r in proven[:2]:
-                lines.append(
-                    f"• KANITLI: {r['combo_label']} | +%{r['target_pct']} "
-                    f"%{100*r['selected_rate']:.1f} vs %{100*r['baseline_rate']:.1f} "
-                    f"| lift {r['lift']:.2f}x | q={r['q_value']:.3f} | n={r['selected_n']}"
-                )
-        else:
-            r = math_rows[0]
-            lift_txt = "-" if r["lift"] is None else f"{r['lift']:.2f}x"
-            q_txt = "-" if r["q_value"] is None else f"{r['q_value']:.3f}"
-            lines.append(
-                f"• Henüz kanıtlı kombinasyon yok. En iyi validation: {r['combo_label']} "
-                f"| +%{r['target_pct']} | n={r['selected_n']} | "
-                f"lift {lift_txt} | q={q_txt}"
-            )
+        r = math_rows[0]
+        lift_txt = "-" if r["lift"] is None else f"{r['lift']:.2f}x"
+        q_txt = "-" if r["q_value"] is None else f"{r['q_value']:.3f}"
+        lines.append(
+            f"• Canlı motoru ETKİLEMEZ. En iyi frozen OOS araştırma sonucu: "
+            f"{r['combo_label']} | +%{r['target_pct']} | n={r['selected_n']} | "
+            f"lift {lift_txt} | q={q_txt}"
+        )
+        lines.append("• Geçerse yalnızca sonraki sürüm (V5.1/V6) için kural adayı olur.")
     else:
-        lines.append("• Kapanmış olay örneklemi henüz matematik için yetersiz.")
+        lines.append("• Frozen OOS doğrulama için kapanmış olay örneklemi henüz yetersiz.")
 
     lines.append("\n🧬 GEÇMİŞ MATEMATİĞİ")
     lines.append("• " + latest_history_line())
