@@ -1,0 +1,48 @@
+name: Gate History Twin Test
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "13,43 * * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gate-history-twin
+  cancel-in-progress: false
+
+jobs:
+  twin:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore latest base history
+        uses: actions/cache/restore@v4
+        with:
+          path: history_miner.db
+          key: history-twin-${{ github.run_id }}
+          restore-keys: |
+            history-base-
+            history-miner-
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run matched-pair Twin Test
+        env:
+          HISTORY_VALIDATION_CUTOFF: "2025-09-01"
+        run: python -u history_twin_test.py
+      - name: Save Twin lane state
+        if: success()
+        uses: actions/cache/save@v4
+        with:
+          path: history_miner.db
+          key: history-twin-${{ github.run_id }}
+      - name: Publish Twin checkpoint
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: history-twin-latest
+          path: history_miner.db
+          retention-days: 3
