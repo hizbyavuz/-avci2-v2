@@ -192,6 +192,37 @@ def main():
                 f"| örnek {wb['winner_sample_count']}/{wb['control_sample_count']}"
             )
 
+    lines.append("\n🧮 AKTİVASYON MATEMATİĞİ")
+    math_rows = []
+    with sqlite3.connect(DB, timeout=30) as mc:
+        mc.row_factory = sqlite3.Row
+        if table(mc, "binance_activation_math_results"):
+            math_rows = mc.execute("""SELECT combo_label,target_pct,selected_n,selected_rate,
+                baseline_n,baseline_rate,lift,q_value FROM binance_activation_math_results
+                WHERE split='VALIDATION' ORDER BY CASE WHEN q_value IS NULL THEN 1 ELSE 0 END,
+                q_value ASC,lift DESC LIMIT 3""").fetchall()
+    if math_rows:
+        proven = [r for r in math_rows if r["q_value"] is not None and r["q_value"] <= 0.05
+                  and r["selected_n"] >= 20 and r["baseline_n"] >= 20
+                  and (r["lift"] or 0) > 1]
+        if proven:
+            for r in proven[:2]:
+                lines.append(
+                    f"• KANITLI: {r['combo_label']} | +%{r['target_pct']} "
+                    f"%{100*r['selected_rate']:.1f} vs %{100*r['baseline_rate']:.1f} "
+                    f"| lift {r['lift']:.2f}x | q={r['q_value']:.3f} | n={r['selected_n']}"
+                )
+        else:
+            r = math_rows[0]
+            lift_txt = "-" if r["lift"] is None else f"{r['lift']:.2f}x"
+            q_txt = "-" if r["q_value"] is None else f"{r['q_value']:.3f}"
+            lines.append(
+                f"• Henüz kanıtlı kombinasyon yok. En iyi validation: {r['combo_label']} "
+                f"| +%{r['target_pct']} | n={r['selected_n']} | lift {lift_txt} | q={q_txt}"
+            )
+    else:
+        lines.append("• Kapanmış olay örneklemi henüz matematik için yetersiz.")
+
     lines.append("\n📡 VERİ SAĞLIĞI")
     if audit:
         lines.append(
