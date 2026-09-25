@@ -60,7 +60,7 @@ def result_rows(result):
 def wallet_oldest_time(wallet):
     result, err = helius_rpc(
         "getTransactionsForAddress",
-        [wallet, {"transactionDetails": "signatures", "sortOrder": "asc", "limit": 1,
+        [wallet, {"transactionDetails": "full", "sortOrder": "asc", "limit": 1,
                   "filters": {"status": "succeeded"}}],
     )
     if err:
