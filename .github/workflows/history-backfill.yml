@@ -29,6 +29,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: Install Telegram dependency
+        run: pip install requests
       - name: Run delist and suspend backfill
         env:
           HISTORY_LOOKBACK_DAYS: "730"
