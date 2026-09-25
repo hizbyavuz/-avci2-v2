@@ -13,8 +13,10 @@ import sqlite3
 from datetime import datetime, timezone
 
 DB=os.getenv("BINANCE_DB","binance_avci2.db")
-VERSION="binance-activation-math-v1-20260926"
+VERSION="binance-activation-math-v1.1-frozen-oos-20260926"
 TARGETS=(5,10,15)
+DISCOVERY_CUTOFF_UTC="2026-09-25T21:00:00+00:00"
+VALIDATION_N=100
 COMBOS=(
     ("B1_WAKE_RET","Wake-up + retention"),
     ("B2_WAKE_RET_TAKER","Wake-up + retention + taker-buy"),
@@ -113,8 +115,10 @@ def main():
             d=dict(e); d["features"]=feature_for_event(c,e); enriched.append(d)
         if len(enriched)<10:
             print("Binance activation math: kapanmis event yetersiz",len(enriched)); c.commit(); return
-        cut=max(1,int(len(enriched)*0.60))
-        splits={"DISCOVERY":enriched[:cut],"VALIDATION":enriched[cut:]}
+        discovery=[r for r in enriched if r["signal_time_utc"] < DISCOVERY_CUTOFF_UTC]
+        future=[r for r in enriched if r["signal_time_utc"] >= DISCOVERY_CUTOFF_UTC]
+        validation=future[:VALIDATION_N]
+        splits={"DISCOVERY":discovery,"VALIDATION":validation}
         valrows=[]
         for split,rows in splits.items():
             controls=[r for r in rows if r["event_class"] in ("NEAR_MISS","RANDOM_CONTROL")]
@@ -153,10 +157,10 @@ def main():
             baseline_rate,lift,p_value,q_value FROM binance_activation_math_results
             WHERE version=? AND split='VALIDATION' AND selected_n>=8
             ORDER BY CASE WHEN q_value IS NULL THEN 1 ELSE 0 END,q_value ASC,lift DESC LIMIT 5""",(VERSION,)).fetchall()
-        print("BINANCE ACTIVATION MATH",VERSION,"closed",len(enriched))
+        print("BINANCE ACTIVATION MATH",VERSION,"closed",len(enriched),"discovery",len(discovery),"frozen_oos",len(validation),"/",VALIDATION_N)
         for r in best:
             print(dict(r))
-        print("Kural: q<=0.05 ve yeterli ornek olmadan 'kanitlandi' denmez.")
+        print("Kural: mevcut v1 degismez; cutoff sonrasi ilk",VALIDATION_N,"kapanmis event frozen OOS validation olur.")
 
 
 if __name__=="__main__":
