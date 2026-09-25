@@ -24,6 +24,9 @@ Important:
 """
 from __future__ import annotations
 
+import csv
+import gzip
+import io
 import json
 import math
 import os
@@ -37,7 +40,7 @@ import history_validation_v4 as v4
 
 DB=os.getenv("HISTORY_DB","history_miner.db")
 BASE="https://api.gateio.ws/api/v4/spot/candlesticks"
-VERSION="history-v5-activation-v0.3-20260925"
+VERSION="history-v5-activation-v0.4-20260925"
 V4_VERSION="history-v4-pattern-first-v0.1-20260925"
 V2_VERSION="history-v2-outcomes-matched-v0.1-20260924"
 BUDGET=int(os.getenv("HISTORY_V5_BUDGET","120"))
@@ -211,6 +214,74 @@ def _fetch_interval(pair,interval,start_ts,end_ts,to_only_fallback=False):
         })
     return _parse_candles(data,start_ts,end_ts)
 
+_ARCHIVE_CACHE={}
+
+def _archive_months(start_ts,end_ts):
+    a=datetime.fromtimestamp(int(start_ts),timezone.utc)
+    b=datetime.fromtimestamp(max(int(start_ts),int(end_ts)-1),timezone.utc)
+    out=[]
+    y,m=a.year,a.month
+    while (y,m) <= (b.year,b.month):
+        out.append(f"{y:04d}{m:02d}")
+        m+=1
+        if m==13:
+            y+=1; m=1
+    return out
+
+def _fetch_archive_hourly(pair,start_ts,end_ts):
+    """Gate's REST candlestick endpoint rejects data >10,000 intervals old.
+
+    Gate separately publishes monthly historical spot 1h CSV archives.
+    Those files contain base volume, so approximate quote volume as
+    base_volume * close. V5 uses a local volume ratio, making this approximation
+    materially more comparable than dropping the historical sample entirely.
+    """
+    rows=[]
+    errs=[]
+    for ym in _archive_months(start_ts,end_ts):
+        key=(pair,ym)
+        if key in _ARCHIVE_CACHE:
+            month_rows=_ARCHIVE_CACHE[key]
+        else:
+            url=f"https://download.gatedata.org/spot/candlesticks_1h/{ym}/{pair}-{ym}.csv.gz"
+            try:
+                req=request.Request(url,headers={"User-Agent":"Mozilla/5.0","Accept":"*/*"})
+                with request.urlopen(req,timeout=30) as r:
+                    raw=r.read()
+                text=gzip.decompress(raw).decode("utf-8","replace")
+                month_rows=[]
+                for rec in csv.reader(io.StringIO(text)):
+                    if len(rec)<6:
+                        continue
+                    try:
+                        ts=int(float(rec[0])); base_v=float(rec[1]); close=float(rec[2])
+                        high=float(rec[3]); low=float(rec[4])
+                    except (TypeError,ValueError):
+                        continue
+                    if min(close,high,low)<=0 or base_v<0:
+                        continue
+                    month_rows.append({
+                      "ts":ts,"close":close,"high":high,"low":low,
+                      "qv":base_v*close,
+                    })
+                month_rows.sort(key=lambda x:x["ts"])
+                _ARCHIVE_CACHE[key]=month_rows
+            except error.HTTPError as e:
+                if e.code in (403,404):
+                    month_rows=[]
+                    _ARCHIVE_CACHE[key]=[]
+                    errs.append(f"{ym}:http{e.code}")
+                else:
+                    raise
+            except Exception as e:
+                errs.append(f"{ym}:{str(e)[:80]}")
+                month_rows=[]
+        rows.extend(x for x in month_rows if int(start_ts)<=x["ts"]<int(end_ts))
+    rows.sort(key=lambda x:x["ts"])
+    if len(rows)<28:
+        raise ValueError("archive_short:"+str(len(rows))+"|"+",".join(errs)[:240])
+    return rows
+
 def _resample_to_hourly(rows,minutes):
     expected=60//minutes
     buckets={}
@@ -236,13 +307,13 @@ def _resample_to_hourly(rows,minutes):
     return out
 
 def fetch_hourly(pair,start_ts,end_ts):
-    # V5 needs hourly features, but the source does not have to be a native 1h
-    # candle. Preferred order:
-    #   1) Gate native 1h
-    #   2) Gate 15m candles resampled into exact 1h candles
-    #   3) Gate 5m candles resampled into exact 1h candles
-    # This keeps the V5 feature definitions unchanged while recovering coverage.
+    # Preferred order:
+    # 1) Gate REST native 1h when the requested point is still inside Gate's
+    #    10,000-interval REST retention window.
+    # 2) Gate's official monthly historical 1h CSV archive for older points.
+    # 3) 15m/5m reconstruction only for non-retention gaps.
     errors=[]
+    too_old=False
 
     try:
         rows=_fetch_interval(pair,"1h",start_ts,end_ts,to_only_fallback=True)
@@ -250,27 +321,43 @@ def fetch_hourly(pair,start_ts,end_ts):
             return rows,"GATE_1H"
         errors.append(f"1h_short:{len(rows)}")
     except Exception as e:
-        errors.append("1h:"+str(e)[:120])
+        msg=str(e)
+        if "Maximum 10000 points ago are allowed" in msg or "Candlestick too long ago" in msg:
+            too_old=True
+        errors.append("1h:"+msg[:160])
 
+    # This is the correct recovery path for old events. Gate documents and
+    # publishes monthly historical 1h spot candlesticks separately from REST.
     try:
-        raw15=_fetch_interval(pair,"15m",start_ts,end_ts,to_only_fallback=False)
-        rows15=_resample_to_hourly(raw15,15)
-        if len(rows15)>=28:
-            return rows15,"GATE_15M_TO_1H"
-        errors.append(f"15m_short:{len(rows15)}")
+        arch=_fetch_archive_hourly(pair,start_ts,end_ts)
+        if len(arch)>=28:
+            return arch,"GATE_ARCHIVE_1H"
+        errors.append(f"archive_short:{len(arch)}")
     except Exception as e:
-        errors.append("15m:"+str(e)[:120])
+        errors.append("archive:"+str(e)[:160])
 
-    try:
-        raw5=_fetch_interval(pair,"5m",start_ts,end_ts,to_only_fallback=False)
-        rows5=_resample_to_hourly(raw5,5)
-        if len(rows5)>=28:
-            return rows5,"GATE_5M_TO_1H"
-        errors.append(f"5m_short:{len(rows5)}")
-    except Exception as e:
-        errors.append("5m:"+str(e)[:120])
+    # Smaller REST intervals have even shorter 10,000-point lookback windows,
+    # so do not waste requests when 1h already told us the event is too old.
+    if not too_old:
+        try:
+            raw15=_fetch_interval(pair,"15m",start_ts,end_ts,to_only_fallback=False)
+            rows15=_resample_to_hourly(raw15,15)
+            if len(rows15)>=28:
+                return rows15,"GATE_15M_TO_1H"
+            errors.append(f"15m_short:{len(rows15)}")
+        except Exception as e:
+            errors.append("15m:"+str(e)[:120])
 
-    raise ValueError("hourly_unavailable|"+"|".join(errors)[:500])
+        try:
+            raw5=_fetch_interval(pair,"5m",start_ts,end_ts,to_only_fallback=False)
+            rows5=_resample_to_hourly(raw5,5)
+            if len(rows5)>=28:
+                return rows5,"GATE_5M_TO_1H"
+            errors.append(f"5m_short:{len(rows5)}")
+        except Exception as e:
+            errors.append("5m:"+str(e)[:120])
+
+    raise ValueError("hourly_unavailable|"+"|".join(errors)[:700])
 
 def make_snapshot(pair,anchor_ts):
     # Gate daily anchor is bucket start. The V4 daily feature becomes known at
