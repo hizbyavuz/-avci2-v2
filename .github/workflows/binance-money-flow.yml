@@ -44,6 +44,10 @@ jobs:
         continue-on-error: true
         run: python -u binance_outcome_labeler.py
 
+      - name: Audit validation integrity
+        continue-on-error: true
+        run: python -u binance_validation_audit.py
+
       - name: Send short Money Flow status
         if: success()
         continue-on-error: true
