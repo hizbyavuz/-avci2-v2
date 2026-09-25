@@ -28,8 +28,9 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: history_miner.db
-          key: history-miner-${{ github.run_id }}
+          key: history-v5-${{ github.run_id }}
           restore-keys: |
+            history-base-
             history-miner-
 
       - uses: actions/setup-python@v5
@@ -59,12 +60,12 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: history_miner.db
-          key: history-miner-${{ github.run_id }}
+          key: history-v5-${{ github.run_id }}
 
       - name: Publish small checkpoint
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: history-miner-latest
+          name: history-v5-latest
           path: history_miner.db
           retention-days: 3
