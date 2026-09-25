@@ -8,6 +8,7 @@ on:
       - "binance_flow_observer.py"
       - "binance_derivatives_fallback.py"
       - "binance_engine_status.py"
+      - "binance_engine_status_v2.py"
       - "binance_activation_math.py"
       - "binance_evidence_research.py"
       - ".github/workflows/binance-money-flow.yml"
@@ -92,7 +93,7 @@ jobs:
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: python -u binance_engine_status.py
+        run: python -u binance_engine_status_v2.py
 
       - name: Upload research state
         uses: actions/upload-artifact@v4
