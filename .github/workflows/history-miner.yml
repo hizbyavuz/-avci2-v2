@@ -13,6 +13,8 @@ on:
       - "history_validation_v3.py"
       - "history_validation_v4.py"
       - "history_validation_v5.py"
+      - "history_twin_test.py"
+      - "history_twin_telegram.py"
       - "history_cross_venue.py"
       - ".github/workflows/history-miner.yml"
   schedule:
@@ -46,6 +48,17 @@ jobs:
 
       - name: Install
         run: pip install requests
+
+      - name: Choose alternating V5 / Twin lane
+        id: research_lane
+        shell: bash
+        run: |
+          slot=$(( $(date -u +%s) / 600 ))
+          if (( slot % 2 == 0 )); then
+            echo "lane=v5" >> "$GITHUB_OUTPUT"
+          else
+            echo "lane=twin" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Refresh Gate contract seed
         run: python -u gate_spot_observer.py
@@ -87,11 +100,18 @@ jobs:
         run: python -u history_validation_v4.py
 
       - name: Build V5 activation validation
+        if: steps.research_lane.outputs.lane == 'v5'
         env:
           HISTORY_VALIDATION_CUTOFF: "2025-09-01"
           HISTORY_V5_BUDGET: "120"
           HISTORY_V5_SLEEP: "0.15"
         run: python -u history_validation_v5.py
+
+      - name: Build matched-pair Twin Test
+        if: steps.research_lane.outputs.lane == 'twin'
+        env:
+          HISTORY_VALIDATION_CUTOFF: "2025-09-01"
+        run: python -u history_twin_test.py
 
       - name: Refresh current on-chain snapshots
         env:
@@ -109,6 +129,14 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python -u history_telegram_report.py
+
+      - name: Send Twin Test separate Telegram summary
+        if: success() && steps.research_lane.outputs.lane == 'twin'
+        continue-on-error: true
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python -u history_twin_telegram.py
 
       - name: Save history state
         if: success()
