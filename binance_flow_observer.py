@@ -70,19 +70,25 @@ def main():
             scan_time_utc TEXT NOT NULL, book_imbalance REAL,
             previous_imbalance REAL, imbalance_change REAL,
             funding_change REAL, quiet_oi_positioning INTEGER,
-            tape_json TEXT, observation_error TEXT)""")
+            tape_json TEXT, observation_error TEXT,
+            event_class TEXT)""")
+        cols={row[1] for row in conn.execute("PRAGMA table_info(flow_observations)")}
+        if "event_class" not in cols:
+            conn.execute("ALTER TABLE flow_observations ADD COLUMN event_class TEXT")
         latest = conn.execute("SELECT * FROM scans ORDER BY scan_time_utc DESC LIMIT 1").fetchone()
         if not latest or latest["health_status"] == "INVALID":
             return
-        events = conn.execute("""SELECT event_id, symbol FROM signal_events
-            WHERE signal_time_utc=? AND event_class='CANDIDATE'""",
+        events = conn.execute("""SELECT event_id, symbol, event_class FROM signal_events
+            WHERE signal_time_utc=? AND event_class IN
+            ('CANDIDATE','NEAR_MISS','RANDOM_CONTROL')""",
             (latest["scan_time_utc"],)).fetchall()
         for event in events:
             symbol = event["symbol"]
+            event_class=event["event_class"]
             books = conn.execute("""SELECT raw_json FROM orderbook_snap
-                WHERE symbol=? AND scan_time_utc<=? AND event_class='CANDIDATE'
+                WHERE symbol=? AND scan_time_utc<=? AND event_class=?
                 ORDER BY scan_time_utc DESC LIMIT 2""",
-                (symbol, latest["scan_time_utc"])).fetchall()
+                (symbol, latest["scan_time_utc"], event_class)).fetchall()
             values = [imbalance(json.loads(row["raw_json"])) for row in books]
             current = values[0] if values else None
             previous = values[1] if len(values) > 1 else None
@@ -104,12 +110,15 @@ def main():
                 trade_data = tape(symbol, latest["scan_time_utc"])
             except Exception as exc:
                 error = str(exc)[:300]
-            conn.execute("""INSERT OR IGNORE INTO flow_observations VALUES
-                (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            conn.execute("""INSERT OR IGNORE INTO flow_observations
+                (event_id,symbol,scan_time_utc,book_imbalance,previous_imbalance,
+                 imbalance_change,funding_change,quiet_oi_positioning,tape_json,
+                 observation_error,event_class)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (event["event_id"], symbol, latest["scan_time_utc"], current,
                  previous, current - previous if current is not None and previous is not None else None,
-                 funding_change, quiet, json.dumps(trade_data), error))
-            print(f"Akış gözlemi {symbol}: defter {current}, değişim "
+                 funding_change, quiet, json.dumps(trade_data), error, event_class))
+            print(f"Akış gözlemi {event_class} {symbol}: defter {current}, değişim "
                   f"{current-previous if current is not None and previous is not None else None}, "
                   f"büyük işlemler {trade_data}")
         conn.commit()
