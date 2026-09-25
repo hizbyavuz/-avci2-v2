@@ -8,6 +8,7 @@ on:
       - "scanner.py"
       - "gate_wallet_graph_observer.py"
       - "gate_engine_status.py"
+      - "gate_activation_math.py"
       - ".github/workflows/avci-v2.yml"
   schedule:
     - cron: "8,28,48 * * * *"
