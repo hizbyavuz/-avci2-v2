@@ -37,7 +37,7 @@ import history_validation_v4 as v4
 
 DB=os.getenv("HISTORY_DB","history_miner.db")
 BASE="https://api.gateio.ws/api/v4/spot/candlesticks"
-VERSION="history-v5-activation-v0.2-20260925"
+VERSION="history-v5-activation-v0.3-20260925"
 V4_VERSION="history-v4-pattern-first-v0.1-20260925"
 V2_VERSION="history-v2-outcomes-matched-v0.1-20260924"
 BUDGET=int(os.getenv("HISTORY_V5_BUDGET","120"))
@@ -185,22 +185,9 @@ def _gate_candles(params):
             pass
         raise RuntimeError(f"gate_http_{e.code}:{body}") from e
 
-def fetch_hourly(pair,start_ts,end_ts):
-    # Keep 1h resolution. First try exact from/to. Some older windows return
-    # HTTP 400, so retry with only 'to'; Gate documents that omitted 'from'
-    # defaults to 100 intervals before 'to', enough for our 52h window.
-    try:
-        data=_gate_candles({
-          "currency_pair":pair,"interval":"1h","from":int(start_ts),"to":int(end_ts)
-        })
-    except RuntimeError as e:
-        if not str(e).startswith("gate_http_400:"):
-            raise
-        data=_gate_candles({
-          "currency_pair":pair,"interval":"1h","to":int(end_ts)
-        })
+def _parse_candles(data,start_ts,end_ts):
     if not isinstance(data,list):
-        raise ValueError("invalid_hourly_payload")
+        raise ValueError("invalid_candle_payload")
     out=[]
     for row in data:
         if not isinstance(row,list) or len(row)<7:continue
@@ -211,11 +198,85 @@ def fetch_hourly(pair,start_ts,end_ts):
     out.sort(key=lambda x:x["ts"])
     return out
 
+def _fetch_interval(pair,interval,start_ts,end_ts,to_only_fallback=False):
+    try:
+        data=_gate_candles({
+          "currency_pair":pair,"interval":interval,"from":int(start_ts),"to":int(end_ts)
+        })
+    except RuntimeError as e:
+        if not (to_only_fallback and str(e).startswith("gate_http_400:")):
+            raise
+        data=_gate_candles({
+          "currency_pair":pair,"interval":interval,"to":int(end_ts)
+        })
+    return _parse_candles(data,start_ts,end_ts)
+
+def _resample_to_hourly(rows,minutes):
+    expected=60//minutes
+    buckets={}
+    for x in rows:
+        h=int(x["ts"])-(int(x["ts"])%3600)
+        buckets.setdefault(h,[]).append(x)
+    out=[]
+    for h,grp in sorted(buckets.items()):
+        grp=sorted(grp,key=lambda x:x["ts"])
+        # Only build a synthetic 1h candle from a complete hour.
+        if len({int(x["ts"]) for x in grp}) < expected:
+            continue
+        qvs=[x["qv"] for x in grp if x["qv"] is not None]
+        if len(qvs)<expected:
+            continue
+        out.append({
+          "ts":h,
+          "close":grp[-1]["close"],
+          "high":max(x["high"] for x in grp),
+          "low":min(x["low"] for x in grp),
+          "qv":sum(qvs),
+        })
+    return out
+
+def fetch_hourly(pair,start_ts,end_ts):
+    # V5 needs hourly features, but the source does not have to be a native 1h
+    # candle. Preferred order:
+    #   1) Gate native 1h
+    #   2) Gate 15m candles resampled into exact 1h candles
+    #   3) Gate 5m candles resampled into exact 1h candles
+    # This keeps the V5 feature definitions unchanged while recovering coverage.
+    errors=[]
+
+    try:
+        rows=_fetch_interval(pair,"1h",start_ts,end_ts,to_only_fallback=True)
+        if len(rows)>=28:
+            return rows,"GATE_1H"
+        errors.append(f"1h_short:{len(rows)}")
+    except Exception as e:
+        errors.append("1h:"+str(e)[:120])
+
+    try:
+        raw15=_fetch_interval(pair,"15m",start_ts,end_ts,to_only_fallback=False)
+        rows15=_resample_to_hourly(raw15,15)
+        if len(rows15)>=28:
+            return rows15,"GATE_15M_TO_1H"
+        errors.append(f"15m_short:{len(rows15)}")
+    except Exception as e:
+        errors.append("15m:"+str(e)[:120])
+
+    try:
+        raw5=_fetch_interval(pair,"5m",start_ts,end_ts,to_only_fallback=False)
+        rows5=_resample_to_hourly(raw5,5)
+        if len(rows5)>=28:
+            return rows5,"GATE_5M_TO_1H"
+        errors.append(f"5m_short:{len(rows5)}")
+    except Exception as e:
+        errors.append("5m:"+str(e)[:120])
+
+    raise ValueError("hourly_unavailable|"+"|".join(errors)[:500])
+
 def make_snapshot(pair,anchor_ts):
     # Gate daily anchor is bucket start. The V4 daily feature becomes known at
     # the end of that UTC day; use the last closed hourly candle of that day.
     signal_end=int(anchor_ts)+86400
-    hourly=fetch_hourly(pair,signal_end-52*3600,signal_end)
+    hourly,source=fetch_hourly(pair,signal_end-52*3600,signal_end)
     usable=[x for x in hourly if x["ts"]<signal_end]
     if len(usable)<28:
         raise ValueError(f"short_hourly:{len(usable)}")
@@ -231,7 +292,7 @@ def make_snapshot(pair,anchor_ts):
     dist=pct(lo,cur["close"])
     if v3 is None or dist is None:
         raise ValueError("missing_activation_feature")
-    return int(cur["ts"]),float(v3),float(dist)
+    return int(cur["ts"]),float(v3),float(dist),source
 
 def fill_snapshots(c,cands):
     all_disc=union_candidates(cands,"DISCOVERY")
@@ -249,10 +310,10 @@ def fill_snapshots(c,cands):
     due=(due_disc+due_val+retry_disc+retry_val)[:BUDGET]
     for i,(pair,ts_) in enumerate(due):
         try:
-            sig,vr,dl=make_snapshot(pair,ts_)
+            sig,vr,dl,source=make_snapshot(pair,ts_)
             c.execute("""INSERT OR REPLACE INTO v5_activation_snapshots
               VALUES(?,?,?,?,?,?,?,?)""",
-              (pair,ts_,sig,vr,dl,"DONE",None,VERSION))
+              (pair,ts_,sig,vr,dl,"DONE","SOURCE="+source,VERSION))
         except Exception as e:
             c.execute("""INSERT OR REPLACE INTO v5_activation_snapshots
               VALUES(?,?,?,?,?,?,?,?)""",
@@ -437,8 +498,11 @@ def main():
         c.commit()
         good_n=c.execute("SELECT COUNT(*) FROM v5_activation_snapshots WHERE version=? AND status='DONE'",(VERSION,)).fetchone()[0]
         err_n=c.execute("SELECT COUNT(*) FROM v5_activation_snapshots WHERE version=? AND status='ERROR'",(VERSION,)).fetchone()[0]
+        source_rows=c.execute("""SELECT last_error,COUNT(*) FROM v5_activation_snapshots
+          WHERE version=? AND status='DONE' GROUP BY last_error ORDER BY COUNT(*) DESC""",(VERSION,)).fetchall()
+        sources={str(r[0] or "SOURCE=UNKNOWN").replace("SOURCE=",""):int(r[1]) for r in source_rows}
         print(f"History V5: discovery {ddone}/{dtotal} | validation {vdone}/{vtotal} | spec_frozen={frozen}")
-        print(f"History V5 hourly health: usable={good_n} errors={err_n}")
+        print(f"History V5 hourly health: usable={good_n} errors={err_n} sources={sources}")
         if frozen:
             print("History V5 activation thresholds:",
                   f"vol3/24>={spec['vol_ratio_3_24'][1]:.4f}",
