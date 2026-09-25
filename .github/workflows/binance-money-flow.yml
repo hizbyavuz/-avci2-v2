@@ -1,0 +1,54 @@
+name: Binance Money Flow Research
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "2,22,42 * * * *"
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: binance-money-flow-research
+  cancel-in-progress: false
+
+jobs:
+  observe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Restore latest Binance research state
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python avci_state_guard.py restore-binance
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r binance_requirements.txt
+
+      - name: Refresh market and derivative features
+        run: python -u binance_scanner.py
+
+      - name: Record money-flow observations
+        run: python -u binance_flow_observer.py
+
+      - name: Update research outcomes
+        continue-on-error: true
+        run: python -u binance_outcome_labeler.py
+
+      - name: Upload research state
+        uses: actions/upload-artifact@v4
+        with:
+          name: binance-avci2-state
+          path: binance_avci2.db
+          if-no-files-found: error
+          retention-days: 21
+          compression-level: 6
