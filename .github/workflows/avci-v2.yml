@@ -8,6 +8,7 @@ on:
       - "scanner.py"
       - "gate_wallet_graph_observer.py"
       - "gate_engine_status.py"
+      - "gate_engine_status_v2.py"
       - "gate_activation_math.py"
       - "gate_evidence_research.py"
       - ".github/workflows/avci-v2.yml"
@@ -143,7 +144,7 @@ jobs:
           HELIUS_API_KEY: ${{ secrets.HELIUS_API_KEY }}
           HISTORY_DB: .history-state/history_miner.db
           TWIN_DB: .history-twin/history_miner.db
-        run: python -u gate_engine_status.py
+        run: python -u gate_engine_status_v2.py
       - name: Summarize Gate candidates and controls
         if: success()
         run: python gate_research_report.py
