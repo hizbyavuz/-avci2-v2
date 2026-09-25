@@ -15,8 +15,10 @@ from datetime import datetime, timezone
 
 OBS_DB=os.getenv("AVCI_DB","avci2.db")
 VAL_DB=os.getenv("AVCI_VALIDATION_DB","avci_validation_v5.db")
-VERSION="gate-activation-math-v1-20260926"
+VERSION="gate-activation-math-v1.1-frozen-oos-20260926"
 TARGETS=(5,10,15)
+DISCOVERY_CUTOFF_TS=1790370000
+VALIDATION_N=100
 COMBOS=(
     ("G1_VOL_BUY","Hacim uyanisi + alis baskisi"),
     ("G2_VOL_BUYER","Hacim + unique buyer hizlanmasi"),
@@ -111,8 +113,10 @@ def main():
             d=dict(e); d["features"]=feature_snapshot(obs,e); enriched.append(d)
         if len(enriched)<10:
             print("Gate activation math: kapanmis event yetersiz",len(enriched)); obs.commit(); return
-        cut=max(1,int(len(enriched)*0.60))
-        splits={"DISCOVERY":enriched[:cut],"VALIDATION":enriched[cut:]}
+        discovery=[r for r in enriched if int(r["signal_ts"]) < DISCOVERY_CUTOFF_TS]
+        future=[r for r in enriched if int(r["signal_ts"]) >= DISCOVERY_CUTOFF_TS]
+        validation=future[:VALIDATION_N]
+        splits={"DISCOVERY":discovery,"VALIDATION":validation}
         now=datetime.now(timezone.utc).isoformat()
         validation_rows=[]
         for split,rows in splits.items():
@@ -161,10 +165,10 @@ def main():
             baseline_rate,lift,p_value,q_value FROM gate_activation_math_results
             WHERE version=? AND split='VALIDATION' AND selected_n>=8
             ORDER BY CASE WHEN q_value IS NULL THEN 1 ELSE 0 END,q_value ASC,lift DESC LIMIT 5""",(VERSION,)).fetchall()
-        print("GATE ACTIVATION MATH",VERSION,"closed",len(enriched))
+        print("GATE ACTIVATION MATH",VERSION,"closed",len(enriched),"discovery",len(discovery),"frozen_oos",len(validation),"/",VALIDATION_N)
         for r in best:
             print(dict(r))
-        print("Kural: q<=0.05 ve yeterli ornek olmadan 'kanitlandi' denmez.")
+        print("Kural: mevcut V5 degismez; cutoff sonrasi ilk",VALIDATION_N,"kapanmis event frozen OOS validation olur.")
 
 
 if __name__=="__main__":
