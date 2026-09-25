@@ -104,7 +104,16 @@ def main():
                   AND signal_time_utc<=?
                 ORDER BY signal_time_utc DESC LIMIT 1""",
                 (feat["symbol"], ts)).fetchone()
-            rows.append((feat, flow, st, op, wb, fb, ev))
+            qual = (
+                c.execute("""SELECT status,combo_label,selected_n,selected_rate,
+                    baseline_rate,lift,q_value,reason
+                    FROM binance_signal_qualifications
+                    WHERE scan_time_utc=? AND symbol=?
+                    ORDER BY created_at_utc DESC LIMIT 1""",
+                    (ts, feat["symbol"])).fetchone()
+                if table(c, "binance_signal_qualifications") else None
+            )
+            rows.append((feat, flow, st, op, wb, fb, ev, qual))
 
         full = c.execute("""SELECT COUNT(*) FROM raw_derivs
             WHERE scan_time_utc=? AND data_mode!='SPOT_ONLY'""", (ts,)).fetchone()[0]
@@ -133,10 +142,25 @@ def main():
     if not rows:
         lines.append("• Bu tur temiz Candidate yok. 0 aday geçerli sonuçtur.")
 
-    for x, flow, st, op, wb, fb, ev in rows[:3]:
+    for x, flow, st, op, wb, fb, ev, qual in rows[:3]:
+        tier_map = {
+            "RAW_CANDIDATE": "HAM ADAY",
+            "PROVISIONAL_EDGE": "GEÇİCİ AVANTAJ",
+            "VALIDATED_EDGE": "DOĞRULANMIŞ AVANTAJ",
+            "REJECT": "RED",
+            "WAIT": "BEKLE",
+        }
+        tier = tier_map.get(qual["status"] if qual else None, "HAM ADAY")
         lines.append(
-            f"• {x['symbol']} | {x['stage']} / {x['engine']} | skor {x['score']}"
+            f"• {x['symbol']} | {x['stage']} / {x['engine']} | skor {x['score']} | {tier}"
         )
+        if qual and qual["combo_label"]:
+            lift_txt = "-" if qual["lift"] is None else f"{qual['lift']:.2f}x"
+            q_txt = "-" if qual["q_value"] is None else f"{qual['q_value']:.3f}"
+            lines.append(
+                f"  Kanıt izi: {qual['combo_label']} | n={qual['selected_n']} "
+                f"| lift {lift_txt} | q={q_txt}"
+            )
         lines.append(
             f"  Fiyat: 15dk %{x['change_15m']:+.2f} | 1s %{x['change_1h']:+.2f} "
             f"| 24s %{x['change_24h']:+.2f} | BTC'ye göre {x['btc_relative_24h']:+.2f}"
