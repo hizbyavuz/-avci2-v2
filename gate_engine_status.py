@@ -275,11 +275,12 @@ def main():
                 )
         else:
             r = math_rows[0]
+            lift_txt = "-" if r["lift"] is None else f"{r['lift']:.2f}x"
+            q_txt = "-" if r["q_value"] is None else f"{r['q_value']:.3f}"
             lines.append(
                 f"• Henüz kanıtlı kombinasyon yok. En iyi validation: {r['combo_label']} "
                 f"| +%{r['target_pct']} | n={r['selected_n']} | "
-                f"lift {('-' if r['lift'] is None else f'{r['lift']:.2f}x')} | "
-                f"q={('-' if r['q_value'] is None else f'{r['q_value']:.3f}')}"
+                f"lift {lift_txt} | q={q_txt}"
             )
     else:
         lines.append("• Kapanmış olay örneklemi henüz matematik için yetersiz.")
