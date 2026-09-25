@@ -75,6 +75,10 @@ jobs:
         continue-on-error: true
         run: python -u binance_validation_audit.py
 
+      - name: Evaluate Binance activation mathematics
+        continue-on-error: true
+        run: python -u binance_activation_math.py
+
       - name: Send one consolidated Binance motor message
         if: success()
         continue-on-error: true
