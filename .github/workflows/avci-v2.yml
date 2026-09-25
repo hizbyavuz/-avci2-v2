@@ -123,6 +123,10 @@ jobs:
         continue-on-error: true
         run: python -u gate_security_calibration.py
 
+      - name: Evaluate Gate activation mathematics
+        continue-on-error: true
+        run: python -u gate_activation_math.py
+
       - name: Send one consolidated Gate Web3 motor message
         if: success()
         continue-on-error: true
