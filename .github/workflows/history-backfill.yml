@@ -1,0 +1,50 @@
+name: Gate History Delist Backfill
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "3,33 * * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gate-history-backfill
+  cancel-in-progress: false
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore latest base history
+        uses: actions/cache/restore@v4
+        with:
+          path: history_miner.db
+          key: history-base-${{ github.run_id }}
+          restore-keys: |
+            history-base-
+            history-miner-
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run delist and suspend backfill
+        env:
+          HISTORY_LOOKBACK_DAYS: "730"
+          HISTORY_DELIST_PAIR_BUDGET: "2"
+          HISTORY_DELIST_SLEEP: "0.20"
+        run: python -u history_delist_backfill.py
+      - name: Save updated base history
+        if: success()
+        uses: actions/cache/save@v4
+        with:
+          path: history_miner.db
+          key: history-base-${{ github.run_id }}
+      - name: Publish base checkpoint
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: history-base-latest
+          path: history_miner.db
+          retention-days: 3
