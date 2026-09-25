@@ -13,8 +13,9 @@ Matched-pair / case-control research layer:
 - Separate version/tables; V0-V5 remain untouched.
 """
 from __future__ import annotations
-import math, os, sqlite3, statistics
+import math, os, sqlite3, statistics, time, json
 from datetime import datetime, timezone
+from urllib import request, parse
 
 import history_validation_v4 as v4
 import history_validation as hv
@@ -26,6 +27,24 @@ CUTOFF=os.getenv("HISTORY_VALIDATION_CUTOFF","2025-09-01")
 WINDOW_DAYS=45
 PATTERNS=("P2_FAR_PLUS_VOL","P3_FAR_VOL_DRAWDOWN")
 TARGET_SPECS=((100,50),(50,20))  # winner target, near-miss must fail lower target
+PROGRESS_INTERVAL_SEC=int(os.getenv("TWIN_PROGRESS_INTERVAL_SEC","1200"))
+
+def send_progress(done,total):
+    token=(os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
+    chat=(os.getenv("TELEGRAM_CHAT_ID") or "").strip()
+    if not token or not chat or total<=0:
+        return
+    pct_done=max(0.0,min(100.0,100.0*done/total))
+    pct_left=max(0.0,100.0-pct_done)
+    text=f"🧬 Twin Test | %{pct_done:.0f} tamamlandı | %{pct_left:.0f} kaldı"
+    try:
+        data=parse.urlencode({"chat_id":chat,"text":text,"disable_web_page_preview":"true"}).encode()
+        req=request.Request(f"https://api.telegram.org/bot{token}/sendMessage",data=data,method="POST")
+        with request.urlopen(req,timeout=20) as resp:
+            resp.read()
+    except Exception as e:
+        print(f"Twin progress Telegram error: {type(e).__name__}: {str(e)[:120]}")
+
 FEATURES=(
  ("ret_1d","1 günlük fiyat değişimi"),
  ("ret_3d","3 günlük fiyat değişimi"),
@@ -157,6 +176,8 @@ def distance(a,b):
 def build_matches(c,feats,signals,outs):
     c.execute("DELETE FROM twin_matches WHERE version=?",(VERSION,))
     all_rows=[]
+    prepared=[]
+    total=0
     for split in ("DISCOVERY","VALIDATION"):
       for p in PATTERNS:
         sig=[x for x in signals[split][p] if x in outs and x in feats]
@@ -164,6 +185,12 @@ def build_matches(c,feats,signals,outs):
         for target,near_fail in TARGET_SPECS:
           winners=[x for x in sig if outs[x][target]==1]
           nears=[x for x in sig if outs[x][near_fail]==0]
+          prepared.append((split,p,target,near_fail,winners,nears,regs))
+          total+=len(winners)
+
+    done=0
+    last_notice=time.monotonic()
+    for split,p,target,near_fail,winners,nears,regs in prepared:
           used=set()
           for w in winners:
             wr=regs[w]
@@ -175,15 +202,22 @@ def build_matches(c,feats,signals,outs):
                 if wr!="UNKNOWN" and nr!="UNKNOWN" and wr!=nr:continue
                 d=distance(feats[w],feats[n])
                 choices.append((d,n,nr))
-            if not choices:continue
-            choices.sort(key=lambda x:x[0])
-            d,n,nr=choices[0]
-            used.add(n)
-            c.execute("""INSERT OR REPLACE INTO twin_matches
-              VALUES(?,?,?,?,?,?,?,?,?,?)""",
-              (split,p,target,w[0],w[1],n[0],n[1],wr,float(d),VERSION))
-            all_rows.append((split,p,target,w,n))
+            if choices:
+                choices.sort(key=lambda x:x[0])
+                d,n,nr=choices[0]
+                used.add(n)
+                c.execute("""INSERT OR REPLACE INTO twin_matches
+                  VALUES(?,?,?,?,?,?,?,?,?,?)""",
+                  (split,p,target,w[0],w[1],n[0],n[1],wr,float(d),VERSION))
+                all_rows.append((split,p,target,w,n))
+            done+=1
+            now=time.monotonic()
+            if now-last_notice>=PROGRESS_INTERVAL_SEC:
+                send_progress(done,total)
+                last_notice=now
     c.commit()
+    if total:
+        send_progress(total,total)
     return all_rows
 
 def summarize(c,matches):
