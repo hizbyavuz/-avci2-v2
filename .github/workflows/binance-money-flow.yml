@@ -1,4 +1,4 @@
-name: Binance Money Flow Research
+name: Binance Early Signal Engine
 
 on:
   workflow_dispatch:
@@ -10,7 +10,7 @@ permissions:
   actions: write
 
 concurrency:
-  group: binance-money-flow-research
+  group: binance-early-signal-engine
   cancel-in-progress: false
 
 jobs:
@@ -37,24 +37,44 @@ jobs:
       - name: Refresh market and derivative features
         run: python -u binance_scanner.py
 
+      - name: Record pre-signal market structure
+        continue-on-error: true
+        run: python -u binance_structure_observer.py
+
+      - name: Observe leaders, followers, missed movers and silent accumulation
+        continue-on-error: true
+        run: python -u binance_opportunity_observer.py
+
       - name: Record money-flow observations
         run: python -u binance_flow_observer.py
+
+      - name: Fill missing derivatives with labelled cross-venue proxy
+        continue-on-error: true
+        run: python -u binance_derivatives_fallback.py
+
+      - name: Build anti-manipulation counter-evidence
+        continue-on-error: true
+        run: python -u binance_deception_observer.py
 
       - name: Update research outcomes
         continue-on-error: true
         run: python -u binance_outcome_labeler.py
 
+      - name: Compare current candidates with historical Winner Anatomy
+        continue-on-error: true
+        run: python -u binance_winner_bridge.py
+
       - name: Audit validation integrity
         continue-on-error: true
         run: python -u binance_validation_audit.py
 
-      - name: Send short Money Flow status
+      - name: Send one consolidated Binance motor message
         if: success()
         continue-on-error: true
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: python -u binance_money_flow_status.py
+        run: python -u binance_engine_status.py
 
       - name: Upload research state
         uses: actions/upload-artifact@v4
