@@ -31,13 +31,13 @@ import sqlite3
 import statistics
 import time
 from datetime import datetime, timezone
-from urllib import parse, request
+from urllib import parse, request, error
 
 import history_validation_v4 as v4
 
 DB=os.getenv("HISTORY_DB","history_miner.db")
 BASE="https://api.gateio.ws/api/v4/spot/candlesticks"
-VERSION="history-v5-activation-v0.1-20260925"
+VERSION="history-v5-activation-v0.2-20260925"
 V4_VERSION="history-v4-pattern-first-v0.1-20260925"
 V2_VERSION="history-v2-outcomes-matched-v0.1-20260924"
 BUDGET=int(os.getenv("HISTORY_V5_BUDGET","120"))
@@ -171,12 +171,34 @@ def union_candidates(cands,split):
             seen[(pair,int(ts_))]=1
     return sorted(seen)
 
+def _gate_candles(params):
+    q=parse.urlencode(params)
+    url=BASE+"?"+q
+    try:
+        with request.urlopen(url,timeout=25) as r:
+            return json.load(r)
+    except error.HTTPError as e:
+        body=""
+        try:
+            body=e.read().decode("utf-8","replace")[:300]
+        except Exception:
+            pass
+        raise RuntimeError(f"gate_http_{e.code}:{body}") from e
+
 def fetch_hourly(pair,start_ts,end_ts):
-    q=parse.urlencode({
-      "currency_pair":pair,"interval":"1h","from":int(start_ts),"to":int(end_ts)
-    })
-    with request.urlopen(BASE+"?"+q,timeout=25) as r:
-        data=json.load(r)
+    # Keep 1h resolution. First try exact from/to. Some older windows return
+    # HTTP 400, so retry with only 'to'; Gate documents that omitted 'from'
+    # defaults to 100 intervals before 'to', enough for our 52h window.
+    try:
+        data=_gate_candles({
+          "currency_pair":pair,"interval":"1h","from":int(start_ts),"to":int(end_ts)
+        })
+    except RuntimeError as e:
+        if not str(e).startswith("gate_http_400:"):
+            raise
+        data=_gate_candles({
+          "currency_pair":pair,"interval":"1h","to":int(end_ts)
+        })
     if not isinstance(data,list):
         raise ValueError("invalid_hourly_payload")
     out=[]
@@ -184,6 +206,7 @@ def fetch_hourly(pair,start_ts,end_ts):
         if not isinstance(row,list) or len(row)<7:continue
         ts=int(float(row[0])); qv=f(row[1]); close=f(row[2]); high=f(row[3]); low=f(row[4])
         if None in (close,high,low) or min(close,high,low)<=0:continue
+        if ts < int(start_ts) or ts >= int(end_ts):continue
         out.append({"ts":ts,"close":close,"high":high,"low":low,"qv":qv})
     out.sort(key=lambda x:x["ts"])
     return out
@@ -213,11 +236,17 @@ def make_snapshot(pair,anchor_ts):
 def fill_snapshots(c,cands):
     all_disc=union_candidates(cands,"DISCOVERY")
     all_val=union_candidates(cands,"VALIDATION")
-    existing={(r["pair"],int(r["anchor_ts"])) for r in c.execute(
-      "SELECT pair,anchor_ts FROM v5_activation_snapshots WHERE version=?",(VERSION,))}
+    rows=c.execute(
+      "SELECT pair,anchor_ts,status FROM v5_activation_snapshots WHERE version=?",(VERSION,)
+    ).fetchall()
+    existing={(r["pair"],int(r["anchor_ts"])) for r in rows}
+    retry_set={(r["pair"],int(r["anchor_ts"])) for r in rows if r["status"]=="ERROR"}
     due_disc=[x for x in all_disc if x not in existing]
     due_val=[x for x in all_val if x not in existing]
-    due=(due_disc+due_val)[:BUDGET]
+    retry_disc=[x for x in all_disc if x in retry_set]
+    retry_val=[x for x in all_val if x in retry_set]
+    # Unseen rows first; retries only after progress, avoiding starvation.
+    due=(due_disc+due_val+retry_disc+retry_val)[:BUDGET]
     for i,(pair,ts_) in enumerate(due):
         try:
             sig,vr,dl=make_snapshot(pair,ts_)
@@ -254,7 +283,8 @@ def freeze_activation_spec(c,disc_rows):
       FROM v5_activation_snapshots WHERE version=?""",(VERSION,)).fetchall()
     good=[r for r in snaps if (r["pair"],int(r["anchor_ts"])) in keys and r["status"]=="DONE"]
     if len(good)<50:
-        raise RuntimeError("too_few_discovery_activation_snapshots")
+        # Sparse hourly history is a data-health state, not a fatal workflow error.
+        return {},False
 
     vr=quantile([r["vol_ratio_3_24"] for r in good],0.75)
     dl=quantile([r["dist_low_24h"] for r in good],0.75)
@@ -405,7 +435,10 @@ def main():
           dtotal,ddone,vtotal,vdone,result_rows,1 if frozen else 0,note,VERSION
         ))
         c.commit()
+        good_n=c.execute("SELECT COUNT(*) FROM v5_activation_snapshots WHERE version=? AND status='DONE'",(VERSION,)).fetchone()[0]
+        err_n=c.execute("SELECT COUNT(*) FROM v5_activation_snapshots WHERE version=? AND status='ERROR'",(VERSION,)).fetchone()[0]
         print(f"History V5: discovery {ddone}/{dtotal} | validation {vdone}/{vtotal} | spec_frozen={frozen}")
+        print(f"History V5 hourly health: usable={good_n} errors={err_n}")
         if frozen:
             print("History V5 activation thresholds:",
                   f"vol3/24>={spec['vol_ratio_3_24'][1]:.4f}",
