@@ -8,6 +8,7 @@ on:
       - "binance_flow_observer.py"
       - "binance_derivatives_fallback.py"
       - "binance_engine_status.py"
+      - "binance_activation_math.py"
       - ".github/workflows/binance-money-flow.yml"
   schedule:
     - cron: "2,22,42 * * * *"
