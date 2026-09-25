@@ -39,7 +39,7 @@ def main():
     with sqlite3.connect(DB, timeout=30) as c:
         c.row_factory = sqlite3.Row
         scan = c.execute(
-            "SELECT * FROM scans WHERE health_status='VALID' "
+            "SELECT * FROM scans WHERE health_status!='INVALID' "
             "ORDER BY scan_time_utc DESC LIMIT 1"
         ).fetchone()
         if not scan:
