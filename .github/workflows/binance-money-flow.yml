@@ -56,14 +56,6 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python -u binance_money_flow_status.py
 
-      - name: Send Winner Anatomy research summary
-        if: success()
-        continue-on-error: true
-        env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: python -u binance_winner_anatomy_status.py
-
       - name: Upload research state
         uses: actions/upload-artifact@v4
         with:
