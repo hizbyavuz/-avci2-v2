@@ -39,7 +39,13 @@ ARCHIVE = "https://download.gatedata.org/spot/candlesticks_1d"
 LOOKBACK_DAYS = int(os.getenv("HISTORY_LOOKBACK_DAYS", "730"))
 PAIR_BUDGET = int(os.getenv("HISTORY_DELIST_PAIR_BUDGET", "6"))
 SLEEP = float(os.getenv("HISTORY_DELIST_SLEEP", "0.20"))
-VERSION = "history-survivorship-backfill-v0.1-20260925"
+VERSION = "history-survivorship-backfill-v0.2-20260925"
+
+# Separate observational class for coins that survived listing but suffered a
+# deep, persistent collapse. These thresholds do not alter frozen V4/V5 rules.
+COLLAPSE_LOOKBACK_DAYS = 180
+COLLAPSE_DRAWDOWN_PCT = -60.0
+COLLAPSE_MAX_RECOVERY_FROM_LOW_PCT = 50.0
 
 STABLES = hem.STABLES
 
@@ -76,6 +82,18 @@ def init_db():
           first_bar_ts INTEGER,
           last_bar_ts INTEGER,
           last_error TEXT,
+          version TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS collapsed_survivors(
+          pair TEXT PRIMARY KEY,
+          symbol TEXT NOT NULL,
+          asof_ts INTEGER NOT NULL,
+          high_180d REAL NOT NULL,
+          low_after_high REAL NOT NULL,
+          last_close REAL NOT NULL,
+          drawdown_from_high_pct REAL NOT NULL,
+          recovery_from_low_pct REAL NOT NULL,
+          collapse_class TEXT NOT NULL,
           version TEXT NOT NULL
         );
         CREATE TABLE IF NOT EXISTS survivorship_runs(
@@ -160,6 +178,48 @@ def seed_current_gate():
                 status, is_delisted, disabled,
             )
     return tradable, seeded
+
+
+def classify_collapsed_survivors(current_tradable):
+    """Classify still-listed coins that collapsed deeply and stayed weak.
+
+    Uses only already archived daily bars. It does not change event labels or
+    V4/V5 thresholds; it creates a separate control label for later analysis.
+    """
+    saved = 0
+    with con() as c:
+        c.execute("DELETE FROM collapsed_survivors WHERE version=?", (VERSION,))
+        for pair in sorted(current_tradable):
+            row = c.execute("SELECT symbol FROM cex_pairs WHERE pair=? LIMIT 1", (pair,)).fetchone()
+            symbol = (row["symbol"] if row else pair.split("_")[0]).upper()
+            bars = c.execute("""SELECT ts,high,low,close FROM daily_bars
+                WHERE pair=? ORDER BY ts DESC LIMIT ?""",
+                (pair, COLLAPSE_LOOKBACK_DAYS)).fetchall()
+            if len(bars) < 90:
+                continue
+            bars = list(reversed(bars))
+            highs = [float(x["high"]) for x in bars]
+            lows = [float(x["low"]) for x in bars]
+            closes = [float(x["close"]) for x in bars]
+            if min(closes) <= 0:
+                continue
+
+            high_i = max(range(len(highs)), key=lambda i: highs[i])
+            high = highs[high_i]
+            tail_lows = lows[high_i:] or [lows[-1]]
+            low = min(tail_lows)
+            last = closes[-1]
+            drawdown = 100.0 * (last / high - 1.0) if high > 0 else 0.0
+            recovery = 100.0 * (last / low - 1.0) if low > 0 else 0.0
+
+            if drawdown <= COLLAPSE_DRAWDOWN_PCT and recovery <= COLLAPSE_MAX_RECOVERY_FROM_LOW_PCT:
+                c.execute("""INSERT OR REPLACE INTO collapsed_survivors
+                    VALUES(?,?,?,?,?,?,?,?,?,?)""",
+                    (pair, symbol, int(bars[-1]["ts"]), high, low, last,
+                     drawdown, recovery, "COLLAPSED_SURVIVOR", VERSION))
+                saved += 1
+        c.commit()
+    return saved
 
 
 def seed_observed_history(current_tradable):
@@ -296,6 +356,7 @@ def main():
 
     current_tradable, current_seeded = seed_current_gate()
     observed_seeded = seed_observed_history(current_tradable)
+    collapsed_survivors = classify_collapsed_survivors(current_tradable)
 
     attempted = recovered = no_archive = errors = bars_n = events_n = controls_n = 0
     for row in due_pairs(PAIR_BUDGET):
@@ -341,6 +402,7 @@ def main():
         "Survivorship backfill:",
         f"current_nontradable_seeded={current_seeded}",
         f"observed_then_missing_seeded={observed_seeded}",
+        f"collapsed_survivors={collapsed_survivors}",
         f"registry={reg}",
         f"queued={queued}",
         f"attempted={attempted}",
