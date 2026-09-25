@@ -3,6 +3,12 @@ name: Avci 2 V2 Multi-Chain
 # Main Gate Web3 early-signal engine. Research-only; never places orders.
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - "scanner.py"
+      - "gate_wallet_graph_observer.py"
+      - "gate_engine_status.py"
+      - ".github/workflows/avci-v2.yml"
   schedule:
     - cron: "8,28,48 * * * *"
 permissions:
