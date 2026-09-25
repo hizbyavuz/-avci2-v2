@@ -53,9 +53,10 @@ def main():
                 WHERE scan_time_utc=? GROUP BY selection_class""", (ts,))
         }
 
-        events = c.execute("""SELECT * FROM signal_events
-            WHERE signal_time_utc=? AND event_class='CANDIDATE'
-            ORDER BY score DESC LIMIT 5""", (ts,)).fetchall()
+        candidates = c.execute("""SELECT * FROM features
+            WHERE scan_time_utc=? AND selection_class='CANDIDATE'
+            ORDER BY score DESC, cross_sectional_rarity_pct DESC LIMIT 5""",
+            (ts,)).fetchall()
 
         audit = (
             c.execute(
@@ -66,43 +67,44 @@ def main():
         )
 
         rows = []
-        for e in events:
-            feat = c.execute("""SELECT * FROM features
-                WHERE scan_time_utc=? AND symbol=?
-                ORDER BY is_selected DESC LIMIT 1""", (ts, e["symbol"])).fetchone()
+        for feat in candidates:
             flow = (
-                c.execute(
-                    "SELECT * FROM flow_observations WHERE event_id=?",
-                    (e["event_id"],),
-                ).fetchone()
+                c.execute("""SELECT * FROM flow_observations
+                    WHERE scan_time_utc=? AND symbol=?
+                    ORDER BY rowid DESC LIMIT 1""", (ts, feat["symbol"])).fetchone()
                 if table(c, "flow_observations") else None
             )
             st = (
                 c.execute("""SELECT * FROM structure_observations
                     WHERE scan_time_utc=? AND symbol=?
-                    ORDER BY version DESC LIMIT 1""", (ts, e["symbol"])).fetchone()
+                    ORDER BY version DESC LIMIT 1""", (ts, feat["symbol"])).fetchone()
                 if table(c, "structure_observations") else None
             )
             op = (
                 c.execute("""SELECT * FROM opportunity_observations
                     WHERE scan_time_utc=? AND symbol=?
-                    ORDER BY version DESC LIMIT 1""", (ts, e["symbol"])).fetchone()
+                    ORDER BY version DESC LIMIT 1""", (ts, feat["symbol"])).fetchone()
                 if table(c, "opportunity_observations") else None
             )
             wb = (
                 c.execute("""SELECT * FROM winner_bridge_scores
                     WHERE scan_time_utc=? AND symbol=?
-                    ORDER BY id DESC LIMIT 1""", (ts, e["symbol"])).fetchone()
+                    ORDER BY id DESC LIMIT 1""", (ts, feat["symbol"])).fetchone()
                 if table(c, "winner_bridge_scores") else None
             )
             fb = (
                 c.execute("""SELECT * FROM deriv_fallback_observations
                     WHERE scan_time_utc=? AND symbol=?
                     ORDER BY created_at_utc DESC LIMIT 1""",
-                    (ts, e["symbol"])).fetchone()
+                    (ts, feat["symbol"])).fetchone()
                 if table(c, "deriv_fallback_observations") else None
             )
-            rows.append((e, feat, flow, st, op, wb, fb))
+            ev = c.execute("""SELECT * FROM signal_events
+                WHERE symbol=? AND event_class='CANDIDATE'
+                  AND signal_time_utc<=?
+                ORDER BY signal_time_utc DESC LIMIT 1""",
+                (feat["symbol"], ts)).fetchone()
+            rows.append((feat, flow, st, op, wb, fb, ev))
 
         full = c.execute("""SELECT COUNT(*) FROM raw_derivs
             WHERE scan_time_utc=? AND data_mode!='SPOT_ONLY'""", (ts,)).fetchone()[0]
@@ -131,11 +133,9 @@ def main():
     if not rows:
         lines.append("• Bu tur temiz Candidate yok. 0 aday geçerli sonuçtur.")
 
-    for e, x, flow, st, op, wb, fb in rows[:3]:
-        if not x:
-            continue
+    for x, flow, st, op, wb, fb, ev in rows[:3]:
         lines.append(
-            f"• {e['symbol']} | {x['stage']} / {x['engine']} | skor {x['score']}"
+            f"• {x['symbol']} | {x['stage']} / {x['engine']} | skor {x['score']}"
         )
         lines.append(
             f"  Fiyat: 15dk %{x['change_15m']:+.2f} | 1s %{x['change_1h']:+.2f} "
