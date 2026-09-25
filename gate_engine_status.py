@@ -13,6 +13,7 @@ from gate_notify import pending_alerts
 DB = os.getenv("AVCI_DB", "avci2.db")
 VAL = os.getenv("AVCI_VALIDATION_DB", "avci_validation_v5.db")
 HISTORY = os.getenv("HISTORY_DB", ".history-state/history_miner.db")
+TWIN = os.getenv("TWIN_DB", ".history-twin/history_miner.db")
 
 
 def fnum(v):
@@ -49,13 +50,18 @@ def latest_history_line():
                 signal_n,precision,lift_vs_parent,q_value,fdr_pass
                 FROM v5_activation_results WHERE split='VALIDATION' AND activation_name!='BASE'
                 ORDER BY fdr_pass DESC,COALESCE(q_value,1),COALESCE(lift_vs_parent,0) DESC LIMIT 1""").fetchone()
-            twin = (
-                c.execute("""SELECT pattern_name,target_pct,feature,pair_n,winner_median,
-                    near_median,paired_effect FROM twin_results
-                    WHERE split='VALIDATION' AND pair_n>=20
-                    ORDER BY ABS(paired_effect) DESC LIMIT 1""").fetchone()
-                if exists_table(c, "twin_results") else None
-            )
+            twin = None
+        if Path(TWIN).exists():
+            try:
+                with sqlite3.connect(f"file:{TWIN}?mode=ro", uri=True) as tc:
+                    tc.row_factory = sqlite3.Row
+                    if exists_table(tc, "twin_results"):
+                        twin = tc.execute("""SELECT pattern_name,target_pct,feature,pair_n,winner_median,
+                            near_median,paired_effect FROM twin_results
+                            WHERE split='VALIDATION' AND pair_n>=20
+                            ORDER BY ABS(paired_effect) DESC LIMIT 1""").fetchone()
+            except Exception:
+                twin = None
         parts = []
         if best:
             parts.append(
