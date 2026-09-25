@@ -5,7 +5,7 @@ on:
   push:
     paths:
       - "history_validation_v5.py"
-      - "history_telegram_report.py"
+      - "history_telegram_status.py"
       - ".github/workflows/history-miner.yml"
   schedule:
     - cron: "6,16,26,36,46,56 * * * *"
@@ -47,13 +47,13 @@ jobs:
           HISTORY_V5_SLEEP: "0.15"
         run: python -u history_validation_v5.py
 
-      - name: Send V5 progress summary
+      - name: Send short V5 status
         if: success()
         continue-on-error: true
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: python -u history_telegram_report.py
+        run: python -u history_telegram_status.py
 
       - name: Save history state
         if: success()
