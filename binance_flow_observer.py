@@ -27,12 +27,30 @@ def tape(symbol, scan_time):
         return None
     large = [row for row in rows if float(row["p"]) * float(row["q"]) >= 1000]
     buy = sum(not row["m"] for row in large)
+    sell = sum(bool(row["m"]) for row in large)
     streak = max_streak = 0
+    sell_streak = max_sell_streak = 0
     for row in large:
-        streak = streak + 1 if not row["m"] else 0
+        if not row["m"]:
+            streak += 1
+            sell_streak = 0
+        else:
+            sell_streak += 1
+            streak = 0
         max_streak = max(max_streak, streak)
+        max_sell_streak = max(max_sell_streak, sell_streak)
 
     notionals = [float(row["p"]) * float(row["q"]) for row in rows]
+    buy_notional = sum(
+        float(row["p"]) * float(row["q"])
+        for row in rows
+        if not row["m"]
+    )
+    sell_notional = sum(
+        float(row["p"]) * float(row["q"])
+        for row in rows
+        if row["m"]
+    )
     total_notional = sum(notionals)
     top5_share = (sum(sorted(notionals, reverse=True)[:5]) / total_notional
                   if total_notional > 0 else None)
@@ -55,7 +73,15 @@ def tape(symbol, scan_time):
 
     return {"trade_count": len(rows), "large_trades": len(large),
             "large_buy_share": buy / len(large) if large else None,
+            "large_sell_share": sell / len(large) if large else None,
             "large_buy_streak": max_streak,
+            "large_sell_streak": max_sell_streak,
+            "buy_notional": buy_notional,
+            "sell_notional": sell_notional,
+            "taker_buy_notional_share": (
+                buy_notional / total_notional if total_notional > 0 else None
+            ),
+            "net_taker_notional": buy_notional - sell_notional,
             "top5_notional_share": top5_share,
             "repeated_notional_ratio": repeated_ratio,
             "side_alternation_ratio": alternation_ratio}
