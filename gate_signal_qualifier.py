@@ -13,7 +13,7 @@ from gate_activation_math import feature_snapshot
 
 OBS_DB=os.getenv("AVCI_DB","avci2.db")
 VAL_DB=os.getenv("AVCI_VALIDATION_DB","avci_validation_v5.db")
-VERSION="gate-signal-qualifier-v1-20260926"
+VERSION="gate-signal-qualifier-v1.1-20260926"
 PRIMARY_TARGET=10
 MIN_SELECTED_N=30
 MIN_BASELINE_N=30
@@ -24,18 +24,29 @@ MIN_RATE=0.15
 def table(c,t):
     return c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",(t,)).fetchone() is not None
 
-def latest_proven(c):
+def validation_rows(c):
     if not table(c,"gate_activation_math_results"): return []
     return c.execute("""SELECT combo,combo_label,target_pct,selected_n,selected_rate,
-        baseline_n,baseline_rate,lift,q_value
+        baseline_n,baseline_rate,lift,p_value,q_value
         FROM gate_activation_math_results
         WHERE split='VALIDATION' AND target_pct=?
-          AND selected_n>=? AND baseline_n>=?
-          AND q_value IS NOT NULL AND q_value<=?
-          AND lift IS NOT NULL AND lift>=?
-          AND selected_rate IS NOT NULL AND selected_rate>=?
-        ORDER BY q_value ASC,lift DESC""",
-        (PRIMARY_TARGET,MIN_SELECTED_N,MIN_BASELINE_N,MAX_Q,MIN_LIFT,MIN_RATE)).fetchall()
+        ORDER BY CASE WHEN q_value IS NULL THEN 1 ELSE 0 END,q_value ASC,lift DESC""",
+        (PRIMARY_TARGET,)).fetchall()
+
+def evidence_tier(row):
+    if not row:
+        return "RAW_CANDIDATE"
+    if (row["selected_n"] >= MIN_SELECTED_N and row["baseline_n"] >= MIN_BASELINE_N
+            and row["q_value"] is not None and row["q_value"] <= MAX_Q
+            and row["lift"] is not None and row["lift"] >= MIN_LIFT
+            and row["selected_rate"] is not None and row["selected_rate"] >= MIN_RATE):
+        return "VALIDATED_EDGE"
+    if (row["selected_n"] >= 8 and row["baseline_n"] >= 8
+            and row["lift"] is not None and row["lift"] >= 1.15
+            and row["selected_rate"] is not None and row["baseline_rate"] is not None
+            and row["selected_rate"] > row["baseline_rate"]):
+        return "PROVISIONAL_EDGE"
+    return "RAW_CANDIDATE"
 
 def main():
     if not os.path.exists(OBS_DB) or not os.path.exists(VAL_DB):
@@ -52,13 +63,15 @@ def main():
             PRIMARY KEY(batch_id,validation_id,version))""")
         health=obs.execute("SELECT batch_id,status FROM gate_scan_health ORDER BY scan_ts DESC LIMIT 1").fetchone()
         if not health: print("Gate qualifier: scan yok"); return
-        batch=health["batch_id"]; proven=latest_proven(obs)
+        batch=health["batch_id"]; math_rows=validation_rows(obs)
         events=val.execute("""SELECT id,batch_id,network_id,token_contract,signal_ts
             FROM validation_events WHERE batch_id=? AND group_type IN ('CANDIDATE','EXPANDED_CANDIDATE')
             ORDER BY id""",(batch,)).fetchall()
         for e in events:
             feats=feature_snapshot(obs,e)
-            match=next((r for r in proven if feats.get(r["combo"])),None)
+            matches=[r for r in math_rows if feats.get(r["combo"])]
+            match=matches[0] if matches else None
+            tier=evidence_tier(match)
             safety="UNKNOWN"
             hard_veto=None
             if table(obs,"gate_security_confidence_history"):
@@ -71,13 +84,12 @@ def main():
                 status="WAIT"; reason="DATA_HEALTH_INVALID"
             elif hard_veto:
                 status="REJECT"; reason="SAFETY_HARD_VETO"
-            elif not proven:
-                status="RESEARCH"; reason="NO_VALIDATION_PROVEN_COMBO_YET"
-            elif not match:
-                status="RESEARCH"; reason="CURRENT_CANDIDATE_DOES_NOT_MATCH_PROVEN_COMBO"
+            elif tier=="VALIDATED_EDGE":
+                status="VALIDATED_EDGE"; reason="LIVE_MATCHES_VALIDATED_ACTIVATION"
+            elif tier=="PROVISIONAL_EDGE":
+                status="PROVISIONAL_EDGE"; reason="LIVE_MATCHES_PROMISING_NOT_YET_VALIDATED_ACTIVATION"
             else:
-                status="EVIDENCE_BACKED"
-                reason="LIVE_MATCHES_VALIDATION_PROVEN_ACTIVATION"
+                status="RAW_CANDIDATE"; reason="TRACK_AND_LEARN"
             vals=(match if match else {})
             obs.execute("""INSERT OR REPLACE INTO gate_signal_qualifications VALUES
                 (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",(
