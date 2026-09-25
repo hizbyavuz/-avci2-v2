@@ -255,6 +255,35 @@ def main():
             "V5 dışında ayrı erken aktivasyon izi, güvenlik kapısından geçmiş."
         )
 
+    lines.append("\n🧮 AKTİVASYON MATEMATİĞİ")
+    math_rows = []
+    if exists_table(c, "gate_activation_math_results"):
+        math_rows = c.execute("""SELECT combo_label,target_pct,selected_n,selected_rate,
+            baseline_n,baseline_rate,lift,q_value FROM gate_activation_math_results
+            WHERE split='VALIDATION' ORDER BY CASE WHEN q_value IS NULL THEN 1 ELSE 0 END,
+            q_value ASC,lift DESC LIMIT 3""").fetchall()
+    if math_rows:
+        proven = [r for r in math_rows if r["q_value"] is not None and r["q_value"] <= 0.05
+                  and r["selected_n"] >= 20 and r["baseline_n"] >= 20
+                  and (r["lift"] or 0) > 1]
+        if proven:
+            for r in proven[:2]:
+                lines.append(
+                    f"• KANITLI: {r['combo_label']} | +%{r['target_pct']} "
+                    f"%{100*r['selected_rate']:.1f} vs %{100*r['baseline_rate']:.1f} "
+                    f"| lift {r['lift']:.2f}x | q={r['q_value']:.3f} | n={r['selected_n']}"
+                )
+        else:
+            r = math_rows[0]
+            lines.append(
+                f"• Henüz kanıtlı kombinasyon yok. En iyi validation: {r['combo_label']} "
+                f"| +%{r['target_pct']} | n={r['selected_n']} | "
+                f"lift {('-' if r['lift'] is None else f'{r['lift']:.2f}x')} | "
+                f"q={('-' if r['q_value'] is None else f'{r['q_value']:.3f}')}"
+            )
+    else:
+        lines.append("• Kapanmış olay örneklemi henüz matematik için yetersiz.")
+
     lines.append("\n🧬 GEÇMİŞ MATEMATİĞİ")
     lines.append("• " + latest_history_line())
 
