@@ -111,6 +111,21 @@ def percentile_regime(value,vals,high_good=False):
     if v>=hi:return "HIGH"
     return "MID"
 
+def binance_event_regime(c,t,symbol,btc,cache):
+    if t not in cache:
+        rows=c.execute("SELECT symbol,spread_bps,raw_json FROM features WHERE scan_time_utc=?",(t,)).fetchall()
+        vv=[];ss=[];by={}
+        for r in rows:
+            raw=obj(r["raw_json"]);rv=raw.get("realized_volatility_24h")
+            if rv is not None:
+                try:vv.append(float(rv))
+                except:pass
+            if r["spread_bps"] is not None:ss.append(float(r["spread_bps"]))
+            by[r["symbol"]]=(rv,r["spread_bps"])
+        cache[t]=(vv,ss,by)
+    vv,ss,by=cache[t];rv,sp=by.get(symbol,(None,None))
+    return (percentile_regime(rv,vv),percentile_regime(sp,ss))
+
 def binance():
     db=os.getenv("BINANCE_DB","binance_avci2.db")
     if not os.path.exists(db):return
@@ -126,6 +141,7 @@ def binance():
             if rv is not None:vols.append(rv)
             if r["spread_bps"] is not None:liquid.append(r["spread_bps"])
         candidates=[r for r in cur if r["selection_class"]=="CANDIDATE"]
+        regime_cache={}
         hist=c.execute("""SELECT s.signal_time_utc t,s.event_class,s.stage,s.engine,s.btc_regime,
              s.symbol,s.config_version,o.reach_json,o.net_return_pct
           FROM signal_events s JOIN outcome_labels o ON o.event_id=s.event_id
@@ -137,7 +153,13 @@ def binance():
             if len(peer)<MIN_N:peer=[r for r in hist if r["config_version"]==f["config_version"] and r["event_class"]=="CANDIDATE"]
             k=sum(b_success(r["reach_json"],r["net_return_pct"]) for r in peer); n=len(peer)
             plo,phi=wilson(k,n); prob=calibrated(k,n) if n>=MIN_N else None
-            same=[r for r in peer if (r["btc_regime"] or "UNKNOWN")==f["btc_regime"]]
+            raw=obj(f["raw_json"]); rv=raw.get("realized_volatility_24h")
+            vr=percentile_regime(rv,vols); lr=percentile_regime(f["spread_bps"],liquid)
+            same=[]
+            for r in peer:
+                if (r["btc_regime"] or "UNKNOWN")!=f["btc_regime"]:continue
+                hvr,hlr=binance_event_regime(c,r["t"],r["symbol"],r["btc_regime"],regime_cache)
+                if hvr==vr and hlr==lr:same.append(r)
             rk=sum(b_success(r["reach_json"],r["net_return_pct"]) for r in same); rn=len(same)
             rlo,rhi=wilson(rk,rn); rprob=calibrated(rk,rn) if rn>=MIN_N else None
             cand=[{"t":r["t"],"net":float(r["net_return_pct"])} for r in peer if r["net_return_pct"] is not None]
@@ -145,8 +167,6 @@ def binance():
             if len(ctrlrows)<MIN_N:ctrlrows=[r for r in hist if r["config_version"]==f["config_version"] and r["event_class"] in ("NEAR_MISS","RANDOM_CONTROL")]
             ctrl=[{"t":r["t"],"net":float(r["net_return_pct"])} for r in ctrlrows if r["net_return_pct"] is not None]
             diff,dl,dh=cluster_boot_diff(cand,ctrl)
-            raw=obj(f["raw_json"]); rv=raw.get("realized_volatility_24h")
-            vr=percentile_regime(rv,vols); lr=percentile_regime(f["spread_bps"],liquid)
             conf=[]
             crowd_status="UNAVAILABLE_TRUE_SOCIAL_FEED"; crowd=None
             if table(c,"catalyst_observations"):
@@ -196,7 +216,17 @@ def gate():
             if len(peer)<MIN_N:peer=[r for r in hist if r["config_version"]==e["config_version"] and r["group_type"] in ("CANDIDATE","EXPANDED_CANDIDATE")]
             k=sum(r["result_10"]=="TARGET_FIRST" for r in peer);n=len(peer);plo,phi=wilson(k,n)
             prob=calibrated(k,n) if n>=MIN_N else None
-            same=[r for r in peer if (r["btc_regime"] or "UNKNOWN")==e["btc_regime"] and (r["sol_regime"] or "UNKNOWN")==e["sol_regime"]]
+            cfg=[r for r in hist if r["config_version"]==e["config_version"]]
+            volvals=[max(abs(float(r["btc_change_24h"] or 0)),abs(float(r["sol_change_24h"] or 0))) for r in cfg]
+            liqvals=[float(r["estimated_total_cost_pct"]) for r in cfg if r["estimated_total_cost_pct"] is not None]
+            curvol=max(abs(float(e["btc_change_24h"] or 0)),abs(float(e["sol_change_24h"] or 0)))
+            vr=percentile_regime(curvol,volvals); lr=percentile_regime(e["estimated_total_cost_pct"],liqvals)
+            same=[]
+            for r in peer:
+                if (r["btc_regime"] or "UNKNOWN")!=e["btc_regime"] or (r["sol_regime"] or "UNKNOWN")!=e["sol_regime"]:continue
+                rvol=max(abs(float(r["btc_change_24h"] or 0)),abs(float(r["sol_change_24h"] or 0)))
+                if percentile_regime(rvol,volvals)==vr and percentile_regime(r["estimated_total_cost_pct"],liqvals)==lr:
+                    same.append(r)
             rk=sum(r["result_10"]=="TARGET_FIRST" for r in same);rn=len(same);rlo,rhi=wilson(rk,rn)
             rprob=calibrated(rk,rn) if rn>=MIN_N else None
             cand=[{"t":r["signal_iso"],"net":float(r["net_final_pct"])} for r in peer if r["net_final_pct"] is not None]
@@ -206,11 +236,14 @@ def gate():
             diff,dl,dh=cluster_boot_diff(cand,ctrl)
             snap=c.execute("""SELECT raw_json FROM snapshots WHERE network_id=? AND token_contract=?
               AND zaman_utc>=? ORDER BY id ASC LIMIT 1""",(e["network_id"],e["token_contract"],e["signal_iso"])).fetchone() if table(c,"snapshots") else None
-            item=obj(snap[0]) if snap else {}; q=(item.get("exit_1k") if e["network_id"]=="solana" else item.get("evm_exit_1k")) or {}
-            loss=q.get("loss_pct"); lr="UNKNOWN" if loss is None else ("LOW" if float(loss)<=1.5 else "MID" if float(loss)<=3 else "HIGH")
-            change=abs(float(item.get("price_change_h24") or item.get("price_change_24h") or 0))
-            vr="LOW" if change<5 else "MID" if change<15 else "HIGH"
-            conf=[]; social=item.get("social_signal") or {}
+            item=obj(snap[0]) if snap else {}
+            conf=[]
+            if table(c,"institutional_context"):
+                ic=c.execute("""SELECT * FROM institutional_context WHERE source='GATE'
+                  AND batch_key=? AND asset_key=? ORDER BY created_at_utc DESC LIMIT 1""",
+                  (batch,f"{e['network_id']}:{e['token_contract']}")).fetchone()
+                if ic and ic["macro_state"]!="CLEAR_24H":conf.append(ic["macro_state"])
+            social=item.get("social_signal") or {}
             cs="UNAVAILABLE";cv=None
             if social.get("status")=="OBSERVED":
                 cv=float(social.get("last_15m") or 0); ratio=social.get("ratio")
