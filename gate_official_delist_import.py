@@ -42,8 +42,12 @@ def ann_page(page):
 def init(c):
     c.execute("""CREATE TABLE IF NOT EXISTS official_delist_registry(
       pair TEXT PRIMARY KEY,symbol TEXT NOT NULL,announcement_url TEXT,
+      announcement_title TEXT,delist_reason TEXT,
       first_seen_utc TEXT NOT NULL,last_seen_utc TEXT NOT NULL,
       source TEXT NOT NULL DEFAULT 'gate_official_delisting_api')""")
+    oc={r[1] for r in c.execute("PRAGMA table_info(official_delist_registry)")}
+    if "announcement_title" not in oc:c.execute("ALTER TABLE official_delist_registry ADD COLUMN announcement_title TEXT")
+    if "delist_reason" not in oc:c.execute("ALTER TABLE official_delist_registry ADD COLUMN delist_reason TEXT")
     c.execute("""CREATE TABLE IF NOT EXISTS historical_pair_registry(
       pair TEXT PRIMARY KEY,symbol TEXT NOT NULL,quote TEXT NOT NULL,
       first_source TEXT NOT NULL,current_trade_status TEXT,currency_delisted INTEGER,
@@ -52,6 +56,22 @@ def init(c):
       recovered_bars INTEGER NOT NULL DEFAULT 0,first_bar_ts INTEGER,last_bar_ts INTEGER,
       last_error TEXT,version TEXT NOT NULL)""")
     c.commit()
+
+def classify_reason(title,brief):
+    x=(str(title or "")+" "+str(brief or "")).lower()
+    if any(k in x for k in ("security","hack","exploit","risk control","fraud","malicious")):
+        return "SECURITY_RISK"
+    if any(k in x for k in ("low liquidity","insufficient liquidity","low trading volume","poor liquidity")):
+        return "LOW_LIQUIDITY_VOLUME"
+    if any(k in x for k in ("project request","team request","project team","voluntary")):
+        return "PROJECT_REQUEST"
+    if any(k in x for k in ("migration","token swap","contract swap","mainnet swap","redenomination")):
+        return "MIGRATION_SWAP"
+    if any(k in x for k in ("regulatory","compliance","legal","jurisdiction")):
+        return "REGULATORY_COMPLIANCE"
+    if any(k in x for k in ("rebranding","rename","ticker change")):
+        return "REBRAND_TICKER"
+    return "OTHER_UNSPECIFIED"
 
 def pairs_from_text(text):
     text=html.unescape(str(text or "")).upper()
@@ -90,7 +110,7 @@ def main():
         try:
             aid,title,url,pairs,err=parse_article(article)
             for pair,sym in pairs:
-                found[pair]=(sym,url,title)
+                found[pair]=(sym,url,title,classify_reason(title,article.get("brief")))
         except Exception as e:
             errors.append(f"parse:{type(e).__name__}:{str(e)[:120]}")
 
@@ -104,13 +124,16 @@ def main():
         c.execute("""DELETE FROM historical_pair_registry
           WHERE first_source IN ('gate_official_delisting_archive','gate_official_delisting_api')
              OR version LIKE 'official-delist-%'""")
-        for pair,(sym,url,title) in found.items():
+        for pair,(sym,url,title,reason) in found.items():
             c.execute("""INSERT INTO official_delist_registry(
-              pair,symbol,announcement_url,first_seen_utc,last_seen_utc
-            ) VALUES(?,?,?,?,?)
+              pair,symbol,announcement_url,announcement_title,delist_reason,first_seen_utc,last_seen_utc
+            ) VALUES(?,?,?,?,?,?,?)
             ON CONFLICT(pair) DO UPDATE SET
-              announcement_url=excluded.announcement_url,last_seen_utc=excluded.last_seen_utc""",
-              (pair,sym,url,stamp,stamp))
+              announcement_url=excluded.announcement_url,
+              announcement_title=excluded.announcement_title,
+              delist_reason=excluded.delist_reason,
+              last_seen_utc=excluded.last_seen_utc""",
+              (pair,sym,url,title,reason,stamp,stamp))
             c.execute("""INSERT INTO historical_pair_registry(
               pair,symbol,quote,first_source,current_trade_status,currency_delisted,trade_disabled,
               first_seen_utc,last_seen_utc,coverage_status,version
@@ -124,7 +147,9 @@ def main():
 
     report={
       "generated_at_utc":stamp,"api_articles":len(articles),"api_total":total,
-      "official_usdt_pairs":len(found),"source":"Gate API POST /ann/list_article (API fields only)",
+      "official_usdt_pairs":len(found),
+      "reason_counts":{k:sum(1 for v in found.values() if v[3]==k) for k in sorted(set(v[3] for v in found.values()))},
+      "source":"Gate API POST /ann/list_article (API fields only)",
       "errors":errors[:100]
     }
     with open("gate_delist_import_report.json","w",encoding="utf-8") as out:
