@@ -5965,6 +5965,17 @@ try:
 except (OSError, ValueError, sqlite3.Error) as exc:
     print("::warning::Cross-venue katmanı kullanılamadı:", type(exc).__name__)
 
+# Separate yellow discovery lane: weighted market evidence, same fail-closed
+# security/sellability gate. This never changes frozen V5 membership or stats.
+try:
+    from gate_weighted_discovery import review as review_weighted_discovery
+    weighted_counts = review_weighted_discovery(
+        "avci2.db", batch_id, all_observation_pool + all_candidates,
+        enrich_candidate, (compute_climax, compute_trap_proxy))
+    print("Sarı keşif hattı (ağırlıklı dayanak + sert güvenlik):", weighted_counts)
+except (OSError, ValueError, sqlite3.Error) as exc:
+    print("::warning::Sarı keşif hattı kullanılamadı:", type(exc).__name__)
+
 print(
     "Snapshot toplam:",
     snapshot_sayisi()
