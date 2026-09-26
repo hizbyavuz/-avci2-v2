@@ -42,6 +42,7 @@ class ResearchValidationLayerTests(unittest.TestCase):
         rv.init(c)
         rows=self.synthetic_rows()
         rv.store_splits(c,"BINANCE",rows)
+        rv.build_purged_folds(c,"BINANCE",rows)
         th=rv.attribution(c,"BINANCE",rows)
         families=rv.correlations(c,"BINANCE",rows,th)
         rv.significance(c,"BINANCE",rows)
@@ -50,6 +51,14 @@ class ResearchValidationLayerTests(unittest.TestCase):
         rv.regimes(c,"BINANCE",rows)
         rv.drift(c,"BINANCE",rows,th)
         rv.precision_recall(c,"BINANCE",rows)
+        c.execute("""CREATE TABLE daily_movers(
+            trade_date TEXT,symbol TEXT,change_24h REAL,quote_volume_24h REAL,
+            rank_value INTEGER,config_version TEXT,created_at_utc TEXT)""")
+        c.execute("INSERT INTO daily_movers VALUES(?,?,?,?,?,?,?)",
+                  ("2026-10-05","A40",45.0,1000000,1,"x","2026-10-05T23:00:00+00:00"))
+        c.execute("INSERT INTO daily_movers VALUES(?,?,?,?,?,?,?)",
+                  ("2026-10-05","MISS",50.0,1000000,2,"x","2026-10-05T23:00:00+00:00"))
+        rv.mover_recall(c,"BINANCE",rows)
         rv.kelly(c,"BINANCE",rows)
         rv.latency(c,"BINANCE")
         self.assertGreater(len(th),0)
@@ -59,6 +68,9 @@ class ResearchValidationLayerTests(unittest.TestCase):
         self.assertGreater(c.execute("SELECT COUNT(*) FROM research_portfolio_metrics").fetchone()[0],0)
         self.assertGreater(c.execute("SELECT COUNT(*) FROM research_regime_stats").fetchone()[0],0)
         self.assertGreater(c.execute("SELECT COUNT(*) FROM research_precision_recall").fetchone()[0],0)
+        self.assertGreater(c.execute("SELECT COUNT(*) FROM research_purged_folds").fetchone()[0],0)
+        mr=c.execute("SELECT opportunity_n,caught_n FROM research_mover_recall WHERE split='FINAL_TEST'").fetchone()
+        self.assertEqual(tuple(mr),(2,1))
         self.assertEqual(c.execute("SELECT COUNT(*) FROM research_kelly").fetchone()[0],3)
 
     def test_split_is_frozen_by_time(self):
