@@ -1,0 +1,1 @@
+source,event_key,asset,event_time_utc,side,quantity,expected_price,filled_price,fee_pct,slippage_pct,total_realized_cost_pct,external_order_id,notes
