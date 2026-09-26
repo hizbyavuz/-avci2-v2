@@ -11,6 +11,8 @@ from datetime import datetime, timezone
 
 import requests
 
+from research_telemetry import start as telemetry_start, record as telemetry_record
+
 from binance_snapshot_store import (
     init_db,
     save_scan,
@@ -262,11 +264,16 @@ def spot_api_get(
 
     for base in SPOT_BASES:
         try:
+            _tp,_tu = telemetry_start()
             response = session.get(
                 base + path,
                 params=params,
                 timeout=REQUEST_TIMEOUT,
             )
+            telemetry_record("BINANCE","BINANCE_SPOT",path,_tp,_tu,
+                             status="OK" if response.ok else "HTTP_ERROR",
+                             http_status=response.status_code,
+                             context={"base":base})
 
             if response.status_code in (
                 403,
@@ -286,6 +293,12 @@ def spot_api_get(
             return response.json()
 
         except requests.RequestException as error:
+            try:
+                telemetry_record("BINANCE","BINANCE_SPOT",path,_tp,_tu,
+                                 status="ERROR",error=error,
+                                 context={"base":base})
+            except Exception:
+                pass
             last_error = error
 
     if last_error is not None:
@@ -306,11 +319,15 @@ def futures_api_get(
         return None
 
     try:
+        _tp,_tu = telemetry_start()
         response = session.get(
             FUTURES_BASE + path,
             params=params,
             timeout=REQUEST_TIMEOUT,
         )
+        telemetry_record("BINANCE","BINANCE_FUTURES",path,_tp,_tu,
+                         status="OK" if response.ok else "HTTP_ERROR",
+                         http_status=response.status_code)
 
         if response.status_code in (
             403,
@@ -333,6 +350,11 @@ def futures_api_get(
         return response.json()
 
     except requests.RequestException as error:
+        try:
+            telemetry_record("BINANCE","BINANCE_FUTURES",path,_tp,_tu,
+                             status="ERROR",error=error)
+        except Exception:
+            pass
         FUTURES_AVAILABLE = False
 
         print(
