@@ -186,10 +186,16 @@ def cost_calibration_binance(c):
       WHERE event_class='CANDIDATE'"""):
         assumed=(2*(float(r["fee_bps_per_side"] or 0)+float(r["slippage_bps_per_side"] or 0)))/100.0
         obs=(float(r["spread_bps"] or 0)+float(r["buy_impact_1k_bps"] or 0)+float(r["sell_impact_1k_bps"] or 0))/100.0
+        realized=None
+        if table(c,"execution_fill_observations"):
+            q=c.execute("""SELECT SUM(total_realized_cost_pct) FROM execution_fill_observations
+              WHERE source='BINANCE' AND event_key=?""",(r["event_id"],)).fetchone()
+            if q and q[0] is not None:realized=float(q[0])
         c.execute("INSERT OR REPLACE INTO cost_model_calibration VALUES(?,?,?,?,?,?,?,?,?,?,?)",
-          ("BINANCE",VERSION,r["event_id"],r["signal_time_utc"],assumed,obs,None,
-           obs-assumed,None,"QUOTE_OBSERVED",
-           "Not realized fills; uses signal-time spread+book impact."))
+          ("BINANCE",VERSION,r["event_id"],r["signal_time_utc"],assumed,obs,realized,
+           obs-assumed,(realized-assumed) if realized is not None else None,
+           "REALIZED_FILL" if realized is not None else "QUOTE_OBSERVED",
+           "Realized only when imported read-only fill data exists; otherwise signal-time spread+book impact."))
     c.commit()
 
 def cost_calibration_gate(obs,val):
@@ -200,9 +206,16 @@ def cost_calibration_gate(obs,val):
         assumed=float(r["estimated_total_cost_pct"]) if r["estimated_total_cost_pct"] is not None else None
         observed=float(r["exit_loss_pct"]) if r["exit_loss_pct"] is not None else None
         diff=(observed-assumed) if assumed is not None and observed is not None else None
+        realized=None
+        if table(obs,"execution_fill_observations"):
+            q=obs.execute("""SELECT SUM(total_realized_cost_pct) FROM execution_fill_observations
+              WHERE source='GATE' AND event_key=?""",(str(r["id"]),)).fetchone()
+            if q and q[0] is not None:realized=float(q[0])
         obs.execute("INSERT OR REPLACE INTO cost_model_calibration VALUES(?,?,?,?,?,?,?,?,?,?,?)",
-          ("GATE",VERSION,str(r["id"]),r["signal_iso"],assumed,observed,None,diff,None,
-           "QUOTE_OBSERVED",f"Gate {r['cost_status']}; no real fill-level realized cost yet."))
+          ("GATE",VERSION,str(r["id"]),r["signal_iso"],assumed,observed,realized,diff,
+           (realized-assumed) if realized is not None and assumed is not None else None,
+           "REALIZED_FILL" if realized is not None else "QUOTE_OBSERVED",
+           f"Gate {r['cost_status']}; realized only when imported read-only fill data exists."))
     obs.commit()
 
 def failure_rate(c):
