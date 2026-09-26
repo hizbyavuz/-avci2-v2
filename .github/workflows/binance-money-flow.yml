@@ -13,6 +13,7 @@ on:
       - "binance_evidence_research.py"
       - "binance_research_integrity.py"
       - "binance_live_pool.py"
+      - "runner_revival_observer.py"
       - "trade_readiness_layer.py"
       - "readiness_shadow_paper.py"
       - "binance_context_research.py"
@@ -87,6 +88,10 @@ jobs:
 
       - name: Refresh market and derivative features
         run: python -u binance_scanner.py
+
+      - name: Classify old runners and revival moves
+        continue-on-error: true
+        run: python -u runner_revival_observer.py binance
 
       - name: Run 15-minute live confirmation pool
         continue-on-error: true
