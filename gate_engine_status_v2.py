@@ -23,6 +23,23 @@ def obj(s):
 def pct(v):
     return "-" if v is None else f"%{100*float(v):.0f}"
 
+def display_bucket(counter_json, security_row=None, readiness_row=None):
+    """Telegram-only presentation bucket; never changes research membership."""
+    counter=arr(counter_json)
+    joined=" | ".join(str(x).lower() for x in counter)
+    hard=bool(security_row and int(security_row["hard_veto"] or 0))
+    blocked_label=bool(security_row and str(security_row["label"] or "").upper()=="BLOCKED")
+    critical_text=(
+        "hard-veto" in joined or "honeypot" in joined or
+        "satılam" in joined or "çıkış maliyeti yüksek" in joined or
+        "güvenlik engeli" in joined
+    )
+    if hard or blocked_label or critical_text:
+        return "BLOCKED"
+    if readiness_row and str(readiness_row["readiness"] or "").upper()=="NOT_READY":
+        return "NOT_READY"
+    return "MAIN"
+
 def early_dot(obs):
     if not obs:
         return "🟢"
@@ -97,6 +114,8 @@ def main():
               WHERE source='GATE' AND batch_key=? ORDER BY asset_key,size_usd""",(str(batch),)).fetchall():
                 size_curves.setdefault(x["asset_key"],[]).append(x)
         enriched=[]
+        blocked_rows=[]
+        not_ready_rows=[]
         for r in evrows:
             e=events.get(r["validation_id"])
             sym=None
@@ -112,7 +131,22 @@ def main():
                     FROM gate_early_observations WHERE batch_id=? AND network_id=?
                     AND token_contract=? LIMIT 1""",
                     (batch,e["network_id"],e["token_contract"])).fetchone()
-            enriched.append((r,e,sym,obs,readiness.get(r["token_contract"])))
+            ready=readiness.get(r["token_contract"])
+            sec=None
+            if e and table(c,"gate_security_confidence_history"):
+                sec=c.execute("""SELECT label,hard_veto,hard_veto_reasons_json,coverage_pct
+                    FROM gate_security_confidence_history
+                    WHERE batch_id=? AND network_id=? AND token_contract=?
+                    ORDER BY scan_ts DESC LIMIT 1""",
+                    (batch,e["network_id"],e["token_contract"])).fetchone()
+            row=(r,e,sym,obs,ready,sec)
+            bucket=display_bucket(r["counter_json"],sec,ready)
+            if bucket=="BLOCKED":
+                blocked_rows.append(row)
+            elif bucket=="NOT_READY":
+                not_ready_rows.append(row)
+            else:
+                enriched.append(row)
 
     lines=["🛰 GATE WEB3 AVCI | DAYANAK RAPORU"]
     if btc:
@@ -130,7 +164,7 @@ def main():
                 lines.append(f"🔴 {rr['symbol']} [{rr['network_id']}]: geçmişte çok yükselmiş ve zirveye hâlâ yakın → geç kalma riski yüksek")
         lines.append("")
     if not enriched:
-        lines.append("🚫 Bu tur dayanağı incelenebilir temiz aday yok.")
+        lines.append("🚫 Bu tur güvenlik ve işlem-hazırlığı açısından temiz aday yok.")
 
     if discovery_rows:
         lines.append("")
@@ -150,7 +184,7 @@ def main():
             lines.append("  • Statü: güvenlik geçti, fakat yeşil/frozen aday değil.")
     labels={"DAYANAK_COK_GUCLU":"🟣 ÇOK GÜÇLÜ DAYANAK","DAYANAK_GUCLU":"🟢 GÜÇLÜ DAYANAK",
             "DAYANAK_ORTA":"🟡 ORTA DAYANAK","DAYANAK_ZAYIF":"⚪ ZAYIF DAYANAK"}
-    for r,e,sym,obs,ready in enriched[:5]:
+    for r,e,sym,obs,ready,sec in enriched[:5]:
         name=sym or (e["token_contract"][:8] if e else r["token_contract"][:8])
         net=e["network_id"] if e else r["network_id"]
         sup=arr(r["support_json"]); con=arr(r["counter_json"]); unk=arr(r["unknown_json"])
@@ -206,6 +240,36 @@ def main():
         if unk:
             lines.append(f"• Eksik veri: {', '.join(unk[:2])}")
         lines.append("")
+    if not_ready_rows:
+        lines.append("🟠 ARAŞTIRMA / HAZIR DEĞİL")
+        lines.append("(İşlem adayı değildir; yalnızca araştırma kaydı tutulur.)")
+        for r,e,sym,obs,ready,sec in not_ready_rows[:3]:
+            name=sym or (e["token_contract"][:8] if e else r["token_contract"][:8])
+            net=e["network_id"] if e else r["network_id"]
+            reasons=[]
+            if ready:
+                reasons=arr(ready["blockers_json"]) or arr(ready["unknowns_json"])
+            lines.append(f"🟠 {name} [{net}] — HAZIR DEĞİL")
+            if reasons:
+                lines.append("  • Neden: " + "; ".join(str(x) for x in reasons[:2]))
+        lines.append("")
+
+    if blocked_rows:
+        lines.append("🚫 BLOKLU / İŞLEM ADAYI DEĞİL")
+        lines.append("(Araştırmada saklanır; ana aday listesine girmez.)")
+        for r,e,sym,obs,ready,sec in blocked_rows[:3]:
+            name=sym or (e["token_contract"][:8] if e else r["token_contract"][:8])
+            net=e["network_id"] if e else r["network_id"]
+            reasons=[]
+            if sec:
+                reasons=arr(sec["hard_veto_reasons_json"])
+            if not reasons:
+                reasons=[x for x in arr(r["counter_json"]) if "güven" in str(x).lower() or "çıkış" in str(x).lower() or "hard-veto" in str(x).lower()]
+            lines.append(f"🚫 {name} [{net}] — GÜVENLİK BLOĞU")
+            if reasons:
+                lines.append("  • Neden: " + "; ".join(str(x) for x in reasons[:2]))
+        lines.append("")
+
     if math and math["selected_n"] and math["selected_n"]>=8:
         lift="-" if math["lift"] is None else f"{math['lift']:.2f}x"
         q="-" if math["q_value"] is None else f"{math['q_value']:.3f}"
