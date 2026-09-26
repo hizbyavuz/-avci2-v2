@@ -1,0 +1,45 @@
+name: External Shadow Universe Validation
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "11 * * * *"
+  push:
+    paths:
+      - "external_shadow_universe.py"
+      - ".github/workflows/external-shadow-universe.yml"
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: external-shadow-universe
+  cancel-in-progress: true
+
+jobs:
+  shadow:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: pip install requests
+      - name: Restore latest external shadow DB
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          run_id=$(gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts?name=external-shadow-state&per_page=100" --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | reverse | .[0].workflow_run.id // empty')
+          if [ -n "$run_id" ]; then gh run download "$run_id" --name external-shadow-state --dir .; fi
+      - name: Scan OKX and Gate independent universes
+        run: python -u external_shadow_universe.py
+      - name: Upload shadow state
+        uses: actions/upload-artifact@v4
+        with:
+          name: external-shadow-state
+          path: external_shadow.db
+          if-no-files-found: error
+          retention-days: 90
