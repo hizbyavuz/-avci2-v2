@@ -202,6 +202,17 @@ jobs:
           fi
           python -u security_redteam.py
 
+      - name: Audit unresolved Gate research evidence gaps
+        continue-on-error: true
+        env:
+          HISTORY_DB: .history-state/history_miner.db
+          SECURITY_CORPUS: .security-corpus/security_adversarial_corpus.csv
+        run: |
+          if test ! -s "$SECURITY_CORPUS"; then
+            export SECURITY_CORPUS=security_adversarial_corpus.csv
+          fi
+          python -u research_gap_audit.py gate
+
       - name: Evaluate Gate trade readiness
         continue-on-error: true
         run: python -u trade_readiness_layer.py gate
