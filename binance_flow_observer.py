@@ -117,7 +117,15 @@ def main():
              AND se.symbol=f.symbol
              AND se.event_class=f.selection_class
             WHERE f.scan_time_utc=?
-              AND f.selection_class IN ('CANDIDATE','NEAR_MISS','RANDOM_CONTROL')
+              AND (
+                    f.selection_class IN ('CANDIDATE','NEAR_MISS','RANDOM_CONTROL')
+                    OR EXISTS (
+                      SELECT 1 FROM binance_live_pool p
+                      WHERE p.scan_time_utc=f.scan_time_utc
+                        AND p.symbol=f.symbol
+                        AND p.status IN ('CONFIRMED','BORDERLINE')
+                    )
+                  )
             ORDER BY CASE f.selection_class
                 WHEN 'CANDIDATE' THEN 0
                 WHEN 'NEAR_MISS' THEN 1
