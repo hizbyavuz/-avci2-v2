@@ -11,6 +11,7 @@ on:
       - "gate_engine_status_v2.py"
       - "gate_activation_math.py"
       - "gate_evidence_research.py"
+      - "gate_research_integrity.py"
       - ".github/workflows/avci-v2.yml"
   schedule:
     - cron: "8,28,48 * * * *"
@@ -125,6 +126,10 @@ jobs:
       - name: Calibrate Gate security confidence against past outcomes
         continue-on-error: true
         run: python -u gate_security_calibration.py
+
+      - name: Validate Gate research integrity
+        continue-on-error: true
+        run: python -u gate_research_integrity.py
 
       - name: Build Gate candidate evidence dossiers
         continue-on-error: true
