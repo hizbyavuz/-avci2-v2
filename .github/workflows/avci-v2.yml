@@ -20,6 +20,7 @@ on:
       - "research_decision_discipline.py"
       - "institutional_validation_suite.py"
       - "institutional_signal_overlay.py"
+      - "institutional_context_observer.py"
       - "correlation_position_overlay.py"
       - "execution_size_curve.py"
       - "execution_fill_import.py"
@@ -198,6 +199,10 @@ jobs:
       - name: Measure Gate candidate correlation and paper size multiplier
         continue-on-error: true
         run: python -u correlation_position_overlay.py gate
+
+      - name: Observe Gate macro confounder context
+        continue-on-error: true
+        run: python -u institutional_context_observer.py gate
 
       - name: Build Gate institutional signal overlay
         continue-on-error: true
