@@ -20,6 +20,7 @@ on:
       - "binance_crossvenue_spot.py"
       - "research_p0_governance.py"
       - "research_validation_layer.py"
+      - "research_gap_audit.py"
       - "research_decision_discipline.py"
       - "execution_fill_import.py"
       - "execution_fill_observations.csv"
@@ -152,6 +153,10 @@ jobs:
         continue-on-error: true
         run: python -u research_decision_discipline.py binance
 
+      - name: Audit unresolved research evidence gaps
+        continue-on-error: true
+        run: python -u research_gap_audit.py binance
+
       - name: Evaluate execution-aware trade readiness
         continue-on-error: true
         run: python -u trade_readiness_layer.py binance
@@ -183,6 +188,7 @@ jobs:
           path: |
             binance_avci2.db
             binance_research_validation.md
+            research_gap_status_binance.json
           if-no-files-found: error
           retention-days: 21
           compression-level: 6
