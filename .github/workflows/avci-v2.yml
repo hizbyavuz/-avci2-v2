@@ -24,6 +24,7 @@ on:
       - "security_adversarial_corpus.csv"
       - "security_corpus_requirements.json"
       - "research_telemetry.py"
+      - "historical_timing_proxy.py"
       - "tests/test_research_validation_layer.py"
       - ".github/workflows/avci-v2.yml"
   schedule:
@@ -182,6 +183,10 @@ jobs:
         continue-on-error: true
         run: python -u research_decision_discipline.py gate
 
+      - name: Recover archived Gate timing proxy
+        continue-on-error: true
+        run: python -u historical_timing_proxy.py gate
+
       - name: Restore verified adversarial security corpus
         continue-on-error: true
         env:
@@ -264,6 +269,7 @@ jobs:
             avci_validation_v5.db
             gate_research_validation.md
             research_gap_status_gate.json
+            historical_timing_proxy_gate.json
           if-no-files-found: error
           retention-days: 3
 
