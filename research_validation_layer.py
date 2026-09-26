@@ -498,7 +498,7 @@ def regimes(c,source,rows):
                              ("CONTROL",lambda r:not is_candidate(source,r["group"]))):
                 g=[r for r in sr if r["regime"]==reg and fn(r)]
                 h=sum(r["hit"] for r in g); lo,hi=wilson(h,len(g))
-                c.execute("INSERT INTO research_regime_stats VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+                c.execute("INSERT INTO research_regime_stats VALUES(?,?,?,?,?,?,?,?,?,?)",
                           (source,VERSION,sp,reg,gname,len(g),h,h/len(g) if g else None,lo,hi))
     c.commit()
 
@@ -513,7 +513,7 @@ def drift(c,source,rows,thresholds):
         status="INSUFFICIENT" if pv is None else ("HIGH" if pv>=PSI_HIGH else ("WARN" if pv>=PSI_WARN else "OK"))
         ordered=[r["features"].get(feat) for r in rows if r["features"].get(feat) is not None]
         ca=cusum(ordered)
-        c.execute("INSERT INTO research_drift_metrics VALUES(?,?,?,?,?,?,?,?,?)",
+        c.execute("INSERT INTO research_drift_metrics VALUES(?,?,?,?,?,?,?,?)",
                   (source,VERSION,feat,pv,status,ca,len(a),len(b)))
     c.commit()
 
@@ -530,7 +530,7 @@ def precision_recall(c,source,rows):
                 positives=sum(r["hit"] for r in sr); fn=max(0,positives-tp)
                 pr=tp/(tp+fp) if tp+fp else None; rc=tp/(tp+fn) if tp+fn else None
                 f1=2*pr*rc/(pr+rc) if pr is not None and rc is not None and pr+rc else None
-                c.execute("INSERT INTO research_precision_recall VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+                c.execute("INSERT INTO research_precision_recall VALUES(?,?,?,?,?,?,?,?,?,?)",
                           (source,VERSION,sp,th,tp,fp,fn,pr,rc,f1))
         else:
             # If Gate score is absent, at least report current frozen candidate classifier.
@@ -539,7 +539,7 @@ def precision_recall(c,source,rows):
             positives=sum(r["hit"] for r in sr); fn=max(0,positives-tp)
             pr=tp/(tp+fp) if tp+fp else None; rc=tp/(tp+fn) if tp+fn else None
             f1=2*pr*rc/(pr+rc) if pr is not None and rc is not None and pr+rc else None
-            c.execute("INSERT INTO research_precision_recall VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+            c.execute("INSERT INTO research_precision_recall VALUES(?,?,?,?,?,?,?,?,?,?)",
                       (source,VERSION,sp,-1,tp,fp,fn,pr,rc,f1))
     c.commit()
 
@@ -554,7 +554,7 @@ def kelly(c,source,rows):
             b=aw/al; raw=wr-(1-wr)/b
         half=raw/2 if raw is not None else None; quarter=raw/4 if raw is not None else None
         capped=max(0.0,min(KELLY_CAP,quarter)) if quarter is not None else None
-        c.execute("INSERT INTO research_kelly VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+        c.execute("INSERT INTO research_kelly VALUES(?,?,?,?,?,?,?,?,?,?,?)",
                   (source,VERSION,sp,len(vals),wr,aw,al,raw,half,quarter,capped))
     c.commit()
 
