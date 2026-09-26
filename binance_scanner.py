@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 
 import requests
 
-from research_telemetry import start as telemetry_start, record as telemetry_record
+from research_telemetry import (start as telemetry_start, record as telemetry_record,\n                                infer_source_event_time)
 
 from binance_snapshot_store import (
     init_db,
@@ -270,11 +270,6 @@ def spot_api_get(
                 params=params,
                 timeout=REQUEST_TIMEOUT,
             )
-            telemetry_record("BINANCE","BINANCE_SPOT",path,_tp,_tu,
-                             status="OK" if response.ok else "HTTP_ERROR",
-                             http_status=response.status_code,
-                             context={"base":base})
-
             if response.status_code in (
                 403,
                 418,
@@ -289,8 +284,13 @@ def spot_api_get(
                 continue
 
             response.raise_for_status()
-
-            return response.json()
+            data=response.json()
+            telemetry_record("BINANCE","BINANCE_SPOT",path,_tp,_tu,
+                             status="OK",http_status=response.status_code,
+                             source_event_time_utc=infer_source_event_time(
+                                 "BINANCE_SPOT",path,data),
+                             context={"base":base})
+            return data
 
         except requests.RequestException as error:
             try:
@@ -325,10 +325,6 @@ def futures_api_get(
             params=params,
             timeout=REQUEST_TIMEOUT,
         )
-        telemetry_record("BINANCE","BINANCE_FUTURES",path,_tp,_tu,
-                         status="OK" if response.ok else "HTTP_ERROR",
-                         http_status=response.status_code)
-
         if response.status_code in (
             403,
             418,
@@ -346,8 +342,12 @@ def futures_api_get(
             return None
 
         response.raise_for_status()
-
-        return response.json()
+        data=response.json()
+        telemetry_record("BINANCE","BINANCE_FUTURES",path,_tp,_tu,
+                         status="OK",http_status=response.status_code,
+                         source_event_time_utc=infer_source_event_time(
+                             "BINANCE_FUTURES",path,data))
+        return data
 
     except requests.RequestException as error:
         try:
