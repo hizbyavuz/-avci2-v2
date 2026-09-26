@@ -19,14 +19,10 @@ def pct(v):
     return "-" if v is None else f"%{100*float(v):.0f}"
 
 def early_dot(r):
-    trigger=bool(r["trigger"])
-    wake=bool(r["wakeup"])
-    reignition=bool(r["reignition"])
-    retention=bool(r["retention"])
-    climax=bool(r["climax_risk"])
-    if trigger and (wake or reignition) and retention and not climax:
+    status=r["pool_status"] if "pool_status" in r.keys() else None
+    if status=="CONFIRMED":
         return "🔴"
-    if (trigger or wake or reignition) and not climax:
+    if status=="BORDERLINE":
         return "🟡"
     return "🟢"
 
@@ -46,10 +42,14 @@ def main():
         evrows=[]
         if table(c,"binance_candidate_evidence"):
             evrows=c.execute("""SELECT e.*,f.stage,f.engine,f.score,f.change_24h,f.btc_relative_24h,
-                       f.wakeup,f.reignition,f.trigger,f.retention,f.climax_risk
+                       f.wakeup,f.reignition,f.trigger,f.retention,f.climax_risk,
+                       p.status AS pool_status,p.confirmation_score AS pool_confirmation_score
                 FROM binance_candidate_evidence e JOIN features f
                   ON f.scan_time_utc=e.scan_time_utc AND f.symbol=e.symbol
+                LEFT JOIN binance_live_pool p
+                  ON p.scan_time_utc=e.scan_time_utc AND p.symbol=e.symbol
                 WHERE e.scan_time_utc=?
+                  AND (p.status IN ('CONFIRMED','BORDERLINE') OR p.status IS NULL)
                 ORDER BY CASE e.summary
                     WHEN 'DAYANAK_COK_GUCLU' THEN 0 WHEN 'DAYANAK_GUCLU' THEN 1
                     WHEN 'DAYANAK_ORTA' THEN 2 ELSE 3 END,
@@ -65,10 +65,16 @@ def main():
     lines=[
         "🛰 BINANCE AVCI | DAYANAK RAPORU",
         f"• Piyasa: {scan['btc_regime']} | BTC 24s %{scan['btc_change_24h']:+.2f}",
-        f"• Taranan: {scan['universe_size']} coin | aday: {counts.get('CANDIDATE',0)}",
+        f"• Taranan: {scan['universe_size']} coin | ilk aday: {counts.get('CANDIDATE',0)}",
         f"• Veri kalitesi: {mode}" + (" (Binance futures eksik)" if scan["data_mode"]=="SPOT_ONLY" else ""),
         ""
     ]
+    if table(c,"binance_live_pool"):
+        pc={r["status"]:r["n"] for r in c.execute("""SELECT status,COUNT(*) n
+            FROM binance_live_pool WHERE scan_time_utc=? GROUP BY status""",(ts,))}
+        total=sum(pc.values())
+        lines.append(f"• 15dk havuz: {total} coin | teyit {pc.get('CONFIRMED',0)} | sınırda {pc.get('BORDERLINE',0)} | sönen {pc.get('FADED',0)}")
+        lines.append("")
     if not evrows:
         lines.append("🚫 Bu tur dayanağı incelenebilir temiz aday yok.")
     labels={"DAYANAK_COK_GUCLU":"🟣 ÇOK GÜÇLÜ DAYANAK","DAYANAK_GUCLU":"🟢 GÜÇLÜ DAYANAK",
@@ -76,6 +82,9 @@ def main():
     for i,r in enumerate(evrows[:5],1):
         sup=arr(r["support_json"]); con=arr(r["counter_json"]); unk=arr(r["unknown_json"])
         lines.append(f"{early_dot(r)} {labels.get(r['summary'],'⚪ DAYANAK BELİRSİZ')} — {r['symbol']}")
+        if r["pool_status"]:
+            ps={"CONFIRMED":"15dk canlı teyit geçti","BORDERLINE":"15dk teyit sınırda","FADED":"15dk içinde söndü"}.get(r["pool_status"],r["pool_status"])
+            lines.append(f"• Canlı izleme: {ps} | skor {r['pool_confirmation_score'] or 0}/6")
         lines.append(f"• Destek: {r['evidence_count']} | karşı kanıt: {r['counter_count']} | veri kapsamı: %{r['coverage_pct']:.0f}")
         for x in sup[:3]: lines.append(f"  ✅ {x}")
         for x in con[:2]: lines.append(f"  ⚠️ {x}")
