@@ -177,6 +177,10 @@ jobs:
         continue-on-error: true
         run: python -u research_decision_discipline.py binance
 
+      - name: Audit unresolved Binance research evidence gaps
+        continue-on-error: true
+        run: python -u research_gap_audit.py binance
+
       - name: Evaluate Binance trade readiness
         continue-on-error: true
         run: python -u trade_readiness_layer.py binance
