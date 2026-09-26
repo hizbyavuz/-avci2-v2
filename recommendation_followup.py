@@ -53,6 +53,8 @@ def init(c):
         c.execute("ALTER TABLE recommendation_followups ADD COLUMN peak_price REAL")
     if "max_gain_pct" not in cols:
         c.execute("ALTER TABLE recommendation_followups ADD COLUMN max_gain_pct REAL")
+    if "qualification" not in cols:
+        c.execute("ALTER TABLE recommendation_followups ADD COLUMN qualification TEXT NOT NULL DEFAULT 'LEGACY_UNQUALIFIED'")
     c.execute("""CREATE INDEX IF NOT EXISTS idx_recommendation_followups_due
         ON recommendation_followups(source,status,due_at_utc)""")
 
@@ -108,8 +110,8 @@ def register_binance(c):
         due=(at+timedelta(hours=HOURS)).isoformat()
         c.execute("""INSERT OR IGNORE INTO recommendation_followups
             (source,asset_key,display_name,recommended_at_utc,recommendation_price,
-             evidence_tier,early_dot,due_at_utc,status)
-            VALUES('BINANCE',?,?,?,?,?,?,?,'PENDING')""",
+             evidence_tier,early_dot,due_at_utc,status,qualification)
+            VALUES('BINANCE',?,?,?,?,?,?,?,'PENDING','PAPER_ELIGIBLE')""",
             (key,key,ts,r["price"],r["summary"],early_binance(r),due))
         n+=c.execute("SELECT changes()").fetchone()[0]
     return n
@@ -153,8 +155,8 @@ def register_gate(c):
         due=(at+timedelta(hours=HOURS)).isoformat()
         c.execute("""INSERT OR IGNORE INTO recommendation_followups
             (source,asset_key,display_name,recommended_at_utc,recommendation_price,
-             evidence_tier,early_dot,due_at_utc,status)
-            VALUES('GATE',?,?,?,?,?,?,?,'PENDING')""",
+             evidence_tier,early_dot,due_at_utc,status,qualification)
+            VALUES('GATE',?,?,?,?,?,?,?,'PENDING','PAPER_ELIGIBLE')""",
             (key,name,at.isoformat(),price,r["summary"],early_gate(obs),due))
         n+=c.execute("SELECT changes()").fetchone()[0]
     return n
@@ -202,7 +204,7 @@ def peak_gate_price(c,key,start_iso,end_iso):
 
 def process_due(c,source):
     due=c.execute("""SELECT * FROM recommendation_followups
-        WHERE source=? AND status='PENDING' AND due_at_utc<=?
+        WHERE source=? AND status='PENDING' AND qualification='PAPER_ELIGIBLE' AND due_at_utc<=?
         ORDER BY due_at_utc LIMIT 20""",(source,now().isoformat())).fetchall()
     out=[]
     for r in due:
