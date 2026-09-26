@@ -89,6 +89,10 @@ jobs:
         run: python -u binance_scanner.py
 
       - name: Run 15-minute live confirmation pool
+        continue-on-error: true
+        timeout-minutes: 18
+        env:
+          POOL_WORKERS: "8"
         run: python -u binance_live_pool.py
 
       - name: Confirm live-pool moves on other spot venues
