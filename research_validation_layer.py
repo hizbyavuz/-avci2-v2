@@ -252,6 +252,9 @@ def init(c):
       source TEXT,version TEXT,family TEXT,hypothesis TEXT,split TEXT,created_utc TEXT,
       selection_eligible INTEGER,notes TEXT,
       PRIMARY KEY(source,version,family,hypothesis,split));
+    CREATE TABLE IF NOT EXISTS research_purged_folds(
+      source TEXT,version TEXT,fold INTEGER,event_key TEXT,role TEXT,event_time TEXT,
+      PRIMARY KEY(source,version,fold,event_key));
     """)
     c.commit()
 
@@ -340,6 +343,35 @@ def store_splits(c,source,rows):
 
 def is_candidate(source,g):
     return g=="CANDIDATE" if source=="BINANCE" else g in ("CANDIDATE","EXPANDED_CANDIDATE")
+
+def build_purged_folds(c,source,rows,k=5):
+    """Create reusable chronological purged folds from non-final research data."""
+    c.execute("DELETE FROM research_purged_folds WHERE source=? AND version=?",(source,VERSION))
+    eligible=sorted([r for r in rows if split_of(r["time"]) in ("DISCOVERY","CALIBRATION") and dt(r["time"])],
+                    key=lambda r:dt(r["time"]))
+    if len(eligible)<k:
+        c.commit(); return
+    n=len(eligible)
+    for fold in range(k):
+        lo=fold*n//k; hi=(fold+1)*n//k
+        test=eligible[lo:hi]
+        if not test:continue
+        t0=dt(test[0]["time"]); t1=dt(test[-1]["time"])
+        purge0=t0-timedelta(hours=PURGE_HOURS)
+        embargo1=t1+timedelta(hours=EMBARGO_HOURS)
+        testkeys={r["key"] for r in test}
+        for r in eligible:
+            t=dt(r["time"])
+            if r["key"] in testkeys:
+                role="TEST"
+            elif purge0<=t<=embargo1:
+                role="PURGED_EMBARGO"
+            else:
+                role="TRAIN"
+            c.execute("INSERT INTO research_purged_folds VALUES(?,?,?,?,?,?)",
+                      (source,VERSION,fold,r["key"],role,r["time"]))
+    c.commit()
+
 
 def feature_thresholds(rows):
     disc=[r for r in rows if split_of(r["time"])=="DISCOVERY"]
@@ -459,6 +491,7 @@ def baselines(c,source,rows):
             choices["VOLUME_ONLY"]=top_by("own_volume_ratio")
             choices["MOMENTUM_ONLY"]=top_by("change_1h")
             choices["LIQUIDITY_ONLY"]=top_by("liquidity")
+        choices["RANDOM_CONTROL"]=[r for r in sr if r["group"]=="RANDOM_CONTROL"]
         choices["ALL_CONTROLS"]=[r for r in sr if not is_candidate(source,r["group"])]
         for name,g in choices.items():
             vals=[r["net"] for r in g if r["net"] is not None]
@@ -642,6 +675,22 @@ def latency(c,source):
                    sum(r["status"]!="OK" for r in g)/len(g),median(ages),quantile(ages,.95)))
     c.commit()
 
+def register_existing_experiments(c,source):
+    """Central trial ledger: count every predeclared test family, not only winners."""
+    if source=="BINANCE" and table(c,"binance_activation_math_results"):
+        for r in c.execute("SELECT split,combo,target_pct FROM binance_activation_math_results"):
+            c.execute("""INSERT OR REPLACE INTO research_experiment_registry VALUES(?,?,?,?,?,?,?,?)""",
+                      (source,VERSION,"ACTIVATION_COMBO",f"{r['combo']}|+{r['target_pct']}",
+                       r["split"],now(),1 if r["split"]=="VALIDATION" else 0,
+                       "Imported from frozen Binance activation family."))
+    if source=="GATE" and table(c,"gate_activation_math_results"):
+        for r in c.execute("SELECT split,combo,target_pct FROM gate_activation_math_results"):
+            c.execute("""INSERT OR REPLACE INTO research_experiment_registry VALUES(?,?,?,?,?,?,?,?)""",
+                      (source,VERSION,"ACTIVATION_COMBO",f"{r['combo']}|+{r['target_pct']}",
+                       r["split"],now(),1 if r["split"]=="VALIDATION" else 0,
+                       "Imported from frozen Gate activation family."))
+    c.commit()
+
 def report(c,source,rows,effective_families):
     def pctv(x): return "-" if x is None else f"%{100*x:.1f}"
     lines=[f"# {source} AVCI — Research Validation Layer", "",
@@ -650,7 +699,9 @@ def report(c,source,rows,effective_families):
            f"- Calibration bitiş: {CALIBRATION_END_UTC}",\n           f"- Purge/embargo: {PURGE_HOURS}s outcome purge + {EMBARGO_HOURS}s embargo",
            "- FINAL_TEST: kilitli; sonuçları kural/eşik seçmek için kullanılamaz.",
            f"- Toplam kapanmış event: {len(rows)}",
-           f"- Feature bağımsız bilgi ailesi (yaklaşık): {effective_families}", ""]
+           f"- Feature bağımsız bilgi ailesi (yaklaşık): {effective_families}",
+           f"- Kayıtlı hipotez/test sayısı: {c.execute('SELECT COUNT(*) FROM research_experiment_registry WHERE source=? AND version=?',(source,VERSION)).fetchone()[0]}",
+           f"- Purged fold satırı: {c.execute('SELECT COUNT(*) FROM research_purged_folds WHERE source=? AND version=?',(source,VERSION)).fetchone()[0]}", ""]
     lines += ["## Candidate vs control (+10)", ""]
     for r in c.execute("""SELECT * FROM research_significance WHERE source=? AND version=?
       ORDER BY CASE split WHEN 'DISCOVERY' THEN 1 WHEN 'CALIBRATION' THEN 2 ELSE 3 END""",(source,VERSION)):
@@ -686,10 +737,10 @@ def main():
         if not os.path.exists(db):print("Binance DB yok");return
         with sqlite3.connect(db,timeout=60) as c:
             c.row_factory=sqlite3.Row; init(c); rows=load_binance(c)
-            store_splits(c,mode,rows); th=attribution(c,mode,rows); ef=correlations(c,mode,rows,th)
+            store_splits(c,mode,rows); build_purged_folds(c,mode,rows); th=attribution(c,mode,rows); ef=correlations(c,mode,rows,th)
             significance(c,mode,rows); baselines(c,mode,rows); portfolio(c,mode,rows)
             regimes(c,mode,rows); drift(c,mode,rows,th); precision_recall(c,mode,rows)
-            mover_recall(c,mode,rows); kelly(c,mode,rows); latency(c,mode)
+            mover_recall(c,mode,rows); kelly(c,mode,rows); latency(c,mode); register_existing_experiments(c,mode); register_existing_experiments(c,mode)
             c.execute("INSERT OR REPLACE INTO research_validation_runs VALUES(?,?,?,?,?,?,?)",
                       (mode,VERSION,now(),DISCOVERY_END_UTC,CALIBRATION_END_UTC,1,
                        json.dumps({"rules_mutated":False,"final_test_selection_eligible":False,
@@ -701,7 +752,7 @@ def main():
         if not os.path.exists(odb) or not os.path.exists(vdb):print("Gate DB eksik");return
         with sqlite3.connect(odb,timeout=60) as c, sqlite3.connect(vdb,timeout=60) as v:
             c.row_factory=v.row_factory=sqlite3.Row; init(c); rows=load_gate(c,v)
-            store_splits(c,mode,rows); th=attribution(c,mode,rows); ef=correlations(c,mode,rows,th)
+            store_splits(c,mode,rows); build_purged_folds(c,mode,rows); th=attribution(c,mode,rows); ef=correlations(c,mode,rows,th)
             significance(c,mode,rows); baselines(c,mode,rows); portfolio(c,mode,rows)
             regimes(c,mode,rows); drift(c,mode,rows,th); precision_recall(c,mode,rows)
             mover_recall(c,mode,rows); kelly(c,mode,rows); latency(c,mode)
