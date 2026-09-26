@@ -7,7 +7,7 @@ Adds prospective genesis holdout, sequential decision checkpoints, time budget,
 edge-decay, go-live gate, global kill-switch state, benchmark/cost diagnostics.
 """
 from __future__ import annotations
-import json, math, os, sqlite3, statistics, sys
+import json, math, os, random, sqlite3, statistics, sys
 from collections import defaultdict
 from datetime import datetime, timezone, timedelta
 
@@ -120,7 +120,8 @@ def closed_rows(c,source):
         return [dict(r) for r in c.execute("""SELECT s.event_id key,s.signal_time_utc t,
           s.event_class grp,s.btc_regime regime,o.net_return_pct net,o.excess_vs_btc_pct excess
           FROM signal_events s JOIN outcome_labels o ON o.event_id=s.event_id
-          WHERE o.label_status='CLOSED' AND s.event_class='CANDIDATE'
+          WHERE o.label_status='CLOSED'
+            AND s.event_class IN ('CANDIDATE','NEAR_MISS','RANDOM_CONTROL')
           ORDER BY s.signal_time_utc""")]
     if source=="GATE" and table(c,"decision_gate_events"):
         return []
@@ -131,16 +132,45 @@ def gate_closed(v):
     if not table(v,"validation_events"):return []
     return [dict(r) for r in v.execute("""SELECT id key,signal_iso t,group_type grp,
       btc_regime regime,net_final_pct net FROM validation_events
-      WHERE status='CLOSED_72H' AND group_type IN ('CANDIDATE','EXPANDED_CANDIDATE')
+      WHERE status='CLOSED_72H'
+        AND group_type IN ('CANDIDATE','EXPANDED_CANDIDATE','NEAR_MISS','RANDOM_CONTROL')
       ORDER BY signal_ts""")]
+
+def is_candidate(source,r):
+    g=str(r.get("grp") or "")
+    return g=="CANDIDATE" if source=="BINANCE" else g in ("CANDIDATE","EXPANDED_CANDIDATE")
+
+def holdout_diff_ci(source,rows,nboot=1000):
+    ca=[r for r in rows if is_candidate(source,r) and r.get("net") is not None]
+    co=[r for r in rows if not is_candidate(source,r) and r.get("net") is not None]
+    if len(ca)<8 or len(co)<8:return None
+    clusters=defaultdict(list)
+    for r in rows:
+        if r.get("net") is None:continue
+        t=dt(r.get("t"))
+        if not t:continue
+        k=f"{t.date().isoformat()}|{r.get('regime') or 'UNKNOWN'}"
+        clusters[k].append(r)
+    keys=list(clusters)
+    if len(keys)<3:return None
+    rng=random.Random(26092026); diffs=[]
+    for _ in range(nboot):
+        sample=[]
+        for _k in keys:sample.extend(clusters[rng.choice(keys)])
+        a=[float(r["net"]) for r in sample if is_candidate(source,r)]
+        b=[float(r["net"]) for r in sample if not is_candidate(source,r)]
+        if a and b:diffs.append(avg(a)-avg(b))
+    if len(diffs)<100:return None
+    diffs.sort()
+    return diffs[int(.025*(len(diffs)-1))]
 
 def edge_decay(c,source,rows):
     c.execute("DELETE FROM edge_decay_metrics WHERE source=? AND version=?",(source,VERSION))
     end=now()
     for days in EDGE_WINDOWS:
         start=end-timedelta(days=days)
-        recent=[r for r in rows if dt(r.get("t")) and dt(r["t"])>=start and r.get("net") is not None]
-        first=[r for r in rows if r.get("net") is not None][:len(recent)] if recent else []
+        recent=[r for r in rows if is_candidate(source,r) and dt(r.get("t")) and dt(r["t"])>=start and r.get("net") is not None]
+        first=[r for r in rows if is_candidate(source,r) and r.get("net") is not None][:len(recent)] if recent else []
         for label,g in (("RECENT",recent),("EARLY_MATCHED_N",first)):
             vals=[float(r["net"]) for r in g]
             precision=sum(x>0 for x in vals)/len(vals) if vals else None
@@ -210,21 +240,21 @@ def sequential(c,source,eff,metrics):
 def evaluate(source,c,rows):
     start=dt(HOLDOUT_START)
     hold_rows=[r for r in rows if dt(r.get("t")) and dt(r["t"])>=start]
-    eff=holdout_effective_n(hold_rows); pm=portfolio_metrics(c,source)
-    vals=[float(r["net"]) for r in hold_rows if r.get("net") is not None]
+    hold_candidates=[r for r in hold_rows if is_candidate(source,r)]
+    eff=holdout_effective_n(hold_candidates); pm=portfolio_metrics(c,source)
+    vals=[float(r["net"]) for r in hold_candidates if r.get("net") is not None]
     age=(now()-start).total_seconds()/86400 if now()>=start else 0.0
     n=len(vals); exp=avg(vals); pforce=pf(vals); sh=sharpe(vals); so=sortino(vals); dd=maxdd(vals)
     fr=failure_rate(c); cov=execution_coverage(c,source)
-    excess=benchmark_excess(rows) if source=="BINANCE" else None
-    # Candidate-control CI for go-live must come from prospective holdout only.
-    # Until enough holdout controls are stored in a dedicated cross-engine holdout table,
-    # this remains unavailable and blocks live promotion by design.
-    ci_low=None
+    excess=benchmark_excess(hold_candidates) if source=="BINANCE" else None
+    ci_low=holdout_diff_ci(source,hold_rows)
 
     metrics={"candidate_closed":n,"effective_n":eff,"expectancy_pct":exp,"profit_factor":pforce,
              "sharpe":sh,"sortino":so,"max_drawdown":dd,"data_failure_rate":fr,
              "execution_coverage":cov,"candidate_control_ci_low":ci_low,
-             "benchmark_excess_pct":excess,"prospective_holdout_rows":len(hold_rows)}
+             "benchmark_excess_pct":excess,"prospective_holdout_rows":len(hold_rows),
+             "prospective_holdout_candidates":len(hold_candidates),
+             "prospective_holdout_controls":len(hold_rows)-len(hold_candidates)}
     crossed,nextcp=sequential(c,source,eff,metrics)
 
     reasons=[]
