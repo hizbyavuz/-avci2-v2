@@ -1,7 +1,7 @@
 import os
 import requests
 
-from research_telemetry import start as telemetry_start, record as telemetry_record
+from research_telemetry import (start as telemetry_start, record as telemetry_record,\n                                infer_source_event_time)
 
 def _telemetry_provider(url):
     u=str(url or "").lower()
@@ -19,9 +19,15 @@ def telemetry_get(url, *args, **kwargs):
     tp,tu=telemetry_start()
     try:
         r=requests.get(url,*args,**kwargs)
-        telemetry_record("GATE",_telemetry_provider(url),str(url),tp,tu,
+        payload=None
+        try: payload=r.json()
+        except Exception: pass
+        provider=_telemetry_provider(url)
+        telemetry_record("GATE",provider,str(url),tp,tu,
                          status="OK" if r.ok else "HTTP_ERROR",
-                         http_status=getattr(r,"status_code",None))
+                         http_status=getattr(r,"status_code",None),
+                         source_event_time_utc=infer_source_event_time(
+                             provider,str(url),payload))
         return r
     except Exception as e:
         telemetry_record("GATE",_telemetry_provider(url),str(url),tp,tu,
@@ -32,9 +38,15 @@ def telemetry_post(url, *args, **kwargs):
     tp,tu=telemetry_start()
     try:
         r=requests.post(url,*args,**kwargs)
-        telemetry_record("GATE",_telemetry_provider(url),str(url),tp,tu,
+        payload=None
+        try: payload=r.json()
+        except Exception: pass
+        provider=_telemetry_provider(url)
+        telemetry_record("GATE",provider,str(url),tp,tu,
                          status="OK" if r.ok else "HTTP_ERROR",
-                         http_status=getattr(r,"status_code",None))
+                         http_status=getattr(r,"status_code",None),
+                         source_event_time_utc=infer_source_event_time(
+                             provider,str(url),payload))
         return r
     except Exception as e:
         telemetry_record("GATE",_telemetry_provider(url),str(url),tp,tu,
