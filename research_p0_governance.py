@@ -82,7 +82,7 @@ def two_way_cluster_diff(rows,is_candidate):
             "asset_clusters":ga,"week_clusters":gw,"asset_week_clusters":gi}
 
 def init(c):
-    c.execute("""CREATE TABLE IF NOT EXISTS research_p0_governance(
+    c.executescript("""CREATE TABLE IF NOT EXISTS research_p0_governance(
       source TEXT NOT NULL,
       version TEXT NOT NULL,
       audited_at_utc TEXT NOT NULL,
@@ -213,13 +213,13 @@ def write(c,source,files,stats,leakage,dependence):
     # That would make optional stopping easier. A power plan must be predeclared
     # from an externally chosen minimum economically meaningful effect.
     power_status="NEEDS_PREDECLARED_MINIMUM_EFFECT"
-    optional="NO_FIXED_STOP_RULE_YET"
+    optional="SEQUENTIAL_CHECKPOINTS_FROZEN_POWER_EFFECT_PENDING"
     notes={
       "primary_kpi":"Cost-aware net expectancy per signal; hit-rate is secondary.",
       "dependence":"Report assets, ISO weeks and asset×week clusters separately; raw event N is not treated as independent N.",
       "freeze_proof":"GitHub run SHA plus SHA256 of frozen source/config files.",
       "power":"Do not derive minimum N from the currently observed uplift. Choose minimum economically meaningful effect first, then freeze power/sample plan.",
-      "optional_stopping":"Until a power/sample stopping rule is frozen, results remain exploratory even if p/q values look attractive.",
+      "optional_stopping":"Sequential checkpoints are frozen; results remain exploratory until the minimum economic effect/power plan is predeclared and the prospective holdout matures.",
       "two_way_clustering":"Candidate-control expectancy includes an asset + ISO-week cluster-robust diagnostic with asset×week intersection correction."
     }
     m=manifest(files)
