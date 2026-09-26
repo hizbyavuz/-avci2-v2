@@ -20,6 +20,8 @@ on:
       - "research_decision_discipline.py"
       - "institutional_validation_suite.py"
       - "institutional_signal_overlay.py"
+      - "correlation_position_overlay.py"
+      - "execution_size_curve.py"
       - "execution_fill_import.py"
       - "execution_fill_observations.csv"
       - "security_redteam.py"
@@ -185,6 +187,17 @@ jobs:
       - name: Enforce Gate frozen decision discipline
         continue-on-error: true
         run: python -u research_decision_discipline.py gate
+
+      - name: Measure Gate execution size/slippage curve
+        continue-on-error: true
+        env:
+          JUPITER_API_KEY: ${{ secrets.JUPITER_API_KEY }}
+          ZEROX_API_KEY: ${{ secrets.ZEROX_API_KEY }}
+        run: python -u execution_size_curve.py gate
+
+      - name: Measure Gate candidate correlation and paper size multiplier
+        continue-on-error: true
+        run: python -u correlation_position_overlay.py gate
 
       - name: Build Gate institutional signal overlay
         continue-on-error: true
