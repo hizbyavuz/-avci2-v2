@@ -103,7 +103,8 @@ jobs:
             gate_research_integrity.py \
             binance_scanner.py \
             scanner.py \
-            binance_engine_status_v2.py
+            binance_engine_status_v2.py \
+            recommendation_followup.py
           python -m json.tool research_validation_spec.json >/dev/null
 
       - name: Run validation-layer tests
