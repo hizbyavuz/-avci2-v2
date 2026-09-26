@@ -43,11 +43,16 @@ def main():
         if table(c,"binance_candidate_evidence"):
             evrows=c.execute("""SELECT e.*,f.stage,f.engine,f.score,f.change_24h,f.btc_relative_24h,
                        f.wakeup,f.reignition,f.trigger,f.retention,f.climax_risk,
-                       p.status AS pool_status,p.confirmation_score AS pool_confirmation_score
+                       p.status AS pool_status,p.confirmation_score AS pool_confirmation_score,
+                       tr.readiness AS trade_readiness,tr.passed_count AS ready_passed,
+                       tr.failed_count AS ready_failed,tr.unknown_count AS ready_unknown
                 FROM binance_candidate_evidence e JOIN features f
                   ON f.scan_time_utc=e.scan_time_utc AND f.symbol=e.symbol
                 LEFT JOIN binance_live_pool p
                   ON p.scan_time_utc=e.scan_time_utc AND p.symbol=e.symbol
+                LEFT JOIN trade_readiness tr
+                  ON tr.source='BINANCE' AND tr.batch_key=e.scan_time_utc
+                 AND tr.asset_key=e.symbol
                 WHERE e.scan_time_utc=?
                   AND (p.status IN ('CONFIRMED','BORDERLINE') OR p.status IS NULL)
                 ORDER BY CASE e.summary
@@ -85,6 +90,8 @@ def main():
         if r["pool_status"]:
             ps={"CONFIRMED":"15dk canlı teyit geçti","BORDERLINE":"15dk teyit sınırda","FADED":"15dk içinde söndü"}.get(r["pool_status"],r["pool_status"])
             lines.append(f"• Canlı izleme: {ps} | skor {r['pool_confirmation_score'] or 0}/6")
+        rr={"PAPER_ELIGIBLE":"KAĞIT ÜSTÜ İŞLEME UYGUN","WATCH":"İZLE","NOT_READY":"HAZIR DEĞİL"}.get(r["trade_readiness"],"DEĞERLENDİRİLMEDİ")
+        lines.append(f"• İşlem hazırlığı: {rr}")
         lines.append(f"• Destek: {r['evidence_count']} | karşı kanıt: {r['counter_count']} | veri kapsamı: %{r['coverage_pct']:.0f}")
         for x in sup[:3]: lines.append(f"  ✅ {x}")
         for x in con[:2]: lines.append(f"  ⚠️ {x}")
