@@ -41,6 +41,7 @@ jobs:
             avci2.db
             avci_outcomes.db
             avci_validation_v5.db
+            gate_research_validation.md
           key: avci2-db-${{ github.run_id }}
           restore-keys: |
             avci2-db-        
@@ -146,6 +147,10 @@ jobs:
       - name: Run Gate P0 governance audit
         continue-on-error: true
         run: python -u research_p0_governance.py gate
+
+      - name: Run unified Gate research validation
+        continue-on-error: true
+        run: python -u research_validation_layer.py gate
 
       - name: Evaluate Gate trade readiness
         continue-on-error: true
