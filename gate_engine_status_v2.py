@@ -72,6 +72,16 @@ def main():
         if table(c,"institutional_signal_overlay"):
             overlays={x["asset_key"]:x for x in c.execute("""SELECT * FROM institutional_signal_overlay
                 WHERE source='GATE' AND batch_key=? ORDER BY created_at_utc DESC""",(str(batch),)).fetchall()}
+
+        corr_overlay={}
+        if table(c,"correlation_position_overlay"):
+            corr_overlay={x["asset_key"]:x for x in c.execute("""SELECT * FROM correlation_position_overlay
+                WHERE source='GATE' AND batch_key=? ORDER BY created_at_utc DESC""",(str(batch),)).fetchall()}
+        size_curves={}
+        if table(c,"execution_size_curve"):
+            for x in c.execute("""SELECT * FROM execution_size_curve
+              WHERE source='GATE' AND batch_key=? ORDER BY asset_key,size_usd""",(str(batch),)).fetchall():
+                size_curves.setdefault(x["asset_key"],[]).append(x)
         enriched=[]
         for r in evrows:
             e=events.get(r["validation_id"])
@@ -121,6 +131,16 @@ def main():
             lines.append(f"• Mod: {ov['system_mode']} | vol {ov['volatility_regime']} | likidite {ov['liquidity_regime']}")
             if ov["crowding_status"]!="UNAVAILABLE":
                 lines.append(f"• Sosyal crowding: {ov['crowding_status']} ({ov['crowding_value'] if ov['crowding_value'] is not None else '-'})")
+            key=f"{net}:{e['token_contract']}" if e else None
+            cr=corr_overlay.get(key) if key else None
+            if cr:
+                mc="-" if cr["max_peer_corr"] is None else f"{float(cr['max_peer_corr']):.2f}"
+                lines.append(f"• Korelasyon riski: {cr['risk_label']} | max corr {mc} | paper boyut ×{float(cr['size_multiplier']):.2f}")
+            curve=size_curves.get(key,[]) if key else []
+            if curve:
+                txt=[f"${int(float(q['size_usd']))}:{float(q['roundtrip_loss_pct']):.2f}%"
+                     for q in curve if q["roundtrip_loss_pct"] is not None]
+                if txt: lines.append("• Execution eğrisi: "+" | ".join(txt))
         if ready:
             rr={"PAPER_ELIGIBLE":"KAĞIT ÜSTÜ İŞLEME UYGUN","WATCH":"İZLE","NOT_READY":"HAZIR DEĞİL"}.get(ready["readiness"],"DEĞERLENDİRİLMEDİ")
             lines.append(f"• İşlem hazırlığı: {rr}")
