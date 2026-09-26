@@ -16,6 +16,9 @@ from datetime import datetime, timezone
 VERSION="research-p0-governance-v1-20260926"
 PRIMARY_KPI="NET_EXPECTANCY_PER_SIGNAL"
 SECONDARY_KPIS=("PROFIT_FACTOR","MEDIAN_NET_RETURN","HIT_10_BEFORE_STOP","EXCESS_RETURN")
+MIN_ECONOMIC_DIFF_PCT=0.50
+ALPHA_TWO_SIDED=0.05
+TARGET_POWER=0.80
 
 BINANCE_FROZEN_FILES=[
     "binance_scanner.py","binance_outcome_labeler.py",
@@ -212,14 +215,14 @@ def write(c,source,files,stats,leakage,dependence):
     # We deliberately do NOT auto-select a sample size from observed performance.
     # That would make optional stopping easier. A power plan must be predeclared
     # from an externally chosen minimum economically meaningful effect.
-    power_status="NEEDS_PREDECLARED_MINIMUM_EFFECT"
-    optional="SEQUENTIAL_CHECKPOINTS_FROZEN_POWER_EFFECT_PENDING"
+    power_status="PREDECLARED_DECISION_CONTRACT_FROZEN"
+    optional="SEQUENTIAL_CHECKPOINTS_AND_MDE_FROZEN"
     notes={
       "primary_kpi":"Cost-aware net expectancy per signal; hit-rate is secondary.",
       "dependence":"Report assets, ISO weeks and asset×week clusters separately; raw event N is not treated as independent N.",
       "freeze_proof":"GitHub run SHA plus SHA256 of frozen source/config files.",
-      "power":"Do not derive minimum N from the currently observed uplift. Choose minimum economically meaningful effect first, then freeze power/sample plan.",
-      "optional_stopping":"Sequential checkpoints are frozen; results remain exploratory until the minimum economic effect/power plan is predeclared and the prospective holdout matures.",
+      "power":f"Frozen before genesis holdout: minimum economic candidate-control expectancy difference={MIN_ECONOMIC_DIFF_PCT:.2f} percentage points/signal, two-sided alpha={ALPHA_TWO_SIDED:.2f}, target power={TARGET_POWER:.2f}. Achieved power remains dependence/variance-sensitive; no post-hoc resizing from observed uplift.",
+      "optional_stopping":"Sequential checkpoints and minimum economic effect are frozen before prospective holdout; decisions remain blocked until the holdout matures and pre-registered go-live criteria pass.",
       "two_way_clustering":"Candidate-control expectancy includes an asset + ISO-week cluster-robust diagnostic with asset×week intersection correction."
     }
     m=manifest(files)
