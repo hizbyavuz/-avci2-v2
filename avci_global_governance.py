@@ -120,17 +120,27 @@ def main():
     for r in hold:
         regimes[r.get("regime") or "UNKNOWN"][0 if r["engine"]=="BINANCE" else 1]+=1
     btc=benchmark("BTCUSDT");sol=benchmark("SOLUSDT");port=simulate(hold)
+    global_kill_reasons=[]
+    if port["max_drawdown_pct"]>20.0:
+        global_kill_reasons.append("GLOBAL_MAX_DRAWDOWN")
+    dc=corr(bc,gc)
+    if dc is not None and dc>=0.75 and overlap_days>=5:
+        global_kill_reasons.append("CROSS_ENGINE_SIGNAL_CROWDING")
+    if btc.get("status")=="OK" and port["total_return_pct"]<=btc["return_pct"]:
+        global_kill_reasons.append("NO_EXCESS_VS_BTC")
     report={
       "version":VERSION,"generated_at_utc":datetime.now(timezone.utc).isoformat(),
       "holdout_start":HOLDOUT_START,"events":len(hold),
       "binance_events":sum(r["engine"]=="BINANCE" for r in hold),
       "gate_events":sum(r["engine"]=="GATE" for r in hold),
       "same_day_overlap_days":overlap_days,"same_week_overlap_weeks":overlap_weeks,
-      "daily_signal_count_correlation":corr(bc,gc),
+      "daily_signal_count_correlation":dc,
       "regime_exposure":dict(regimes),"global_portfolio":port,
       "btc_buy_hold":btc,"sol_buy_hold":sol,
       "excess_vs_btc_pct":port["total_return_pct"]-btc["return_pct"] if btc.get("status")=="OK" else None,
       "excess_vs_sol_pct":port["total_return_pct"]-sol["return_pct"] if sol.get("status")=="OK" else None,
+      "global_kill_switch":"RESEARCH_ONLY" if global_kill_reasons else "ARMED_PAPER_ONLY",
+      "global_kill_reasons":global_kill_reasons,
       "risk_note":"Global cap=5 and per-engine cap=3; 72h capital lock."
     }
     with sqlite3.connect("avci_global_governance.db") as c:
