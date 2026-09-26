@@ -14,6 +14,7 @@ on:
       - "binance_research_integrity.py"
       - "binance_live_pool.py"
       - "trade_readiness_layer.py"
+      - "readiness_shadow_paper.py"
       - "binance_context_research.py"
       - ".github/workflows/binance-money-flow.yml"
   schedule:
@@ -105,6 +106,10 @@ jobs:
       - name: Evaluate execution-aware trade readiness
         continue-on-error: true
         run: python -u trade_readiness_layer.py binance
+
+      - name: Run readiness-qualified shadow paper trades
+        continue-on-error: true
+        run: python -u readiness_shadow_paper.py binance
 
       - name: Send one consolidated Binance motor message
         if: success()
