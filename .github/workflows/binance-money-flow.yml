@@ -13,6 +13,8 @@ on:
       - "binance_evidence_research.py"
       - "binance_research_integrity.py"
       - "binance_live_pool.py"
+      - "trade_readiness_layer.py"
+      - "binance_context_research.py"
       - ".github/workflows/binance-money-flow.yml"
   schedule:
     - cron: "2,22,42 * * * *"
@@ -51,6 +53,10 @@ jobs:
 
       - name: Run 15-minute live confirmation pool
         run: python -u binance_live_pool.py
+
+      - name: Build cross-sectional and trajectory context
+        continue-on-error: true
+        run: python -u binance_context_research.py
 
       - name: Record pre-signal market structure
         continue-on-error: true
@@ -95,6 +101,10 @@ jobs:
         continue-on-error: true
         run: python -u binance_activation_math.py
 
+
+      - name: Evaluate execution-aware trade readiness
+        continue-on-error: true
+        run: python -u trade_readiness_layer.py binance
 
       - name: Send one consolidated Binance motor message
         if: success()
