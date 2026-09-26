@@ -106,6 +106,8 @@ def main():
         if table(c,"gate_weighted_discovery"):
             discovery_rows=c.execute("""SELECT * FROM gate_weighted_discovery
                 WHERE batch_id=? AND status='SAFE_DISCOVERY'
+                  AND score>=55
+                  AND change_24h BETWEEN -5 AND 40
                 ORDER BY score DESC,liquidity DESC LIMIT 5""",(batch,)).fetchall()
 
         size_curves={}
