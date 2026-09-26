@@ -6,6 +6,8 @@ on:
     paths:
       - "research_validation_layer.py"
       - "research_gap_audit.py"
+      - "institutional_validation_suite.py"
+      - "institutional_signal_overlay.py"
       - "read_only_execution_collector.py"
       - "historical_timing_proxy.py"
       - "gate_official_delist_import.py"
@@ -52,6 +54,8 @@ jobs:
           python -m py_compile \
             research_validation_layer.py \
             research_gap_audit.py \
+            institutional_validation_suite.py \
+            institutional_signal_overlay.py \
             read_only_execution_collector.py \
             historical_timing_proxy.py \
             gate_official_delist_import.py \
