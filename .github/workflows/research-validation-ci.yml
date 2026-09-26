@@ -5,7 +5,11 @@ on:
   push:
     paths:
       - "research_validation_layer.py"
+      - "research_p0_governance.py"
       - "research_telemetry.py"
+      - "binance_research_integrity.py"
+      - "gate_research_integrity.py"
+      - "history_delist_backfill.py"
       - "research_validation_spec.json"
       - "security_adversarial_corpus.csv"
       - "security_corpus_requirements.json"
