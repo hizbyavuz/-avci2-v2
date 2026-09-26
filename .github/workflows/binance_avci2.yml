@@ -59,6 +59,24 @@ jobs:
         run: pip install -r binance_requirements.txt
 
       # Cross-module regression tests intentionally include Gate notification compatibility.
+      - name: Restore verified real fill observations
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p .execution-fill
+          run_id=$(gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts?name=execution-fill-observations&per_page=100" \
+            --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | reverse | .[0].workflow_run.id // empty')
+          if test -n "$run_id"; then
+            gh run download "$run_id" --name execution-fill-observations --dir .execution-fill
+          fi
+
+      - name: Import verified real fill observations when available
+        continue-on-error: true
+        env:
+          EXECUTION_FILL_FILE: .execution-fill/execution_fill_observations.csv
+        run: python -u execution_fill_import.py
+
       - name: Run permanent tests
         run: python -m unittest discover -s tests -v
 
@@ -154,6 +172,10 @@ jobs:
       - name: Run unified Binance research validation
         continue-on-error: true
         run: python -u research_validation_layer.py binance
+
+      - name: Enforce Binance frozen decision discipline
+        continue-on-error: true
+        run: python -u research_decision_discipline.py binance
 
       - name: Evaluate Binance trade readiness
         continue-on-error: true
