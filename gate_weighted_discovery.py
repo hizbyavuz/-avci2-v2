@@ -21,7 +21,7 @@ from gate_early_observer import contract_key
 from gate_notify import security_decision
 
 VERSION = "gate-weighted-discovery-v1-20260926"
-MAX_SECURITY_REVIEWS = 8
+MAX_SECURITY_REVIEWS = 12
 MAX_SAFE_OUTPUT = 5
 
 def _f(v, default=0.0):
@@ -132,11 +132,17 @@ def score_item(item, own_ratio=None):
     if v5>=100:
         score+=2
 
-    # Age is evidence, not a gate. Very new pools get a caution penalty.
+    # Age is evidence, not a gate. Very new pools can still qualify when
+    # absolute activity is already strong; this closes the blind spot where
+    # 10–60 minute movers were invisible simply because own-history was short.
     if age>=24*60:
         score+=3
+    elif 10<=age<60 and liq>=20000 and v5>=500 and b5>=1.4*max(s5,1):
+        score+=10; evidence.append("çok yeni havuzda güçlü erken aktivite")
+    elif 0<=age<10:
+        score-=4; evidence.append("10 dakikadan genç havuz")
     elif 0<=age<60:
-        score-=6; evidence.append("çok yeni havuz")
+        score-=2; evidence.append("çok yeni havuz")
 
     # Existing risk-shape outputs, if present, are counter-evidence.
     if (item.get("climax") or {}).get("risk"):
@@ -238,6 +244,8 @@ def top_safe(db_path,batch,limit=MAX_SAFE_OUTPUT):
         try:
             return con.execute("""SELECT * FROM gate_weighted_discovery
                 WHERE batch_id=? AND status='SAFE_DISCOVERY'
+                  AND score>=55
+                  AND change_24h BETWEEN -5 AND 40
                 ORDER BY score DESC,liquidity DESC LIMIT ?""",(batch,limit)).fetchall()
         except sqlite3.Error:
             return []
