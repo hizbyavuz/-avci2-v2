@@ -1,0 +1,67 @@
+name: Import Security Adversarial Corpus
+
+on:
+  workflow_dispatch:
+    inputs:
+      corpus_url:
+        description: "HTTPS URL of independently labelled security corpus CSV"
+        required: true
+        type: string
+      sha256:
+        description: "Expected SHA256 of the CSV"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Download and verify corpus
+        env:
+          CORPUS_URL: ${{ inputs.corpus_url }}
+          EXPECTED_SHA256: ${{ inputs.sha256 }}
+        run: |
+          test "${CORPUS_URL#https://}" != "$CORPUS_URL"
+          curl --fail --location --silent --show-error "$CORPUS_URL" -o security_adversarial_corpus.csv
+          echo "$EXPECTED_SHA256  security_adversarial_corpus.csv" | sha256sum -c -
+
+      - name: Validate corpus schema and labels
+        run: |
+          python - <<'PY'
+          import csv,sys
+          req={"case_id","network_id","contract","label","incident_type","incident_time_utc","validation_event_id","source_url","notes"}
+          with open("security_adversarial_corpus.csv",newline="",encoding="utf-8") as f:
+              rows=list(csv.DictReader(f))
+          if not rows:
+              raise SystemExit("empty corpus")
+          missing=req-set(rows[0])
+          if missing:
+              raise SystemExit(f"missing columns: {sorted(missing)}")
+          bad=good=0
+          for r in rows:
+              label=(r.get("label") or "").upper()
+              if label not in {"BAD","GOOD"}:
+                  raise SystemExit(f"invalid label: {label}")
+              if not (r.get("source_url") or "").startswith("http"):
+                  raise SystemExit("every row needs source_url")
+              bad+=label=="BAD"; good+=label=="GOOD"
+          print({"rows":len(rows),"bad":bad,"good":good})
+          PY
+
+      - name: Upload verified corpus
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-adversarial-corpus
+          path: security_adversarial_corpus.csv
+          if-no-files-found: error
+          retention-days: 90
