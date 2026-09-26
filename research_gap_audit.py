@@ -66,9 +66,12 @@ def common(c,source):
       "synthetic_realized_cost_allowed":False
     }
     gaps["power_and_optional_stopping"]={
-      "status":"BLOCKED_MINIMUM_ECONOMIC_EFFECT_NOT_PREDECLARED",
-      "sequential_checkpoints":"FROZEN",
-      "rule":"Do not derive minimum sample size from observed uplift."
+      "status":"PREDECLARED_DECISION_CONTRACT_FROZEN",
+      "minimum_economic_candidate_control_expectancy_diff_pct":0.50,
+      "alpha_two_sided":0.05,
+      "target_power":0.80,
+      "sequential_checkpoints_effective_n":[50,100,200],
+      "rule":"Do not change the MDE/checkpoints after genesis holdout begins and do not resize from observed uplift."
     }
     return gaps
 
