@@ -7,6 +7,7 @@ coins at 0/3/6/9/12/15 minutes, then classifies persistence without changing fro
 scanner rules. Research-only.
 """
 import json, os, sqlite3, statistics, time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 
 from binance_scanner import spot_api_get
@@ -16,6 +17,7 @@ POOL_MIN=15
 POOL_MAX=25
 SAMPLE_EVERY_SECONDS=int(os.getenv("POOL_SAMPLE_SECONDS","180"))
 SAMPLES=6
+POOL_WORKERS=int(os.getenv("POOL_WORKERS","8"))
 VERSION="binance-live-pool-v1-20260926"
 
 def utc_now():
@@ -115,6 +117,53 @@ def snapshot(symbol):
     spread=((best_ask-best_bid)/mid*10000) if mid else None
     return close,qv,trades,taker_ratio,imb,spread,bids,asks
 
+def collect_sample_payload(ts,symbol,n,first_price,first_q):
+    try:
+        snap=snapshot(symbol)
+    except Exception as e:
+        return {"symbol":symbol,"error":str(e)[:120]}
+    if not snap:
+        return {"symbol":symbol,"error":"empty snapshot"}
+    price,qv,trades,taker,imb,spread,bids,asks=snap
+    first=float(first_price or price)
+    ratio=(qv/float(first_q)) if first_q not in (None,0) else 1.0
+    ch=100*(price/first-1) if first>0 else None
+    return {"symbol":symbol,"price":price,"qv":qv,"trades":trades,"taker":taker,
+            "imb":imb,"spread":spread,"bids":bids,"asks":asks,"ratio":ratio,"ch":ch}
+
+def sample_round(c,ts,symbols,n):
+    meta={}
+    for symbol in symbols:
+        p=c.execute("""SELECT first_price FROM binance_live_pool
+          WHERE scan_time_utc=? AND symbol=? AND version=?""",(ts,symbol,VERSION)).fetchone()
+        if not p: continue
+        first_q=c.execute("""SELECT quote_volume_5m FROM binance_live_pool_samples
+          WHERE scan_time_utc=? AND symbol=? AND sample_no=0 AND version=?""",
+          (ts,symbol,VERSION)).fetchone()
+        meta[symbol]=(p["first_price"], first_q[0] if first_q else None)
+    payloads=[]
+    with ThreadPoolExecutor(max_workers=max(1,POOL_WORKERS)) as ex:
+        futs={ex.submit(collect_sample_payload,ts,symbol,n,*meta[symbol]):symbol for symbol in meta}
+        for fut in as_completed(futs):
+            payloads.append(fut.result())
+    for d in payloads:
+        symbol=d["symbol"]
+        if d.get("error"):
+            print("pool sample error",symbol,d["error"]); continue
+        c.execute("""INSERT OR REPLACE INTO binance_live_pool_samples
+          (scan_time_utc,symbol,sample_no,sampled_at_utc,price,change_from_start_pct,
+           quote_volume_5m,trade_count_5m,taker_buy_ratio_5m,volume_ratio_vs_first,
+           book_imbalance,spread_bps,bid_capacity_usd,ask_capacity_usd,version)
+          VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+          (ts,symbol,n,utc_now(),d["price"],d["ch"],d["qv"],d["trades"],d["taker"],d["ratio"],
+           d["imb"],d["spread"],d["bids"],d["asks"],VERSION))
+        c.execute("""UPDATE binance_live_pool SET sample_count=(
+          SELECT COUNT(*) FROM binance_live_pool_samples
+          WHERE scan_time_utc=? AND symbol=? AND version=?)
+          WHERE scan_time_utc=? AND symbol=? AND version=?""",
+          (ts,symbol,VERSION,ts,symbol,VERSION))
+    c.commit()
+
 def add_sample(c,ts,symbol,n):
     p=c.execute("""SELECT first_price FROM binance_live_pool
       WHERE scan_time_utc=? AND symbol=? AND version=?""",(ts,symbol,VERSION)).fetchone()
@@ -184,8 +233,7 @@ def main():
         print(f"live pool | {len(symbols)} coin | 15dk izleme basladi")
         for n in range(SAMPLES):
             if n>0: time.sleep(SAMPLE_EVERY_SECONDS)
-            for sym in symbols: add_sample(c,ts,sym,n)
-            c.commit()
+            sample_round(c,ts,symbols,n)
             print(f"live pool sample {n+1}/{SAMPLES}")
         for sym in symbols: finalize(c,ts,sym)
         c.commit()
