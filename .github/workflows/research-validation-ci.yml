@@ -1,0 +1,38 @@
+name: Research Validation CI
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "research_validation_layer.py"
+      - "research_telemetry.py"
+      - "binance_scanner.py"
+      - "scanner.py"
+      - "tests/test_research_validation_layer.py"
+      - ".github/workflows/research-validation-ci.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install minimal dependencies
+        run: pip install requests
+
+      - name: Compile validation and scanner modules
+        run: |
+          python -m py_compile             research_validation_layer.py             research_telemetry.py             binance_scanner.py             scanner.py
+
+      - name: Run validation-layer tests
+        run: python -m unittest tests.test_research_validation_layer -v
