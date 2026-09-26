@@ -1,0 +1,61 @@
+name: Avci Global Governance
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "avci_global_governance.py"
+      - "research_validation_spec.json"
+      - ".github/workflows/avci-global-governance.yml"
+  schedule:
+    - cron: "55 * * * *"
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  global:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install requests
+        run: pip install requests
+
+      - name: Restore latest Binance and Gate states
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p .global/binance .global/gate
+          b_run=$(gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts?name=binance-avci2-state&per_page=100"             --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | reverse | .[0].workflow_run.id // empty')
+          g_run=$(gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts?name=gate-avci2-signal-history&per_page=100"             --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | reverse | .[0].workflow_run.id // empty')
+          if test -n "$b_run"; then gh run download "$b_run" --name binance-avci2-state --dir .global/binance; fi
+          if test -n "$g_run"; then gh run download "$g_run" --name gate-avci2-signal-history --dir .global/gate; fi
+          test -s .global/binance/binance_avci2.db
+          test -s .global/gate/avci2.db
+          test -s .global/gate/avci_validation_v5.db
+
+      - name: Run combined portfolio and benchmark governance
+        env:
+          BINANCE_DB: .global/binance/binance_avci2.db
+          AVCI_DB: .global/gate/avci2.db
+          AVCI_VALIDATION_DB: .global/gate/avci_validation_v5.db
+        run: python -u avci_global_governance.py
+
+      - name: Upload global governance report
+        uses: actions/upload-artifact@v4
+        with:
+          name: avci-global-governance
+          path: |
+            avci_global_governance.json
+            avci_global_governance.db
+          if-no-files-found: error
+          retention-days: 30
