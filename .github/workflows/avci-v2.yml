@@ -16,6 +16,7 @@ on:
       - "readiness_shadow_paper.py"
       - "research_p0_governance.py"
       - "research_validation_layer.py"
+      - "research_gap_audit.py"
       - "research_decision_discipline.py"
       - "execution_fill_import.py"
       - "execution_fill_observations.csv"
@@ -262,6 +263,7 @@ jobs:
             avci_outcomes.db
             avci_validation_v5.db
             gate_research_validation.md
+            research_gap_status_gate.json
           if-no-files-found: error
           retention-days: 3
 
