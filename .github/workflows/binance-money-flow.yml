@@ -3,7 +3,7 @@ name: Binance Early Signal Engine
 on:
   workflow_dispatch:
   schedule:
-    - cron: "2,22,42 * * * *"
+    - cron: "2,32 * * * *"
 
 permissions:
   contents: read
