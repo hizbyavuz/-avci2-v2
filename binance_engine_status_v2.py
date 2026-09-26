@@ -18,6 +18,18 @@ def arr(s):
 def pct(v):
     return "-" if v is None else f"%{100*float(v):.0f}"
 
+def early_dot(r):
+    trigger=bool(r["trigger"])
+    wake=bool(r["wakeup"])
+    reignition=bool(r["reignition"])
+    retention=bool(r["retention"])
+    climax=bool(r["climax_risk"])
+    if trigger and (wake or reignition) and retention and not climax:
+        return "🔴"
+    if (trigger or wake or reignition) and not climax:
+        return "🟡"
+    return "🟢"
+
 def main():
     if not os.path.exists(DB):
         print("Binance human report: DB yok"); return
@@ -33,7 +45,8 @@ def main():
                GROUP BY selection_class""",(ts,))}
         evrows=[]
         if table(c,"binance_candidate_evidence"):
-            evrows=c.execute("""SELECT e.*,f.stage,f.engine,f.score,f.change_24h,f.btc_relative_24h
+            evrows=c.execute("""SELECT e.*,f.stage,f.engine,f.score,f.change_24h,f.btc_relative_24h,
+                       f.wakeup,f.reignition,f.trigger,f.retention,f.climax_risk
                 FROM binance_candidate_evidence e JOIN features f
                   ON f.scan_time_utc=e.scan_time_utc AND f.symbol=e.symbol
                 WHERE e.scan_time_utc=?
@@ -62,7 +75,7 @@ def main():
             "DAYANAK_ORTA":"🟡 ORTA DAYANAK","DAYANAK_ZAYIF":"⚪ ZAYIF DAYANAK"}
     for i,r in enumerate(evrows[:5],1):
         sup=arr(r["support_json"]); con=arr(r["counter_json"]); unk=arr(r["unknown_json"])
-        lines.append(f"{labels.get(r['summary'],'⚪ DAYANAK BELİRSİZ')} — {r['symbol']}")
+        lines.append(f"{early_dot(r)} {labels.get(r['summary'],'⚪ DAYANAK BELİRSİZ')} — {r['symbol']}")
         lines.append(f"• Destek: {r['evidence_count']} | karşı kanıt: {r['counter_count']} | veri kapsamı: %{r['coverage_pct']:.0f}")
         for x in sup[:3]: lines.append(f"  ✅ {x}")
         for x in con[:2]: lines.append(f"  ⚠️ {x}")
