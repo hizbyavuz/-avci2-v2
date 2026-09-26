@@ -1,0 +1,27 @@
+{
+  "version": "security-corpus-v1-20260926",
+  "target_bad_cases": 30,
+  "target_good_controls": 30,
+  "accepted_bad_incidents": [
+    "rug_pull",
+    "honeypot",
+    "liquidity_pull",
+    "mint_abuse",
+    "freeze_abuse",
+    "confirmed_wash_sybil_manipulation"
+  ],
+  "ground_truth_rules": [
+    "Every BAD row requires an independent public source URL and incident timestamp.",
+    "Do not label a token BAD only because Avci or GoPlus flagged it.",
+    "GOOD controls must have comparable age/liquidity/network and no known incident in the evaluation horizon.",
+    "Never use model-generated labels as ground truth.",
+    "Prefer evidence archived before or at incident confirmation time."
+  ],
+  "status_when_incomplete": "NEED_GROUND_TRUTH",
+  "acquisition_plan": [
+    "Curate documented incident cases from public security incident databases and project/post-mortem reports.",
+    "Record contract address, chain, incident timestamp and source URL.",
+    "Match each BAD case with a healthy control from the same chain/age/liquidity bucket.",
+    "Run security_redteam.py; do not tune security rules on the final red-team subset."
+  ]
+}
