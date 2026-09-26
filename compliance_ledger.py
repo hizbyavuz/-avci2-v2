@@ -24,7 +24,7 @@ def init(c):
     CREATE TABLE IF NOT EXISTS compliance_transactions(
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       source TEXT NOT NULL,
-      event_key TEXT,
+      event_key TEXT NOT NULL DEFAULT '',
       asset TEXT,
       event_time_utc TEXT NOT NULL,
       record_type TEXT NOT NULL,
@@ -38,14 +38,14 @@ def init(c):
       network_fee_value REAL,
       realized_pnl_value REAL,
       currency TEXT,
-      external_order_id TEXT,
-      txid TEXT,
+      external_order_id TEXT NOT NULL DEFAULT '',
+      txid TEXT NOT NULL DEFAULT '',
       jurisdiction TEXT,
       tax_status TEXT NOT NULL DEFAULT 'UNCLASSIFIED',
       evidence_type TEXT NOT NULL,
       notes TEXT,
       imported_at_utc TEXT NOT NULL,
-      UNIQUE(source,record_type,event_time_utc,COALESCE(external_order_id,''),COALESCE(txid,''),COALESCE(event_key,''))
+      UNIQUE(source,record_type,event_time_utc,external_order_id,txid,event_key)
     );
     CREATE TABLE IF NOT EXISTS compliance_transfers(
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -58,12 +58,12 @@ def init(c):
       to_account TEXT,
       network TEXT,
       fee_value REAL,
-      txid TEXT,
+      txid TEXT NOT NULL DEFAULT '',
       jurisdiction TEXT,
       tax_status TEXT NOT NULL DEFAULT 'UNCLASSIFIED',
       notes TEXT,
       imported_at_utc TEXT NOT NULL,
-      UNIQUE(source,event_time_utc,asset,direction,COALESCE(txid,''))
+      UNIQUE(source,event_time_utc,asset,direction,txid)
     );
     """)
     c.commit()
@@ -90,8 +90,8 @@ def sync_fill_table(c,source):
            realized_pnl_value,currency,external_order_id,txid,jurisdiction,
            tax_status,evidence_type,notes,imported_at_utc)
           VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-          (source,r[1],r[2],r[3],"FILL",r[4],qty,px,gross,fee_value,fee_pct,
-           None,None,None,"USDT" if source=="BINANCE" else None,r[9],None,None,
+          (source,r[1] or "",r[2],r[3],"FILL",r[4],qty,px,gross,fee_value,fee_pct,
+           None,None,None,"USDT" if source=="BINANCE" else None,r[9] or "","",None,
            "UNCLASSIFIED","READ_ONLY_FILL_IMPORT",notes,now()))
         n+=c.execute("SELECT changes()").fetchone()[0]
     c.commit()
@@ -103,7 +103,7 @@ def add_transfer(c,args):
        network,fee_value,txid,jurisdiction,tax_status,notes,imported_at_utc)
       VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
       (args.source,args.time,args.asset,args.quantity,args.direction,
-       args.from_account,args.to_account,args.network,args.fee,args.txid,
+       args.from_account,args.to_account,args.network,args.fee,args.txid or "",
        args.jurisdiction,"UNCLASSIFIED",args.notes,now()))
     c.commit()
     return c.execute("SELECT changes()").fetchone()[0]
