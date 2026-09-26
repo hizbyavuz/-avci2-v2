@@ -67,6 +67,11 @@ def main():
         if table(c,"trade_readiness"):
             readiness={x["asset_key"]:x for x in c.execute("""SELECT * FROM trade_readiness
                 WHERE source='GATE' AND batch_key=?""",(str(batch),)).fetchall()}
+
+        overlays={}
+        if table(c,"institutional_signal_overlay"):
+            overlays={x["asset_key"]:x for x in c.execute("""SELECT * FROM institutional_signal_overlay
+                WHERE source='GATE' AND batch_key=? ORDER BY created_at_utc DESC""",(str(batch),)).fetchall()}
         enriched=[]
         for r in evrows:
             e=events.get(r["validation_id"])
@@ -99,6 +104,23 @@ def main():
         net=e["network_id"] if e else r["network_id"]
         sup=arr(r["support_json"]); con=arr(r["counter_json"]); unk=arr(r["unknown_json"])
         lines.append(f"{early_dot(obs)} {labels.get(r['summary'],'⚪ DAYANAK BELİRSİZ')} — {name} [{net}]")
+        ov=overlays.get(f"{net}:{e['token_contract']}") if e else None
+        if ov:
+            if ov["success_probability"] is not None:
+                ci=(f"%{100*float(ov['success_ci_low']):.0f}–%{100*float(ov['success_ci_high']):.0f}"
+                    if ov["success_ci_low"] is not None and ov["success_ci_high"] is not None else "-")
+                lines.append(f"• Kalibre başarı: %{100*float(ov['success_probability']):.0f} | N={ov['success_n']} | %95 CI {ci}")
+            else:
+                lines.append(f"• Kalibre başarı: örnek yetersiz | N={ov['success_n']}")
+            if ov["regime_probability"] is not None:
+                lines.append(f"• Bu rejimde: %{100*float(ov['regime_probability']):.0f} | N={ov['regime_n']} | {ov['regime_key']}")
+            if ov["candidate_net_expectancy_pct"] is not None:
+                lines.append(f"• Net beklenti: {float(ov['candidate_net_expectancy_pct']):+.2f}% | kontrol {float(ov['control_net_expectancy_pct']):+.2f}%")
+            if ov["expectancy_diff_pct"] is not None:
+                lines.append(f"• Aday-kontrol farkı: {float(ov['expectancy_diff_pct']):+.2f} puan")
+            lines.append(f"• Mod: {ov['system_mode']} | vol {ov['volatility_regime']} | likidite {ov['liquidity_regime']}")
+            if ov["crowding_status"]!="UNAVAILABLE":
+                lines.append(f"• Sosyal crowding: {ov['crowding_status']} ({ov['crowding_value'] if ov['crowding_value'] is not None else '-'})")
         if ready:
             rr={"PAPER_ELIGIBLE":"KAĞIT ÜSTÜ İŞLEME UYGUN","WATCH":"İZLE","NOT_READY":"HAZIR DEĞİL"}.get(ready["readiness"],"DEĞERLENDİRİLMEDİ")
             lines.append(f"• İşlem hazırlığı: {rr}")
@@ -123,6 +145,7 @@ def main():
         lines.append(f"🧮 Ayrı matematik testi: {math['combo_label']} | n={math['selected_n']} | lift {lift} | q={q}")
     else:
         lines.append("🧮 Ayrı matematik testi: frozen OOS örneği henüz yetersiz.")
+    lines.append("Mimari not: wake-up/retention/trigger mantığı genesis holdout öncesi tasarlandı; nihai temiz OOS dönem 7 Ekim 2026'da başlar.")
     lines.append("Not: 'dayanak' kazanma olasılığı değildir; destek/karşı-kanıt ve gerçek geçmiş sonuç özetidir.")
     token=(os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
     if not token:
