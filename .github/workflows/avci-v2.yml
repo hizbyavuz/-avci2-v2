@@ -14,6 +14,7 @@ on:
       - "gate_research_integrity.py"
       - "trade_readiness_layer.py"
       - "readiness_shadow_paper.py"
+      - "research_p0_governance.py"
       - ".github/workflows/avci-v2.yml"
   schedule:
     - cron: "8,28,48 * * * *"
@@ -141,6 +142,10 @@ jobs:
         continue-on-error: true
         run: python -u gate_activation_math.py
 
+
+      - name: Run Gate P0 governance audit
+        continue-on-error: true
+        run: python -u research_p0_governance.py gate
 
       - name: Evaluate Gate trade readiness
         continue-on-error: true
