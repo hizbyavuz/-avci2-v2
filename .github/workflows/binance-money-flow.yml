@@ -2,38 +2,6 @@ name: Binance Early Signal Engine
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - "binance_scanner.py"
-      - "binance_flow_observer.py"
-      - "binance_derivatives_fallback.py"
-      - "binance_engine_status.py"
-      - "binance_engine_status_v2.py"
-      - "binance_activation_math.py"
-      - "binance_evidence_research.py"
-      - "binance_research_integrity.py"
-      - "binance_live_pool.py"
-      - "runner_revival_observer.py"
-      - "trade_readiness_layer.py"
-      - "readiness_shadow_paper.py"
-      - "binance_context_research.py"
-      - "binance_catalyst_observer.py"
-      - "binance_crossvenue_spot.py"
-      - "research_p0_governance.py"
-      - "research_validation_layer.py"
-      - "research_gap_audit.py"
-      - "research_decision_discipline.py"
-      - "institutional_validation_suite.py"
-      - "institutional_signal_overlay.py"
-      - "correlation_position_overlay.py"
-      - "execution_size_curve.py"
-      - "institutional_context_observer.py"
-      - "execution_fill_import.py"
-      - "execution_fill_observations.csv"
-      - "research_telemetry.py"
-      - "historical_timing_proxy.py"
-      - "tests/test_research_validation_layer.py"
-      - ".github/workflows/binance-money-flow.yml"
   schedule:
     - cron: "2,22,42 * * * *"
 
