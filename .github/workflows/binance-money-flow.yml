@@ -164,7 +164,7 @@ jobs:
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: python -u binance_engine_status_v2.py
+        run: python -u binance_trader_message.py
 
       - name: Run institutional validation diagnostics
         continue-on-error: true
@@ -182,12 +182,9 @@ jobs:
         continue-on-error: true
         run: python -u readiness_shadow_paper.py binance
 
-      - name: Record recommendations and send due 72h follow-ups
+      - name: Record recommendation outcomes silently
         if: success()
         continue-on-error: true
-        env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python -u recommendation_followup.py binance
 
       - name: Upload research state
