@@ -1,0 +1,66 @@
+{
+  "version": "research-validation-v1-20260926",
+  "frozen_at_utc": "2026-09-26T10:00:00Z",
+  "immutable_signal_rules": true,
+  "splits": {
+    "discovery_end_utc": "2026-09-25T21:00:00+00:00",
+    "calibration_end_utc": "2026-10-03T00:00:00+00:00",
+    "purge_hours": 72,
+    "embargo_hours": 24,
+    "final_test_selection_eligible": false
+  },
+  "primary_target_pct": 10,
+  "bootstrap_samples": 1500,
+  "multiple_testing": "Benjamini-Hochberg FDR",
+  "clustered_inference": "day x market-regime block bootstrap",
+  "feature_redundancy": {
+    "method": "Spearman",
+    "abs_rho_threshold": 0.7
+  },
+  "drift": {
+    "psi_warn": 0.1,
+    "psi_high": 0.25,
+    "cusum_k": 0.25,
+    "cusum_h": 5
+  },
+  "portfolio": {
+    "paper_only": true,
+    "max_concurrent_positions": 5,
+    "capital_lock_hours": 72,
+    "start_equity": 100,
+    "risk_fraction": 0.02
+  },
+  "kelly": {
+    "paper_only": true,
+    "report": [
+      "raw",
+      "half",
+      "quarter",
+      "capped_quarter"
+    ],
+    "cap": 0.25
+  },
+  "baselines": [
+    "random_control",
+    "all_controls",
+    "volume_only",
+    "momentum_only",
+    "btc_relative_strength_or_liquidity_only"
+  ],
+  "recall": [
+    "event-universe precision/recall curve",
+    "Binance >=40% daily mover recall",
+    "Gate >=15% mover coverage"
+  ],
+  "telemetry": [
+    "request latency",
+    "provider error rate",
+    "source data age when source timestamp exists"
+  ],
+  "governance": [
+    "FINAL_TEST cannot select features or thresholds",
+    "new rules require a new version and new discovery cycle",
+    "all tested hypotheses are retained in experiment registry",
+    "frozen scanners are measured, not modified"
+  ]
+}
