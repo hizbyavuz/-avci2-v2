@@ -120,7 +120,39 @@ def binance(c):
         else:
             unk.append("çoklu tarama bağlamı yok")
 
-        # 7) data quality
+        # 7) cross-venue spot confirmation
+        xv=c.execute("""SELECT summary,direction_agreement,confirmed_sources
+          FROM crossvenue_spot_summary WHERE scan_time_utc=? AND symbol=?
+          ORDER BY version DESC LIMIT 1""",(ts,r["symbol"])).fetchone() if table(c,"crossvenue_spot_summary") else None
+        if xv:
+            if xv["summary"]=="CONFIRMED" and int(xv["confirmed_sources"] or 0)>=2:
+                good.append("OKX+Gate spot hareketi teyit ediyor")
+            elif xv["summary"]=="DIVERGENT":
+                bad.append("diğer spot borsalar hareketi teyit etmiyor")
+            elif xv["summary"]=="PARTIAL":
+                unk.append("çapraz-borsa teyidi kısmi")
+            else:
+                unk.append("çapraz-borsa verisi yetersiz")
+        else:
+            unk.append("çapraz-borsa spot teyidi yok")
+
+        # 8) timestamped catalyst/news context
+        cat=c.execute("""SELECT catalyst_state,headline_count,positive_count,negative_count
+          FROM catalyst_observations WHERE scan_time_utc=? AND symbol=?
+          ORDER BY version DESC LIMIT 1""",(ts,r["symbol"])).fetchone() if table(c,"catalyst_observations") else None
+        if cat:
+            if cat["catalyst_state"]=="RISK_CATALYST":
+                bad.append("yakın zamanda risk/hack/delist/unlock haber izi var")
+            elif cat["catalyst_state"]=="POSITIVE_CATALYST":
+                good.append("timestamp'li pozitif katalizör/haber izi var")
+            elif cat["catalyst_state"]=="NEWS_PRESENT":
+                unk.append("haber var ama yönü net değil")
+            else:
+                unk.append("katalizör teyidi yok")
+        else:
+            unk.append("katalizör verisi yok")
+
+        # 9) data quality
         cov=float(r["coverage_pct"] or 0)
         if cov>=75: good.append("veri kapsamı yüksek")
         elif cov<55: bad.append("veri kapsamı düşük")
