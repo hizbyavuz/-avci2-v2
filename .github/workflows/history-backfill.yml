@@ -2,6 +2,11 @@ name: Gate History Delist Backfill
 
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - "gate_official_delist_import.py"
+      - "history_delist_backfill.py"
+      - ".github/workflows/history-backfill.yml"
   schedule:
     - cron: "3,33 * * * *"
 
