@@ -16,6 +16,10 @@ on:
       - "readiness_shadow_paper.py"
       - "research_p0_governance.py"
       - "research_validation_layer.py"
+      - "research_decision_discipline.py"
+      - "security_redteam.py"
+      - "security_adversarial_corpus.csv"
+      - "security_corpus_requirements.json"
       - "research_telemetry.py"
       - "tests/test_research_validation_layer.py"
       - ".github/workflows/avci-v2.yml"
@@ -153,6 +157,14 @@ jobs:
       - name: Run unified Gate research validation
         continue-on-error: true
         run: python -u research_validation_layer.py gate
+
+      - name: Enforce Gate frozen decision discipline
+        continue-on-error: true
+        run: python -u research_decision_discipline.py gate
+
+      - name: Run Gate security adversarial validation
+        continue-on-error: true
+        run: python -u security_redteam.py
 
       - name: Evaluate Gate trade readiness
         continue-on-error: true
