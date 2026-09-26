@@ -19,6 +19,7 @@ on:
       - "security_adversarial_corpus.csv"
       - "security_corpus_requirements.json"
       - "security_redteam.py"
+      - "external_security_replay.py"
       - "execution_fill_import.py"
       - "avci_global_governance.py"
       - "research_decision_discipline.py"
@@ -61,6 +62,7 @@ jobs:
             avci_global_governance.py \
             execution_fill_import.py \
             security_redteam.py \
+            external_security_replay.py \
             history_delist_backfill.py \
             binance_research_integrity.py \
             gate_research_integrity.py \
