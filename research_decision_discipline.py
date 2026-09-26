@@ -251,6 +251,18 @@ def evaluate(source,c,rows):
     if table(c,"research_latency_summary"):
         er=c.execute("""SELECT MAX(error_rate) FROM research_latency_summary WHERE source=?""",(source,)).fetchone()[0]
         if er is not None and float(er)>KILL["source_error_rate"]:kills.append("SOURCE_ERROR_RATE")
+    if table(c,"cost_model_calibration"):
+        rr=c.execute("""SELECT assumed_cost_pct,observed_quote_cost_pct
+          FROM cost_model_calibration WHERE source=? AND version=?
+          AND assumed_cost_pct IS NOT NULL AND observed_quote_cost_pct IS NOT NULL
+          AND assumed_cost_pct>0""",(source,VERSION)).fetchall()
+        ratios=[float(x[1])/float(x[0]) for x in rr if float(x[0])>0]
+        if ratios:
+            ratios.sort()
+            p95=ratios[min(len(ratios)-1,int(0.95*(len(ratios)-1)))]
+            metrics["cost_ratio_p95"]=p95
+            if p95>KILL["observed_vs_assumed_cost_ratio"]:
+                kills.append("COST_MODEL_UNDERESTIMATES")
     kill="RESEARCH_ONLY" if kills else "ARMED_PAPER_ONLY"
 
     budget=("NOT_STARTED" if now()<start else
