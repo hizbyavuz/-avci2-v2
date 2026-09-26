@@ -145,6 +145,18 @@ def main():
                    WHERE source='BINANCE' AND batch_key=?
                    ORDER BY created_at_utc DESC""",(ts,)).fetchall()}
 
+        corr_overlay={}
+        if table(c,"correlation_position_overlay"):
+            corr_overlay={r["asset_key"]:r for r in c.execute(
+                """SELECT * FROM correlation_position_overlay
+                   WHERE source='BINANCE' AND batch_key=?
+                   ORDER BY created_at_utc DESC""",(ts,)).fetchall()}
+        size_curves={}
+        if table(c,"execution_size_curve"):
+            for rr in c.execute("""SELECT * FROM execution_size_curve
+              WHERE source='BINANCE' AND batch_key=? ORDER BY asset_key,size_usd""",(ts,)).fetchall():
+                size_curves.setdefault(rr["asset_key"],[]).append(rr)
+
     mode="ORTA" if scan["data_mode"]=="SPOT_ONLY" else "YÜKSEK"
     lines=[
         "🛰 BINANCE AVCI | DAYANAK RAPORU",
@@ -191,6 +203,17 @@ def main():
             if ov["crowding_status"] and ov["crowding_status"]!="UNAVAILABLE_TRUE_SOCIAL_FEED":
                 lines.append(f"Attention/crowding: {ov['crowding_status']} ({ov['crowding_value'] if ov['crowding_value'] is not None else '-'})")
             lines.append(f"Dış teyit: {ov['external_validation_status']}")
+            cr=corr_overlay.get(r["symbol"])
+            if cr:
+                mc="-" if cr["max_peer_corr"] is None else f"{float(cr['max_peer_corr']):.2f}"
+                lines.append(f"Korelasyon riski: {cr['risk_label']} | max corr {mc} | paper boyut ×{float(cr['size_multiplier']):.2f}")
+            curve=size_curves.get(r["symbol"],[])
+            if curve:
+                txt=[]
+                for q in curve:
+                    if q["roundtrip_loss_pct"] is not None:
+                        txt.append(f"${int(float(q['size_usd']))}:{float(q['roundtrip_loss_pct']):.2f}%")
+                if txt: lines.append("Execution eğrisi: "+" | ".join(txt))
         lines.append("")
 
         if r["pool_status"]:
