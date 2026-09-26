@@ -17,6 +17,7 @@ on:
       - "research_p0_governance.py"
       - "research_validation_layer.py"
       - "research_telemetry.py"
+      - "tests/test_research_validation_layer.py"
       - ".github/workflows/avci-v2.yml"
   schedule:
     - cron: "8,28,48 * * * *"
