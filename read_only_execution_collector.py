@@ -146,7 +146,7 @@ def collect_web3(report):
                 })
         before=data[-1].get("signature")
         if not before:break
-    report["gate_web3"]={"wallet":SOL_ADDR,"swap_transactions":len(out),
+    report["gate_web3"]={"wallet_configured":True,"swap_transactions":len(out),
                          "truth_class":"ONCHAIN_REAL_EXECUTION_EVIDENCE"}
     return out
 
