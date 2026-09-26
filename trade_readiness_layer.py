@@ -117,7 +117,7 @@ def binance(c):
         dq="GOOD" if cov>=75 else ("BAD" if cov<55 else "MEDIUM")
         regime="OK" if not int(r["climax_risk"] or 0) else "CLIMAX"
         c.execute("""INSERT OR REPLACE INTO trade_readiness VALUES
-          (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+          (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
           ("BINANCE",ts,r["symbol"],r["symbol"],readiness,len(good),len(bad),len(unk),
            live,r["summary"],hist,exe,regime,dq,micro,
            json.dumps(good,ensure_ascii=False),json.dumps(bad,ensure_ascii=False),
@@ -170,7 +170,7 @@ def gate(c):
         dq="GOOD" if cov>=75 else ("BAD" if cov<55 else "MEDIUM")
         exe="BAD" if any("çıkış maliyeti" in x for x in bad) else ("UNKNOWN" if any("exit quote" in x for x in unk) else "GOOD")
         c.execute("""INSERT OR REPLACE INTO trade_readiness VALUES
-          (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+          (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
           ("GATE",str(batch),r["token_contract"],r["token_contract"][:8],readiness,
            len(good),len(bad),len(unk),"NOT_IMPLEMENTED",r["summary"],hist,exe,
            "UNKNOWN",dq,"UNKNOWN",
