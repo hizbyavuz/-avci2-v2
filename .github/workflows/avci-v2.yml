@@ -150,6 +150,14 @@ jobs:
           HISTORY_DB: .history-state/history_miner.db
           TWIN_DB: .history-twin/history_miner.db
         run: python -u gate_engine_status_v2.py
+      - name: Record recommendations and send due 72h follow-ups
+        if: success()
+        continue-on-error: true
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python -u recommendation_followup.py gate
+
       - name: Summarize Gate candidates and controls
         if: success()
         run: python gate_research_report.py
