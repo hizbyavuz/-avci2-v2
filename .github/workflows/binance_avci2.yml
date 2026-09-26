@@ -139,6 +139,26 @@ jobs:
       - name: Compare candidates with Winner Anatomy
         run: python -u binance_winner_bridge.py
 
+      - name: Build Binance candidate evidence dossiers
+        continue-on-error: true
+        run: python -u binance_evidence_research.py
+
+      - name: Evaluate Binance activation mathematics
+        continue-on-error: true
+        run: python -u binance_activation_math.py
+
+      - name: Run Binance P0 governance audit
+        continue-on-error: true
+        run: python -u research_p0_governance.py binance
+
+      - name: Run unified Binance research validation
+        continue-on-error: true
+        run: python -u research_validation_layer.py binance
+
+      - name: Evaluate Binance trade readiness
+        continue-on-error: true
+        run: python -u trade_readiness_layer.py binance
+
       - name: Build readable report
         run: python binance_report.py
 
@@ -165,6 +185,7 @@ jobs:
             binance_avci2.db
             binance_latest_report.md
             binance_dashboard.html
+            binance_research_validation.md
           if-no-files-found: error
           retention-days: 21
           compression-level: 6
