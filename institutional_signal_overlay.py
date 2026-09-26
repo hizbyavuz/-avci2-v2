@@ -152,9 +152,17 @@ def binance():
             if table(c,"catalyst_observations"):
                 ca=c.execute("""SELECT * FROM catalyst_observations WHERE scan_time_utc=? AND symbol=?
                   ORDER BY created_at_utc DESC LIMIT 1""",(ts,f["symbol"])).fetchone()
-                if ca:
-                    if ca["catalyst_state"] not in ("UNKNOWN","NEWS_PRESENT"):conf.append(ca["catalyst_state"])
-                    crowd_status="NEWS_ATTENTION_PROXY";crowd=float(ca["headline_count"] or 0)
+                if ca and ca["catalyst_state"] not in ("UNKNOWN","NEWS_PRESENT"):
+                    conf.append(ca["catalyst_state"])
+            if table(c,"institutional_context"):
+                ic=c.execute("""SELECT * FROM institutional_context WHERE source='BINANCE'
+                  AND batch_key=? AND asset_key=? ORDER BY created_at_utc DESC LIMIT 1""",(ts,f["symbol"])).fetchone()
+                if ic:
+                    if ic["macro_state"]!="CLEAR_24H":conf.append(ic["macro_state"])
+                    if ic["social_status"]=="OBSERVED":
+                        crowd=float(ic["social_last_15m"] or 0)
+                        ratio=ic["social_ratio"]
+                        crowd_status="X_CROWDED" if crowd>=10 and ratio is not None and float(ratio)>=2 else "X_OBSERVED"
             ext="UNKNOWN"
             if table(c,"crossvenue_spot_summary"):
                 x=c.execute("""SELECT summary FROM crossvenue_spot_summary WHERE scan_time_utc=? AND symbol=?
