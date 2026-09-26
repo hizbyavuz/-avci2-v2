@@ -81,6 +81,14 @@ def unknown_note(text):
     }
     return notes.get(text)
 
+def report_bucket(readiness):
+    """Telegram presentation only; scanner/research membership is unchanged."""
+    if readiness=="PAPER_ELIGIBLE":
+        return "TRADE_READY"
+    if readiness=="WATCH":
+        return "RESEARCH_WATCH"
+    return "NOT_READY"
+
 def hist_line(label, cand, ctrl):
     if cand is None or ctrl is None:
         return f"  • {label}: veri yetersiz"
@@ -165,11 +173,15 @@ def main():
               WHERE source='BINANCE' AND batch_key=? ORDER BY asset_key,size_usd""",(ts,)).fetchall():
                 size_curves.setdefault(rr["asset_key"],[]).append(rr)
 
+    trade_rows=[r for r in evrows if report_bucket(r["trade_readiness"])=="TRADE_READY"]
+    watch_rows=[r for r in evrows if report_bucket(r["trade_readiness"])=="RESEARCH_WATCH"]
+    not_ready_rows=[r for r in evrows if report_bucket(r["trade_readiness"])=="NOT_READY"]
+
     mode="ORTA" if scan["data_mode"]=="SPOT_ONLY" else "YÜKSEK"
     lines=[
         "🛰 BINANCE AVCI | DAYANAK RAPORU",
         f"• Piyasa: {scan['btc_regime']} | BTC 24s %{scan['btc_change_24h']:+.2f}",
-        f"• Taranan: {scan['universe_size']} coin | ilk aday: {counts.get('CANDIDATE',0)}",
+        f"• Taranan: {scan['universe_size']} coin | araştırma adayı: {counts.get('CANDIDATE',0)} | işlem-hazır: {len(trade_rows)}",
         f"• Veri kalitesi: {mode}" + (" (Binance futures eksik)" if scan["data_mode"]=="SPOT_ONLY" else ""),
         ""
     ]
@@ -188,10 +200,12 @@ def main():
                 lines.append(f"🔴 {rr['symbol']}: geçmişte çok yükselmiş ve zirveye hâlâ yakın → geç kalma riski yüksek")
         lines.append("")
 
-    if not evrows:
-        lines.append("🚫 Bu tur dayanağı incelenebilir temiz aday yok.")
+    if not trade_rows:
+        lines.append("🚫 BU TUR İŞLEM-HAZIR ADAY YOK.")
+        lines.append("(Araştırma sinyalleri olabilir; aşağıda ayrı gösterilir.)")
+        lines.append("")
 
-    for r in evrows[:5]:
+    for r in trade_rows[:3]:
         sup=arr(r["support_json"]); con=arr(r["counter_json"]); unk=arr(r["unknown_json"])
 
         # Tek renk: canlı havuz rengi ayrıca basılmaz.
@@ -276,8 +290,24 @@ def main():
                     lines.append(f"   ({note})")
 
         lines.append("")
-        lines.append(f"SONUÇ: {dayanak_label(r['summary'])} | {rr}")
+        lines.append(f"SONUÇ: 🟢 İŞLEM-HAZIR ARAŞTIRMA ADAYI | {dayanak_label(r['summary'])}")
         lines.append("────────────")
+
+    if watch_rows:
+        lines.append("🟡 ARAŞTIRMA / İZLEME — ÖNERİ DEĞİL")
+        for r in watch_rows[:3]:
+            con=arr(r["counter_json"]); unk=arr(r["unknown_json"])
+            reason=(con[0] if con else (unk[0] if unk else "işlem hazırlığı tamamlanmadı"))
+            lines.append(f"• {r['symbol']}: {reason}")
+        lines.append("")
+
+    if not_ready_rows:
+        lines.append("⚪ HAZIR DEĞİL — ÖNERİ DEĞİL")
+        for r in not_ready_rows[:3]:
+            con=arr(r["counter_json"]); unk=arr(r["unknown_json"])
+            reason=(con[0] if con else (unk[0] if unk else "kritik doğrulama eksik"))
+            lines.append(f"• {r['symbol']}: {reason}")
+        lines.append("")
 
     if math:
         if math["selected_n"] and math["selected_n"]>=8:
