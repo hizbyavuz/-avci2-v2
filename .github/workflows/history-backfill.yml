@@ -8,7 +8,7 @@ on:
       - "history_delist_backfill.py"
       - ".github/workflows/history-backfill.yml"
   schedule:
-    - cron: "3,33 * * * *"
+    - cron: "3 */6 * * *"
 
 permissions:
   contents: read
