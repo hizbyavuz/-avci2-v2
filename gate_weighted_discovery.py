@@ -223,7 +223,7 @@ def review(db_path, batch, observations, enrich, risk_shapes, now=None):
             else:
                 blocked+=1
             con.execute("""INSERT OR REPLACE INTO gate_weighted_discovery
-                VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",(
+                VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",(
                 batch,int(health[0]),network,contract,item.get("pool"),
                 item.get("symbol") or item.get("name"),_f(item.get("price_usd")),
                 score,status,reason,json.dumps(evidence,ensure_ascii=False),
