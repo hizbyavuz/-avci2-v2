@@ -6,6 +6,9 @@ on:
     paths:
       - "avci_global_governance.py"
       - "research_validation_spec.json"
+      - "institutional_model_registry.py"
+      - "avci_global_stress.py"
+      - "institutional_coverage_audit.py"
       - ".github/workflows/avci-global-governance.yml"
   schedule:
     - cron: "55 * * * *"
@@ -50,6 +53,19 @@ jobs:
           AVCI_VALIDATION_DB: .global/gate/avci_validation_v5.db
         run: python -u avci_global_governance.py
 
+      - name: Build institutional model registry
+        run: python -u institutional_model_registry.py
+
+      - name: Run combined stress scenarios
+        run: python -u avci_global_stress.py
+
+      - name: Audit all institutional safeguards
+        env:
+          BINANCE_DB: .global/binance/binance_avci2.db
+          AVCI_DB: .global/gate/avci2.db
+          AVCI_VALIDATION_DB: .global/gate/avci_validation_v5.db
+        run: python -u institutional_coverage_audit.py
+
       - name: Upload global governance report
         uses: actions/upload-artifact@v4
         with:
@@ -57,5 +73,8 @@ jobs:
           path: |
             avci_global_governance.json
             avci_global_governance.db
+            avci_global_stress.json
+            institutional_model_registry.json
+            institutional_coverage_audit.json
           if-no-files-found: error
           retention-days: 30
