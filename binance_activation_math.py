@@ -49,20 +49,25 @@ def bh(rows):
         r.setdefault("q_value",None)
 
 
+def target_value(d,target):
+    for k in (str(target), f"{float(target):.1f}"):
+        if k in d:
+            return d[k]
+    return None
+
 def reached(label,target):
     try:
         reach=json.loads(label["reach_json"] or "{}")
     except Exception:
         reach={}
-    value=reach.get(str(target))
+    value=target_value(reach,target)
     if isinstance(value,bool):
         return value
     if isinstance(value,(int,float)):
         return bool(value)
-    # Fallback to first-touch object where older rows lack reach.
     try:
         ft=json.loads(label["first_touch_json"] or "{}")
-        return str(ft.get(str(target)) or "").upper() in ("TARGET","TARGET_FIRST")
+        return str(target_value(ft,target) or "").upper() in ("TARGET","TARGET_FIRST")
     except Exception:
         return False
 
