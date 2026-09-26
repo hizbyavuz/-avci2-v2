@@ -5485,7 +5485,7 @@ def print_validation_summary(summary):
 
 # ============================================================
 
-def collect_gate_official_observations(db_path="avci2.db", limit=24):
+def collect_gate_official_observations(db_path="avci2.db", limit=60):
     """Seed the observational pool from Gate's exact official contracts.
 
     This is research-only. It never enters frozen V5 candidate membership.
@@ -5508,7 +5508,7 @@ def collect_gate_official_observations(db_path="avci2.db", limit=24):
                 FROM gate_spot_market m
                 JOIN gate_spot_contracts c ON c.pair=m.pair
                 WHERE m.volume_24h>=30000
-                  AND m.change_24h BETWEEN -10 AND 35
+                  AND m.change_24h BETWEEN -10 AND 40
                 ORDER BY
                   CASE WHEN m.change_24h BETWEEN 0 AND 20 THEN 0 ELSE 1 END,
                   m.volume_24h DESC
