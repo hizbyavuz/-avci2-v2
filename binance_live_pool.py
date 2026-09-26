@@ -117,7 +117,7 @@ def add_sample(c,ts,symbol,n):
     ratio=(qv/float(first_q[0])) if first_q and first_q[0] not in (None,0) else 1.0
     ch=100*(price/first-1) if first>0 else None
     c.execute("""INSERT OR REPLACE INTO binance_live_pool_samples VALUES
-      (?,?,?,?,?,?,?,?,?,?,?)""",
+      (?,?,?,?,?,?,?,?,?,?,?,?)""",
       (ts,symbol,n,utc_now(),price,ch,qv,trades,taker,ratio,imb,VERSION))
     c.execute("""UPDATE binance_live_pool SET sample_count=(
       SELECT COUNT(*) FROM binance_live_pool_samples
