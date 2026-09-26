@@ -72,5 +72,46 @@ def record(source_engine, provider, endpoint, started_perf, started_utc,
         # Telemetry must never break the frozen scanner.
         pass
 
+def _to_iso_timestamp(v):
+    try:
+        x=float(v)
+        if x>1e12: x/=1000.0
+        if x>1e9:
+            return datetime.fromtimestamp(x,timezone.utc).isoformat()
+    except Exception:
+        pass
+    if isinstance(v,str):
+        try:
+            return datetime.fromisoformat(v.replace("Z","+00:00")).astimezone(timezone.utc).isoformat()
+        except Exception:
+            return None
+    return None
+
+def infer_source_event_time(provider, endpoint, payload):
+    """Conservative source-time inference. Returns None rather than guessing."""
+    try:
+        ep=str(endpoint or "").lower()
+        p=str(provider or "").upper()
+        if p.startswith("BINANCE") and "/klines" in ep and isinstance(payload,list) and payload:
+            row=payload[-1]
+            if isinstance(row,list) and len(row)>6:
+                return _to_iso_timestamp(row[6])
+        if p=="GECKOTERMINAL" and "ohlcv" in ep:
+            rows=(((payload or {}).get("data") or {}).get("attributes") or {}).get("ohlcv_list") or []
+            if rows and isinstance(rows[0],list):
+                return _to_iso_timestamp(max(float(r[0]) for r in rows if isinstance(r,list) and r))
+        if isinstance(payload,dict):
+            for key in ("serverTime","timestamp","updated_at","last_updated_at","last_updated"):
+                if key in payload:
+                    out=_to_iso_timestamp(payload.get(key))
+                    if out:return out
+                attrs=((payload.get("data") or {}).get("attributes") or {}) if isinstance(payload.get("data"),dict) else {}
+                if key in attrs:
+                    out=_to_iso_timestamp(attrs.get(key))
+                    if out:return out
+    except Exception:
+        return None
+    return None
+
 def start():
     return time.perf_counter(), utc_now()
