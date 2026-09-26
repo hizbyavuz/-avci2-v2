@@ -47,7 +47,23 @@ def evidence(c,row):
                 matched=True;d=dict(q)
                 if str(d.get("deception_risk") or "").upper()=="HIGH":
                     detected=True;reasons.append("DECEPTION_HIGH")
-    return matched,detected,reasons
+    if contract and table(c,"external_security_replay"):
+        nid=(row.get("network_id") or "").strip()
+        q=c.execute("""SELECT * FROM external_security_replay
+          WHERE network_id=? AND lower(contract)=lower(?) AND label=?
+          ORDER BY rowid DESC LIMIT 1""",(nid,contract,(row.get("label") or "").upper())).fetchone()
+        if q:
+            d=dict(q)
+            if int(d.get("matched") or 0)==1:
+                matched=True
+                if int(d.get("detected") or 0)==1:
+                    detected=True
+                try:
+                    reasons.extend(json.loads(d.get("reasons_json") or "[]"))
+                except Exception:
+                    pass
+                reasons.append("EXTERNAL_STATIC_REPLAY")
+    return matched,detected,sorted(set(reasons))
 
 def main():
     rows=load()
