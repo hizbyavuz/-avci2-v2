@@ -31,6 +31,12 @@ jobs:
           python-version: "3.12"
       - name: Install Telegram dependency
         run: pip install requests
+      - name: Import official Gate delisting archive
+        continue-on-error: true
+        env:
+          GATE_DELIST_PAGES: "25"
+        run: python -u gate_official_delist_import.py
+
       - name: Run delist and suspend backfill
         env:
           HISTORY_LOOKBACK_DAYS: "730"
@@ -48,5 +54,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: history-base-latest
-          path: history_miner.db
+          path: |
+            history_miner.db
+            gate_delist_import_report.json
           retention-days: 3
