@@ -756,7 +756,7 @@ def main():
             store_splits(c,mode,rows); build_purged_folds(c,mode,rows); th=attribution(c,mode,rows); ef=correlations(c,mode,rows,th)
             significance(c,mode,rows); baselines(c,mode,rows); portfolio(c,mode,rows)
             regimes(c,mode,rows); drift(c,mode,rows,th); precision_recall(c,mode,rows)
-            mover_recall(c,mode,rows); kelly(c,mode,rows); latency(c,mode)
+            mover_recall(c,mode,rows); kelly(c,mode,rows); latency(c,mode); register_existing_experiments(c,mode)
             c.execute("INSERT OR REPLACE INTO research_validation_runs VALUES(?,?,?,?,?,?,?)",
                       (mode,VERSION,now(),DISCOVERY_END_UTC,CALIBRATION_END_UTC,1,
                        json.dumps({"rules_mutated":False,"final_test_selection_eligible":False,
