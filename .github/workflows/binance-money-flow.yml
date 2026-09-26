@@ -186,6 +186,18 @@ jobs:
         continue-on-error: true
         run: python -u institutional_signal_overlay.py binance
 
+      - name: Evaluate execution-aware trade readiness
+        continue-on-error: true
+        run: python -u trade_readiness_layer.py binance
+
+      - name: Send one consolidated Binance motor message
+        if: success()
+        continue-on-error: true
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python -u binance_engine_status_v2.py
+
       - name: Run institutional validation diagnostics
         continue-on-error: true
         run: python -u institutional_validation_suite.py binance
@@ -198,21 +210,9 @@ jobs:
         continue-on-error: true
         run: python -u research_gap_audit.py binance
 
-      - name: Evaluate execution-aware trade readiness
-        continue-on-error: true
-        run: python -u trade_readiness_layer.py binance
-
       - name: Run readiness-qualified shadow paper trades
         continue-on-error: true
         run: python -u readiness_shadow_paper.py binance
-
-      - name: Send one consolidated Binance motor message
-        if: success()
-        continue-on-error: true
-        env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: python -u binance_engine_status_v2.py
 
       - name: Record recommendations and send due 72h follow-ups
         if: success()
