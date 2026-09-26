@@ -11,6 +11,7 @@ from gate_notify import observation_only_reason
 from gate_security_confidence import assess
 from gate_missing_evidence_notify import build_message as build_gate_watch_message
 from telegram_readable import record_initial, due_followups, mark_followup
+from gate_engine_status_v2 import display_bucket
 
 class ObservationalExtensionTests(unittest.TestCase):
     def test_checkpoint_window(self):
@@ -114,6 +115,32 @@ class ObservationalExtensionTests(unittest.TestCase):
             rows=due_followups(con,"h",lambda _key,_symbol:105,min_pp=3.0)
             self.assertEqual(rows,[])
             con.close()
+
+    def test_gate_report_never_promotes_hard_veto_to_main_candidate(self):
+        self.assertEqual(
+            display_bucket(
+                '["Güvenlikte hard-veto var"]',
+                {"label":"BLOCKED","hard_veto":1},
+                {"readiness":"NOT_READY"},
+            ),
+            "BLOCKED",
+        )
+        self.assertEqual(
+            display_bucket(
+                "[]",
+                {"label":"STRONG","hard_veto":0},
+                {"readiness":"NOT_READY"},
+            ),
+            "NOT_READY",
+        )
+        self.assertEqual(
+            display_bucket(
+                "[]",
+                {"label":"STRONG","hard_veto":0},
+                {"readiness":"PAPER_ELIGIBLE"},
+            ),
+            "MAIN",
+        )
 
 if __name__=="__main__":
     unittest.main()
