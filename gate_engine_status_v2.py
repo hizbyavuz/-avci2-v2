@@ -119,34 +119,34 @@ def main():
             if ov["success_probability"] is not None:
                 ci=(f"%{100*float(ov['success_ci_low']):.0f}–%{100*float(ov['success_ci_high']):.0f}"
                     if ov["success_ci_low"] is not None and ov["success_ci_high"] is not None else "-")
-                lines.append(f"• Kalibre başarı: %{100*float(ov['success_probability']):.0f} | N={ov['success_n']} | %95 CI {ci}")
+                lines.append(f"• Geçmişe göre başarı ihtimali: %{100*float(ov['success_probability']):.0f} | örnek sayısı {ov['success_n']} | %95 güven aralığı {ci}")
             else:
-                lines.append(f"• Kalibre başarı: örnek yetersiz | N={ov['success_n']}")
+                lines.append(f"• Geçmişe göre başarı ihtimali: henüz güvenilir değil | örnek sayısı {ov['success_n']}")
             if ov["regime_probability"] is not None:
-                lines.append(f"• Bu rejimde: %{100*float(ov['regime_probability']):.0f} | N={ov['regime_n']} | {ov['regime_key']}")
+                lines.append(f"• Şu anki piyasa şartlarında başarı: %{100*float(ov['regime_probability']):.0f} | örnek sayısı {ov['regime_n']}")
             if ov["candidate_net_expectancy_pct"] is not None:
-                lines.append(f"• Net beklenti: {float(ov['candidate_net_expectancy_pct']):+.2f}% | kontrol {float(ov['control_net_expectancy_pct']):+.2f}%")
+                lines.append(f"• Masraflar sonrası beklenen ortalama getiri: {float(ov['candidate_net_expectancy_pct']):+.2f}% | normal/kontrol grubu {float(ov['control_net_expectancy_pct']):+.2f}%")
             if ov["expectancy_diff_pct"] is not None:
-                lines.append(f"• Aday-kontrol farkı: {float(ov['expectancy_diff_pct']):+.2f} puan")
-            lines.append(f"• Mod: {ov['system_mode']} | vol {ov['volatility_regime']} | likidite {ov['liquidity_regime']}")
+                lines.append(f"• Adayın normale göre avantajı: {float(ov['expectancy_diff_pct']):+.2f} yüzde puanı")
+            lines.append(f"• Sistem modu: {ov['system_mode']} | oynaklık {ov['volatility_regime']} | likidite {ov['liquidity_regime']}")
             if ov["confounders_json"] and ov["confounders_json"]!="[]":
                 try:
                     cf=json.loads(ov["confounders_json"])
-                    if cf: lines.append("• Confounder: "+", ".join(cf[:2]))
+                    if cf: lines.append("• Dış etken uyarısı (haber/makro olay sinyali etkileyebilir): "+", ".join(cf[:2]))
                 except Exception:
                     pass
             if ov["crowding_status"]!="UNAVAILABLE":
-                lines.append(f"• Sosyal crowding: {ov['crowding_status']} ({ov['crowding_value'] if ov['crowding_value'] is not None else '-'})")
+                lines.append(f"• Sosyal kalabalıklaşma (aynı tokena ilginin hızla birikmesi): {ov['crowding_status']} ({ov['crowding_value'] if ov['crowding_value'] is not None else '-'})")
             key=f"{net}:{e['token_contract']}" if e else None
             cr=corr_overlay.get(key) if key else None
             if cr:
                 mc="-" if cr["max_peer_corr"] is None else f"{float(cr['max_peer_corr']):.2f}"
-                lines.append(f"• Korelasyon riski: {cr['risk_label']} | max corr {mc} | paper boyut ×{float(cr['size_multiplier']):.2f}")
+                lines.append(f"• Benzer hareket riski (diğer açık adaylarla aynı yönde gitme): {cr['risk_label']} | en yüksek ilişki {mc} | kağıt üstü pozisyon boyutu ×{float(cr['size_multiplier']):.2f}")
             curve=size_curves.get(key,[]) if key else []
             if curve:
                 txt=[f"${int(float(q['size_usd']))}:{float(q['roundtrip_loss_pct']):.2f}%"
                      for q in curve if q["roundtrip_loss_pct"] is not None]
-                if txt: lines.append("• Execution eğrisi: "+" | ".join(txt))
+                if txt: lines.append("• Gerçek alım-satım maliyeti (pozisyon büyüdükçe kayıp): "+" | ".join(txt))
         if ready:
             rr={"PAPER_ELIGIBLE":"KAĞIT ÜSTÜ İŞLEME UYGUN","WATCH":"İZLE","NOT_READY":"HAZIR DEĞİL"}.get(ready["readiness"],"DEĞERLENDİRİLMEDİ")
             lines.append(f"• İşlem hazırlığı: {rr}")
@@ -170,8 +170,8 @@ def main():
         q="-" if math["q_value"] is None else f"{math['q_value']:.3f}"
         lines.append(f"🧮 Ayrı matematik testi: {math['combo_label']} | n={math['selected_n']} | lift {lift} | q={q}")
     else:
-        lines.append("🧮 Ayrı matematik testi: frozen OOS örneği henüz yetersiz.")
-    lines.append("Mimari not: wake-up/retention/trigger mantığı genesis holdout öncesi tasarlandı; nihai temiz OOS dönem 7 Ekim 2026'da başlar.")
+        lines.append("🧮 Ayrı matematik testi: dokunulmamış yeni verideki örnek sayısı henüz yetersiz. (OOS = kurallar yazılırken kullanılmamış temiz test verisi.)")
+    lines.append("Mimari not: wake-up (ilk uyanış), retention (ilk hareketin korunması) ve trigger (işlem tetikleyicisi) kuralları geçmiş örnekler görülerek tasarlandı; tamamen dokunulmamış temiz test dönemi 7 Ekim 2026'da başlar.")
     lines.append("Not: 'dayanak' kazanma olasılığı değildir; destek/karşı-kanıt ve gerçek geçmiş sonuç özetidir.")
     token=(os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
     if not token:
