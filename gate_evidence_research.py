@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 
 OBS_DB=os.getenv("AVCI_DB","avci2.db")
 VAL_DB=os.getenv("AVCI_VALIDATION_DB","avci_validation_v5.db")
-VERSION="gate-evidence-research-v1-20260926"
+VERSION="gate-evidence-research-v1.1-20260926"
 TARGETS=(5,10,15)
 MIN_PEER_N=8
 
@@ -165,10 +165,18 @@ def main():
 
             total=len(support)+len(counter)+len(unknown)
             coverage=100*(len(support)+len(counter))/total if total else 0
-            if len(support)>=5 and len(support)>=2*max(1,len(counter)): summary="DAYANAK_GUCLU"
-            elif len(support)>=3 and len(support)>len(counter): summary="DAYANAK_ORTA"
-            elif len(counter)>=len(support): summary="DAYANAK_ZAYIF"
-            else: summary="DAYANAK_SINIRLI"
+            hist_strong=(r10["candidate_rate"] is not None and r10["control_rate"] is not None
+                         and r10["candidate_rate"]>=0.45
+                         and r10["candidate_rate"]>=1.5*max(r10["control_rate"],0.0001)
+                         and hist["candidate_n"]>=8 and hist["control_n"]>=8)
+            if len(support)>=7 and len(counter)<=1 and coverage>=75 and hist_strong:
+                summary="DAYANAK_COK_GUCLU"
+            elif len(support)>=5 and len(support)>=2*max(1,len(counter)) and coverage>=60:
+                summary="DAYANAK_GUCLU"
+            elif len(support)>=3 and len(support)>len(counter):
+                summary="DAYANAK_ORTA"
+            else:
+                summary="DAYANAK_ZAYIF"
             vals=[]
             for t in TARGETS:
                 rr=rates[str(t)]
