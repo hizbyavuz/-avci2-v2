@@ -21,6 +21,7 @@ on:
       - "execution_fill_import.py"
       - "execution_fill_observations.csv"
       - "security_redteam.py"
+      - "external_security_replay.py"
       - "security_adversarial_corpus.csv"
       - "security_corpus_requirements.json"
       - "research_telemetry.py"
@@ -198,6 +199,18 @@ jobs:
             gh run download "$run_id" --name security-adversarial-corpus --dir .security-corpus
           fi
 
+      - name: Replay independent EVM security corpus through frozen gate
+        continue-on-error: true
+        env:
+          SECURITY_CORPUS: .security-corpus/security_adversarial_corpus.csv
+          GOPLUS_ACCESS_TOKEN: ${{ secrets.GOPLUS_ACCESS_TOKEN }}
+          SECURITY_REPLAY_PER_CLASS: "100"
+        run: |
+          if test ! -s "$SECURITY_CORPUS"; then
+            export SECURITY_CORPUS=security_adversarial_corpus.csv
+          fi
+          python -u external_security_replay.py
+
       - name: Run Gate security adversarial validation
         continue-on-error: true
         env:
@@ -270,6 +283,7 @@ jobs:
             gate_research_validation.md
             research_gap_status_gate.json
             historical_timing_proxy_gate.json
+            security_external_replay_report.json
           if-no-files-found: error
           retention-days: 3
 
