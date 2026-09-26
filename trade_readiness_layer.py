@@ -101,7 +101,26 @@ def binance(c):
         if taker>=0.55: good.append("15dk taker alış akışı olumlu")
         elif taker and taker<=0.45: bad.append("15dk taker satış baskısı")
         else: unk.append("taker akışı nötr")
-        # 6) data quality
+        # 6) multi-scan context / market breadth
+        ctx=c.execute("""SELECT * FROM binance_context_observations
+          WHERE scan_time_utc=? AND symbol=? ORDER BY version DESC LIMIT 1""",
+          (ts,r["symbol"])).fetchone() if table(c,"binance_context_observations") else None
+        if ctx:
+            if ctx["trajectory"]=="STRENGTHENING" and ctx["timeframe_alignment"]=="ALIGNED_UP":
+                good.append("çoklu zaman dilimi ve son taramalar güçleniyor")
+            elif ctx["trajectory"]=="WEAKENING":
+                bad.append("son taramalarda momentum zayıflıyor")
+            else:
+                unk.append("çoklu zaman dilimi karışık")
+            breadth=float(ctx["breadth_1h_positive_pct"] or 0)
+            if breadth>=65:
+                unk.append("piyasa geneli güçlü; coin ayrışması daha az seçici")
+            elif breadth<=35 and float(r["btc_relative_24h"] or 0)>0:
+                good.append("zayıf breadth içinde göreceli güç")
+        else:
+            unk.append("çoklu tarama bağlamı yok")
+
+        # 7) data quality
         cov=float(r["coverage_pct"] or 0)
         if cov>=75: good.append("veri kapsamı yüksek")
         elif cov<55: bad.append("veri kapsamı düşük")
@@ -115,7 +134,14 @@ def binance(c):
         live=r["pool_status"] or "UNKNOWN"
         micro="GOOD" if any("taker alış" in x for x in good) else ("BAD" if any("taker satış" in x for x in bad) else "NEUTRAL")
         dq="GOOD" if cov>=75 else ("BAD" if cov<55 else "MEDIUM")
-        regime="OK" if not int(r["climax_risk"] or 0) else "CLIMAX"
+        if int(r["climax_risk"] or 0):
+            regime="CLIMAX"
+        elif ctx and float(ctx["breadth_1h_positive_pct"] or 0)<=35 and float(r["btc_relative_24h"] or 0)>0:
+            regime="SELECTIVE_STRENGTH"
+        elif ctx and float(ctx["breadth_1h_positive_pct"] or 0)>=65:
+            regime="BROAD_RALLY"
+        else:
+            regime="NORMAL"
         c.execute("""INSERT OR REPLACE INTO trade_readiness VALUES
           (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
           ("BINANCE",ts,r["symbol"],r["symbol"],readiness,len(good),len(bad),len(unk),
