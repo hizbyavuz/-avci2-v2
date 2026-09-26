@@ -5,6 +5,7 @@ on:
   push:
     paths:
       - "research_validation_layer.py"
+      - "research_gap_audit.py"
       - "research_p0_governance.py"
       - "research_telemetry.py"
       - "binance_research_integrity.py"
@@ -45,6 +46,7 @@ jobs:
         run: |
           python -m py_compile \
             research_validation_layer.py \
+            research_gap_audit.py \
             research_p0_governance.py \
             research_decision_discipline.py \
             research_telemetry.py \
