@@ -1,0 +1,65 @@
+name: Import Real Fill Observations
+
+on:
+  workflow_dispatch:
+    inputs:
+      fill_url:
+        description: "HTTPS URL of exported/read-only fill CSV"
+        required: true
+        type: string
+      sha256:
+        description: "Expected SHA256 of the CSV"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Download and verify fills
+        env:
+          FILL_URL: ${{ inputs.fill_url }}
+          EXPECTED_SHA256: ${{ inputs.sha256 }}
+        run: |
+          test "${FILL_URL#https://}" != "$FILL_URL"
+          curl --fail --location --silent --show-error "$FILL_URL" -o execution_fill_observations.csv
+          echo "$EXPECTED_SHA256  execution_fill_observations.csv" | sha256sum -c -
+
+      - name: Validate fill schema
+        run: |
+          python - <<'PY'
+          import csv
+          req={"source","event_key","asset","event_time_utc","side","quantity","expected_price",
+               "filled_price","fee_pct","slippage_pct","total_realized_cost_pct","external_order_id","notes"}
+          with open("execution_fill_observations.csv",newline="",encoding="utf-8") as f:
+              rows=list(csv.DictReader(f))
+          if not rows:
+              raise SystemExit("empty fill file")
+          missing=req-set(rows[0])
+          if missing:
+              raise SystemExit(f"missing columns: {sorted(missing)}")
+          for r in rows:
+              if (r.get("source") or "").upper() not in {"BINANCE","GATE"}:
+                  raise SystemExit("source must be BINANCE or GATE")
+              if not r.get("external_order_id"):
+                  raise SystemExit("external_order_id required")
+          print({"rows":len(rows)})
+          PY
+
+      - name: Upload verified fill observations
+        uses: actions/upload-artifact@v4
+        with:
+          name: execution-fill-observations
+          path: execution_fill_observations.csv
+          if-no-files-found: error
+          retention-days: 90
