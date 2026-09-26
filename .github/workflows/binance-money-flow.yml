@@ -24,6 +24,9 @@ on:
       - "research_decision_discipline.py"
       - "institutional_validation_suite.py"
       - "institutional_signal_overlay.py"
+      - "correlation_position_overlay.py"
+      - "execution_size_curve.py"
+      - "institutional_context_observer.py"
       - "execution_fill_import.py"
       - "execution_fill_observations.csv"
       - "research_telemetry.py"
@@ -155,6 +158,20 @@ jobs:
       - name: Enforce frozen decision discipline
         continue-on-error: true
         run: python -u research_decision_discipline.py binance
+
+      - name: Observe macro and social crowding context
+        continue-on-error: true
+        env:
+          X_API_BEARER_TOKEN: ${{ secrets.X_API_BEARER_TOKEN }}
+        run: python -u institutional_context_observer.py binance
+
+      - name: Measure execution size/slippage curve
+        continue-on-error: true
+        run: python -u execution_size_curve.py binance
+
+      - name: Measure candidate correlation and paper size multiplier
+        continue-on-error: true
+        run: python -u correlation_position_overlay.py binance
 
       - name: Build institutional signal overlay
         continue-on-error: true
