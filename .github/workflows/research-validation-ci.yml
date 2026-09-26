@@ -7,6 +7,9 @@ on:
       - "research_validation_layer.py"
       - "research_gap_audit.py"
       - "institutional_validation_suite.py"
+      - "avci_global_stress.py"
+      - "institutional_model_registry.py"
+      - "institutional_coverage_audit.py"
       - "human_decision_ledger.py"
       - "external_shadow_universe.py"
       - "correlation_position_overlay.py"
@@ -60,6 +63,9 @@ jobs:
             research_validation_layer.py \
             research_gap_audit.py \
             institutional_validation_suite.py \
+            avci_global_stress.py \
+            institutional_model_registry.py \
+            institutional_coverage_audit.py \
             human_decision_ledger.py \
             external_shadow_universe.py \
             correlation_position_overlay.py \
