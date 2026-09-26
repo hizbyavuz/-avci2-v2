@@ -94,7 +94,8 @@
     "max_data_failure_rate": 0.05,
     "min_execution_coverage": 0.9,
     "min_excess_vs_benchmark_pct": 0,
-    "note": "Frozen before prospective holdout outcomes; passing permits only tiny-live review, never automatic live trading."
+    "note": "Frozen before prospective holdout outcomes; passing permits only tiny-live review, never automatic live trading.",
+    "min_candidate_control_expectancy_diff_pct": 0.5
   },
   "kill_switch": {
     "mode_on_trigger": "RESEARCH_ONLY",
@@ -141,7 +142,20 @@
       "BTCUSDT_buy_hold",
       "SOLUSDT_buy_hold"
     ],
-    "report_excess_returns": true
+    "report_excess_returns": true,
+    "risk_metrics": [
+      "same_day_overlap",
+      "same_week_overlap",
+      "daily_signal_count_correlation",
+      "engine_concentration_hhi",
+      "asset_concentration_hhi",
+      "btc_beta",
+      "sol_beta",
+      "regime_exposure",
+      "combined_drawdown",
+      "combined_sharpe"
+    ],
+    "sector_concentration": "BLOCKED_UNTIL_FROZEN_SECTOR_TAXONOMY_IS_RECORDED"
   },
   "cost_calibration": {
     "binance_observed": "signal-time spread + $1k buy impact + $1k sell impact",
@@ -173,9 +187,23 @@
     "rule": "Unresolved/no-archive/delisted cases stay explicit and are never silently converted to ordinary failures or successes."
   },
   "power_and_stopping": {
-    "status": "BLOCKED_UNTIL_MINIMUM_ECONOMIC_EFFECT_IS_PREDECLARED",
-    "rule": "Do not derive required sample size from observed uplift. Freeze an externally chosen minimum economically meaningful effect before using power-based stopping.",
-    "current_decision": "Exploratory/paper-only until the prospective holdout and predeclared stopping rule are satisfied."
+    "status": "PREDECLARED_DECISION_CONTRACT_FROZEN",
+    "frozen_before_genesis_holdout": true,
+    "alpha_two_sided": 0.05,
+    "target_power": 0.8,
+    "minimum_economic_candidate_control_expectancy_diff_pct": 0.5,
+    "decision_checkpoints_effective_n": [
+      50,
+      100,
+      200
+    ],
+    "minimum_effective_n_for_go_live_review": 100,
+    "minimum_candidate_closed_for_go_live_review": 150,
+    "minimum_calendar_days": 60,
+    "maximum_calendar_days": 120,
+    "rule": "Do not change the minimum economic effect, alpha, target power, checkpoints or stopping window after prospective genesis holdout begins. Do not derive them from observed holdout uplift.",
+    "power_interpretation": "Target power is a design target. Achieved power depends on prospective variance and cluster structure; do not post-hoc resize the test using observed effect size.",
+    "insufficient_by_deadline": "INCONCLUSIVE_RESTART_VERSION"
   },
   "dependence": {
     "primary_cluster": "day x market-regime block bootstrap",
