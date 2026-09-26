@@ -22,6 +22,8 @@ on:
       - "research_validation_layer.py"
       - "research_gap_audit.py"
       - "research_decision_discipline.py"
+      - "institutional_validation_suite.py"
+      - "institutional_signal_overlay.py"
       - "execution_fill_import.py"
       - "execution_fill_observations.csv"
       - "research_telemetry.py"
@@ -153,6 +155,14 @@ jobs:
       - name: Enforce frozen decision discipline
         continue-on-error: true
         run: python -u research_decision_discipline.py binance
+
+      - name: Build institutional signal overlay
+        continue-on-error: true
+        run: python -u institutional_signal_overlay.py binance
+
+      - name: Run institutional validation diagnostics
+        continue-on-error: true
+        run: python -u institutional_validation_suite.py binance
 
       - name: Recover archived source-age timing proxy
         continue-on-error: true
