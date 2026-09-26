@@ -63,6 +63,10 @@ def main():
         math=c.execute("""SELECT * FROM gate_activation_math_results WHERE split='VALIDATION'
             ORDER BY CASE WHEN q_value IS NULL THEN 1 ELSE 0 END,q_value ASC,lift DESC LIMIT 1""").fetchone() if table(c,"gate_activation_math_results") else None
 
+        readiness={}
+        if table(c,"trade_readiness"):
+            readiness={x["asset_key"]:x for x in c.execute("""SELECT * FROM trade_readiness
+                WHERE source='GATE' AND batch_key=?""",(str(batch),)).fetchall()}
         enriched=[]
         for r in evrows:
             e=events.get(r["validation_id"])
@@ -79,7 +83,7 @@ def main():
                     FROM gate_early_observations WHERE batch_id=? AND network_id=?
                     AND token_contract=? LIMIT 1""",
                     (batch,e["network_id"],e["token_contract"])).fetchone()
-            enriched.append((r,e,sym,obs))
+            enriched.append((r,e,sym,obs,readiness.get(r["token_contract"])))
 
     lines=["🛰 GATE WEB3 AVCI | DAYANAK RAPORU"]
     if btc:
@@ -90,11 +94,14 @@ def main():
         lines.append("🚫 Bu tur dayanağı incelenebilir temiz aday yok.")
     labels={"DAYANAK_COK_GUCLU":"🟣 ÇOK GÜÇLÜ DAYANAK","DAYANAK_GUCLU":"🟢 GÜÇLÜ DAYANAK",
             "DAYANAK_ORTA":"🟡 ORTA DAYANAK","DAYANAK_ZAYIF":"⚪ ZAYIF DAYANAK"}
-    for r,e,sym,obs in enriched[:5]:
+    for r,e,sym,obs,ready in enriched[:5]:
         name=sym or (e["token_contract"][:8] if e else r["token_contract"][:8])
         net=e["network_id"] if e else r["network_id"]
         sup=arr(r["support_json"]); con=arr(r["counter_json"]); unk=arr(r["unknown_json"])
         lines.append(f"{early_dot(obs)} {labels.get(r['summary'],'⚪ DAYANAK BELİRSİZ')} — {name} [{net}]")
+        if ready:
+            rr={"PAPER_ELIGIBLE":"KAĞIT ÜSTÜ İŞLEME UYGUN","WATCH":"İZLE","NOT_READY":"HAZIR DEĞİL"}.get(ready["readiness"],"DEĞERLENDİRİLMEDİ")
+            lines.append(f"• İşlem hazırlığı: {rr}")
         lines.append(f"• Destek: {r['evidence_count']} | karşı kanıt: {r['counter_count']} | veri kapsamı: %{r['coverage_pct']:.0f}")
         for x in sup[:3]: lines.append(f"  ✅ {x}")
         for x in con[:2]: lines.append(f"  ⚠️ {x}")
