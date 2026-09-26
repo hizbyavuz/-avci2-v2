@@ -151,6 +151,14 @@ def main():
                 """SELECT * FROM correlation_position_overlay
                    WHERE source='BINANCE' AND batch_key=?
                    ORDER BY created_at_utc DESC""",(ts,)).fetchall()}
+        runner_rows=[]
+        if table(c,"runner_revival_observations"):
+            runner_rows=c.execute("""SELECT * FROM runner_revival_observations
+                WHERE source='BINANCE' AND batch_key=?
+                  AND class_label IN ('OLD_RUNNER_REVIVAL','STILL_EXTENDED')
+                ORDER BY CASE class_label WHEN 'OLD_RUNNER_REVIVAL' THEN 0 ELSE 1 END,
+                         change_24h_pct DESC LIMIT 3""",(ts,)).fetchall()
+
         size_curves={}
         if table(c,"execution_size_curve"):
             for rr in c.execute("""SELECT * FROM execution_size_curve
@@ -168,6 +176,16 @@ def main():
     if pool_counts is not None:
         total=sum(pool_counts.values())
         lines.append(f"• 15dk havuz: {total} coin | teyit {pool_counts.get('CONFIRMED',0)} | sınırda {pool_counts.get('BORDERLINE',0)} | sönen {pool_counts.get('FADED',0)}")
+        lines.append("")
+
+    if runner_rows:
+        lines.append("♻️ ESKİ BÜYÜK HAREKET / YENİDEN CANLANMA")
+        lines.append("(Bunlar erken aday değildir; geçmişte büyük yükseliş yaşamış coinler ayrı izlenir.)")
+        for rr in runner_rows:
+            if rr["class_label"]=="OLD_RUNNER_REVIVAL":
+                lines.append(f"🟡 {rr['symbol']}: eski zirveden %{abs(float(rr['drawdown_from_peak_pct'])):.0f} aşağıda, 24s %{float(rr['change_24h_pct']):+.1f} → yeniden hareketleniyor")
+            else:
+                lines.append(f"🔴 {rr['symbol']}: geçmişte çok yükselmiş ve zirveye hâlâ yakın → geç kalma riski yüksek")
         lines.append("")
 
     if not evrows:
