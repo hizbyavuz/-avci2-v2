@@ -127,22 +127,22 @@ def binance():
             if r["spread_bps"] is not None:liquid.append(r["spread_bps"])
         candidates=[r for r in cur if r["selection_class"]=="CANDIDATE"]
         hist=c.execute("""SELECT s.signal_time_utc t,s.event_class,s.stage,s.engine,s.btc_regime,
-             s.symbol,o.reach_json,o.net_return_pct
+             s.symbol,s.config_version,o.reach_json,o.net_return_pct
           FROM signal_events s JOIN outcome_labels o ON o.event_id=s.event_id
           WHERE o.label_status='CLOSED' AND s.event_class IN ('CANDIDATE','NEAR_MISS','RANDOM_CONTROL')
           ORDER BY s.signal_time_utc""").fetchall() if table(c,"outcome_labels") else []
         for f in candidates:
-            peer=[r for r in hist if r["event_class"]=="CANDIDATE" and r["stage"]==f["stage"] and r["engine"]==f["engine"]]
-            if len(peer)<MIN_N:peer=[r for r in hist if r["event_class"]=="CANDIDATE" and r["stage"]==f["stage"]]
-            if len(peer)<MIN_N:peer=[r for r in hist if r["event_class"]=="CANDIDATE"]
+            peer=[r for r in hist if r["config_version"]==f["config_version"] and r["event_class"]=="CANDIDATE" and r["stage"]==f["stage"] and r["engine"]==f["engine"]]
+            if len(peer)<MIN_N:peer=[r for r in hist if r["config_version"]==f["config_version"] and r["event_class"]=="CANDIDATE" and r["stage"]==f["stage"]]
+            if len(peer)<MIN_N:peer=[r for r in hist if r["config_version"]==f["config_version"] and r["event_class"]=="CANDIDATE"]
             k=sum(b_success(r["reach_json"],r["net_return_pct"]) for r in peer); n=len(peer)
             plo,phi=wilson(k,n); prob=calibrated(k,n) if n>=MIN_N else None
             same=[r for r in peer if (r["btc_regime"] or "UNKNOWN")==f["btc_regime"]]
             rk=sum(b_success(r["reach_json"],r["net_return_pct"]) for r in same); rn=len(same)
             rlo,rhi=wilson(rk,rn); rprob=calibrated(rk,rn) if rn>=MIN_N else None
             cand=[{"t":r["t"],"net":float(r["net_return_pct"])} for r in peer if r["net_return_pct"] is not None]
-            ctrlrows=[r for r in hist if r["event_class"] in ("NEAR_MISS","RANDOM_CONTROL") and (r["btc_regime"] or "UNKNOWN")==f["btc_regime"]]
-            if len(ctrlrows)<MIN_N:ctrlrows=[r for r in hist if r["event_class"] in ("NEAR_MISS","RANDOM_CONTROL")]
+            ctrlrows=[r for r in hist if r["config_version"]==f["config_version"] and r["event_class"] in ("NEAR_MISS","RANDOM_CONTROL") and (r["btc_regime"] or "UNKNOWN")==f["btc_regime"]]
+            if len(ctrlrows)<MIN_N:ctrlrows=[r for r in hist if r["config_version"]==f["config_version"] and r["event_class"] in ("NEAR_MISS","RANDOM_CONTROL")]
             ctrl=[{"t":r["t"],"net":float(r["net_return_pct"])} for r in ctrlrows if r["net_return_pct"] is not None]
             diff,dl,dh=cluster_boot_diff(cand,ctrl)
             raw=obj(f["raw_json"]); rv=raw.get("realized_volatility_24h")
@@ -184,16 +184,16 @@ def gate():
         hist=v.execute("""SELECT * FROM validation_events WHERE status='CLOSED_72H'
           AND group_type IN ('CANDIDATE','EXPANDED_CANDIDATE','NEAR_MISS','RANDOM_CONTROL')""").fetchall()
         for e in current:
-            peer=[r for r in hist if r["group_type"] in ("CANDIDATE","EXPANDED_CANDIDATE") and (r["rulesets"] or "")==(e["rulesets"] or "")]
-            if len(peer)<MIN_N:peer=[r for r in hist if r["group_type"] in ("CANDIDATE","EXPANDED_CANDIDATE")]
+            peer=[r for r in hist if r["config_version"]==e["config_version"] and r["group_type"] in ("CANDIDATE","EXPANDED_CANDIDATE") and (r["rulesets"] or "")==(e["rulesets"] or "")]
+            if len(peer)<MIN_N:peer=[r for r in hist if r["config_version"]==e["config_version"] and r["group_type"] in ("CANDIDATE","EXPANDED_CANDIDATE")]
             k=sum(r["result_10"]=="TARGET_FIRST" for r in peer);n=len(peer);plo,phi=wilson(k,n)
             prob=calibrated(k,n) if n>=MIN_N else None
             same=[r for r in peer if (r["btc_regime"] or "UNKNOWN")==e["btc_regime"] and (r["sol_regime"] or "UNKNOWN")==e["sol_regime"]]
             rk=sum(r["result_10"]=="TARGET_FIRST" for r in same);rn=len(same);rlo,rhi=wilson(rk,rn)
             rprob=calibrated(rk,rn) if rn>=MIN_N else None
             cand=[{"t":r["signal_iso"],"net":float(r["net_final_pct"])} for r in peer if r["net_final_pct"] is not None]
-            ctrlrows=[r for r in hist if r["group_type"] in ("NEAR_MISS","RANDOM_CONTROL") and (r["btc_regime"] or "UNKNOWN")==e["btc_regime"]]
-            if len(ctrlrows)<MIN_N:ctrlrows=[r for r in hist if r["group_type"] in ("NEAR_MISS","RANDOM_CONTROL")]
+            ctrlrows=[r for r in hist if r["config_version"]==e["config_version"] and r["group_type"] in ("NEAR_MISS","RANDOM_CONTROL") and (r["btc_regime"] or "UNKNOWN")==e["btc_regime"]]
+            if len(ctrlrows)<MIN_N:ctrlrows=[r for r in hist if r["config_version"]==e["config_version"] and r["group_type"] in ("NEAR_MISS","RANDOM_CONTROL")]
             ctrl=[{"t":r["signal_iso"],"net":float(r["net_final_pct"])} for r in ctrlrows if r["net_final_pct"] is not None]
             diff,dl,dh=cluster_boot_diff(cand,ctrl)
             snap=c.execute("""SELECT raw_json FROM snapshots WHERE network_id=? AND token_contract=?
