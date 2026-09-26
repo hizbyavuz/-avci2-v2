@@ -17,6 +17,8 @@ import requests
 
 VERSION="institutional-context-v1-20260926"
 BDB=os.getenv("BINANCE_DB","binance_avci2.db")
+GDB=os.getenv("AVCI_DB","avci2.db")
+GVDB=os.getenv("AVCI_VALIDATION_DB","avci_validation_v5.db")
 TOKEN=os.getenv("X_API_BEARER_TOKEN","")
 UA={"User-Agent":"avci-institutional-context/1.0"}
 
@@ -131,8 +133,28 @@ def binance():
                sx.get("source") or sx.get("reason"),VERSION,now().isoformat()))
         c.commit();print("institutional context BINANCE",len(syms),ms)
 
+def gate():
+    if not (os.path.exists(GDB) and os.path.exists(GVDB)):return
+    with sqlite3.connect(GDB,timeout=30) as c,sqlite3.connect(GVDB,timeout=30) as v:
+        c.row_factory=v.row_factory=sqlite3.Row;init(c)
+        h=c.execute("""SELECT batch_id,scan_ts FROM gate_scan_health WHERE status='VALID'
+          ORDER BY scan_ts DESC LIMIT 1""").fetchone()
+        if not h:return
+        batch=str(h["batch_id"]);ts=datetime.fromtimestamp(int(h["scan_ts"]),timezone.utc)
+        ms,me=macro_state(ts)
+        ev=v.execute("""SELECT network_id,token_contract FROM validation_events
+          WHERE batch_id=? AND group_type IN ('CANDIDATE','EXPANDED_CANDIDATE')""",(batch,)).fetchall()
+        for e in ev:
+            key=f"{e['network_id']}:{e['token_contract']}"
+            c.execute("""INSERT OR REPLACE INTO institutional_context VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""",
+              ("GATE",batch,key,ms,json.dumps(me),"FROM_SCANNER_SNAPSHOT",None,None,None,
+               "Gate exact-contract X counts are collected inside scanner when token is available.",
+               VERSION,now().isoformat()))
+        c.commit();print("institutional context GATE",len(ev),ms)
+
 def main():
     m=(sys.argv[1] if len(sys.argv)>1 else "").lower()
     if m=="binance":binance()
-    else:raise SystemExit("usage: institutional_context_observer.py binance")
+    elif m=="gate":gate()
+    else:raise SystemExit("usage: institutional_context_observer.py binance|gate")
 if __name__=="__main__":main()
