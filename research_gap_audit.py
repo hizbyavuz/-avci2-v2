@@ -126,9 +126,22 @@ def gate():
         else:
             gaps["historical_survivorship_coverage"]={"status":"EXTERNAL_HISTORY_DB_NOT_MOUNTED"}
         bad,good=labelled_security_rows(corpus)
+        replay_status=None; bad_matched=good_matched=0
+        if os.path.exists("security_redteam_report.json"):
+            try:
+                rr=json.load(open("security_redteam_report.json",encoding="utf-8"))
+                replay_status=rr.get("status")
+                bad_matched=int(rr.get("bad_matched") or 0)
+                good_matched=int(rr.get("good_matched") or 0)
+            except Exception:
+                pass
         gaps["security_ground_truth"]={
-          "status":"READY" if bad>=30 and good>=30 else "WAITING_INDEPENDENT_GROUND_TRUTH",
-          "bad_labels":bad,"good_controls":good,"target_each":30
+          "status":("READY_REPLAY_VALIDATED" if bad_matched>=30 and good_matched>=30
+                    else "CORPUS_READY_REPLAY_PENDING" if bad>=30 and good>=30
+                    else "WAITING_INDEPENDENT_GROUND_TRUTH"),
+          "bad_labels":bad,"good_controls":good,"target_each":30,
+          "bad_matched":bad_matched,"good_matched":good_matched,
+          "redteam_status":replay_status
         }
         overall="PAPER_ONLY_WAITING_EVIDENCE"
         payload={"source":"GATE","version":VERSION,"audited_at_utc":now().isoformat(),
