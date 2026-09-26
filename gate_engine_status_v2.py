@@ -23,6 +23,23 @@ def obj(s):
 def pct(v):
     return "-" if v is None else f"%{100*float(v):.0f}"
 
+def early_dot(obs):
+    if not obs:
+        return "🟢"
+    vr=obs["own_volume_ratio"]
+    buys=float(obs["buys_5m"] or 0)
+    sells=float(obs["sells_5m"] or 0)
+    day=float(obs["change_24h"] or 0)
+    volume_ok=vr is not None and float(vr)>=2.0
+    buyers_ok=(buys+sells)>=5 and buys>=1.3*max(sells,1)
+    price_early=(-2<=day<=20)
+    score=sum((volume_ok,buyers_ok,price_early))
+    if score==3:
+        return "🔴"
+    if score>=2:
+        return "🟡"
+    return "🟢"
+
 def main():
     if not os.path.exists(DB) or not os.path.exists(VAL):
         print("Gate human report: DB eksik"); return
@@ -56,7 +73,13 @@ def main():
                     (e["network_id"],e["token_contract"],e["signal_iso"])).fetchone()
                 item=obj(snap[0]) if snap else {}
                 sym=item.get("symbol") or item.get("name")
-            enriched.append((r,e,sym))
+            obs=None
+            if e and table(c,"gate_early_observations"):
+                obs=c.execute("""SELECT own_volume_ratio,buys_5m,sells_5m,change_24h
+                    FROM gate_early_observations WHERE batch_id=? AND network_id=?
+                    AND token_contract=? LIMIT 1""",
+                    (batch,e["network_id"],e["token_contract"])).fetchone()
+            enriched.append((r,e,sym,obs))
 
     lines=["🛰 GATE WEB3 AVCI | DAYANAK RAPORU"]
     if btc:
@@ -67,11 +90,11 @@ def main():
         lines.append("🚫 Bu tur dayanağı incelenebilir temiz aday yok.")
     labels={"DAYANAK_COK_GUCLU":"🟣 ÇOK GÜÇLÜ DAYANAK","DAYANAK_GUCLU":"🟢 GÜÇLÜ DAYANAK",
             "DAYANAK_ORTA":"🟡 ORTA DAYANAK","DAYANAK_ZAYIF":"⚪ ZAYIF DAYANAK"}
-    for r,e,sym in enriched[:5]:
+    for r,e,sym,obs in enriched[:5]:
         name=sym or (e["token_contract"][:8] if e else r["token_contract"][:8])
         net=e["network_id"] if e else r["network_id"]
         sup=arr(r["support_json"]); con=arr(r["counter_json"]); unk=arr(r["unknown_json"])
-        lines.append(f"{labels.get(r['summary'],'⚪ DAYANAK BELİRSİZ')} — {name} [{net}]")
+        lines.append(f"{early_dot(obs)} {labels.get(r['summary'],'⚪ DAYANAK BELİRSİZ')} — {name} [{net}]")
         lines.append(f"• Destek: {r['evidence_count']} | karşı kanıt: {r['counter_count']} | veri kapsamı: %{r['coverage_pct']:.0f}")
         for x in sup[:3]: lines.append(f"  ✅ {x}")
         for x in con[:2]: lines.append(f"  ⚠️ {x}")
