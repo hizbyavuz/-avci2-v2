@@ -18,6 +18,7 @@ on:
       - "binance_context_research.py"
       - "binance_catalyst_observer.py"
       - "binance_crossvenue_spot.py"
+      - "research_p0_governance.py"
       - ".github/workflows/binance-money-flow.yml"
   schedule:
     - cron: "2,22,42 * * * *"
@@ -112,6 +113,10 @@ jobs:
         continue-on-error: true
         run: python -u binance_activation_math.py
 
+
+      - name: Run P0 governance audit
+        continue-on-error: true
+        run: python -u research_p0_governance.py binance
 
       - name: Evaluate execution-aware trade readiness
         continue-on-error: true
