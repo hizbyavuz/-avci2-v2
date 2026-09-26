@@ -14,6 +14,8 @@ import json, math, os, random, sqlite3, statistics, sys
 from datetime import datetime, timezone, timedelta
 
 VERSION="institutional-validation-v1-20260926"
+GATE_FEATURES=("acceleration_1h","acceleration_5m","buy_sell_ratio_5m",
+               "volume_liquidity_ratio","change_5m","change_1h")
 
 def now():return datetime.now(timezone.utc).isoformat()
 def table(c,t):return c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",(t,)).fetchone() is not None
@@ -135,6 +137,39 @@ def gate(c,v):
         mixed=v.execute("SELECT COUNT(*) FROM validation_events WHERE signal_ts>=? AND config_version<>?",(hold_ts,first[0])).fetchone()[0]
     c.execute("INSERT OR REPLACE INTO version_isolation_audit VALUES(?,?,?,?,?,?,?)",
       ("GATE",VERSION,now(),len(versions),mixed,"PASS" if mixed==0 else "FAIL_MIXED_VERSION_HOLDOUT",json.dumps({"versions":versions})))
+
+    # Gate feature predictive-power decay, current config only, using the
+    # signal-time snapshot and closed 72h outcomes.
+    latest_cfg=v.execute("""SELECT config_version FROM validation_events
+      ORDER BY signal_ts DESC LIMIT 1""").fetchone()
+    latest_cfg=latest_cfg[0] if latest_cfg else None
+    today=datetime.now(timezone.utc)
+    for w in (30,60,90):
+        cutoff=int((today-timedelta(days=w)).timestamp())
+        evs=v.execute("""SELECT network_id,token_contract,signal_iso,net_final_pct
+          FROM validation_events WHERE status='CLOSED_72H' AND signal_ts>=?
+          AND group_type IN ('CANDIDATE','EXPANDED_CANDIDATE')
+          AND net_final_pct IS NOT NULL AND (? IS NULL OR config_version=?)""",
+          (cutoff,latest_cfg,latest_cfg)).fetchall()
+        vals={k:[] for k in GATE_FEATURES}; yy=[]
+        for e in evs:
+            snap=c.execute("""SELECT raw_json FROM snapshots WHERE network_id=? AND token_contract=?
+              AND zaman_utc>=? ORDER BY id ASC LIMIT 1""",
+              (e["network_id"],e["token_contract"],e["signal_iso"])).fetchone() if table(c,"snapshots") else None
+            if not snap:continue
+            try:raw=json.loads(snap[0] or "{}")
+            except Exception:continue
+            y=1.0 if float(e["net_final_pct"])>0 else 0.0
+            for name in GATE_FEATURES:
+                if raw.get(name) is not None:
+                    try:vals[name].append((float(raw[name]),y))
+                    except Exception:pass
+        for name in GATE_FEATURES:
+            xy=vals[name];x=[a for a,b in xy];y=[b for a,b in xy]
+            pc=corr(x,y) if len(x)>=8 else None
+            c.execute("INSERT OR REPLACE INTO feature_predictive_decay VALUES(?,?,?,?,?,?,?,?,?)",
+              ("GATE",VERSION,today.date().isoformat(),name,w,len(x),pc,mean(y) if y else None,
+               "OK" if pc is not None else "INSUFFICIENT"))
 
     # Security decay history from latest red-team replay tables.
     if table(c,"external_security_replay"):
