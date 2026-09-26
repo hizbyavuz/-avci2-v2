@@ -70,7 +70,12 @@ def main():
             tp=sum(r["detected"] for r in badm);fp=sum(r["detected"] for r in goodm)
             recall=tp/len(badm) if badm else None
             fpr=fp/len(goodm) if goodm else None
-            status="READY" if len(bad)>=TARGET_BAD and len(good)>=TARGET_GOOD else "CORPUS_INCOMPLETE"
+            if len(bad)<TARGET_BAD or len(good)<TARGET_GOOD:
+                status="CORPUS_INCOMPLETE"
+            elif len(badm)>=TARGET_BAD and len(goodm)>=TARGET_GOOD:
+                status="READY_REPLAY_VALIDATED"
+            else:
+                status="CORPUS_READY_REPLAY_PENDING"
             report.update({"status":status,"bad_total":len(bad),"good_total":len(good),
               "bad_matched":len(badm),"good_matched":len(goodm),"security_recall":recall,
               "healthy_false_positive_rate":fpr,"missing_bad":max(0,TARGET_BAD-len(bad)),
