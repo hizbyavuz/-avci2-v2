@@ -16,6 +16,11 @@ on:
       - "gate_weighted_discovery.py"
       - "gate_engine_status_v2.py"
       - "tests/test_gate_weighted_discovery.py"
+      - "genesis_freeze_manifest.json"
+      - "genesis_freeze_guard.py"
+      - "compliance_ledger.py"
+      - "tests/test_compliance_and_freeze.py"
+      - "INDEPENDENT_AUDIT_PACKAGE.md"
       - "correlation_position_overlay.py"
       - "execution_size_curve.py"
       - "institutional_context_observer.py"
@@ -52,6 +57,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
 
       - name: Setup Python
         uses: actions/setup-python@v6
@@ -74,6 +81,8 @@ jobs:
             external_shadow_universe.py \
             runner_revival_observer.py \
             gate_weighted_discovery.py \
+            genesis_freeze_guard.py \
+            compliance_ledger.py \
             correlation_position_overlay.py \
             execution_size_curve.py \
             institutional_context_observer.py \
