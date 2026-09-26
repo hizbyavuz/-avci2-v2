@@ -12,6 +12,7 @@ on:
       - "gate_activation_math.py"
       - "gate_evidence_research.py"
       - "gate_research_integrity.py"
+      - "trade_readiness_layer.py"
       - ".github/workflows/avci-v2.yml"
   schedule:
     - cron: "8,28,48 * * * *"
@@ -139,6 +140,10 @@ jobs:
         continue-on-error: true
         run: python -u gate_activation_math.py
 
+
+      - name: Evaluate Gate trade readiness
+        continue-on-error: true
+        run: python -u trade_readiness_layer.py gate
 
       - name: Send one consolidated Gate Web3 motor message
         if: success()
