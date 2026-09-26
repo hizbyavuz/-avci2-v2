@@ -11,6 +11,7 @@ on:
       - "binance_engine_status_v2.py"
       - "binance_activation_math.py"
       - "binance_evidence_research.py"
+      - "binance_research_integrity.py"
       - ".github/workflows/binance-money-flow.yml"
   schedule:
     - cron: "2,22,42 * * * *"
@@ -77,6 +78,10 @@ jobs:
       - name: Audit validation integrity
         continue-on-error: true
         run: python -u binance_validation_audit.py
+
+      - name: Validate Binance research integrity
+        continue-on-error: true
+        run: python -u binance_research_integrity.py
 
       - name: Build Binance candidate evidence dossiers
         continue-on-error: true
