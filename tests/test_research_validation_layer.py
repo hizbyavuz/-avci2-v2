@@ -3,6 +3,8 @@ import unittest
 
 import research_validation_layer as rv
 import research_p0_governance as p0
+import research_decision_discipline as rd
+import avci_global_governance as gg
 
 
 class ResearchValidationLayerTests(unittest.TestCase):
@@ -102,6 +104,23 @@ class ResearchValidationLayerTests(unittest.TestCase):
         self.assertIsNotNone(d["ci_low"])
         self.assertIsNotNone(d["ci_high"])
         self.assertEqual(c.execute("SELECT COUNT(*) FROM research_p0_dependence").fetchone()[0],0)
+
+
+    def test_predeclared_mde_diff(self):
+        rows=[
+            {"grp":"CANDIDATE","net":2.0,"t":"2026-10-10T00:00:00+00:00","regime":"UP"},
+            {"grp":"CANDIDATE","net":1.0,"t":"2026-10-11T00:00:00+00:00","regime":"UP"},
+            {"grp":"RANDOM_CONTROL","net":0.2,"t":"2026-10-10T00:00:00+00:00","regime":"UP"},
+            {"grp":"NEAR_MISS","net":0.0,"t":"2026-10-11T00:00:00+00:00","regime":"UP"},
+        ]
+        self.assertAlmostEqual(rd.holdout_diff_mean("BINANCE",rows),1.4)
+        self.assertEqual(rd.GO_LIVE["min_candidate_control_expectancy_diff_pct"],0.50)
+
+    def test_global_beta_and_concentration_helpers(self):
+        p=[0.01,0.02,-0.01,0.03,0.00]
+        b=[0.005,0.01,-0.005,0.015,0.00]
+        self.assertAlmostEqual(gg.beta(p,b),2.0,places=6)
+        self.assertAlmostEqual(gg.hhi({"BINANCE":3,"GATE":1}),0.625,places=6)
 
 
 
