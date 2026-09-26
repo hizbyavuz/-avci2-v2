@@ -1,0 +1,54 @@
+name: Read-Only Execution Evidence
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "read_only_execution_collector.py"
+      - ".github/workflows/read-only-execution-evidence.yml"
+  schedule:
+    - cron: "27 * * * *"
+
+permissions:
+  contents: read
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install requests
+        run: pip install requests
+      - name: Restore latest Binance state
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p .exec/binance
+          run_id=$(gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts?name=binance-avci2-state&per_page=100" \
+            --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | reverse | .[0].workflow_run.id // empty')
+          if test -n "$run_id"; then
+            gh run download "$run_id" --name binance-avci2-state --dir .exec/binance
+          fi
+      - name: Collect read-only execution evidence
+        env:
+          BINANCE_DB: .exec/binance/binance_avci2.db
+          BINANCE_API_KEY: ${{ secrets.BINANCE_API_KEY }}
+          BINANCE_API_SECRET: ${{ secrets.BINANCE_API_SECRET }}
+          HELIUS_API_KEY: ${{ secrets.HELIUS_API_KEY }}
+          GATE_WEB3_SOLANA_ADDRESS: ${{ secrets.GATE_WEB3_SOLANA_ADDRESS }}
+        run: python -u read_only_execution_collector.py
+      - name: Upload execution evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: read-only-execution-evidence
+          path: |
+            read_only_execution_observations.csv
+            web3_execution_observations.json
+            read_only_execution_report.json
+          if-no-files-found: error
+          retention-days: 90
