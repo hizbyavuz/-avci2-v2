@@ -9,7 +9,6 @@ on:
       - "binance_derivatives_fallback.py"
       - "binance_engine_status.py"
       - "binance_engine_status_v2.py"
-      - "binance_quick_status.py"
       - "binance_activation_math.py"
       - "binance_evidence_research.py"
       - "binance_research_integrity.py"
@@ -100,14 +99,6 @@ jobs:
         env:
           POOL_WORKERS: "8"
         run: python -u binance_live_pool.py
-
-      - name: Send quick Binance result after live confirmation
-        if: always()
-        continue-on-error: true
-        env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: python -u binance_quick_status.py
 
       - name: Confirm live-pool moves on other spot venues
         continue-on-error: true
