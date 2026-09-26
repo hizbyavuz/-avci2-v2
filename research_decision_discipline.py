@@ -28,6 +28,7 @@ GO_LIVE={
   "max_drawdown":0.20,
   "min_expectancy_pct":0.0,
   "candidate_control_ci_low_gt":0.0,
+  "min_candidate_control_expectancy_diff_pct":0.50,
   "max_data_failure_rate":0.05,
   "min_execution_coverage":0.90,
   "min_excess_vs_benchmark_pct":0.0
@@ -143,6 +144,11 @@ def gate_closed(v):
 def is_candidate(source,r):
     g=str(r.get("grp") or "")
     return g=="CANDIDATE" if source=="BINANCE" else g in ("CANDIDATE","EXPANDED_CANDIDATE")
+
+def holdout_diff_mean(source,rows):
+    ca=[float(r["net"]) for r in rows if is_candidate(source,r) and r.get("net") is not None]
+    co=[float(r["net"]) for r in rows if not is_candidate(source,r) and r.get("net") is not None]
+    return (avg(ca)-avg(co)) if ca and co else None
 
 def holdout_diff_ci(source,rows,nboot=1000):
     ca=[r for r in rows if is_candidate(source,r) and r.get("net") is not None]
@@ -266,11 +272,13 @@ def evaluate(source,c,rows):
     n=len(vals); exp=avg(vals); pforce=pf(vals); sh=sharpe(vals); so=sortino(vals); dd=maxdd(vals)
     fr=failure_rate(c); cov=execution_coverage(c,source)
     excess=benchmark_excess(hold_candidates) if source=="BINANCE" else None
+    diff_mean=holdout_diff_mean(source,hold_rows)
     ci_low=holdout_diff_ci(source,hold_rows)
 
     metrics={"candidate_closed":n,"effective_n":eff,"expectancy_pct":exp,"profit_factor":pforce,
              "sharpe":sh,"sortino":so,"max_drawdown":dd,"data_failure_rate":fr,
-             "execution_coverage":cov,"candidate_control_ci_low":ci_low,
+             "execution_coverage":cov,"candidate_control_expectancy_diff_pct":diff_mean,
+             "candidate_control_ci_low":ci_low,
              "benchmark_excess_pct":excess,"prospective_holdout_rows":len(hold_rows),
              "prospective_holdout_candidates":len(hold_candidates),
              "prospective_holdout_controls":len(hold_rows)-len(hold_candidates)}
@@ -285,6 +293,8 @@ def evaluate(source,c,rows):
     if so is None or so<GO_LIVE["min_sortino"]:reasons.append("SORTINO")
     if dd>GO_LIVE["max_drawdown"]:reasons.append("MAX_DRAWDOWN")
     if exp is None or exp<=GO_LIVE["min_expectancy_pct"]:reasons.append("EXPECTANCY")
+    if diff_mean is None or diff_mean<GO_LIVE["min_candidate_control_expectancy_diff_pct"]:
+        reasons.append("MIN_ECONOMIC_CANDIDATE_CONTROL_DIFF")
     if ci_low is None or ci_low<=GO_LIVE["candidate_control_ci_low_gt"]:reasons.append("CANDIDATE_CONTROL_CI")
     if fr>GO_LIVE["max_data_failure_rate"]:reasons.append("DATA_FAILURE_RATE")
     if cov<GO_LIVE["min_execution_coverage"]:reasons.append("EXECUTION_COVERAGE")
