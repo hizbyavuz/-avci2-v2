@@ -146,8 +146,9 @@
   "cost_calibration": {
     "binance_observed": "signal-time spread + $1k buy impact + $1k sell impact",
     "gate_observed": "recorded exit quote loss/estimated total cost",
-    "real_fill_status": "UNAVAILABLE_UNTIL_REAL_EXECUTION",
-    "rule": "Never call quote-observed cost realized cost."
+    "real_fill_status": "IMPORT_PIPELINE_READY_AWAITING_VERIFIED_OBSERVATIONS",
+    "rule": "Never call quote-observed cost realized cost.",
+    "real_fill_rule": "Only independently exported/read-only fills may populate realized cost; missing fills remain missing and are never imputed."
   },
   "security_redteam": {
     "target_bad_cases": 30,
@@ -160,5 +161,30 @@
     "min_holdout_days": 60,
     "max_holdout_days": 120,
     "insufficient_at_deadline": "INCONCLUSIVE_RESTART_VERSION"
+  },
+  "telemetry_constraints": {
+    "historical_latency_backfill": "IMPOSSIBLE_RETROACTIVELY",
+    "forward_collection": "ENABLED",
+    "rule": "Do not synthesize provider latency or source-age history for periods before telemetry was enabled."
+  },
+  "survivorship_coverage": {
+    "gate_known_pair_backfill": "ENABLED",
+    "full_historical_universe_status": "INCOMPLETE_UNTIL_EXTERNAL_ENUMERATION_OR_ARCHIVE_COVERAGE",
+    "rule": "Unresolved/no-archive/delisted cases stay explicit and are never silently converted to ordinary failures or successes."
+  },
+  "power_and_stopping": {
+    "status": "BLOCKED_UNTIL_MINIMUM_ECONOMIC_EFFECT_IS_PREDECLARED",
+    "rule": "Do not derive required sample size from observed uplift. Freeze an externally chosen minimum economically meaningful effect before using power-based stopping.",
+    "current_decision": "Exploratory/paper-only until the prospective holdout and predeclared stopping rule are satisfied."
+  },
+  "dependence": {
+    "primary_cluster": "day x market-regime block bootstrap",
+    "secondary_diagnostics": [
+      "asset concentration",
+      "week concentration",
+      "asset x week concentration",
+      "effective sample size"
+    ],
+    "rule": "Raw event count must never be presented as independent sample size."
   }
 }
