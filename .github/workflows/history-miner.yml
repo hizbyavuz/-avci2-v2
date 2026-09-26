@@ -8,7 +8,7 @@ on:
       - "history_telegram_status.py"
       - ".github/workflows/history-miner.yml"
   schedule:
-    - cron: "6,16,26,36,46,56 * * * *"
+    - cron: "6 * * * *"
 
 permissions:
   contents: read
