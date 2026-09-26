@@ -85,11 +85,31 @@ def main():
             ORDER BY scan_time_utc DESC LIMIT 1""").fetchone()
         if not scan: print("Binance evidence: valid scan yok"); return
         ts=scan["scan_time_utc"]
-        candidates=c.execute("""SELECT * FROM features WHERE scan_time_utc=?
-            AND selection_class='CANDIDATE' ORDER BY score DESC,cross_sectional_rarity_pct DESC""",
-            (ts,)).fetchall()
+        if table(c,"binance_live_pool"):
+            candidates=c.execute("""SELECT f.* FROM features f
+                JOIN binance_live_pool p
+                  ON p.scan_time_utc=f.scan_time_utc AND p.symbol=f.symbol
+                WHERE f.scan_time_utc=?
+                  AND p.status IN ('CONFIRMED','BORDERLINE')
+                ORDER BY CASE p.status WHEN 'CONFIRMED' THEN 0 ELSE 1 END,
+                         p.confirmation_score DESC,p.pool_score DESC
+                LIMIT 10""",(ts,)).fetchall()
+        else:
+            candidates=c.execute("""SELECT * FROM features WHERE scan_time_utc=?
+                AND selection_class='CANDIDATE'
+                ORDER BY score DESC,cross_sectional_rarity_pct DESC""",(ts,)).fetchall()
         for f in candidates:
             support=[]; counter=[]; unknown=[]
+            pool=None
+            if table(c,"binance_live_pool"):
+                pool=c.execute("""SELECT status,confirmation_score,reason_json
+                    FROM binance_live_pool WHERE scan_time_utc=? AND symbol=?
+                    ORDER BY version DESC LIMIT 1""",(ts,f["symbol"])).fetchone()
+            if pool:
+                if pool["status"]=="CONFIRMED":
+                    support.append("15dk canlı izleme teyidi geçti")
+                elif pool["status"]=="BORDERLINE":
+                    unknown.append("15dk canlı izleme sınırda kaldı")
             # Historical / structural
             if float(f["btc_relative_24h"] or 0)>=2: support.append("BTC'den belirgin güçlü")
             elif float(f["btc_relative_24h"] or 0)<=-1: counter.append("BTC'ye göre zayıf")
