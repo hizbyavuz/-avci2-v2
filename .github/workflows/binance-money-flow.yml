@@ -12,6 +12,7 @@ on:
       - "binance_activation_math.py"
       - "binance_evidence_research.py"
       - "binance_research_integrity.py"
+      - "binance_live_pool.py"
       - ".github/workflows/binance-money-flow.yml"
   schedule:
     - cron: "2,22,42 * * * *"
@@ -47,6 +48,9 @@ jobs:
 
       - name: Refresh market and derivative features
         run: python -u binance_scanner.py
+
+      - name: Run 15-minute live confirmation pool
+        run: python -u binance_live_pool.py
 
       - name: Record pre-signal market structure
         continue-on-error: true
