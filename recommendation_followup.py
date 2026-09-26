@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Record reported recommendations and send one short 72h follow-up.
+"""Record reported recommendations and measure their maximum rise over 72h.
 
 Research-only. Does not change scanner rules, evidence scores, or candidate labels.
 """
@@ -43,9 +43,16 @@ def init(c):
         checked_at_utc TEXT,
         followup_price REAL,
         change_pct REAL,
+        peak_price REAL,
+        max_gain_pct REAL,
         status TEXT NOT NULL DEFAULT 'PENDING',
         UNIQUE(source,asset_key,recommended_at_utc)
     )""")
+    cols={r[1] for r in c.execute("PRAGMA table_info(recommendation_followups)")}
+    if "peak_price" not in cols:
+        c.execute("ALTER TABLE recommendation_followups ADD COLUMN peak_price REAL")
+    if "max_gain_pct" not in cols:
+        c.execute("ALTER TABLE recommendation_followups ADD COLUMN max_gain_pct REAL")
     c.execute("""CREATE INDEX IF NOT EXISTS idx_recommendation_followups_due
         ON recommendation_followups(source,status,due_at_utc)""")
 
@@ -157,6 +164,34 @@ def latest_gate_price(c,key):
         ORDER BY scan_ts DESC LIMIT 1""",(net,contract)).fetchone()
     return float(r[0]) if r and r[0] else None
 
+def peak_binance_price(c,symbol,start_iso,end_iso):
+    start=parse_dt(start_iso); end=parse_dt(end_iso)
+    if not start or not end:
+        return None
+    if table(c,"raw_klines"):
+        lo=int(start.timestamp()*1000); hi=int(end.timestamp()*1000)
+        r=c.execute("""SELECT MAX(high_price) FROM raw_klines
+            WHERE symbol=? AND interval_value='5m'
+              AND open_time_ms>=? AND open_time_ms<=?""",(symbol,lo,hi)).fetchone()
+        if r and r[0] is not None:
+            return float(r[0])
+    r=c.execute("""SELECT MAX(price) FROM features
+        WHERE symbol=? AND scan_time_utc>=? AND scan_time_utc<=?
+          AND price IS NOT NULL""",(symbol,start_iso,end_iso)).fetchone()
+    return float(r[0]) if r and r[0] is not None else None
+
+def peak_gate_price(c,key,start_iso,end_iso):
+    try: net,contract=key.split(":",1)
+    except ValueError: return None
+    start=parse_dt(start_iso); end=parse_dt(end_iso)
+    if not start or not end:
+        return None
+    r=c.execute("""SELECT MAX(price) FROM gate_early_observations
+        WHERE network_id=? AND token_contract=? AND scan_ts>=? AND scan_ts<=?
+          AND price IS NOT NULL""",
+        (net,contract,int(start.timestamp()),int(end.timestamp()))).fetchone()
+    return float(r[0]) if r and r[0] is not None else None
+
 def process_due(c,source):
     due=c.execute("""SELECT * FROM recommendation_followups
         WHERE source=? AND status='PENDING' AND due_at_utc<=?
@@ -168,9 +203,14 @@ def process_due(c,source):
             # Keep it pending; a later scan may recover a valid market price.
             continue
         ch=change_pct(r["recommendation_price"],px)
+        peak=(peak_binance_price(c,r["asset_key"],r["recommended_at_utc"],r["due_at_utc"])
+              if source=="BINANCE"
+              else peak_gate_price(c,r["asset_key"],r["recommended_at_utc"],r["due_at_utc"]))
+        max_gain=change_pct(r["recommendation_price"],peak)
         c.execute("""UPDATE recommendation_followups SET checked_at_utc=?,followup_price=?,
-            change_pct=?,status='CHECKED' WHERE id=?""",(now().isoformat(),px,ch,r["id"]))
-        out.append((r,px,ch))
+            change_pct=?,peak_price=?,max_gain_pct=?,status='CHECKED' WHERE id=?""",
+            (now().isoformat(),px,ch,peak,max_gain,r["id"]))
+        out.append((r,px,ch,peak,max_gain))
     return out
 
 def send_followups(db,source,rows):
@@ -182,11 +222,10 @@ def send_followups(db,source,rows):
     chat=resolve_chat_id(token,(os.getenv("TELEGRAM_CHAT_ID") or "").strip(),db,
                          "Binance Motor" if source=="BINANCE" else "Gate Web3 Motor")
     lines=["⏱ 3 GÜN SONRA KONTROL"]
-    for r,px,ch in rows:
-        before="-" if r["recommendation_price"] is None else f"{float(r['recommendation_price']):.8g}"
-        after=f"{px:.8g}"
-        delta="-" if ch is None else f"%{ch:+.1f}"
-        lines.append(f"• {r['display_name']}: {before} → {after} | {delta}")
+    for r,px,ch,peak,max_gain in rows:
+        gain="-" if max_gain is None else f"%{max_gain:+.1f}"
+        current="-" if ch is None else f"%{ch:+.1f}"
+        lines.append(f"• {r['display_name']}: 3 günde en fazla {gain} | 72s sonu {current}")
     send_telegram(token,chat,"\n".join(lines)[:3900])
 
 def main():
