@@ -22,10 +22,16 @@ def dt(x):
     try:return datetime.fromisoformat(str(x).replace("Z","+00:00"))
     except Exception:return None
 
+def target_value(d,target):
+    for k in (str(target), f"{float(target):.1f}"):
+        if k in d:
+            return d[k]
+    return None
+
 def reached(r,target=10):
     try:
         d=json.loads(r["reach_json"] or "{}")
-        v=d.get(str(target))
+        v=target_value(d,target)
         return bool(v) if isinstance(v,(bool,int,float)) else False
     except Exception:return False
 
