@@ -17,6 +17,8 @@ on:
       - "research_p0_governance.py"
       - "research_validation_layer.py"
       - "research_decision_discipline.py"
+      - "execution_fill_import.py"
+      - "execution_fill_observations.csv"
       - "security_redteam.py"
       - "security_adversarial_corpus.csv"
       - "security_corpus_requirements.json"
@@ -88,6 +90,23 @@ jobs:
 
       - name: Install requests
         run: pip install requests
+
+      - name: Restore verified real fill observations
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p .execution-fill
+          run_id=$(gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts?name=execution-fill-observations&per_page=100"             --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | reverse | .[0].workflow_run.id // empty')
+          if test -n "$run_id"; then
+            gh run download "$run_id" --name execution-fill-observations --dir .execution-fill
+          fi
+
+      - name: Import real fill observations when available
+        continue-on-error: true
+        env:
+          EXECUTION_FILL_FILE: .execution-fill/execution_fill_observations.csv
+        run: python -u execution_fill_import.py
 
       - name: Run complete regression test suite
         run: python -m unittest discover -s tests -v
@@ -162,9 +181,26 @@ jobs:
         continue-on-error: true
         run: python -u research_decision_discipline.py gate
 
+      - name: Restore verified adversarial security corpus
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p .security-corpus
+          run_id=$(gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts?name=security-adversarial-corpus&per_page=100"             --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | reverse | .[0].workflow_run.id // empty')
+          if test -n "$run_id"; then
+            gh run download "$run_id" --name security-adversarial-corpus --dir .security-corpus
+          fi
+
       - name: Run Gate security adversarial validation
         continue-on-error: true
-        run: python -u security_redteam.py
+        env:
+          SECURITY_CORPUS: .security-corpus/security_adversarial_corpus.csv
+        run: |
+          if test ! -s "$SECURITY_CORPUS"; then
+            export SECURITY_CORPUS=security_adversarial_corpus.csv
+          fi
+          python -u security_redteam.py
 
       - name: Evaluate Gate trade readiness
         continue-on-error: true
