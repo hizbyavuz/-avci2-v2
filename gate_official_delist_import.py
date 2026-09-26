@@ -10,7 +10,6 @@ from __future__ import annotations
 import html, json, os, re, sqlite3
 from datetime import datetime, timezone
 import requests
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
 DB=os.getenv("HISTORY_DB","history_miner.db")
 PAGES=int(os.getenv("GATE_DELIST_PAGES","25"))
@@ -76,29 +75,24 @@ def main():
     def parse_article(article):
         aid=str(article.get("id") or "")
         title=str(article.get("title") or "")
-        blob="\n".join([
-          title,str(article.get("brief") or ""),str(article.get("tags") or ""),
-          str(article.get("source") or ""),str(article.get("cate") or "")
-        ])
+        brief=str(article.get("brief") or "")
+        tags=str(article.get("tags") or "")
+        cate=str(article.get("cate") or "")
+        # Precision-first: only use fields returned directly by Gate's official
+        # announcement API. Do not scrape miniapp HTML because page chrome can
+        # contain unrelated market symbols and contaminate survivorship labels.
+        blob="\n".join([title,brief,tags,cate])
         pairs=pairs_from_text(blob)
         url=f"{MINIAPP}{aid}" if aid else ""
-        if aid:
-            try:
-                pairs |= pairs_from_text(fetch(url))
-            except Exception as e:
-                return aid,title,url,pairs,f"{type(e).__name__}:{str(e)[:120]}"
         return aid,title,url,pairs,None
 
-    with ThreadPoolExecutor(max_workers=24) as ex:
-        futs=[ex.submit(parse_article,a) for a in articles]
-        for fut in as_completed(futs):
-            try:
-                aid,title,url,pairs,err=fut.result()
-                if err: errors.append(f"article:{aid}:{err}")
-                for pair,sym in pairs:
-                    found[pair]=(sym,url,title)
-            except Exception as e:
-                errors.append(f"parse:{type(e).__name__}:{str(e)[:120]}")
+    for article in articles:
+        try:
+            aid,title,url,pairs,err=parse_article(article)
+            for pair,sym in pairs:
+                found[pair]=(sym,url,title)
+        except Exception as e:
+            errors.append(f"parse:{type(e).__name__}:{str(e)[:120]}")
 
     stamp=now()
     with sqlite3.connect(DB,timeout=60) as c:
@@ -123,7 +117,7 @@ def main():
 
     report={
       "generated_at_utc":stamp,"api_articles":len(articles),"api_total":total,
-      "official_usdt_pairs":len(found),"source":"Gate API POST /ann/list_article",
+      "official_usdt_pairs":len(found),"source":"Gate API POST /ann/list_article (API fields only)",
       "errors":errors[:100]
     }
     with open("gate_delist_import_report.json","w",encoding="utf-8") as out:
