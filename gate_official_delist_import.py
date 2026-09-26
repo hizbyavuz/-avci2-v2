@@ -10,6 +10,7 @@ from __future__ import annotations
 import html, json, os, re, sqlite3
 from datetime import datetime, timezone
 import requests
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 DB=os.getenv("HISTORY_DB","history_miner.db")
 PAGES=int(os.getenv("GATE_DELIST_PAGES","25"))
@@ -20,7 +21,7 @@ UA={"User-Agent":"avci-history-research/1.0"}
 def now(): return datetime.now(timezone.utc).isoformat()
 
 def fetch(url):
-    r=requests.get(url,headers=UA,timeout=30)
+    r=requests.get(url,headers=UA,timeout=10)
     r.raise_for_status()
     return r.text
 
@@ -72,25 +73,32 @@ def main():
             break
 
     found={}
-    for article in articles:
-        try:
-            aid=str(article.get("id") or "")
-            title=str(article.get("title") or "")
-            blob="\n".join([
-              title,str(article.get("brief") or ""),str(article.get("tags") or ""),
-              str(article.get("source") or ""),str(article.get("cate") or "")
-            ])
-            pairs=pairs_from_text(blob)
-            url=f"{MINIAPP}{aid}" if aid else ""
-            if aid:
-                try:
-                    pairs |= pairs_from_text(fetch(url))
-                except Exception as e:
-                    errors.append(f"article:{aid}:{type(e).__name__}:{str(e)[:120]}")
-            for pair,sym in pairs:
-                found[pair]=(sym,url,title)
-        except Exception as e:
-            errors.append(f"parse:{type(e).__name__}:{str(e)[:120]}")
+    def parse_article(article):
+        aid=str(article.get("id") or "")
+        title=str(article.get("title") or "")
+        blob="\n".join([
+          title,str(article.get("brief") or ""),str(article.get("tags") or ""),
+          str(article.get("source") or ""),str(article.get("cate") or "")
+        ])
+        pairs=pairs_from_text(blob)
+        url=f"{MINIAPP}{aid}" if aid else ""
+        if aid:
+            try:
+                pairs |= pairs_from_text(fetch(url))
+            except Exception as e:
+                return aid,title,url,pairs,f"{type(e).__name__}:{str(e)[:120]}"
+        return aid,title,url,pairs,None
+
+    with ThreadPoolExecutor(max_workers=24) as ex:
+        futs=[ex.submit(parse_article,a) for a in articles]
+        for fut in as_completed(futs):
+            try:
+                aid,title,url,pairs,err=fut.result()
+                if err: errors.append(f"article:{aid}:{err}")
+                for pair,sym in pairs:
+                    found[pair]=(sym,url,title)
+            except Exception as e:
+                errors.append(f"parse:{type(e).__name__}:{str(e)[:120]}")
 
     stamp=now()
     with sqlite3.connect(DB,timeout=60) as c:
