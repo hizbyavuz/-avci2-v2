@@ -220,6 +220,10 @@ def init(c):
       control_n INTEGER,control_hits INTEGER,diff REAL,ci_low REAL,ci_high REAL,
       p_value REAL,cluster_ci_low REAL,cluster_ci_high REAL,cluster_p_value REAL,
       PRIMARY KEY(source,version,split,test_name));
+    CREATE TABLE IF NOT EXISTS research_dependence_stats(
+      source TEXT,version TEXT,split TEXT,group_type TEXT,raw_n INTEGER,cluster_n INTEGER,
+      effective_n REAL,max_cluster_size INTEGER,
+      PRIMARY KEY(source,version,split,group_type));
     CREATE TABLE IF NOT EXISTS research_baselines(
       source TEXT,version TEXT,split TEXT,baseline TEXT,n INTEGER,hits INTEGER,rate REAL,
       expectancy REAL,PRIMARY KEY(source,version,split,baseline));
@@ -465,6 +469,25 @@ def significance(c,source,rows):
         c.execute("""INSERT INTO research_significance VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
           (source,VERSION,sp,"CANDIDATE_VS_CONTROL_10",len(ca),ch,len(co),oh,diff,lo,hi,
            p,clo,chi,cp))
+    c.commit()
+
+def dependence(c,source,rows):
+    c.execute("DELETE FROM research_dependence_stats WHERE source=? AND version=?",(source,VERSION))
+    for sp in ("DISCOVERY","CALIBRATION","FINAL_TEST"):
+        sr=[r for r in rows if split_of(r["time"])==sp]
+        for name,pred in (("CANDIDATE",lambda r:is_candidate(source,r["group"])),
+                          ("CONTROL",lambda r:not is_candidate(source,r["group"]))):
+            g=[r for r in sr if pred(r)]
+            clusters=defaultdict(int)
+            for r in g:
+                t=dt(r["time"])
+                key=f"{t.date().isoformat() if t else 'UNKNOWN'}|{r['regime']}"
+                clusters[key]+=1
+            sizes=list(clusters.values())
+            raw=len(g)
+            eff=(raw*raw/sum(x*x for x in sizes)) if sizes else 0.0
+            c.execute("INSERT INTO research_dependence_stats VALUES(?,?,?,?,?,?,?,?)",
+                      (source,VERSION,sp,name,raw,len(sizes),eff,max(sizes) if sizes else 0))
     c.commit()
 
 def baselines(c,source,rows):
@@ -713,6 +736,12 @@ def report(c,source,rows,effective_families):
                      f"{r['control_hits']}/{r['control_n']} | fark {pctv(r['diff'])} | "
                      f"bootstrap CI [{pctv(r['ci_low'])}, {pctv(r['ci_high'])}] | "
                      f"cluster CI [{pctv(r['cluster_ci_low'])}, {pctv(r['cluster_ci_high'])}]")
+    lines += ["", "## Bağımlılık / effective n", ""]
+    for r in c.execute("""SELECT * FROM research_dependence_stats WHERE source=? AND version=?
+      ORDER BY split,group_type""",(source,VERSION)):
+        lines.append(f"- {r['split']} / {r['group_type']}: raw n={r['raw_n']} | "
+                     f"cluster={r['cluster_n']} | effective n={r['effective_n']:.2f} | "
+                     f"max cluster={r['max_cluster_size']}")
     lines += ["", "## Rejim örneklemi", ""]
     for r in c.execute("""SELECT * FROM research_regime_stats WHERE source=? AND version=? AND split='FINAL_TEST'
       ORDER BY regime,group_type""",(source,VERSION)):
@@ -768,7 +797,7 @@ def main():
         with sqlite3.connect(db,timeout=60) as c:
             c.row_factory=sqlite3.Row; init(c); rows=load_binance(c)
             store_splits(c,mode,rows); build_purged_folds(c,mode,rows); th=attribution(c,mode,rows); ef=correlations(c,mode,rows,th)
-            significance(c,mode,rows); baselines(c,mode,rows); portfolio(c,mode,rows)
+            significance(c,mode,rows); dependence(c,mode,rows); baselines(c,mode,rows); portfolio(c,mode,rows)
             regimes(c,mode,rows); drift(c,mode,rows,th); precision_recall(c,mode,rows)
             mover_recall(c,mode,rows); kelly(c,mode,rows); latency(c,mode); register_existing_experiments(c,mode)
             c.execute("INSERT OR REPLACE INTO research_validation_runs VALUES(?,?,?,?,?,?,?)",
@@ -783,7 +812,7 @@ def main():
         with sqlite3.connect(odb,timeout=60) as c, sqlite3.connect(vdb,timeout=60) as v:
             c.row_factory=v.row_factory=sqlite3.Row; init(c); rows=load_gate(c,v)
             store_splits(c,mode,rows); build_purged_folds(c,mode,rows); th=attribution(c,mode,rows); ef=correlations(c,mode,rows,th)
-            significance(c,mode,rows); baselines(c,mode,rows); portfolio(c,mode,rows)
+            significance(c,mode,rows); dependence(c,mode,rows); baselines(c,mode,rows); portfolio(c,mode,rows)
             regimes(c,mode,rows); drift(c,mode,rows,th); precision_recall(c,mode,rows)
             mover_recall(c,mode,rows); kelly(c,mode,rows); latency(c,mode); register_existing_experiments(c,mode)
             c.execute("INSERT OR REPLACE INTO research_validation_runs VALUES(?,?,?,?,?,?,?)",
