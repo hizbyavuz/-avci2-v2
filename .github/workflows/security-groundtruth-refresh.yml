@@ -2,6 +2,10 @@ name: Refresh External Security Ground Truth
 
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - "external_security_corpus_import.py"
+      - ".github/workflows/security-groundtruth-refresh.yml"
   schedule:
     - cron: "17 2 * * 1"
 
