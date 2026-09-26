@@ -19,6 +19,9 @@ on:
       - "binance_catalyst_observer.py"
       - "binance_crossvenue_spot.py"
       - "research_p0_governance.py"
+      - "research_validation_layer.py"
+      - "research_telemetry.py"
+      - "tests/test_research_validation_layer.py"
       - ".github/workflows/binance-money-flow.yml"
   schedule:
     - cron: "2,22,42 * * * *"
@@ -51,6 +54,9 @@ jobs:
 
       - name: Install dependencies
         run: pip install -r binance_requirements.txt
+
+      - name: Run permanent regression tests
+        run: python -m unittest discover -s tests -v
 
       - name: Refresh market and derivative features
         run: python -u binance_scanner.py
@@ -118,6 +124,10 @@ jobs:
         continue-on-error: true
         run: python -u research_p0_governance.py binance
 
+      - name: Run unified statistical validation
+        continue-on-error: true
+        run: python -u research_validation_layer.py binance
+
       - name: Evaluate execution-aware trade readiness
         continue-on-error: true
         run: python -u trade_readiness_layer.py binance
@@ -146,7 +156,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: binance-avci2-state
-          path: binance_avci2.db
+          path: |
+            binance_avci2.db
+            binance_research_validation.md
           if-no-files-found: error
           retention-days: 21
           compression-level: 6
