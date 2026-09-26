@@ -1,5 +1,5 @@
 {
-  "version": "research-validation-v1-20260926",
+  "version": "research-validation-v2-decision-discipline-20260926",
   "frozen_at_utc": "2026-09-26T10:00:00Z",
   "immutable_signal_rules": true,
   "splits": {
@@ -62,5 +62,103 @@
     "new rules require a new version and new discovery cycle",
     "all tested hypotheses are retained in experiment registry",
     "frozen scanners are measured, not modified"
-  ]
+  ],
+  "genesis_holdout": {
+    "type": "PROSPECTIVE_UNTOUCHED",
+    "start_utc": "2026-10-07T00:00:00+00:00",
+    "rationale": "Calibration end 2026-10-03 plus 72h purge plus 24h embargo. Pre-existing historical data cannot be made untouched retroactively.",
+    "selection_eligible": false,
+    "minimum_days": 60,
+    "maximum_days": 120
+  },
+  "sequential_testing": {
+    "decision_checkpoints_effective_n": [
+      50,
+      100,
+      200
+    ],
+    "rule": "Metrics may be monitored continuously, but rule activation/go-live decisions are permitted only on first crossing of a frozen checkpoint.",
+    "bh_fdr_scope": "within a checkpoint family",
+    "outside_checkpoint_decision_allowed": false
+  },
+  "go_live_pre_registered": {
+    "min_calendar_days": 60,
+    "min_candidate_closed": 150,
+    "min_effective_n": 100,
+    "min_profit_factor": 1.2,
+    "min_sharpe": 0.8,
+    "min_sortino": 1,
+    "max_drawdown": 0.2,
+    "min_expectancy_pct": 0,
+    "candidate_control_ci_low_gt": 0,
+    "max_data_failure_rate": 0.05,
+    "min_execution_coverage": 0.9,
+    "min_excess_vs_benchmark_pct": 0,
+    "note": "Frozen before prospective holdout outcomes; passing permits only tiny-live review, never automatic live trading."
+  },
+  "kill_switch": {
+    "mode_on_trigger": "RESEARCH_ONLY",
+    "scanner_continues": true,
+    "rolling_window_trades": 30,
+    "rolling_expectancy_below_pct": 0,
+    "rolling_sharpe_below": 0,
+    "max_drawdown": 0.2,
+    "max_data_failure_rate": 0.1,
+    "high_psi_feature_count": 3,
+    "max_source_error_rate": 0.2,
+    "observed_vs_assumed_cost_ratio": 2
+  },
+  "edge_decay": {
+    "rolling_windows_days": [
+      30,
+      60,
+      90
+    ],
+    "compare_recent_vs_early_matched_n": true,
+    "metrics": [
+      "precision",
+      "expectancy_pct",
+      "profit_factor",
+      "sharpe"
+    ]
+  },
+  "global_portfolio": {
+    "engines": [
+      "BINANCE",
+      "GATE"
+    ],
+    "max_concurrent_positions": 5,
+    "max_positions_per_engine": 3,
+    "capital_lock_hours": 72,
+    "capital_fraction_per_trade": 0.1,
+    "overlap_metrics": [
+      "same_day",
+      "same_week",
+      "daily_signal_count_correlation",
+      "regime_exposure"
+    ],
+    "benchmarks": [
+      "BTCUSDT_buy_hold",
+      "SOLUSDT_buy_hold"
+    ],
+    "report_excess_returns": true
+  },
+  "cost_calibration": {
+    "binance_observed": "signal-time spread + $1k buy impact + $1k sell impact",
+    "gate_observed": "recorded exit quote loss/estimated total cost",
+    "real_fill_status": "UNAVAILABLE_UNTIL_REAL_EXECUTION",
+    "rule": "Never call quote-observed cost realized cost."
+  },
+  "security_redteam": {
+    "target_bad_cases": 30,
+    "target_good_controls": 30,
+    "corpus_file": "security_adversarial_corpus.csv",
+    "ground_truth_spec": "security_corpus_requirements.json",
+    "incomplete_status": "NEED_GROUND_TRUTH"
+  },
+  "time_budget": {
+    "min_holdout_days": 60,
+    "max_holdout_days": 120,
+    "insufficient_at_deadline": "INCONCLUSIVE_RESTART_VERSION"
+  }
 }
