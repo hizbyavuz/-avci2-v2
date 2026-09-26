@@ -7,6 +7,11 @@ on:
       - "research_validation_layer.py"
       - "research_gap_audit.py"
       - "institutional_validation_suite.py"
+      - "human_decision_ledger.py"
+      - "external_shadow_universe.py"
+      - "correlation_position_overlay.py"
+      - "execution_size_curve.py"
+      - "institutional_context_observer.py"
       - "institutional_signal_overlay.py"
       - "read_only_execution_collector.py"
       - "historical_timing_proxy.py"
@@ -55,6 +60,11 @@ jobs:
             research_validation_layer.py \
             research_gap_audit.py \
             institutional_validation_suite.py \
+            human_decision_ledger.py \
+            external_shadow_universe.py \
+            correlation_position_overlay.py \
+            execution_size_curve.py \
+            institutional_context_observer.py \
             institutional_signal_overlay.py \
             read_only_execution_collector.py \
             historical_timing_proxy.py \
@@ -71,7 +81,8 @@ jobs:
             binance_research_integrity.py \
             gate_research_integrity.py \
             binance_scanner.py \
-            scanner.py
+            scanner.py \
+            binance_engine_status_v2.py
           python -m json.tool research_validation_spec.json >/dev/null
 
       - name: Run validation-layer tests
