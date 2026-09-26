@@ -13,6 +13,7 @@ on:
       - "gate_evidence_research.py"
       - "gate_research_integrity.py"
       - "trade_readiness_layer.py"
+      - "readiness_shadow_paper.py"
       - ".github/workflows/avci-v2.yml"
   schedule:
     - cron: "8,28,48 * * * *"
@@ -144,6 +145,10 @@ jobs:
       - name: Evaluate Gate trade readiness
         continue-on-error: true
         run: python -u trade_readiness_layer.py gate
+
+      - name: Run Gate readiness-qualified shadow paper trades
+        continue-on-error: true
+        run: python -u readiness_shadow_paper.py gate
 
       - name: Send one consolidated Gate Web3 motor message
         if: success()
