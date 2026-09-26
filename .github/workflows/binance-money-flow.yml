@@ -20,6 +20,7 @@ on:
       - "binance_crossvenue_spot.py"
       - "research_p0_governance.py"
       - "research_validation_layer.py"
+      - "research_decision_discipline.py"
       - "research_telemetry.py"
       - "tests/test_research_validation_layer.py"
       - ".github/workflows/binance-money-flow.yml"
@@ -127,6 +128,10 @@ jobs:
       - name: Run unified statistical validation
         continue-on-error: true
         run: python -u research_validation_layer.py binance
+
+      - name: Enforce frozen decision discipline
+        continue-on-error: true
+        run: python -u research_decision_discipline.py binance
 
       - name: Evaluate execution-aware trade readiness
         continue-on-error: true
