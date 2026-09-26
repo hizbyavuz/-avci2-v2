@@ -6,6 +6,7 @@ on:
     paths:
       - "research_validation_layer.py"
       - "research_telemetry.py"
+      - "research_validation_spec.json"
       - "binance_scanner.py"
       - "scanner.py"
       - "tests/test_research_validation_layer.py"
