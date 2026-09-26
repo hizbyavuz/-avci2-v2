@@ -57,6 +57,20 @@ class GateWeightedDiscoveryTests(unittest.TestCase):
         b,_,_=score_item(risky,2.5)
         self.assertGreater(a,b)
 
+    def test_very_new_pool_can_score_when_activity_is_real(self):
+        item=self.base()
+        item.update({
+            "age_minutes": 25,
+            "liquidity": 50000,
+            "volume_5m": 2500,
+            "buys_5m": 24,
+            "sells_5m": 8,
+            "change_24h": 9,
+        })
+        score,evidence,missing=score_item(item,None)
+        self.assertGreaterEqual(score,55)
+        self.assertTrue(any("güçlü erken aktivite" in x for x in evidence))
+
 
 if __name__=="__main__":
     unittest.main()
