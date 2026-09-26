@@ -64,13 +64,17 @@ def binance(c):
         features=["volume_z_15m","trade_z_15m","return_z_15m","retention_proxy",
                   "taker_buy_ratio_15m","btc_relative_24h","cross_sectional_rarity_pct"]
         today=datetime.now(timezone.utc)
+        latest_cfg=c.execute("""SELECT config_version FROM scans WHERE health_status!='INVALID'
+          ORDER BY scan_time_utc DESC LIMIT 1""").fetchone()
+        latest_cfg=latest_cfg[0] if latest_cfg else None
         for w in (30,60,90):
             cutoff=(today-timedelta(days=w)).isoformat()
             rows=c.execute("""SELECT f.*,o.net_return_pct FROM signal_events s
               JOIN outcome_labels o ON o.event_id=s.event_id
               JOIN features f ON f.scan_time_utc=s.signal_time_utc AND f.symbol=s.symbol
               WHERE s.event_class='CANDIDATE' AND o.label_status='CLOSED'
-                AND s.signal_time_utc>=? AND o.net_return_pct IS NOT NULL""",(cutoff,)).fetchall()
+                AND s.signal_time_utc>=? AND o.net_return_pct IS NOT NULL
+                AND (? IS NULL OR s.config_version=?)""",(cutoff,latest_cfg,latest_cfg)).fetchall()
             y=[1.0 if float(r["net_return_pct"])>0 else 0.0 for r in rows]
             for name in features:
                 xy=[(float(r[name]),yy) for r,yy in zip(rows,y) if r[name] is not None]
@@ -92,6 +96,33 @@ def binance(c):
        (mean(cv)-mean(pv)) if cv and pv else None,
        "OK" if len(pv)>=8 else "INSUFFICIENT",
        json.dumps({"note":"Random controls are selected contemporaneously at scan time; this is the primary placebo/control test."})))
+    # Harder arbitrary-time placebo: deterministic sample of signal-free full-universe
+    # snapshots, measured against the nearest same-symbol scan about 72h later.
+    placebo=[]
+    if table(c,"features"):
+        rng=random.Random(20260926)
+        pool=c.execute("""SELECT scan_time_utc,symbol,price,config_version FROM features
+          WHERE selection_class='NONE' AND price>0
+          ORDER BY scan_time_utc""").fetchall()
+        idx=list(range(len(pool)));rng.shuffle(idx)
+        for i in idx[:min(250,len(idx))]:
+            r=pool[i];t=dt(r["scan_time_utc"])
+            if not t:continue
+            lo=(t+timedelta(hours=68)).isoformat();hi=(t+timedelta(hours=76)).isoformat()
+            q=c.execute("""SELECT price FROM features WHERE symbol=? AND config_version=?
+              AND scan_time_utc BETWEEN ? AND ? AND price>0
+              ORDER BY ABS(strftime('%s',scan_time_utc)-strftime('%s',?)) LIMIT 1""",
+              (r["symbol"],r["config_version"],lo,hi,(t+timedelta(hours=72)).isoformat())).fetchone()
+            if q:
+                gross=(float(q[0])/float(r["price"])-1)*100
+                placebo.append(gross-0.40)  # fixed research friction; not called realized cost
+            if len(placebo)>=100:break
+    c.execute("INSERT OR REPLACE INTO placebo_tests VALUES(?,?,?,?,?,?,?,?,?,?)",
+      ("BINANCE",VERSION,now(),"RANDOM_COIN_RANDOM_TIME_72H",len(placebo),mean(cv),mean(placebo),
+       (mean(cv)-mean(placebo)) if cv and placebo else None,
+       "OK" if len(placebo)>=30 else "INSUFFICIENT",
+       json.dumps({"sampling":"selection_class NONE, deterministic random sample, same-version ~72h future scan",
+                   "friction_pct":0.40,"friction_type":"ASSUMED_RESEARCH_COST_NOT_REALIZED"})))
     c.commit()
 
 def gate(c,v):
@@ -107,14 +138,20 @@ def gate(c,v):
 
     # Security decay history from latest red-team replay tables.
     if table(c,"external_security_replay"):
+        previous=c.execute("""SELECT recall,false_positive_rate FROM security_model_decay_history
+          WHERE source='GATE' ORDER BY run_date ASC LIMIT 1""").fetchone()
         rows=c.execute("SELECT label,matched,detected FROM external_security_replay").fetchall()
         bad=[r for r in rows if str(r["label"]).upper()=="BAD" and int(r["matched"] or 0)]
         good=[r for r in rows if str(r["label"]).upper()=="GOOD" and int(r["matched"] or 0)]
         recall=(sum(int(r["detected"] or 0) for r in bad)/len(bad)) if bad else None
         fpr=(sum(int(r["detected"] or 0) for r in good)/len(good)) if good else None
+        sec_status="OK" if len(bad)>=30 and len(good)>=30 else "REPLAY_INSUFFICIENT"
+        if previous and recall is not None and previous["recall"] is not None:
+            if recall < float(previous["recall"])-0.10:sec_status="SECURITY_RECALL_DECAY"
+            if fpr is not None and previous["false_positive_rate"] is not None and fpr > float(previous["false_positive_rate"])+0.10:
+                sec_status="SECURITY_FPR_DECAY"
         c.execute("INSERT OR REPLACE INTO security_model_decay_history VALUES(?,?,?,?,?,?,?,?)",
-          ("GATE",VERSION,datetime.now(timezone.utc).date().isoformat(),len(bad),len(good),recall,fpr,
-           "OK" if len(bad)>=30 and len(good)>=30 else "REPLAY_INSUFFICIENT"))
+          ("GATE",VERSION,datetime.now(timezone.utc).date().isoformat(),len(bad),len(good),recall,fpr,sec_status))
 
     cand=v.execute("""SELECT net_final_pct FROM validation_events WHERE status='CLOSED_72H'
       AND group_type IN ('CANDIDATE','EXPANDED_CANDIDATE') AND net_final_pct IS NOT NULL""").fetchall()
