@@ -3,37 +3,6 @@ name: Avci 2 V2 Multi-Chain
 # Main Gate Web3 early-signal engine. Research-only; never places orders.
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - "scanner.py"
-      - "runner_revival_observer.py"
-      - "gate_wallet_graph_observer.py"
-      - "gate_engine_status.py"
-      - "gate_engine_status_v2.py"
-      - "gate_activation_math.py"
-      - "gate_evidence_research.py"
-      - "gate_research_integrity.py"
-      - "trade_readiness_layer.py"
-      - "readiness_shadow_paper.py"
-      - "research_p0_governance.py"
-      - "research_validation_layer.py"
-      - "research_gap_audit.py"
-      - "research_decision_discipline.py"
-      - "institutional_validation_suite.py"
-      - "institutional_signal_overlay.py"
-      - "institutional_context_observer.py"
-      - "correlation_position_overlay.py"
-      - "execution_size_curve.py"
-      - "execution_fill_import.py"
-      - "execution_fill_observations.csv"
-      - "security_redteam.py"
-      - "external_security_replay.py"
-      - "security_adversarial_corpus.csv"
-      - "security_corpus_requirements.json"
-      - "research_telemetry.py"
-      - "historical_timing_proxy.py"
-      - "tests/test_research_validation_layer.py"
-      - ".github/workflows/avci-v2.yml"
   schedule:
     - cron: "8,28,48 * * * *"
 permissions:
