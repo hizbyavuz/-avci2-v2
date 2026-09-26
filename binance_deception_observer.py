@@ -60,7 +60,14 @@ def main(path=DB):
           FROM features f
           LEFT JOIN structure_observations s
             ON s.scan_time_utc=f.scan_time_utc AND s.symbol=f.symbol
-          WHERE f.scan_time_utc=? AND (f.is_signal=1 OR f.is_selected=1)
+          WHERE f.scan_time_utc=? AND (
+            f.is_signal=1 OR f.is_selected=1 OR EXISTS (
+              SELECT 1 FROM binance_live_pool p
+              WHERE p.scan_time_utc=f.scan_time_utc
+                AND p.symbol=f.symbol
+                AND p.status IN ('CONFIRMED','BORDERLINE')
+            )
+          )
           GROUP BY f.symbol""",(ts,)).fetchall()
         written=0
         for row in rows:
