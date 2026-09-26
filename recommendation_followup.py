@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Record reported recommendations and measure their maximum rise over 72h.
+"""Record only readiness-qualified reported candidates and measure them over 72h.
 
-Research-only. Does not change scanner rules, evidence scores, or candidate labels.
+Research-only. WATCH/NOT_READY research candidates are intentionally excluded from the recommendation ledger.
 """
 import json
 import os
@@ -92,7 +92,11 @@ def register_binance(c):
     rows=c.execute("""SELECT e.*,f.price,f.wakeup,f.reignition,f.trigger,f.retention,f.climax_risk
         FROM binance_candidate_evidence e JOIN features f
         ON f.scan_time_utc=e.scan_time_utc AND f.symbol=e.symbol
+        JOIN trade_readiness tr
+          ON tr.source='BINANCE' AND tr.batch_key=e.scan_time_utc
+         AND tr.asset_key=e.symbol
         WHERE e.scan_time_utc=?
+          AND tr.readiness='PAPER_ELIGIBLE'
         ORDER BY CASE e.summary WHEN 'DAYANAK_COK_GUCLU' THEN 0
              WHEN 'DAYANAK_GUCLU' THEN 1 WHEN 'DAYANAK_ORTA' THEN 2 ELSE 3 END,
              e.evidence_count DESC,e.counter_count ASC LIMIT 5""",(ts,)).fetchall()
@@ -128,10 +132,14 @@ def register_gate(c):
     if not health or not table(c,"gate_candidate_evidence"):
         return 0
     batch=health["batch_id"]; at=datetime.fromtimestamp(int(health["scan_ts"]),timezone.utc)
-    rows=c.execute("""SELECT * FROM gate_candidate_evidence WHERE batch_id=?
-        ORDER BY CASE summary WHEN 'DAYANAK_COK_GUCLU' THEN 0
+    rows=c.execute("""SELECT e.* FROM gate_candidate_evidence e
+        JOIN trade_readiness tr
+          ON tr.source='GATE' AND tr.batch_key=e.batch_id
+         AND tr.asset_key=e.token_contract
+        WHERE e.batch_id=? AND tr.readiness='PAPER_ELIGIBLE'
+        ORDER BY CASE e.summary WHEN 'DAYANAK_COK_GUCLU' THEN 0
              WHEN 'DAYANAK_GUCLU' THEN 1 WHEN 'DAYANAK_ORTA' THEN 2 ELSE 3 END,
-             evidence_count DESC,counter_count ASC LIMIT 5""",(batch,)).fetchall()
+             e.evidence_count DESC,e.counter_count ASC LIMIT 5""",(batch,)).fetchall()
     n=0
     for r in rows:
         net=r["network_id"]; contract=r["token_contract"]; key=f"{net}:{contract}"
