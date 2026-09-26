@@ -13,6 +13,9 @@ on:
       - "human_decision_ledger.py"
       - "external_shadow_universe.py"
       - "runner_revival_observer.py"
+      - "gate_weighted_discovery.py"
+      - "gate_engine_status_v2.py"
+      - "tests/test_gate_weighted_discovery.py"
       - "correlation_position_overlay.py"
       - "execution_size_curve.py"
       - "institutional_context_observer.py"
@@ -70,6 +73,7 @@ jobs:
             human_decision_ledger.py \
             external_shadow_universe.py \
             runner_revival_observer.py \
+            gate_weighted_discovery.py \
             correlation_position_overlay.py \
             execution_size_curve.py \
             institutional_context_observer.py \
