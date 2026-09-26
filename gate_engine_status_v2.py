@@ -37,8 +37,8 @@ def main():
         if table(c,"gate_candidate_evidence"):
             evrows=c.execute("""SELECT * FROM gate_candidate_evidence
                 WHERE batch_id=? ORDER BY CASE summary
-                    WHEN 'DAYANAK_GUCLU' THEN 0 WHEN 'DAYANAK_ORTA' THEN 1
-                    WHEN 'DAYANAK_SINIRLI' THEN 2 ELSE 3 END,
+                    WHEN 'DAYANAK_COK_GUCLU' THEN 0 WHEN 'DAYANAK_GUCLU' THEN 1
+                    WHEN 'DAYANAK_ORTA' THEN 2 ELSE 3 END,
                     evidence_count DESC,counter_count ASC LIMIT 5""",(batch,)).fetchall()
         events={r["id"]:r for r in v.execute("""SELECT * FROM validation_events
             WHERE batch_id=?""",(batch,)).fetchall()}
@@ -65,9 +65,9 @@ def main():
     lines.append("")
     if not enriched:
         lines.append("🚫 Bu tur dayanağı incelenebilir temiz aday yok.")
-    labels={"DAYANAK_GUCLU":"🟢 GÜÇLÜ DAYANAK","DAYANAK_ORTA":"🟡 ORTA DAYANAK",
-            "DAYANAK_SINIRLI":"🟠 SINIRLI DAYANAK","DAYANAK_ZAYIF":"⚪ ZAYIF DAYANAK"}
-    for r,e,sym in enriched[:3]:
+    labels={"DAYANAK_COK_GUCLU":"🟣 ÇOK GÜÇLÜ DAYANAK","DAYANAK_GUCLU":"🟢 GÜÇLÜ DAYANAK",
+            "DAYANAK_ORTA":"🟡 ORTA DAYANAK","DAYANAK_ZAYIF":"⚪ ZAYIF DAYANAK"}
+    for r,e,sym in enriched[:5]:
         name=sym or (e["token_contract"][:8] if e else r["token_contract"][:8])
         net=e["network_id"] if e else r["network_id"]
         sup=arr(r["support_json"]); con=arr(r["counter_json"]); unk=arr(r["unknown_json"])
