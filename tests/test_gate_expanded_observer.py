@@ -20,6 +20,7 @@ class ExpandedObservationTest(unittest.TestCase):
 
         rows, errors, count = collect_extra_observations(
             {"solana": "Solana"}, fetch, parse, sleeps.append,
+            pages=(2,3),
             on_payload=lambda payload, network, name, source:
                 screened.append((network, source, payload["data"][0]["id"]))
         )
@@ -31,7 +32,7 @@ class ExpandedObservationTest(unittest.TestCase):
         self.assertEqual(len(urls), 4)
         self.assertEqual(len(screened), 3)
         self.assertTrue(all("page=" in row[2] for row in screened))
-        self.assertEqual(sleeps, [7, 7, 7])
+        self.assertEqual(sleeps, [3, 3, 3])
         self.assertEqual(parsed, [
             ("solana", "TRENDING"), ("solana", "TRENDING"),
             ("solana", "NEW")
