@@ -100,6 +100,14 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python -u binance_engine_status_v2.py
 
+      - name: Record recommendations and send due 72h follow-ups
+        if: success()
+        continue-on-error: true
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python -u recommendation_followup.py binance
+
       - name: Upload research state
         uses: actions/upload-artifact@v4
         with:
