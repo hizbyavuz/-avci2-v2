@@ -1,0 +1,51 @@
+name: Refresh External Security Ground Truth
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 2 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: pip install requests
+      - name: Import independent public security ground truth
+        run: python -u external_security_corpus_import.py
+      - name: Validate minimum independent corpus size
+        run: |
+          python - <<'PY'
+          import csv
+          with open("security_adversarial_corpus.csv",newline="",encoding="utf-8") as f:
+              rows=list(csv.DictReader(f))
+          bad=sum((r.get("label") or "").upper()=="BAD" for r in rows)
+          good=sum((r.get("label") or "").upper()=="GOOD" for r in rows)
+          print({"rows":len(rows),"bad":bad,"good":good})
+          if bad < 30 or good < 30:
+              raise SystemExit("independent security ground truth below frozen minimum")
+          PY
+      - name: Upload refreshed verified corpus
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-adversarial-corpus
+          path: |
+            security_adversarial_corpus.csv
+            security_external_import_report.json
+          if-no-files-found: error
+          retention-days: 90
+      - name: Upload raw Solana research evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: solrpds-external-raw
+          path: solrpds_external_raw.csv
+          if-no-files-found: warn
+          retention-days: 30
