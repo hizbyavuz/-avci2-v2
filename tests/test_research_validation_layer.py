@@ -8,9 +8,9 @@ class ResearchValidationLayerTests(unittest.TestCase):
     def synthetic_rows(self):
         rows=[]
         periods=[
-            ("2026-09-24T10:00:00+00:00","DISC"),
-            ("2026-09-26T00:00:00+00:00","CAL"),
-            ("2026-09-26T13:00:00+00:00","FINAL"),
+            ("2026-09-20T10:00:00+00:00","DISC"),
+            ("2026-09-28T00:00:00+00:00","CAL"),
+            ("2026-10-05T13:00:00+00:00","FINAL"),
         ]
         idx=0
         for stamp,_ in periods:
@@ -74,9 +74,12 @@ class ResearchValidationLayerTests(unittest.TestCase):
         self.assertEqual(c.execute("SELECT COUNT(*) FROM research_kelly").fetchone()[0],3)
 
     def test_split_is_frozen_by_time(self):
-        self.assertEqual(rv.split_of("2026-09-24T00:00:00+00:00"),"DISCOVERY")
-        self.assertEqual(rv.split_of("2026-09-26T00:00:00+00:00"),"CALIBRATION")
-        self.assertEqual(rv.split_of("2026-09-26T13:00:00+00:00"),"FINAL_TEST")
+        self.assertEqual(rv.split_of("2026-09-20T00:00:00+00:00"),"DISCOVERY")
+        self.assertEqual(rv.split_of("2026-09-24T00:00:00+00:00"),"PURGED_EMBARGO")
+        self.assertEqual(rv.split_of("2026-09-28T00:00:00+00:00"),"CALIBRATION")
+        self.assertEqual(rv.split_of("2026-10-01T00:00:00+00:00"),"PURGED_EMBARGO")
+        self.assertEqual(rv.split_of("2026-10-05T13:00:00+00:00"),"FINAL_TEST")
+
 
 
 if __name__=="__main__":
