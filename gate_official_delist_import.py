@@ -97,6 +97,13 @@ def main():
     stamp=now()
     with sqlite3.connect(DB,timeout=60) as c:
         init(c)
+        # Remove rows created by older contaminated delist-import attempts.
+        # Only rows whose provenance is the official importer are touched;
+        # current-API/observed-history seeds are preserved.
+        c.execute("DELETE FROM official_delist_registry")
+        c.execute("""DELETE FROM historical_pair_registry
+          WHERE first_source IN ('gate_official_delisting_archive','gate_official_delisting_api')
+             OR version LIKE 'official-delist-%'""")
         for pair,(sym,url,title) in found.items():
             c.execute("""INSERT INTO official_delist_registry(
               pair,symbol,announcement_url,first_seen_utc,last_seen_utc
