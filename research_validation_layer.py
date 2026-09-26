@@ -25,11 +25,11 @@ from __future__ import annotations
 
 import hashlib, json, math, os, random, sqlite3, statistics, sys
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 VERSION="research-validation-v1-20260926"
 DISCOVERY_END_UTC="2026-09-25T21:00:00+00:00"
-CALIBRATION_END_UTC="2026-09-26T12:00:00+00:00"
+CALIBRATION_END_UTC="2026-10-03T00:00:00+00:00"\nPURGE_HOURS=72\nEMBARGO_HOURS=24\nLABEL_HORIZON_HOURS=72
 PRIMARY_TARGET=10.0
 BOOTSTRAPS=1500
 RNG_SEED=20260926
@@ -48,7 +48,7 @@ BINANCE_FEATURES=(
     "retention_proxy","reignition_ratio","taker_buy_ratio_15m",
     "cross_sectional_rarity_pct","btc_relative_24h","change_15m","change_1h",
     "change_24h","oi_change_1h_pct","funding_rate","wakeup","persistence",
-    "retention","reignition","trigger","climax_risk",
+    "retention","reignition","trigger","climax_risk","data_staleness_minutes",
 )
 GATE_FEATURES=(
     "own_volume_ratio","buys_5m","sells_5m","change_5m","change_1h",
@@ -90,10 +90,22 @@ def wilson(h,n,z=1.96):
     return center-margin,center+margin
 
 def split_of(t):
+    """Chronological split with purge/embargo around boundaries.
+
+    The 72h purge prevents outcome windows from crossing into the next split.
+    The 24h embargo prevents immediate post-boundary microstructure carry-over.
+    """
     x=dt(t)
     if not x:return "UNKNOWN"
-    if x < dt(DISCOVERY_END_UTC): return "DISCOVERY"
-    if x < dt(CALIBRATION_END_UTC): return "CALIBRATION"
+    d=dt(DISCOVERY_END_UTC); k=dt(CALIBRATION_END_UTC)
+    if x < d-timedelta(hours=PURGE_HOURS):
+        return "DISCOVERY"
+    if x < d+timedelta(hours=EMBARGO_HOURS):
+        return "PURGED_EMBARGO"
+    if x < k-timedelta(hours=PURGE_HOURS):
+        return "CALIBRATION"
+    if x < k+timedelta(hours=EMBARGO_HOURS):
+        return "PURGED_EMBARGO"
     return "FINAL_TEST"
 
 def bh_adjust(rows):
@@ -228,6 +240,10 @@ def init(c):
       source TEXT,version TEXT,split TEXT,n INTEGER,win_rate REAL,avg_win REAL,avg_loss REAL,
       raw_kelly REAL,half_kelly REAL,quarter_kelly REAL,capped_quarter_kelly REAL,
       PRIMARY KEY(source,version,split));
+    CREATE TABLE IF NOT EXISTS research_mover_recall(
+      source TEXT,version TEXT,split TEXT,definition TEXT,opportunity_n INTEGER,caught_n INTEGER,
+      recall REAL,miss_rate REAL,median_lead_minutes REAL,
+      PRIMARY KEY(source,version,split,definition));
     CREATE TABLE IF NOT EXISTS research_latency_summary(
       source TEXT,version TEXT,provider TEXT,n INTEGER,p50_ms REAL,p95_ms REAL,max_ms REAL,
       error_rate REAL,age_p50_ms REAL,age_p95_ms REAL,
@@ -452,6 +468,7 @@ def baselines(c,source,rows):
     c.commit()
 
 def portfolio(c,source,rows):
+    """Slot-based paper portfolio with 72h capital lock per opened signal."""
     c.execute("DELETE FROM research_portfolio_metrics WHERE source=? AND version=?",(source,VERSION))
     for sp in ("DISCOVERY","CALIBRATION","FINAL_TEST"):
         for strat in ("AVCI","VOLUME_ONLY"):
@@ -465,23 +482,37 @@ def portfolio(c,source,rows):
                 for r in good:
                     t=dt(r["time"]); byday[t.date().isoformat() if t else "UNKNOWN"].append(r)
                 trades=[]
-                for g in byday.values():trades.extend(sorted(g,key=lambda x:x["features"][feature],reverse=True)[:PORTFOLIO_MAX_POSITIONS])
-            byday=defaultdict(list)
+                for g in byday.values():
+                    trades.extend(sorted(g,key=lambda x:x["features"][feature],reverse=True)[:10])
+            trades=sorted([r for r in trades if dt(r["time"])],key=lambda r:dt(r["time"]))
+            eq=PORTFOLIO_START_EQUITY; peak=eq; mdd=0.0; pos=[]; neg=[]; count=0
+            active=[]; realized_by_day=defaultdict(float)
+            def close_due(t):
+                nonlocal eq,peak,mdd
+                remain=[]
+                for item in active:
+                    if item["close"]<=t:
+                        pnl=item["allocation"]*(item["net"]/100.0)
+                        eq+=pnl
+                        realized_by_day[item["close"].date().isoformat()]+=pnl/max(PORTFOLIO_START_EQUITY,1e-9)
+                        peak=max(peak,eq); mdd=max(mdd,(peak-eq)/peak if peak else 0)
+                    else:
+                        remain.append(item)
+                active[:]=remain
             for r in trades:
-                t=dt(r["time"]); byday[t.date().isoformat() if t else "UNKNOWN"].append(r)
-            eq=PORTFOLIO_START_EQUITY; peak=eq; mdd=0.0; daily=[]; pos=[]; neg=[]
-            count=0
-            for day in sorted(byday):
-                g=byday[day][:PORTFOLIO_MAX_POSITIONS]
-                if not g:continue
-                per=min(1/len(g),PORTFOLIO_RISK_FRACTION*5)
-                dret=sum(per*(r["net"]/100.0) for r in g)
-                eq*=1+dret; peak=max(peak,eq); mdd=max(mdd,(peak-eq)/peak if peak else 0)
-                daily.append(dret); count+=len(g)
-                for r in g:
-                    if r["net"]>0:pos.append(r["net"])
-                    elif r["net"]<0:neg.append(r["net"])
-            mu=mean(daily); sd=stdev(daily); downside=math.sqrt(mean([min(0,x)**2 for x in daily])) if daily else None
+                t=dt(r["time"]); close_due(t)
+                if len(active)>=PORTFOLIO_MAX_POSITIONS:
+                    continue
+                allocation=eq*min(0.10,PORTFOLIO_RISK_FRACTION*5)
+                active.append({"close":t+timedelta(hours=LABEL_HORIZON_HOURS),
+                               "allocation":allocation,"net":r["net"]})
+                count+=1
+                if r["net"]>0:pos.append(r["net"])
+                elif r["net"]<0:neg.append(r["net"])
+            close_due(datetime.max.replace(tzinfo=timezone.utc))
+            daily=[realized_by_day[k] for k in sorted(realized_by_day)]
+            mu=mean(daily); sd=stdev(daily)
+            downside=math.sqrt(mean([min(0,x)**2 for x in daily])) if daily else None
             sharpe=(mu/sd*math.sqrt(365)) if mu is not None and sd not in (None,0) else None
             sortino=(mu/downside*math.sqrt(365)) if mu is not None and downside not in (None,0) else None
             pf=(sum(pos)/(-sum(neg))) if neg else (999.0 if pos else None)
@@ -542,6 +573,44 @@ def precision_recall(c,source,rows):
             c.execute("INSERT INTO research_precision_recall VALUES(?,?,?,?,?,?,?,?,?,?)",
                       (source,VERSION,sp,-1,tp,fp,fn,pr,rc,f1))
     c.commit()
+def mover_recall(c,source,rows):
+    """Recall of actual archived mover opportunities when the source supports it."""
+    c.execute("DELETE FROM research_mover_recall WHERE source=? AND version=?",(source,VERSION))
+    if source=="BINANCE" and table(c,"daily_movers"):
+        movers=c.execute("""SELECT trade_date,symbol,change_24h FROM daily_movers
+          WHERE change_24h>=40 ORDER BY trade_date,symbol""").fetchall()
+        bysplit=defaultdict(list)
+        candidates=[r for r in rows if is_candidate(source,r["group"])]
+        for m in movers:
+            end=dt(str(m["trade_date"])+"T23:59:59+00:00")
+            if not end:continue
+            sp=split_of(end.isoformat())
+            if sp not in ("DISCOVERY","CALIBRATION","FINAL_TEST"):continue
+            hits=[]
+            for r in candidates:
+                t=dt(r["time"])
+                if r["asset"]==m["symbol"] and t and end-timedelta(hours=72)<=t<=end:
+                    hits.append((end-t).total_seconds()/60.0)
+            bysplit[sp].append(min(hits) if hits else None)
+        for sp in ("DISCOVERY","CALIBRATION","FINAL_TEST"):
+            vals=bysplit.get(sp,[])
+            caught=[x for x in vals if x is not None]
+            n=len(vals)
+            c.execute("INSERT INTO research_mover_recall VALUES(?,?,?,?,?,?,?,?,?)",
+                      (source,VERSION,sp,"DAILY_24H_CHANGE_GTE_40",n,len(caught),
+                       len(caught)/n if n else None,1-len(caught)/n if n else None,
+                       median(caught)))
+    else:
+        # Gate currently has a broader observed universe with explicit missed-mover flags.
+        # This is not identical to Binance daily-mover recall, so it is labelled separately.
+        if table(c,"gate_opportunity_observations"):
+            rows2=c.execute("""SELECT missed_mover FROM gate_opportunity_observations""").fetchall()
+            n=len(rows2); missed=sum(int(r[0] or 0) for r in rows2); caught=max(0,n-missed)
+            c.execute("INSERT INTO research_mover_recall VALUES(?,?,?,?,?,?,?,?,?)",
+                      (source,VERSION,"ALL_OBSERVED","GATE_OBSERVED_MOVER_COVERAGE",n,caught,
+                       caught/n if n else None,missed/n if n else None,None))
+    c.commit()
+
 
 def kelly(c,source,rows):
     c.execute("DELETE FROM research_kelly WHERE source=? AND version=?",(source,VERSION))
@@ -578,7 +647,7 @@ def report(c,source,rows,effective_families):
     lines=[f"# {source} AVCI — Research Validation Layer", "",
            f"- Version: {VERSION}",
            f"- Discovery bitiş: {DISCOVERY_END_UTC}",
-           f"- Calibration bitiş: {CALIBRATION_END_UTC}",
+           f"- Calibration bitiş: {CALIBRATION_END_UTC}",\n           f"- Purge/embargo: {PURGE_HOURS}s outcome purge + {EMBARGO_HOURS}s embargo",
            "- FINAL_TEST: kilitli; sonuçları kural/eşik seçmek için kullanılamaz.",
            f"- Toplam kapanmış event: {len(rows)}",
            f"- Feature bağımsız bilgi ailesi (yaklaşık): {effective_families}", ""]
@@ -620,7 +689,7 @@ def main():
             store_splits(c,mode,rows); th=attribution(c,mode,rows); ef=correlations(c,mode,rows,th)
             significance(c,mode,rows); baselines(c,mode,rows); portfolio(c,mode,rows)
             regimes(c,mode,rows); drift(c,mode,rows,th); precision_recall(c,mode,rows)
-            kelly(c,mode,rows); latency(c,mode)
+            mover_recall(c,mode,rows); kelly(c,mode,rows); latency(c,mode)
             c.execute("INSERT OR REPLACE INTO research_validation_runs VALUES(?,?,?,?,?,?,?)",
                       (mode,VERSION,now(),DISCOVERY_END_UTC,CALIBRATION_END_UTC,1,
                        json.dumps({"rules_mutated":False,"final_test_selection_eligible":False,
@@ -635,7 +704,7 @@ def main():
             store_splits(c,mode,rows); th=attribution(c,mode,rows); ef=correlations(c,mode,rows,th)
             significance(c,mode,rows); baselines(c,mode,rows); portfolio(c,mode,rows)
             regimes(c,mode,rows); drift(c,mode,rows,th); precision_recall(c,mode,rows)
-            kelly(c,mode,rows); latency(c,mode)
+            mover_recall(c,mode,rows); kelly(c,mode,rows); latency(c,mode)
             c.execute("INSERT OR REPLACE INTO research_validation_runs VALUES(?,?,?,?,?,?,?)",
                       (mode,VERSION,now(),DISCOVERY_END_UTC,CALIBRATION_END_UTC,1,
                        json.dumps({"rules_mutated":False,"final_test_selection_eligible":False,
