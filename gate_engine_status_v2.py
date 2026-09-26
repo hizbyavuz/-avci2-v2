@@ -77,6 +77,14 @@ def main():
         if table(c,"correlation_position_overlay"):
             corr_overlay={x["asset_key"]:x for x in c.execute("""SELECT * FROM correlation_position_overlay
                 WHERE source='GATE' AND batch_key=? ORDER BY created_at_utc DESC""",(str(batch),)).fetchall()}
+        runner_rows=[]
+        if table(c,"runner_revival_observations"):
+            runner_rows=c.execute("""SELECT * FROM runner_revival_observations
+                WHERE source='GATE' AND batch_key=?
+                  AND class_label IN ('OLD_RUNNER_REVIVAL','STILL_EXTENDED')
+                ORDER BY CASE class_label WHEN 'OLD_RUNNER_REVIVAL' THEN 0 ELSE 1 END,
+                         change_24h_pct DESC LIMIT 3""",(str(batch),)).fetchall()
+
         size_curves={}
         if table(c,"execution_size_curve"):
             for x in c.execute("""SELECT * FROM execution_size_curve
@@ -105,6 +113,16 @@ def main():
         lines.append(f"• BTC: {btc['btc_regime']} | 15dk %{btc['btc_15m_pct']:+.2f} | 1s %{btc['btc_1h_pct']:+.2f}")
     lines.append(f"• Gözlenen token: {health['observed_tokens']} | veri sağlığı: {health['status']}")
     lines.append("")
+
+    if runner_rows:
+        lines.append("♻️ ESKİ BÜYÜK HAREKET / YENİDEN CANLANMA")
+        lines.append("(Bunlar erken aday değildir; geçmişte büyük yükseliş yaşamış tokenlar ayrı izlenir.)")
+        for rr in runner_rows:
+            if rr["class_label"]=="OLD_RUNNER_REVIVAL":
+                lines.append(f"🟡 {rr['symbol']} [{rr['network_id']}]: eski zirveden %{abs(float(rr['drawdown_from_peak_pct'])):.0f} aşağıda, 24s %{float(rr['change_24h_pct']):+.1f} → yeniden hareketleniyor")
+            else:
+                lines.append(f"🔴 {rr['symbol']} [{rr['network_id']}]: geçmişte çok yükselmiş ve zirveye hâlâ yakın → geç kalma riski yüksek")
+        lines.append("")
     if not enriched:
         lines.append("🚫 Bu tur dayanağı incelenebilir temiz aday yok.")
     labels={"DAYANAK_COK_GUCLU":"🟣 ÇOK GÜÇLÜ DAYANAK","DAYANAK_GUCLU":"🟢 GÜÇLÜ DAYANAK",
