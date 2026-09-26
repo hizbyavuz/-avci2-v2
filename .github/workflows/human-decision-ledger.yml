@@ -1,0 +1,68 @@
+name: Record Human Trading Decision
+
+on:
+  workflow_dispatch:
+    inputs:
+      source:
+        description: "BINANCE or GATE"
+        required: true
+        type: choice
+        options: ["BINANCE","GATE"]
+      event_key:
+        description: "Binance event_id or Gate asset_key network:contract"
+        required: true
+        type: string
+      action:
+        description: "Manual action"
+        required: true
+        type: choice
+        options: ["ENTRY","EXIT","SKIP","OVERRIDE"]
+      price:
+        description: "Optional executed price"
+        required: false
+        type: string
+      quantity:
+        description: "Optional quantity"
+        required: false
+        type: string
+      notes:
+        description: "Optional reason"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  record:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Restore engine state
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "${{ inputs.source }}" = "BINANCE" ]; then
+            python avci_state_guard.py restore-binance
+          else
+            python avci_state_guard.py restore-gate
+          fi
+      - name: Record separate human decision
+        run: |
+          args=(--source "${{ inputs.source }}" --event-key "${{ inputs.event_key }}" --action "${{ inputs.action }}" --notes "${{ inputs.notes }}")
+          if [ -n "${{ inputs.price }}" ]; then args+=(--price "${{ inputs.price }}"); fi
+          if [ -n "${{ inputs.quantity }}" ]; then args+=(--quantity "${{ inputs.quantity }}"); fi
+          python human_decision_ledger.py "${args[@]}"
+      - name: Upload updated state
+        uses: actions/upload-artifact@v4
+        with:
+          name: human-decision-ledger-${{ github.run_id }}
+          path: |
+            binance_avci2.db
+            avci2.db
+          if-no-files-found: warn
+          retention-days: 90
