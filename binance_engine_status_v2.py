@@ -18,6 +18,12 @@ def arr(s):
 def pct(v):
     return "-" if v is None else f"%{100*float(v):.0f}"
 
+def fmt_overlay_pct(v):
+    return "-" if v is None else f"%{100*float(v):.0f}"
+
+def fmt_pp(v):
+    return "-" if v is None else f"{float(v):+.2f} puan"
+
 def dayanak_label(summary):
     # Telegram'da yalnızca üç renk kullanılır.
     if summary in ("DAYANAK_COK_GUCLU","DAYANAK_GUCLU"):
@@ -132,6 +138,13 @@ def main():
             pool_counts={r["status"]:r["n"] for r in c.execute("""SELECT status,COUNT(*) n
                 FROM binance_live_pool WHERE scan_time_utc=? GROUP BY status""",(ts,))}
 
+        overlays={}
+        if table(c,"institutional_signal_overlay"):
+            overlays={r["asset_key"]:r for r in c.execute(
+                """SELECT * FROM institutional_signal_overlay
+                   WHERE source='BINANCE' AND batch_key=?
+                   ORDER BY created_at_utc DESC""",(ts,)).fetchall()}
+
     mode="ORTA" if scan["data_mode"]=="SPOT_ONLY" else "YÜKSEK"
     lines=[
         "🛰 BINANCE AVCI | DAYANAK RAPORU",
@@ -153,6 +166,31 @@ def main():
 
         # Tek renk: canlı havuz rengi ayrıca basılmaz.
         lines.append(f"{dayanak_label(r['summary'])} — {r['symbol']}")
+        ov=overlays.get(r["symbol"])
+        if ov:
+            ci=(f"%{100*float(ov['success_ci_low']):.0f}–%{100*float(ov['success_ci_high']):.0f}"
+                if ov["success_ci_low"] is not None and ov["success_ci_high"] is not None else "-")
+            if ov["success_probability"] is not None:
+                lines.append(f"Kalibre başarı: %{100*float(ov['success_probability']):.0f} | N={ov['success_n']} | %95 CI {ci}")
+            else:
+                lines.append(f"Kalibre başarı: örnek yetersiz | N={ov['success_n']}")
+            if ov["regime_probability"] is not None:
+                lines.append(f"Bu rejimde: %{100*float(ov['regime_probability']):.0f} | N={ov['regime_n']} | {ov['regime_key']}")
+            lines.append(f"Net beklenti: {fmt_pp(ov['candidate_net_expectancy_pct'])} | kontrol {fmt_pp(ov['control_net_expectancy_pct'])}")
+            if ov["expectancy_diff_pct"] is not None:
+                dci=(f"{float(ov['expectancy_ci_low']):+.2f}…{float(ov['expectancy_ci_high']):+.2f}"
+                     if ov["expectancy_ci_low"] is not None and ov["expectancy_ci_high"] is not None else "-")
+                lines.append(f"Aday-kontrol farkı: {float(ov['expectancy_diff_pct']):+.2f} puan | CI {dci}")
+            lines.append(f"Mod: {ov['system_mode']} | vol {ov['volatility_regime']} | likidite {ov['liquidity_regime']}")
+            if ov["confounders_json"] and ov["confounders_json"]!="[]":
+                try:
+                    cf=json.loads(ov["confounders_json"])
+                    if cf: lines.append("Confounder: "+", ".join(cf[:2]))
+                except Exception:
+                    pass
+            if ov["crowding_status"] and ov["crowding_status"]!="UNAVAILABLE_TRUE_SOCIAL_FEED":
+                lines.append(f"Attention/crowding: {ov['crowding_status']} ({ov['crowding_value'] if ov['crowding_value'] is not None else '-'})")
+            lines.append(f"Dış teyit: {ov['external_validation_status']}")
         lines.append("")
 
         if r["pool_status"]:
@@ -214,6 +252,7 @@ def main():
         lines.append("(OOS = kuralları oluştururken kullanılmamış yeni veride yapılan gerçek sınama.)")
 
     lines.append("")
+    lines.append("Mimari not: wake-up/retention/trigger mantığı genesis holdout öncesi tasarlandı; nihai temiz OOS dönem 7 Ekim 2026'da başlar.")
     lines.append("Not: Dayanak kazanma olasılığı değildir; destek, karşı kanıt ve gerçek geçmiş sonuçların özetidir.")
 
     token=(os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
