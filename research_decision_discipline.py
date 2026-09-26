@@ -91,13 +91,15 @@ def init(c):
     """)
     c.commit()
 
-def effective_n(c,source):
-    if table(c,"research_dependence_stats"):
-        r=c.execute("""SELECT effective_n FROM research_dependence_stats
-          WHERE source=? AND split='FINAL_TEST' AND group_type='CANDIDATE'
-          ORDER BY version DESC LIMIT 1""",(source,)).fetchone()
-        if r and r[0] is not None:return float(r[0])
-    return 0.0
+def holdout_effective_n(rows):
+    clusters=defaultdict(int)
+    for r in rows:
+        t=dt(r.get("t"))
+        if not t:continue
+        key=f"{t.date().isoformat()}|{r.get('regime') or 'UNKNOWN'}"
+        clusters[key]+=1
+    sizes=list(clusters.values()); n=sum(sizes)
+    return (n*n/sum(x*x for x in sizes)) if sizes else 0.0
 
 def portfolio_metrics(c,source):
     if not table(c,"research_portfolio_metrics"):return {}
@@ -116,7 +118,7 @@ def significance(c,source):
 def closed_rows(c,source):
     if source=="BINANCE" and table(c,"signal_events") and table(c,"outcome_labels"):
         return [dict(r) for r in c.execute("""SELECT s.event_id key,s.signal_time_utc t,
-          s.event_class grp,o.net_return_pct net,o.excess_vs_btc_pct excess
+          s.event_class grp,s.btc_regime regime,o.net_return_pct net,o.excess_vs_btc_pct excess
           FROM signal_events s JOIN outcome_labels o ON o.event_id=s.event_id
           WHERE o.label_status='CLOSED' AND s.event_class='CANDIDATE'
           ORDER BY s.signal_time_utc""")]
@@ -128,7 +130,7 @@ def closed_rows(c,source):
 def gate_closed(v):
     if not table(v,"validation_events"):return []
     return [dict(r) for r in v.execute("""SELECT id key,signal_iso t,group_type grp,
-      net_final_pct net FROM validation_events
+      btc_regime regime,net_final_pct net FROM validation_events
       WHERE status='CLOSED_72H' AND group_type IN ('CANDIDATE','EXPANDED_CANDIDATE')
       ORDER BY signal_ts""")]
 
@@ -206,18 +208,23 @@ def sequential(c,source,eff,metrics):
     return crossed,nextcp
 
 def evaluate(source,c,rows):
-    eff=effective_n(c,source); pm=portfolio_metrics(c,source); sg=significance(c,source)
-    vals=[float(r["net"]) for r in rows if r.get("net") is not None]
-    start=dt(HOLDOUT_START); age=(now()-start).total_seconds()/86400 if now()>=start else 0.0
+    start=dt(HOLDOUT_START)
+    hold_rows=[r for r in rows if dt(r.get("t")) and dt(r["t"])>=start]
+    eff=holdout_effective_n(hold_rows); pm=portfolio_metrics(c,source)
+    vals=[float(r["net"]) for r in hold_rows if r.get("net") is not None]
+    age=(now()-start).total_seconds()/86400 if now()>=start else 0.0
     n=len(vals); exp=avg(vals); pforce=pf(vals); sh=sharpe(vals); so=sortino(vals); dd=maxdd(vals)
     fr=failure_rate(c); cov=execution_coverage(c,source)
     excess=benchmark_excess(rows) if source=="BINANCE" else None
-    ci_low=sg.get("cluster_ci_low",sg.get("ci_low")) if sg else None
+    # Candidate-control CI for go-live must come from prospective holdout only.
+    # Until enough holdout controls are stored in a dedicated cross-engine holdout table,
+    # this remains unavailable and blocks live promotion by design.
+    ci_low=None
 
     metrics={"candidate_closed":n,"effective_n":eff,"expectancy_pct":exp,"profit_factor":pforce,
              "sharpe":sh,"sortino":so,"max_drawdown":dd,"data_failure_rate":fr,
              "execution_coverage":cov,"candidate_control_ci_low":ci_low,
-             "benchmark_excess_pct":excess}
+             "benchmark_excess_pct":excess,"prospective_holdout_rows":len(hold_rows)}
     crossed,nextcp=sequential(c,source,eff,metrics)
 
     reasons=[]
