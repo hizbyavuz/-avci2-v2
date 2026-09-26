@@ -11,7 +11,11 @@ from datetime import datetime, timezone
 
 import requests
 
-from research_telemetry import (start as telemetry_start, record as telemetry_record,\n                                infer_source_event_time)
+from research_telemetry import (
+    start as telemetry_start,
+    record as telemetry_record,
+    infer_source_event_time,
+)
 
 from binance_snapshot_store import (
     init_db,
