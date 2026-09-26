@@ -129,6 +129,12 @@ def main():
             if ov["expectancy_diff_pct"] is not None:
                 lines.append(f"• Aday-kontrol farkı: {float(ov['expectancy_diff_pct']):+.2f} puan")
             lines.append(f"• Mod: {ov['system_mode']} | vol {ov['volatility_regime']} | likidite {ov['liquidity_regime']}")
+            if ov["confounders_json"] and ov["confounders_json"]!="[]":
+                try:
+                    cf=json.loads(ov["confounders_json"])
+                    if cf: lines.append("• Confounder: "+", ".join(cf[:2]))
+                except Exception:
+                    pass
             if ov["crowding_status"]!="UNAVAILABLE":
                 lines.append(f"• Sosyal crowding: {ov['crowding_status']} ({ov['crowding_value'] if ov['crowding_value'] is not None else '-'})")
             key=f"{net}:{e['token_contract']}" if e else None
