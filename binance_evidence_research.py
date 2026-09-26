@@ -21,10 +21,16 @@ def obj(s):
     try: return json.loads(s or "{}")
     except Exception: return {}
 
+def target_value(d,target):
+    for k in (str(target), f"{float(target):.1f}"):
+        if k in d:
+            return d[k]
+    return None
+
 def reached(row,target):
     try:
         d=json.loads(row["reach_json"] or "{}")
-        v=d.get(str(target))
+        v=target_value(d,target)
         if isinstance(v,bool): return v
         if isinstance(v,(int,float)): return bool(v)
     except Exception: pass
@@ -182,11 +188,14 @@ def main():
             total=len(support)+len(counter)+len(unknown)
             coverage=100*(len(support)+len(counter))/total if total else 0
             # This is a coverage-backed evidence balance, NOT a win probability.
-            hist_strong=(r10["candidate_rate"] is not None and r10["control_rate"] is not None
-                         and r10["candidate_rate"]>=0.45
-                         and r10["candidate_rate"]>=1.5*max(r10["control_rate"],0.0001)
-                         and hist["candidate_n"]>=8 and hist["control_n"]>=8)
-            if len(support)>=7 and len(counter)<=1 and coverage>=75 and hist_strong:
+            hist_known=(r10["candidate_rate"] is not None and r10["control_rate"] is not None
+                        and hist["candidate_n"]>=8 and hist["control_n"]>=8)
+            hist_adverse=hist_known and r10["candidate_rate"]<=r10["control_rate"]
+            hist_strong=(hist_known and r10["candidate_rate"]>=0.45
+                         and r10["candidate_rate"]>=1.5*max(r10["control_rate"],0.0001))
+            if hist_adverse:
+                summary="DAYANAK_ORTA" if len(support)>=3 and len(support)>len(counter) else "DAYANAK_ZAYIF"
+            elif len(support)>=7 and len(counter)<=1 and coverage>=75 and hist_strong:
                 summary="DAYANAK_COK_GUCLU"
             elif len(support)>=5 and len(support)>=2*max(1,len(counter)) and coverage>=60:
                 summary="DAYANAK_GUCLU"
