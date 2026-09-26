@@ -6,6 +6,7 @@ on:
   push:
     paths:
       - "scanner.py"
+      - "runner_revival_observer.py"
       - "gate_wallet_graph_observer.py"
       - "gate_engine_status.py"
       - "gate_engine_status_v2.py"
@@ -141,6 +142,10 @@ jobs:
          GOPLUS_ACCESS_TOKEN: ${{ secrets.GOPLUS_ACCESS_TOKEN }}
          X_API_BEARER_TOKEN: ${{ secrets.X_API_BEARER_TOKEN }}
         run: python scanner.py
+
+      - name: Classify old runners and revival moves
+        continue-on-error: true
+        run: python -u runner_revival_observer.py gate
 
       - name: Build sampled buyer wallet / funding graph
         continue-on-error: true
