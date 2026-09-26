@@ -38,8 +38,8 @@ def main():
                   ON f.scan_time_utc=e.scan_time_utc AND f.symbol=e.symbol
                 WHERE e.scan_time_utc=?
                 ORDER BY CASE e.summary
-                    WHEN 'DAYANAK_GUCLU' THEN 0 WHEN 'DAYANAK_ORTA' THEN 1
-                    WHEN 'DAYANAK_SINIRLI' THEN 2 ELSE 3 END,
+                    WHEN 'DAYANAK_COK_GUCLU' THEN 0 WHEN 'DAYANAK_GUCLU' THEN 1
+                    WHEN 'DAYANAK_ORTA' THEN 2 ELSE 3 END,
                     e.evidence_count DESC,e.counter_count ASC LIMIT 5""",(ts,)).fetchall()
         audit=c.execute("SELECT * FROM validation_audit_runs ORDER BY audited_at_utc DESC LIMIT 1").fetchone() if table(c,"validation_audit_runs") else None
         math=None
@@ -58,9 +58,9 @@ def main():
     ]
     if not evrows:
         lines.append("🚫 Bu tur dayanağı incelenebilir temiz aday yok.")
-    labels={"DAYANAK_GUCLU":"🟢 GÜÇLÜ DAYANAK","DAYANAK_ORTA":"🟡 ORTA DAYANAK",
-            "DAYANAK_SINIRLI":"🟠 SINIRLI DAYANAK","DAYANAK_ZAYIF":"⚪ ZAYIF DAYANAK"}
-    for i,r in enumerate(evrows[:3],1):
+    labels={"DAYANAK_COK_GUCLU":"🟣 ÇOK GÜÇLÜ DAYANAK","DAYANAK_GUCLU":"🟢 GÜÇLÜ DAYANAK",
+            "DAYANAK_ORTA":"🟡 ORTA DAYANAK","DAYANAK_ZAYIF":"⚪ ZAYIF DAYANAK"}
+    for i,r in enumerate(evrows[:5],1):
         sup=arr(r["support_json"]); con=arr(r["counter_json"]); unk=arr(r["unknown_json"])
         lines.append(f"{labels.get(r['summary'],'⚪ DAYANAK BELİRSİZ')} — {r['symbol']}")
         lines.append(f"• Destek: {r['evidence_count']} | karşı kanıt: {r['counter_count']} | veri kapsamı: %{r['coverage_pct']:.0f}")
