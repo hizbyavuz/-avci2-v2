@@ -10,6 +10,7 @@ on:
       - "security_adversarial_corpus.csv"
       - "security_corpus_requirements.json"
       - "security_redteam.py"
+      - "execution_fill_import.py"
       - "avci_global_governance.py"
       - "research_decision_discipline.py"
       - "binance_scanner.py"
