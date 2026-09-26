@@ -1,0 +1,89 @@
+{
+  "version": "genesis-freeze-v1-20260927",
+  "sealed_at_utc": "2026-09-26T20:35:50Z",
+  "baseline_git_commit": "9d3c428c63b1282e97c7a22a3925d3d679a2c8e2",
+  "genesis_holdout_start_utc": "2026-10-07T00:00:00+00:00",
+  "status": "SEALED_PRE_HOLDOUT",
+  "purpose": "Prospective untouched holdout integrity. Baseline git commit is the canonical byte-level reference.",
+  "policy": {
+    "after_holdout_start": "Any semantic change to a contamination-sensitive file contaminates this version. Do not repair in place; create a new version/cohort.",
+    "operational_fix_rule": "Operational changes are allowed only when they cannot change selection, feature values, labels, execution assumptions, security eligibility, targets/stops, or validation decisions. They must be logged.",
+    "no_retroactive_reseal": true,
+    "no_threshold_tuning_from_holdout": true,
+    "no_feature_selection_from_holdout": true,
+    "no_optional_stopping_outside_registered_checkpoints": true
+  },
+  "contamination_sensitive_files": [
+    "research_validation_spec.json",
+    "binance_scanner.py",
+    "binance_signal_qualifier.py",
+    "binance_activation_math.py",
+    "binance_outcome_labeler.py",
+    "binance_evidence_research.py",
+    "binance_research_integrity.py",
+    "scanner.py",
+    "gate_weighted_discovery.py",
+    "gate_signal_qualifier.py",
+    "gate_activation_math.py",
+    "gate_evidence_research.py",
+    "gate_early_observer.py",
+    "gate_volume_bridge.py",
+    "gate_activity_bridge.py",
+    "gate_cross_venue_bridge.py",
+    "gate_spot_bridge.py",
+    "gate_security_confidence.py",
+    "gate_notify.py",
+    "gercekci_cikis.py",
+    "execution_size_curve.py",
+    "trade_readiness_layer.py",
+    "research_validation_layer.py",
+    "research_decision_discipline.py",
+    "research_p0_governance.py",
+    "institutional_signal_overlay.py",
+    "institutional_validation_suite.py"
+  ],
+  "outcome_contract": {
+    "horizons_hours": [
+      4,
+      24,
+      72
+    ],
+    "continuation_targets_pct": [
+      3,
+      5,
+      7,
+      10,
+      15
+    ],
+    "primary_target_pct": 10,
+    "gate_stop_pct": -7,
+    "same_candle_resolution": "1-minute path when available; otherwise pessimistic stop-first",
+    "pre_signal_gain_excluded": true,
+    "costs_required": true,
+    "benchmark_excess_required": true
+  },
+  "registered_decision_contract": {
+    "minimum_days": 60,
+    "maximum_days": 120,
+    "effective_n_checkpoints": [
+      50,
+      100,
+      200
+    ],
+    "min_candidate_closed": 150,
+    "min_effective_n": 100,
+    "min_profit_factor": 1.2,
+    "min_sharpe": 0.8,
+    "min_sortino": 1,
+    "max_drawdown": 0.2,
+    "candidate_control_ci_low_gt": 0,
+    "min_candidate_control_expectancy_diff_pct": 0.5,
+    "max_data_failure_rate": 0.05,
+    "min_execution_coverage": 0.9
+  },
+  "notes": [
+    "Historical/discovery evidence before genesis is not untouched OOS.",
+    "Yellow weighted discovery is a separate observational cohort and is not allowed to alter frozen V5 membership/statistics.",
+    "Passing the research gate permits only tiny-live review; it never authorizes automatic trading."
+  ]
+}
