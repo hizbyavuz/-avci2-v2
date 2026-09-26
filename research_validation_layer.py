@@ -723,6 +723,32 @@ def report(c,source,rows,effective_families):
       ORDER BY CASE psi_status WHEN 'HIGH' THEN 0 WHEN 'WARN' THEN 1 ELSE 2 END, psi DESC LIMIT 10""",(source,VERSION)):
         lines.append(f"- {r['feature']}: PSI={r['psi'] if r['psi'] is not None else '-'} "
                      f"[{r['psi_status']}] | CUSUM alarm={r['cusum_alarms']}")
+    lines += ["", "## Feature katkısı (CALIBRATION)", ""]
+    for r in c.execute("""SELECT * FROM research_feature_attribution WHERE source=? AND version=? AND split='CALIBRATION'
+      ORDER BY CASE WHEN q_value IS NULL THEN 1 ELSE 0 END,q_value ASC,ABS(diff) DESC LIMIT 12""",(source,VERSION)):
+        lines.append(f"- {r['feature']}: high {r['high_hits']}/{r['high_n']} vs low {r['low_hits']}/{r['low_n']} "
+                     f"| lift={r['lift']} | diff={pctv(r['diff'])} | q={r['q_value']}")
+    lines += ["", "## Baselines (FINAL_TEST)", ""]
+    for r in c.execute("""SELECT * FROM research_baselines WHERE source=? AND version=? AND split='FINAL_TEST'
+      ORDER BY baseline""",(source,VERSION)):
+        lines.append(f"- {r['baseline']}: {r['hits']}/{r['n']} = {pctv(r['rate'])} | expectancy={r['expectancy']}")
+    lines += ["", "## Precision / Recall (FINAL_TEST)", ""]
+    for r in c.execute("""SELECT * FROM research_precision_recall WHERE source=? AND version=? AND split='FINAL_TEST'
+      ORDER BY score_threshold""",(source,VERSION)):
+        lines.append(f"- threshold={r['score_threshold']}: precision={pctv(r['precision'])} | "
+                     f"recall={pctv(r['recall'])} | F1={r['f1']} | TP/FP/FN={r['tp']}/{r['fp']}/{r['fn']}")
+    lines += ["", "## Gerçek mover recall", ""]
+    for r in c.execute("""SELECT * FROM research_mover_recall WHERE source=? AND version=? ORDER BY split""",(source,VERSION)):
+        lines.append(f"- {r['split']} / {r['definition']}: {r['caught_n']}/{r['opportunity_n']} "
+                     f"| recall={pctv(r['recall'])} | miss={pctv(r['miss_rate'])} | lead_min={r['median_lead_minutes']}")
+    lines += ["", "## Kaynak latency / data age", ""]
+    for r in c.execute("""SELECT * FROM research_latency_summary WHERE source=? AND version=? ORDER BY provider""",(source,VERSION)):
+        lines.append(f"- {r['provider']}: n={r['n']} | latency p50/p95={r['p50_ms']}/{r['p95_ms']} ms "
+                     f"| data-age p50/p95={r['age_p50_ms']}/{r['age_p95_ms']} ms | error={pctv(r['error_rate'])}")
+    lines += ["", "## Kelly (yalnız araştırma)", ""]
+    for r in c.execute("""SELECT * FROM research_kelly WHERE source=? AND version=? ORDER BY split""",(source,VERSION)):
+        lines.append(f"- {r['split']}: n={r['n']} | raw={r['raw_kelly']} | half={r['half_kelly']} | "
+                     f"quarter={r['quarter_kelly']} | capped-quarter={r['capped_quarter_kelly']}")
     lines += ["", "## Portföy", ""]
     for r in c.execute("""SELECT * FROM research_portfolio_metrics WHERE source=? AND version=? AND split='FINAL_TEST'
       ORDER BY strategy""",(source,VERSION)):
