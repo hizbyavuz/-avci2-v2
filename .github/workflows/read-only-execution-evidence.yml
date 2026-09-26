@@ -41,13 +41,14 @@ jobs:
           BINANCE_API_SECRET: ${{ secrets.BINANCE_API_SECRET }}
           HELIUS_API_KEY: ${{ secrets.HELIUS_API_KEY }}
           GATE_WEB3_SOLANA_ADDRESS: ${{ secrets.GATE_WEB3_SOLANA_ADDRESS }}
+          READONLY_FILL_OUT: execution_fill_observations.csv
         run: python -u read_only_execution_collector.py
       - name: Upload execution evidence
         uses: actions/upload-artifact@v4
         with:
-          name: read-only-execution-evidence
+          name: execution-fill-observations
           path: |
-            read_only_execution_observations.csv
+            execution_fill_observations.csv
             web3_execution_observations.json
             read_only_execution_report.json
           if-no-files-found: error
