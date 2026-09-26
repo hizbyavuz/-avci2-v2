@@ -18,6 +18,8 @@ on:
       - "research_validation_layer.py"
       - "research_gap_audit.py"
       - "research_decision_discipline.py"
+      - "institutional_validation_suite.py"
+      - "institutional_signal_overlay.py"
       - "execution_fill_import.py"
       - "execution_fill_observations.csv"
       - "security_redteam.py"
@@ -183,6 +185,14 @@ jobs:
       - name: Enforce Gate frozen decision discipline
         continue-on-error: true
         run: python -u research_decision_discipline.py gate
+
+      - name: Build Gate institutional signal overlay
+        continue-on-error: true
+        run: python -u institutional_signal_overlay.py gate
+
+      - name: Run Gate institutional validation diagnostics
+        continue-on-error: true
+        run: python -u institutional_validation_suite.py gate
 
       - name: Recover archived Gate timing proxy
         continue-on-error: true
