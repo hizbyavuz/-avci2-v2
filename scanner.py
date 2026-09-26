@@ -1,7 +1,11 @@
 import os
 import requests
 
-from research_telemetry import (start as telemetry_start, record as telemetry_record,\n                                infer_source_event_time)
+from research_telemetry import (
+    start as telemetry_start,
+    record as telemetry_record,
+    infer_source_event_time,
+)
 
 def _telemetry_provider(url):
     u=str(url or "").lower()
