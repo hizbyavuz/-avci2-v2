@@ -636,11 +636,14 @@ def mover_recall(c,source,rows):
     else:
         # Gate currently has a broader observed universe with explicit missed-mover flags.
         # This is not identical to Binance daily-mover recall, so it is labelled separately.
-        if table(c,"gate_opportunity_observations"):
-            rows2=c.execute("""SELECT missed_mover FROM gate_opportunity_observations""").fetchall()
+        if table(c,"gate_opportunity_observations") and table(c,"gate_spot_history"):
+            rows2=c.execute("""SELECT o.missed_mover,h.change_24h
+              FROM gate_opportunity_observations o
+              JOIN gate_spot_history h ON h.batch_id=o.batch_id AND h.pair=o.pair
+              WHERE h.change_24h>=15""").fetchall()
             n=len(rows2); missed=sum(int(r[0] or 0) for r in rows2); caught=max(0,n-missed)
             c.execute("INSERT INTO research_mover_recall VALUES(?,?,?,?,?,?,?,?,?)",
-                      (source,VERSION,"ALL_OBSERVED","GATE_OBSERVED_MOVER_COVERAGE",n,caught,
+                      (source,VERSION,"ALL_OBSERVED","GATE_CHANGE_24H_GTE_15",n,caught,
                        caught/n if n else None,missed/n if n else None,None))
     c.commit()
 
