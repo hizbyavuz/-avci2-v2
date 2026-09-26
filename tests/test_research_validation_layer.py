@@ -2,6 +2,7 @@ import sqlite3
 import unittest
 
 import research_validation_layer as rv
+import research_p0_governance as p0
 
 
 class ResearchValidationLayerTests(unittest.TestCase):
@@ -79,6 +80,28 @@ class ResearchValidationLayerTests(unittest.TestCase):
         self.assertEqual(rv.split_of("2026-09-28T00:00:00+00:00"),"CALIBRATION")
         self.assertEqual(rv.split_of("2026-10-01T00:00:00+00:00"),"PURGED_EMBARGO")
         self.assertEqual(rv.split_of("2026-10-05T13:00:00+00:00"),"FINAL_TEST")
+
+
+    def test_p0_two_way_dependence(self):
+        c=sqlite3.connect(":memory:")
+        p0.init(c)
+        rows=[]
+        for i in range(24):
+            rows.append({
+                "asset":f"A{i%4}",
+                "time":rv.dt(f"2026-09-{10+(i%12):02d}T12:00:00+00:00"),
+                "group":"CANDIDATE" if i%2==0 else "RANDOM_CONTROL",
+                "regime":"SIDEWAYS",
+                "net":3.0 if i%2==0 else -1.0,
+            })
+        selector=lambda r:r["group"]=="CANDIDATE"
+        d=p0.two_way_cluster_diff(rows,selector)
+        self.assertAlmostEqual(d["diff"],4.0)
+        self.assertGreaterEqual(d["asset_clusters"],4)
+        self.assertGreaterEqual(d["week_clusters"],2)
+        self.assertIsNotNone(d["ci_low"])
+        self.assertIsNotNone(d["ci_high"])
+        self.assertEqual(c.execute("SELECT COUNT(*) FROM research_p0_dependence").fetchone()[0],0)
 
 
 
