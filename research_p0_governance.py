@@ -141,7 +141,7 @@ def binance(c):
 def gate(obs,val):
     if not table(val,"validation_events"): return [],0
     rows=[]
-    raw=val.execute("""SELECT token_contract,network_id,signal_ts,group_type,btc_regime,
+    raw=val.execute("""SELECT batch_id,token_contract,network_id,signal_ts,group_type,btc_regime,
       net_final_pct,cost_status,status FROM validation_events
       WHERE status='CLOSED_72H'
         AND group_type IN ('CANDIDATE','EXPANDED_CANDIDATE','NEAR_MISS','RANDOM_CONTROL')
@@ -150,9 +150,10 @@ def gate(obs,val):
     if table(obs,"gate_scan_health"):
         health={str(r["batch_id"]):int(r["scan_ts"]) for r in obs.execute("SELECT batch_id,scan_ts FROM gate_scan_health")}
     leakage=0
-    # batch_id omitted from select above; point-in-time violations remain audited
-    # in gate_research_integrity. Here governance focuses on closed cost-aware rows.
     for r in raw:
+        h=health.get(str(r["batch_id"]))
+        if h is None or abs(int(r["signal_ts"])-h)>1800:
+            leakage+=1
         net=r["net_final_pct"] if r["cost_status"]=="QUOTE_PLUS_ASSUMPTION" else None
         rows.append({"asset":f'{r["network_id"]}:{r["token_contract"]}',
                      "time":datetime.fromtimestamp(int(r["signal_ts"]),timezone.utc),
