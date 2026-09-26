@@ -85,6 +85,12 @@ def main():
                 ORDER BY CASE class_label WHEN 'OLD_RUNNER_REVIVAL' THEN 0 ELSE 1 END,
                          change_24h_pct DESC LIMIT 3""",(str(batch),)).fetchall()
 
+        discovery_rows=[]
+        if table(c,"gate_weighted_discovery"):
+            discovery_rows=c.execute("""SELECT * FROM gate_weighted_discovery
+                WHERE batch_id=? AND status='SAFE_DISCOVERY'
+                ORDER BY score DESC,liquidity DESC LIMIT 5""",(batch,)).fetchall()
+
         size_curves={}
         if table(c,"execution_size_curve"):
             for x in c.execute("""SELECT * FROM execution_size_curve
@@ -125,6 +131,23 @@ def main():
         lines.append("")
     if not enriched:
         lines.append("🚫 Bu tur dayanağı incelenebilir temiz aday yok.")
+
+    if discovery_rows:
+        lines.append("")
+        lines.append("🟡 SARI KEŞİF | TEMİZ ADAY DEĞİL")
+        lines.append("(Güvenlik/satılabilirlik kapısını geçti; piyasa işaretleri ağırlıklı puanlandı. Frozen V5 adayına dahil değildir.)")
+        for d in discovery_rows[:5]:
+            ev=arr(d["evidence_json"])
+            name=d["symbol"] or d["token_contract"][:8]
+            lines.append(
+                f"🟡 {name} [{d['network_id']}] — dayanak puanı {float(d['score']):.0f}/100 | "
+                f"24s %{float(d['change_24h']):+.1f}"
+            )
+            if d["own_volume_ratio"] is not None:
+                lines.append(f"  • Kendi geçmişine göre hacim: {float(d['own_volume_ratio']):.1f}x")
+            if ev:
+                lines.append("  • Neden izleniyor: " + "; ".join(ev[:3]))
+            lines.append("  • Statü: güvenlik geçti, fakat yeşil/frozen aday değil.")
     labels={"DAYANAK_COK_GUCLU":"🟣 ÇOK GÜÇLÜ DAYANAK","DAYANAK_GUCLU":"🟢 GÜÇLÜ DAYANAK",
             "DAYANAK_ORTA":"🟡 ORTA DAYANAK","DAYANAK_ZAYIF":"⚪ ZAYIF DAYANAK"}
     for r,e,sym,obs,ready in enriched[:5]:
