@@ -1,5 +1,45 @@
 import os
 import requests
+
+from research_telemetry import start as telemetry_start, record as telemetry_record
+
+def _telemetry_provider(url):
+    u=str(url or "").lower()
+    if "geckoterminal" in u: return "GECKOTERMINAL"
+    if "helius" in u: return "HELIUS"
+    if "jup" in u: return "JUPITER"
+    if "goplus" in u: return "GOPLUS"
+    if "coingecko" in u: return "COINGECKO"
+    if "dexscreener" in u: return "DEXSCREENER"
+    if "birdeye" in u: return "BIRDEYE"
+    if "0x.org" in u or "0x" in u: return "ZEROX"
+    return "OTHER_HTTP"
+
+def telemetry_get(url, *args, **kwargs):
+    tp,tu=telemetry_start()
+    try:
+        r=requests.get(url,*args,**kwargs)
+        telemetry_record("GATE",_telemetry_provider(url),str(url),tp,tu,
+                         status="OK" if r.ok else "HTTP_ERROR",
+                         http_status=getattr(r,"status_code",None))
+        return r
+    except Exception as e:
+        telemetry_record("GATE",_telemetry_provider(url),str(url),tp,tu,
+                         status="ERROR",error=e)
+        raise
+
+def telemetry_post(url, *args, **kwargs):
+    tp,tu=telemetry_start()
+    try:
+        r=requests.post(url,*args,**kwargs)
+        telemetry_record("GATE",_telemetry_provider(url),str(url),tp,tu,
+                         status="OK" if r.ok else "HTTP_ERROR",
+                         http_status=getattr(r,"status_code",None))
+        return r
+    except Exception as e:
+        telemetry_record("GATE",_telemetry_provider(url),str(url),tp,tu,
+                         status="ERROR",error=e)
+        raise
 import time
 import sqlite3
 import hashlib
@@ -315,7 +355,7 @@ def api_get(path):
 
     for attempt in range(3):
         try:
-            r = requests.get(
+            r = telemetry_get(
                 url,
                 headers=HEADERS,
                 timeout=REQUEST_TIMEOUT
@@ -353,7 +393,7 @@ def json_rpc(url, method, params):
 
     for attempt in range(2):
         try:
-            r = requests.post(
+            r = telemetry_post(
                 url,
                 json=payload,
                 headers={"Content-Type": "application/json"},
@@ -417,7 +457,7 @@ def jupiter_quote(input_mint, output_mint, amount):
         }
 
     try:
-        r = requests.get(
+        r = telemetry_get(
             JUPITER_QUOTE_URL,
             params={
                 "inputMint": input_mint,
@@ -768,7 +808,7 @@ def goplus_security(network_id, contract):
         )
 
     try:
-        r = requests.get(
+        r = telemetry_get(
             url,
             params={
                 "contract_addresses": contract
@@ -1739,7 +1779,7 @@ def goplus_raw_evm(network_id, contract):
         }
 
     try:
-        r = requests.get(
+        r = telemetry_get(
             (
                 "https://api.gopluslabs.io/api/v1/"
                 f"token_security/{chain_id}"
@@ -1791,7 +1831,7 @@ def goplus_raw_evm(network_id, contract):
 
 def goplus_raw_solana(contract):
     try:
-        r = requests.get(
+        r = telemetry_get(
             (
                 "https://api.gopluslabs.io/api/v1/"
                 "solana/token_security"
@@ -2239,7 +2279,7 @@ def zerox_exit_price(
         }
 
     try:
-        r = requests.get(
+        r = telemetry_get(
             (
                 "https://api.0x.org/"
                 "swap/allowance-holder/price"
@@ -3952,7 +3992,7 @@ def fetch_market_regime():
     }
 
     try:
-        r = requests.get(
+        r = telemetry_get(
             "https://api.coingecko.com/api/v3/simple/price",
             params={
                 "ids": "bitcoin,solana",
