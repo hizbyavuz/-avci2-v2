@@ -16,6 +16,8 @@ on:
       - "trade_readiness_layer.py"
       - "readiness_shadow_paper.py"
       - "binance_context_research.py"
+      - "binance_catalyst_observer.py"
+      - "binance_crossvenue_spot.py"
       - ".github/workflows/binance-money-flow.yml"
   schedule:
     - cron: "2,22,42 * * * *"
@@ -54,6 +56,14 @@ jobs:
 
       - name: Run 15-minute live confirmation pool
         run: python -u binance_live_pool.py
+
+      - name: Confirm live-pool moves on other spot venues
+        continue-on-error: true
+        run: python -u binance_crossvenue_spot.py
+
+      - name: Observe timestamped public catalysts
+        continue-on-error: true
+        run: python -u binance_catalyst_observer.py
 
       - name: Build cross-sectional and trajectory context
         continue-on-error: true
