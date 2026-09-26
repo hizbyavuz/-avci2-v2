@@ -37,9 +37,22 @@ jobs:
       - name: Install minimal dependencies
         run: pip install requests
 
-      - name: Compile validation and scanner modules
+      - name: Compile validation, governance and scanner modules
         run: |
-          python -m py_compile             research_validation_layer.py             research_telemetry.py             binance_scanner.py             scanner.py
+          python -m py_compile \
+            research_validation_layer.py \
+            research_p0_governance.py \
+            research_decision_discipline.py \
+            research_telemetry.py \
+            avci_global_governance.py \
+            execution_fill_import.py \
+            security_redteam.py \
+            history_delist_backfill.py \
+            binance_research_integrity.py \
+            gate_research_integrity.py \
+            binance_scanner.py \
+            scanner.py
+          python -m json.tool research_validation_spec.json >/dev/null
 
       - name: Run validation-layer tests
         run: python -m unittest tests.test_research_validation_layer -v
