@@ -83,6 +83,10 @@ def init(c):
       source TEXT,version TEXT,window_days INTEGER,period TEXT,n INTEGER,
       precision REAL,expectancy_pct REAL,profit_factor REAL,sharpe REAL,
       PRIMARY KEY(source,version,window_days,period));
+    CREATE TABLE IF NOT EXISTS edge_decay_history(
+      source TEXT,version TEXT,run_date TEXT,window_days INTEGER,period TEXT,n INTEGER,
+      precision REAL,expectancy_pct REAL,profit_factor REAL,sharpe REAL,
+      PRIMARY KEY(source,version,run_date,window_days,period));
     CREATE TABLE IF NOT EXISTS cost_model_calibration(
       source TEXT,version TEXT,event_key TEXT,event_time TEXT,
       assumed_cost_pct REAL,observed_quote_cost_pct REAL,realized_cost_pct REAL,
@@ -174,8 +178,10 @@ def edge_decay(c,source,rows):
         for label,g in (("RECENT",recent),("EARLY_MATCHED_N",first)):
             vals=[float(r["net"]) for r in g]
             precision=sum(x>0 for x in vals)/len(vals) if vals else None
-            c.execute("INSERT INTO edge_decay_metrics VALUES(?,?,?,?,?,?,?,?,?)",
-              (source,VERSION,days,label,len(vals),precision,avg(vals),pf(vals),sharpe(vals)))
+            row=(source,VERSION,days,label,len(vals),precision,avg(vals),pf(vals),sharpe(vals))
+            c.execute("INSERT INTO edge_decay_metrics VALUES(?,?,?,?,?,?,?,?,?)",row)
+            c.execute("INSERT OR REPLACE INTO edge_decay_history VALUES(?,?,?,?,?,?,?,?,?,?)",
+              (source,VERSION,now().date().isoformat(),days,label,len(vals),precision,avg(vals),pf(vals),sharpe(vals)))
     c.commit()
 
 def cost_calibration_binance(c):
