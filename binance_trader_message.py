@@ -87,6 +87,17 @@ def reasons(r):
     if con: out.append("Risk: "+con[0])
     return list(dict.fromkeys(out))[:4]
 
+def capital_status(c):
+    if not table(c,"capital_trust_status"):
+        return "CLOSED","kanıt kapısı henüz hesaplanmadı"
+    r=c.execute("""SELECT * FROM capital_trust_status
+        WHERE source='BINANCE' ORDER BY created_at_utc DESC LIMIT 1""").fetchone()
+    if not r:
+        return "CLOSED","kanıt kapısı henüz hesaplanmadı"
+    blockers=arr(r["blockers_json"])
+    reason=blockers[0] if blockers else "tüm sermaye kriterleri geçti"
+    return r["status"],reason
+
 def main():
     if not os.path.exists(DB):
         print("Binance trader message: DB yok"); return
@@ -118,7 +129,11 @@ def main():
             ranked.append(({"GÜÇLÜ":0,"ORTA":1,"ZAYIF":2}[label],-score,-int(r["evidence_count"] or 0),r,label,score))
         ranked.sort(key=lambda x:(x[0],x[1],x[2]))
 
+        cap_status,cap_reason=capital_status(c)
+        cap_line="🔒 GERÇEK PARA: KAPALI" if cap_status!="OPEN" else "🔓 GERÇEK PARA: KANIT KAPISI AÇIK"
         lines=["🛰 BINANCE AVCI",
+               cap_line,
+               f"• Sermaye kapısı: {cap_reason}",
                f"• Piyasa: {scan['btc_regime']} | BTC 24s %{float(scan['btc_change_24h']):+.2f}",
                f"• Taranan: {scan['universe_size']} coin",
                "• Çerçeve: erkenlik + akış + tutunma + yeniden hızlanma + execution",
