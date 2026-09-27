@@ -177,21 +177,18 @@ def main():
 
         ranked.sort(key=lambda x:(x[0],x[1],x[2]))
         cap_status,cap_reason=capital_status(c)
-        cap_line="🔒 GERÇEK PARA: KAPALI" if cap_status!="OPEN" else "🔓 GERÇEK PARA: KANIT KAPISI AÇIK"
+        cap_line="🔒 Gerçek para kapısı kapalı" if cap_status!="OPEN" else "🔓 Gerçek para kapısı açık"
         lines=["🛰 GATE WEB3 AVCI",
-               cap_line,
-               f"• Sermaye kapısı: {cap_reason}",
-               f"• İzlenen token: {health['observed_tokens']} | güvenlik: FAIL-CLOSED",
-               "• Çerçeve: erken aktivite + gerçek alıcı + persistence + re-ignition + satılabilirlik",
+               f"• İzlenen: {health['observed_tokens']} token | {cap_line}",
                ""]
 
         if not ranked:
-            lines.append("🚫 Bu tur güvenliği geçen anlamlı yukarı yönlü sinyal yok.")
+            lines.append("🚫 Bu taramada güvenliği geçen alınabilir görünen token yok.")
         else:
             icons={"GÜÇLÜ":"🟢","ORTA":"🟡","ZAYIF":"⚪️"}
             shown=0
             for _,_,_,r,label,score in ranked:
-                if shown>=4: break
+                if shown>=3: break
                 network=r["network_id"]
                 contract=r["token_contract"]
                 name=(r["symbol"] if "symbol" in r.keys() and r["symbol"] else symbol_for(c,network,contract))
@@ -205,21 +202,23 @@ def main():
                     b=float(obs["buys_5m"] or 0); sv=float(obs["sells_5m"] or 0)
                     flow=(b/max(sv,1.0)) if b+sv else 0
                     vr="-" if obs["own_volume_ratio"] is None else f"{float(obs['own_volume_ratio']):.1f}x"
-                    lines.append(f"• 24s %{float(obs['change_24h'] or 0):+.1f} | likidite {money(obs['liquidity'])} | hacim {vr} | alıcı/satıcı {flow:.1f}x")
+                    lines.append(f"• Gerçek veri: 24s %{float(obs['change_24h'] or 0):+.1f} | likidite {money(obs['liquidity'])} | hacim anomalisi (kendi normaline göre): {vr} | 5dk alıcı/satıcı: {flow:.1f}x")
                 if "support_json" in r.keys():
                     sup=arr(r["support_json"]); con=arr(r["counter_json"])
-                    if sup: lines.append("• Neden: "+"; ".join(sup[:2]))
-                    if con: lines.append("• Risk: "+con[0])
-                    if "security_label" in r.keys():
-                        lines.append(f"• Güvenlik: {r['security_label']} | exit: {r['execution_quality']}")
+                    why=sup[0] if sup else "birden fazla on-chain veri aynı yöne bakıyor"
+                    risk=con[0] if con else "kritik karşı kanıt yok"
+                    lines.append(f"• Neden girilebilir: {why}")
+                    lines.append(f"• Neden girilmez/beklenir: {risk}")
+                    lines.append(f"• Güvenlik: {r['security_label']} | Exit (satış/çıkış uygulanabilirliği): {r['execution_quality']}")
                 else:
                     ev=arr(r["evidence_json"]) if "evidence_json" in r.keys() else []
-                    if ev: lines.append("• Erken iz: "+"; ".join(ev[:2]))
-                    lines.append("• Güvenlik: safe-discovery; henüz tam aday teyidi yok")
+                    why=ev[0] if ev else "erken aktivite görülüyor"
+                    lines.append(f"• Neden izlenir: {why}")
+                    lines.append("• Neden henüz girilmez: güvenlik/çıkış ve devam teyidi tamamlanmadı")
                 lines.append("")
                 shown+=1
 
-        lines.append("Not: Yön sinyali ile güvenlik ayrı değerlendirilir; hard-veto veya satılabilirlik sorunu olan token gösterilmez.")
+        lines.append("Not: GÜÇLÜ = yön + güvenlik + çıkış tarafında en çok dayanak; otomatik al emri değildir.")
 
     msg="\n".join(lines)
     token=(os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
