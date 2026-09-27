@@ -140,6 +140,7 @@ def gate_closed(v):
       btc_regime regime,net_final_pct net FROM validation_events
       WHERE status='CLOSED_72H'
         AND group_type IN ('CANDIDATE','EXPANDED_CANDIDATE','NEAR_MISS','RANDOM_CONTROL')
+        AND NOT (group_type='CANDIDATE' AND COALESCE(rulesets,'')='')
       ORDER BY signal_ts""")]
 
 def is_candidate(source,r):
