@@ -275,12 +275,20 @@ def main():
         early_rows=[]
         if table(c,"gate_spot_watch"):
             try:
-                early_rows=c.execute("""SELECT w.pair,w.change_24h,w.rise_pct,
-                           w.round_trip_1k_pct,w.entry_path,c.network_id,c.token_contract
+                latest_watch_batch=c.execute("""SELECT w.batch_id
                     FROM gate_spot_watch w
-                    JOIN gate_spot_contracts c ON c.pair=w.pair
+                    JOIN gate_spot_health g ON g.batch_id=w.batch_id
                     WHERE w.status='PAPER_WATCH'
-                    ORDER BY w.rowid DESC LIMIT 3""").fetchall()
+                    ORDER BY g.scan_ts DESC LIMIT 1""").fetchone()
+                if latest_watch_batch:
+                    early_rows=c.execute("""SELECT w.pair,w.change_24h,w.rise_pct,
+                               w.round_trip_1k_pct,w.entry_path,c.network_id,c.token_contract
+                        FROM gate_spot_watch w
+                        JOIN gate_spot_contracts c ON c.pair=w.pair
+                        WHERE w.status='PAPER_WATCH' AND w.batch_id=?
+                          AND w.change_24h < 10
+                        ORDER BY w.rowid DESC LIMIT 3""",
+                        (latest_watch_batch["batch_id"],)).fetchall()
             except sqlite3.OperationalError:
                 early_rows=[]
         if not early_rows and table(c,"gate_opportunity_observations"):
@@ -332,7 +340,10 @@ def main():
                     "NO_CONTRACT_MAPPING":"Web3 ile eşleşmedi",
                     "NO_ONCHAIN_HISTORY":"erken geçmiş yok",
                 }
-                for a in audits:
+                # Keep the Telegram message compact; every audit row remains in DB.
+                # Show the largest moves and summarize the remainder by failure class.
+                shown_audits=audits[:6]
+                for a in shown_audits:
                     label=status_text.get(a["audit_status"],a["audit_status"])
                     symbol=a["symbol"] or a["pair"]
                     lines.append(f"• {symbol} %+{float(a['current_change_24h']):.1f} → {label}")
@@ -341,6 +352,13 @@ def main():
                     else:
                         lines.append("  Kontrat: resmi Gate eşleşmesi yok")
                     lines.append(f"  ({a['audit_reason']})")
+                if len(audits)>len(shown_audits):
+                    counts={}
+                    for a in audits[len(shown_audits):]:
+                        key=status_text.get(a["audit_status"],a["audit_status"])
+                        counts[key]=counts.get(key,0)+1
+                    summary=", ".join(f"{k}: {v}" for k,v in sorted(counts.items()))
+                    lines.append(f"• +{len(audits)-len(shown_audits)} olay daha DB'de kayıtlı ({summary}).")
                 lines.append("• Eşik: Gate Spot'ta 24s +%10 ve en az $30K hacim. Bunlar öneri değil; sistemin kaçırma denetimidir.")
 
         lines.append("Not: GÜÇLÜ = yön + güvenlik + çıkış tarafında en çok dayanak; otomatik al emri değildir.")
