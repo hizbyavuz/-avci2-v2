@@ -192,6 +192,27 @@ def main():
                 if int(op["possible_follower"] or 0): support.append("Erken takipçi hızlanması var")
                 if int(op["missed_mover"] or 0): counter.append("Hareketin önemli kısmı önceden olmuş olabilir")
 
+            # Frozen Gate History Miner bridge. Only BH-FDR-supported V5
+            # activation evidence is allowed to count as positive support.
+            hb=None
+            if table(c,"gate_history_bridge"):
+                hb=c.execute("""SELECT * FROM gate_history_bridge
+                    WHERE batch_id=? AND network_id=? AND token_contract=?
+                    ORDER BY created_at_utc DESC LIMIT 1""",
+                    (batch,e["network_id"],e["token_contract"])).fetchone()
+            if hb:
+                if hb["status"]=="HISTORY_FDR_SUPPORTED":
+                    try:
+                        pats=json.loads(hb["patterns_json"] or "[]")
+                    except Exception:
+                        pats=[]
+                    support.append("Geçmiş Kazıcı: "+("/".join(pats) if pats else "P2/P3")+
+                                   " deseni canlı aktivasyonla eşleşti ve V5 doğrulamasında FDR geçti")
+                elif hb["status"]=="HISTORY_PATTERN_ONLY":
+                    unknown.append("Geçmiş Kazıcı P2/P3 desen eşleşmesi var; canlı aktivasyon FDR teyidi yok")
+                elif hb["status"]=="INSUFFICIENT_HISTORY":
+                    unknown.append("Geçmiş Kazıcı için 90g günlük geçmiş yetersiz")
+
             hist=historical_context(v,e)
             rates=hist["rates"]; r10=rates["10"]
             if r10["candidate_rate"] is not None and r10["control_rate"] is not None:
