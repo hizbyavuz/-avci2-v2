@@ -115,6 +115,17 @@ def signal_strength(r):
         return "ORTA",score
     return "ZAYIF",score
 
+def capital_status(c):
+    if not table(c,"capital_trust_status"):
+        return "CLOSED","kanıt kapısı henüz hesaplanmadı"
+    r=c.execute("""SELECT * FROM capital_trust_status
+        WHERE source='GATE' ORDER BY created_at_utc DESC LIMIT 1""").fetchone()
+    if not r:
+        return "CLOSED","kanıt kapısı henüz hesaplanmadı"
+    blockers=arr(r["blockers_json"])
+    reason=blockers[0] if blockers else "tüm sermaye kriterleri geçti"
+    return r["status"],reason
+
 def main():
     if not os.path.exists(DB):
         print("Gate trader message: DB yok"); return
@@ -165,7 +176,11 @@ def main():
                     ranked.append((2,-float(r["score"] or 0),0,r,"ZAYIF",float(r["score"] or 0)))
 
         ranked.sort(key=lambda x:(x[0],x[1],x[2]))
+        cap_status,cap_reason=capital_status(c)
+        cap_line="🔒 GERÇEK PARA: KAPALI" if cap_status!="OPEN" else "🔓 GERÇEK PARA: KANIT KAPISI AÇIK"
         lines=["🛰 GATE WEB3 AVCI",
+               cap_line,
+               f"• Sermaye kapısı: {cap_reason}",
                f"• İzlenen token: {health['observed_tokens']} | güvenlik: FAIL-CLOSED",
                "• Çerçeve: erken aktivite + gerçek alıcı + persistence + re-ignition + satılabilirlik",
                ""]
