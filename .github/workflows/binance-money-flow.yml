@@ -55,6 +55,10 @@ jobs:
       - name: Run permanent regression tests
         run: python -m unittest discover -s tests -v
 
+      - name: Preserve delisted and suspended Binance history
+        continue-on-error: true
+        run: python -u binance_survivorship_backfill.py
+
       - name: Refresh market and derivative features
         run: python -u binance_scanner.py
 
