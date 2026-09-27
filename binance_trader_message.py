@@ -203,6 +203,27 @@ def main():
                 lines.append("")
                 shown+=1
 
+        # Accountability: show strong Spot movers even when core Avci did not recommend them.
+        if table(c,"top_mover_audit"):
+            audits=c.execute("""SELECT * FROM top_mover_audit
+                WHERE scan_time_utc=? ORDER BY current_change_24h DESC LIMIT 4""",(ts,)).fetchall()
+            if audits:
+                lines.append("")
+                lines.append("🔎 BUGÜN KAÇIRILAN / GEÇ YAKALANAN HAREKETLER")
+                status_text={
+                    "EARLY_CAUGHT":"erken gördü",
+                    "CAUGHT":"gördü",
+                    "LATE_CAUGHT":"geç gördü",
+                    "OUTSIDE_CORE_UNIVERSE":"çekirdek evren dışında",
+                    "MISSED":"kaçırdı",
+                    "NOT_IN_SNAPSHOT":"evren kaydı yok",
+                }
+                for a in audits:
+                    label=status_text.get(a["audit_status"],a["audit_status"])
+                    lines.append(f"• {a['symbol']} %+{float(a['current_change_24h']):.1f} → {label}")
+                    lines.append(f"  ({a['audit_reason']})")
+                lines.append("• Bu bölüm öneri değil; sistemin kendini denetleme raporudur.")
+
         lines.append("Not: GÜÇLÜ = en çok dayanak var; yine de otomatik al emri değildir.")
         c.commit()
 
