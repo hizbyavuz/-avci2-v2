@@ -247,6 +247,10 @@ jobs:
         continue-on-error: true
         run: python -u readiness_shadow_paper.py gate
 
+      - name: Update exact Telegram-label outcomes
+        continue-on-error: true
+        run: python -u trader_label_outcome.py gate
+
       - name: Evaluate recent-performance brake
         continue-on-error: true
         run: python -u performance_brake.py gate
