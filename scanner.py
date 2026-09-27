@@ -5782,10 +5782,12 @@ for c in [row for row in all_candidates if row["frozen_rulesets"]][:3]:
         c["social_signal"] = x_contract_mentions(
             c["network_id"], c["token_contract"])
 
-# Candidate ile benzer near-miss + random controls.
+# Primary validation only includes rows that actually satisfy at least one
+# frozen V5 ruleset. Broader all_candidates remain observation/reporting data.
+validation_candidates = [c for c in all_candidates if c.get("frozen_rulesets")]
 validation_controls = (
     select_validation_controls(
-        all_candidates,
+        validation_candidates,
         all_control_pool,
     )
 )
@@ -5805,8 +5807,8 @@ print("Aday güvenlik geçmişi:", record_candidate_risk(
     "avci2.db", batch_id, all_candidates
 ))
 
-# Candidate ve controls AYNI entry/outcome kuraliyla validation DB'ye.
-for c in all_candidates:
+# Frozen-rule-qualified Candidate and controls use the SAME entry/outcome rule.
+for c in validation_candidates:
     try:
         c["validation_event_id"] = (
             validation_record_event(
