@@ -148,7 +148,9 @@ def main():
                 JOIN trade_readiness tr
                   ON tr.source='BINANCE' AND tr.batch_key=e.scan_time_utc
                  AND tr.asset_key=e.symbol
-                WHERE e.scan_time_utc=?""",(ts,)).fetchall()
+                WHERE e.scan_time_utc=?
+                  AND e.version=(SELECT version FROM binance_candidate_evidence
+                    WHERE scan_time_utc=? ORDER BY created_at_utc DESC LIMIT 1)""",(ts,ts)).fetchall()
 
         ranked=[]
         for r in rows:
@@ -179,6 +181,26 @@ def main():
                 lines.append(f"{icons[label]} {label} — {r['symbol']}")
                 hist_line,_=history_context(r)
                 lines.append(hist_line)
+                if table(c,"binance_history_context"):
+                    hc=c.execute("""SELECT * FROM binance_history_context
+                        WHERE scan_time_utc=? AND symbol=?
+                        ORDER BY created_at_utc DESC LIMIT 1""",(ts,r["symbol"])).fetchone()
+                    if hc:
+                        parts=[]
+                        if hc["winner_similarity_pct"] is not None:
+                            parts.append(f"Winner Anatomy %{float(hc['winner_similarity_pct']):.0f}")
+                        if hc["missed_similarity_pct"] is not None:
+                            parts.append(f"kaçırılan mover %{float(hc['missed_similarity_pct']):.0f}")
+                        if hc["first_anomaly_time_utc"]:
+                            gain="" if hc["gain_from_first_anomaly_pct"] is None else f" | ilk anomaliden %{float(hc['gain_from_first_anomaly_pct']):+.1f}"
+                            parts.append("ilk anomali kayıtlı"+gain)
+                        if parts:
+                            tag={"BOTH_SUPPORT":"iki tarihsel kaynak destekli",
+                                 "WINNER_ANATOMY_SUPPORT":"Winner Anatomy desteği",
+                                 "MISSED_MOVER_SUPPORT":"kaçırılan mover desteği",
+                                 "MIXED_OR_WEAK":"karışık/zayıf tarihsel benzerlik",
+                                 "INSUFFICIENT_HISTORY":"tarihsel örnek yetersiz"}.get(hc["context_status"],hc["context_status"])
+                            lines.append(f"• Tarihsel bağlam ({tag}): "+" | ".join(parts))
                 taker=float(r["taker_buy_ratio_15m"] or 0)
                 oi=r["oi_change_1h_pct"]
                 oi_text="veri yok" if oi is None else f"%{float(oi):+.1f}"
@@ -226,6 +248,18 @@ def main():
                         accel="-" if e["acceleration_ratio"] is None else f"{float(e['acceleration_ratio']):.1f}x"
                         lines.append(f"• {e['symbol']} | 15dk %{float(e['change_15m'] or 0):+.1f} | 24s %{float(e['change_24h'] or 0):+.1f}")
                         lines.append(f"  İz: {why_text} | hacim hızlanması: {accel} | alıcı oranı: %{100*float(e['taker_buy_ratio_15m'] or 0):.0f}")
+                        if table(c,"binance_history_context"):
+                            hc=c.execute("""SELECT * FROM binance_history_context
+                                WHERE scan_time_utc=? AND symbol=?
+                                ORDER BY created_at_utc DESC LIMIT 1""",(ts,e["symbol"])).fetchone()
+                            if hc:
+                                bits=[]
+                                if hc["winner_similarity_pct"] is not None:
+                                    bits.append(f"Winner Anatomy %{float(hc['winner_similarity_pct']):.0f}")
+                                if hc["missed_similarity_pct"] is not None:
+                                    bits.append(f"kaçırılan mover %{float(hc['missed_similarity_pct']):.0f}")
+                                if bits:
+                                    lines.append("  Tarihsel bağlam: "+" | ".join(bits)+" | sadece ek bilgi")
                     lines.append("• Bu bölüm teyit bekleyen erken izdir; güvenlik/continuation tamamlanmadan alınabilir aday sayılmaz.")
 
         # Accountability: show strong Spot movers even when core Avci did not recommend them.
