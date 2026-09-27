@@ -1,0 +1,66 @@
+name: Gate History Quick OOS
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "history_oos_quick.py"
+      - ".github/workflows/history-oos-quick.yml"
+  schedule:
+    - cron: "33 * * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gate-history-oos-quick
+  cancel-in-progress: false
+
+jobs:
+  quick-oos:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Restore quick OOS state
+        uses: actions/cache/restore@v4
+        with:
+          path: history_miner.db
+          key: history-oos-quick-${{ github.run_id }}
+          restore-keys: |
+            history-oos-quick-
+            history-v5-
+            history-base-
+            history-miner-
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Run representative blind OOS sample
+        env:
+          HISTORY_OOS_QUICK_TARGET: "1500"
+          HISTORY_OOS_QUICK_BUDGET: "900"
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python -u history_oos_quick.py
+
+      - name: Save quick OOS state
+        if: success()
+        uses: actions/cache/save@v4
+        with:
+          path: history_miner.db
+          key: history-oos-quick-${{ github.run_id }}
+
+      - name: Publish quick OOS checkpoint
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: history-oos-quick-latest
+          path: |
+            history_miner.db
+            history_oos_quick_report.json
+          if-no-files-found: warn
+          retention-days: 5
