@@ -203,6 +203,31 @@ def main():
                 lines.append("")
                 shown+=1
 
+        # Observation-only early lane: visible before a coin becomes a full candidate.
+        # Never promoted to GÜÇLÜ/ORTA/ZAYIF and never recorded as a recommendation.
+        if table(c,"opportunity_observations"):
+            cols={row[1] for row in c.execute("PRAGMA table_info(opportunity_observations)")}
+            if "early_watch" in cols:
+                early=c.execute("""SELECT o.symbol,o.early_watch_reason_json,
+                           o.acceleration_ratio,o.leader_rank,o.sector_rank,
+                           f.change_15m,f.change_1h,f.change_24h,f.volume_mult_15m,
+                           f.taker_buy_ratio_15m,f.retention_proxy,f.stage
+                    FROM opportunity_observations o
+                    JOIN features f ON f.scan_time_utc=o.scan_time_utc AND f.symbol=o.symbol
+                    WHERE o.scan_time_utc=? AND o.early_watch=1
+                    ORDER BY COALESCE(o.acceleration_ratio,0) DESC,
+                             COALESCE(f.taker_buy_ratio_15m,0) DESC LIMIT 3""",(ts,)).fetchall()
+                if early:
+                    lines.append("")
+                    lines.append("👀 ERKEN İZLEME — ALIM SİNYALİ DEĞİL")
+                    for e in early:
+                        why=arr(e["early_watch_reason_json"])
+                        why_text=", ".join(why) if why else "erken hareket izi"
+                        accel="-" if e["acceleration_ratio"] is None else f"{float(e['acceleration_ratio']):.1f}x"
+                        lines.append(f"• {e['symbol']} | 15dk %{float(e['change_15m'] or 0):+.1f} | 24s %{float(e['change_24h'] or 0):+.1f}")
+                        lines.append(f"  İz: {why_text} | hacim hızlanması: {accel} | alıcı oranı: %{100*float(e['taker_buy_ratio_15m'] or 0):.0f}")
+                    lines.append("• Bu bölüm teyit bekleyen erken izdir; güvenlik/continuation tamamlanmadan alınabilir aday sayılmaz.")
+
         # Accountability: show strong Spot movers even when core Avci did not recommend them.
         if table(c,"top_mover_audit"):
             audits=c.execute("""SELECT * FROM top_mover_audit
