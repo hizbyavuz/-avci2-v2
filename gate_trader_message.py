@@ -42,6 +42,41 @@ def symbol_for(c,network,contract):
                 pass
     return contract[:8]
 
+def gate_history_context(c,network,contract):
+    if not table(c,"snapshots"):
+        return "(90g geçmiş verisi henüz yetersiz.)",0
+    rows=c.execute("""SELECT zaman_utc,raw_json FROM snapshots
+        WHERE network_id=? AND token_contract=?
+          AND zaman_utc>=datetime('now','-90 day')
+        ORDER BY zaman_utc ASC""",(network,contract)).fetchall()
+    prices=[]
+    times=[]
+    for row in rows:
+        try:
+            x=json.loads(row["raw_json"] or "{}")
+        except Exception:
+            x={}
+        p=x.get("price_usd") or x.get("price")
+        try:
+            p=float(p)
+        except Exception:
+            p=0
+        if p>0:
+            prices.append(p); times.append(row["zaman_utc"])
+    if len(prices)<2:
+        return "(90g geçmiş verisi henüz yetersiz.)",0
+    floor=min(prices)
+    current=prices[-1]
+    gain=((current/floor)-1.0)*100.0 if floor>0 else 0.0
+    # Do not pretend a partial archive is a full 90-day record.
+    if len(times)<20:
+        return f"(Kayıtlı geçmişte dipten +%{gain:.0f}; 90g tam geçmiş henüz yetersiz.)",(-1 if gain>=50 else 0)
+    if gain>=100:
+        return f"(Kayıtlı 90g geçmişte dipten +%{gain:.0f} — tekrar güçlü yükseliş için daha fazla teyit gerekiyor.)",-2
+    if gain>=50:
+        return f"(Kayıtlı 90g geçmişte dipten +%{gain:.0f} — yakın geçmişte büyük koşu var.)",-1
+    return f"(Kayıtlı 90g geçmişte dipten +%{gain:.0f} — erkenlik daha temiz.)",0
+
 def signal_strength(r):
     evidence=int(r["evidence_count"] or 0)
     counter=int(r["counter_count"] or 0)
@@ -110,6 +145,10 @@ def main():
         for r in rows:
             label,score=signal_strength(r)
             if label is None: continue
+            _,runner_penalty=gate_history_context(c,r["network_id"],r["token_contract"])
+            score+=runner_penalty
+            if label=="GÜÇLÜ" and runner_penalty<=-2:
+                label="ORTA"
             key=(r["network_id"],r["token_contract"])
             seen.add(key)
             ranked.append(({"GÜÇLÜ":0,"ORTA":1,"ZAYIF":2}[label],-score,-int(r["evidence_count"] or 0),r,label,score))
@@ -142,6 +181,8 @@ def main():
                 contract=r["token_contract"]
                 name=(r["symbol"] if "symbol" in r.keys() and r["symbol"] else symbol_for(c,network,contract))
                 lines.append(f"{icons[label]} {label} — {name} [{network}]")
+                hist_line,_=gate_history_context(c,network,contract)
+                lines.append(hist_line)
                 obs=c.execute("""SELECT change_24h,liquidity,buys_5m,sells_5m,own_volume_ratio
                     FROM gate_early_observations WHERE batch_id=? AND network_id=? AND token_contract=? LIMIT 1""",
                     (batch,network,contract)).fetchone() if table(c,"gate_early_observations") else None
