@@ -1,9 +1,8 @@
 name: Binance Early Signal Engine
 
+# TEMPORARILY PAUSED: manual dispatch only.
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "2,32 * * * *"
 
 permissions:
   contents: read
