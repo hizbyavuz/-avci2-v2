@@ -34,6 +34,18 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: python avci_state_guard.py restore-gate
 
+      - name: Restore latest Gate History evidence
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p .history-state
+          run_id=$(gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts?name=history-v5-latest&per_page=100" \
+            --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | reverse | .[0].workflow_run.id // empty')
+          if test -n "$run_id"; then
+            gh run download "$run_id" --name history-v5-latest --dir .history-state
+          fi
+
       - name: Refresh Gate Spot market snapshot
         continue-on-error: true
         run: python -u gate_spot_observer.py
@@ -45,6 +57,12 @@ jobs:
       - name: Refresh missed-mover accountability
         continue-on-error: true
         run: python -u gate_opportunity_observer.py
+
+      - name: Bridge Gate History Miner evidence
+        continue-on-error: true
+        env:
+          HISTORY_DB: .history-state/history_miner.db
+        run: python -u gate_history_bridge.py
 
       - name: Send consolidated Gate Web3 Telegram message
         env:
