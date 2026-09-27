@@ -2,9 +2,8 @@
 # -*- coding: utf-8 -*-
 """Trader-facing Binance Telegram summary.
 
-Research continues in the background. This file only compresses the latest
-research state into one short human-facing message. It never changes scanner,
-selection, validation, or security rules.
+Compresses the latest research state into a simple upward-signal-strength view.
+The label is research evidence strength, not a price guarantee or order.
 """
 import json, os, sqlite3
 from binance_notify import resolve_chat_id, send_telegram
@@ -21,11 +20,55 @@ def arr(s):
     except Exception:
         return []
 
-def pick_reason(r):
-    con=arr(r["counter_json"]); unk=arr(r["unknown_json"])
-    if con: return con[0]
-    if unk: return unk[0]
-    return "işlem hazırlığı tamamlanmadı"
+def signal_strength(r):
+    """Independent evidence ensemble; 15m live pool is weighted, never a sole veto."""
+    evidence=int(r["evidence_count"] or 0)
+    counter=int(r["counter_count"] or 0)
+    coverage=float(r["coverage_pct"] or 0)
+    readiness=r["readiness"] or "NOT_READY"
+    live=r["pool_status"] or "UNKNOWN"
+    hist=r["historical_edge"] or "UNKNOWN"
+    micro=r["microstructure_quality"] or "NEUTRAL"
+
+    score=0
+    if readiness=="PAPER_ELIGIBLE": score+=3
+    elif readiness=="WATCH": score+=2
+    if evidence>=7: score+=3
+    elif evidence>=5: score+=2
+    elif evidence>=3: score+=1
+    if counter==0: score+=2
+    elif counter==1: score+=1
+    elif counter>=3: score-=2
+    if coverage>=75: score+=1
+    elif coverage<55: score-=1
+    if live=="CONFIRMED": score+=2
+    elif live=="BORDERLINE": score+=0
+    elif live in ("FADED","INSUFFICIENT"): score-=2
+    if hist=="GOOD": score+=2
+    elif hist=="BAD": score-=2
+    if micro=="GOOD": score+=1
+    elif micro=="BAD": score-=1
+
+    # Hard research blocks remain stronger than the aggregate.
+    blockers=" | ".join(arr(r["counter_json"])).lower()
+    if "climax" in blockers or "veri kapsamı düşük" in blockers:
+        return "ZAYIF",score
+    if score>=8 and evidence>counter:
+        return "GÜÇLÜ",score
+    if score>=4 and evidence>=counter:
+        return "ORTA",score
+    return "ZAYIF",score
+
+def reasons(r):
+    sup=arr(r["support_json"])
+    con=arr(r["counter_json"])
+    out=[]
+    if r["pool_status"]=="CONFIRMED": out.append("15dk canlı havuz teyitli")
+    elif r["pool_status"]=="FADED": out.append("15dk canlı havuzda söndü")
+    elif r["pool_status"]=="BORDERLINE": out.append("15dk canlı havuz sınırda")
+    out.extend(sup[:2])
+    if con: out.append("Risk: "+con[0])
+    return list(dict.fromkeys(out))[:4]
 
 def main():
     if not os.path.exists(DB):
@@ -50,41 +93,36 @@ def main():
                 JOIN trade_readiness tr
                   ON tr.source='BINANCE' AND tr.batch_key=e.scan_time_utc
                  AND tr.asset_key=e.symbol
-                WHERE e.scan_time_utc=?
-                ORDER BY CASE tr.readiness WHEN 'PAPER_ELIGIBLE' THEN 0
-                         WHEN 'WATCH' THEN 1 ELSE 2 END,
-                         e.evidence_count DESC,e.counter_count ASC""",(ts,)).fetchall()
-        ready=[r for r in rows if r["readiness"]=="PAPER_ELIGIBLE"]
-        watch=[r for r in rows if r["readiness"]=="WATCH"]
+                WHERE e.scan_time_utc=?""",(ts,)).fetchall()
+
+        ranked=[]
+        for r in rows:
+            label,score=signal_strength(r)
+            ranked.append(({"GÜÇLÜ":0,"ORTA":1,"ZAYIF":2}[label],-score,-int(r["evidence_count"] or 0),r,label,score))
+        ranked.sort(key=lambda x:(x[0],x[1],x[2]))
 
         lines=["🛰 BINANCE AVCI",
                f"• Piyasa: {scan['btc_regime']} | BTC 24s %{float(scan['btc_change_24h']):+.2f}",
-               f"• Taranan: {scan['universe_size']} coin | işlem-hazır: {len(ready)}",
+               f"• Taranan: {scan['universe_size']} coin",
+               "• Çerçeve: erkenlik + akış + tutunma + yeniden hızlanma + execution",
                ""]
-        if ready:
-            for r in ready[:2]:
-                sup=arr(r["support_json"]); con=arr(r["counter_json"])
-                score=min(int(r["pool_score"] or 0),6) if r["pool_status"] else 0
-                lines.append(f"🟢 İŞLEM-HAZIR — {r['symbol']}")
-                why=sup[:3]
-                if score:
-                    why=["15dk canlı teyit geçti"]+why
-                lines.append("• Neden: "+"; ".join(dict.fromkeys(why)) if why else "• Neden: çoklu doğrulama geçti")
+        if not ranked:
+            lines.append("🚫 Bu tur yukarı yönlü anlamlı sinyal yok.")
+        else:
+            icons={"GÜÇLÜ":"🟢","ORTA":"🟡","ZAYIF":"⚪️"}
+            shown=0
+            for _,_,_,r,label,score in ranked:
+                if shown>=4: break
+                lines.append(f"{icons[label]} {label} — {r['symbol']}")
+                lines.append(f"• 24s %{float(r['change_24h'] or 0):+.1f} | BTC göreli %{float(r['btc_relative_24h'] or 0):+.1f}")
+                rs=reasons(r)
+                if rs: lines.append("• "+"; ".join(rs))
                 if r["historical_candidate_n"]>=8 and r["historical_control_n"]>=8 and r["hit10_rate"] is not None and r["hit10_control"] is not None:
                     lines.append(f"• Benzer geçmiş +10: %{100*float(r['hit10_rate']):.0f} vs kontrol %{100*float(r['hit10_control']):.0f}")
-                lines.append("• Risk: "+(con[0] if con else "kritik karşı kanıt yok"))
                 lines.append("")
-        else:
-            lines.append("🚫 Bu tur işlem-hazır aday yok.")
-            lines.append("")
+                shown+=1
 
-        if watch:
-            lines.append("🟡 İZLENEN — ÖNERİ DEĞİL")
-            for r in watch[:2]:
-                lines.append(f"• {r['symbol']}: {pick_reason(r)}")
-            lines.append("")
-
-        lines.append("Not: Araştırma/paper modudur; WATCH coinler işlem adayı değildir.")
+        lines.append("Not: GÜÇLÜ/ORTA/ZAYIF yukarı yönlü araştırma sinyalidir; 15dk havuz tek başına karar vermez.")
 
     msg="\n".join(lines)
     token=(os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
