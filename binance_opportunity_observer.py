@@ -5,7 +5,7 @@ Adds missed-mover attribution, market/sector leaders, followers and silent accum
 import json, sqlite3, statistics
 from binance_structure_observer import sector_for
 DB="binance_avci2.db"
-VERSION="opportunity-v0.2-20260923"
+VERSION="opportunity-v0.3-early-watch-20260927"
 
 def med(xs):
     xs=[float(x) for x in xs if x is not None]
@@ -29,6 +29,8 @@ def ensure_columns(con):
         "sector_rank":"INTEGER",
         "possible_follower":"INTEGER NOT NULL DEFAULT 0",
         "miss_reason_json":"TEXT NOT NULL DEFAULT '[]'",
+        "early_watch":"INTEGER NOT NULL DEFAULT 0",
+        "early_watch_reason_json":"TEXT NOT NULL DEFAULT '[]'",
     }
     for name,ddl in additions.items():
         if name not in cols:
@@ -54,6 +56,7 @@ def main(path=DB):
             acceleration_ratio REAL,silent_accumulation INTEGER NOT NULL DEFAULT 0,
             possible_follower INTEGER NOT NULL DEFAULT 0,
             missed_mover INTEGER NOT NULL DEFAULT 0,miss_reason_json TEXT NOT NULL,
+            early_watch INTEGER NOT NULL DEFAULT 0,early_watch_reason_json TEXT NOT NULL DEFAULT '[]',
             flags_json TEXT NOT NULL,PRIMARY KEY(scan_time_utc,symbol,version))""")
         ensure_columns(con)
         market=med([r["change_15m"] for r in rows])
@@ -67,7 +70,7 @@ def main(path=DB):
         for sec,items in sector_groups.items():
             ordered=sorted(items,key=lambda r:float(r["change_15m"] or -999),reverse=True)
             for i,r in enumerate(ordered): sector_ranks[r["symbol"]]=i+1
-        written=missed=silent=followers=0
+        written=missed=silent=followers=early_watches=0
         for r in rows:
             hist=con.execute("""SELECT volume_mult_15m FROM features
                 WHERE symbol=? AND scan_time_utc<? AND volume_mult_15m IS NOT NULL
@@ -87,19 +90,37 @@ def main(path=DB):
             follower=bool((rank[r["symbol"]]>5 or (srank or 99)>2) and accel is not None
                           and accel>=1.35 and float(r["change_15m"] or 0)>0)
             if follower: flags.append("POSSIBLE_FOLLOWER"); followers+=1
+            # Separate observation-only early lane. It reuses already existing
+            # silent-accumulation/follower paths; it never changes frozen signal rules.
+            early_reason=[]
+            early=bool(
+                not int(r["is_signal"] or 0)
+                and not int(r["climax_risk"] or 0)
+                and float(r["change_24h"] or 0) < 15
+                and (sa or follower or r["stage"] in ("WAKE_UP","CONTINUATION","REIGNITION"))
+            )
+            if early:
+                if sa: early_reason.append("SILENT_ACCUMULATION")
+                if follower: early_reason.append("POSSIBLE_FOLLOWER")
+                if r["stage"] in ("WAKE_UP","CONTINUATION","REIGNITION"):
+                    early_reason.append(str(r["stage"]))
+                flags.append("EARLY_WATCH")
+                early_watches+=1
+
             mm=bool(float(r["change_24h"] or 0)>=15 and not int(r["is_signal"] or 0))
             reasons=miss_reason(r) if mm else []
             if mm: flags.append("MISSED_MOVER"); missed+=1
             con.execute("""INSERT OR REPLACE INTO opportunity_observations
                 (scan_time_utc,symbol,version,market_excess_15m,leader_rank,
                  acceleration_ratio,silent_accumulation,missed_mover,flags_json,
-                 sector,sector_rank,possible_follower,miss_reason_json)
-                VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                 sector,sector_rank,possible_follower,miss_reason_json,
+                 early_watch,early_watch_reason_json)
+                VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (ts,r["symbol"],VERSION,excess,rank[r["symbol"]],accel,
                  int(sa),int(mm),json.dumps(flags),sec,srank,int(follower),
-                 json.dumps(reasons)))
+                 json.dumps(reasons),int(early),json.dumps(early_reason)))
             written+=1
         con.commit()
-        print(f"Binance opportunity: {written} coin; silent={silent}, follower={followers}, missed>=15%={missed}")
+        print(f"Binance opportunity: {written} coin; early_watch={early_watches}, silent={silent}, follower={followers}, missed>=15%={missed}")
     finally: con.close()
 if __name__=="__main__": main()
