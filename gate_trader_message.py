@@ -175,7 +175,9 @@ def main():
                   ON s.batch_id=e.batch_id AND s.network_id=e.network_id
                  AND s.token_contract=e.token_contract
                 WHERE e.batch_id=?
-                ORDER BY e.evidence_count DESC,e.counter_count ASC""",(batch,)).fetchall()
+                  AND e.version=(SELECT version FROM gate_candidate_evidence
+                    WHERE batch_id=? ORDER BY created_at_utc DESC LIMIT 1)
+                ORDER BY e.evidence_count DESC,e.counter_count ASC""",(batch,batch)).fetchall()
 
         ranked=[]
         seen=set()
