@@ -21,6 +21,7 @@ MIN_PROFIT_FACTOR=1.20
 MIN_EXPECTANCY_PCT=0.25
 MIN_HIT10_LIFT=1.20
 MIN_HIT10_DIFF_PP=5.0
+MIN_STRONG_LABEL_N=30
 
 def now(): return datetime.now(timezone.utc).isoformat()
 def table(c,t): return c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",(t,)).fetchone() is not None
@@ -76,6 +77,22 @@ def classify(cand_n,ctrl_n,cand_net,ctrl_net,cand_hit,ctrl_hit,regime_pass,secur
     status="OPEN" if not blockers else "CLOSED"
     return status,passes,blockers,ce,be,p,lift
 
+def exact_label_check(c,source):
+    if not table(c,"trader_label_ledger"):
+        return False,"GÜÇLÜ etiketi için 72s sonuç defteri henüz yok"
+    rows=c.execute("""SELECT final_return_pct FROM trader_label_ledger
+      WHERE source=? AND label='GÜÇLÜ' AND status='CLOSED'
+        AND final_return_pct IS NOT NULL ORDER BY closed_at_utc""",(source,)).fetchall()
+    vals=[float(r[0]) for r in rows]
+    if len(vals)<MIN_STRONG_LABEL_N:
+        return False,f"GÜÇLÜ etiketi kapanmış örnek yetersiz ({len(vals)}/{MIN_STRONG_LABEL_N})"
+    e=mean(vals); p=pf(vals)
+    if e is None or e<MIN_EXPECTANCY_PCT:
+        return False,f"GÜÇLÜ etiketi beklentisi yetersiz (%{(e or 0):.2f})"
+    if p is None or p<MIN_PROFIT_FACTOR:
+        return False,f"GÜÇLÜ etiketi profit factor yetersiz ({(p or 0):.2f})"
+    return True,f"GÜÇLÜ etiketi ayrı doğrulandı (n={len(vals)}, beklenti %{e:.2f}, PF {p:.2f})"
+
 def binance(c):
     cand=[]; ctrl=[]; hit_c=[]; hit_k=[]; regimes=defaultdict(list)
     if table(c,"signal_events") and table(c,"outcome_labels"):
@@ -106,6 +123,9 @@ def binance(c):
         br=c.execute("SELECT status FROM performance_brake WHERE source='BINANCE' LIMIT 1").fetchone()
         if br and br[0]=="ENGAGED": brake_ok=False
     status,passes,blockers,ce,be,p,lift=classify(len(cand),len(ctrl),cand,ctrl,ch,kh,regime_pass,True,brake_ok)
+    label_ok,label_note=exact_label_check(c,"BINANCE")
+    (passes if label_ok else blockers).append(label_note)
+    status="OPEN" if not blockers else "CLOSED"
     return dict(status=status,candidate_n=len(cand),control_n=len(ctrl),candidate_expectancy=ce,
                 control_expectancy=be,profit_factor=p,candidate_hit10=ch,control_hit10=kh,
                 hit10_lift=lift,regime_pass_count=regime_pass,security_status="N/A",
@@ -145,6 +165,9 @@ def gate(c,v):
         br=c.execute("SELECT status FROM performance_brake WHERE source='GATE' LIMIT 1").fetchone()
         if br and br[0]=="ENGAGED": brake_ok=False
     status,passes,blockers,ce,be,p,lift=classify(len(cand),len(ctrl),cand,ctrl,ch,kh,regime_pass,security_ok,brake_ok)
+    label_ok,label_note=exact_label_check(c,"GATE")
+    (passes if label_ok else blockers).append(label_note)
+    status="OPEN" if not blockers else "CLOSED"
     return dict(status=status,candidate_n=len(cand),control_n=len(ctrl),candidate_expectancy=ce,
                 control_expectancy=be,profit_factor=p,candidate_hit10=ch,control_hit10=kh,
                 hit10_lift=lift,regime_pass_count=regime_pass,security_status=sec_status,
