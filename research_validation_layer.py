@@ -718,6 +718,20 @@ def register_existing_experiments(c,source):
                       (source,VERSION,"ACTIVATION_COMBO",f"{r['combo']}|+{r['target_pct']}",
                        r["split"],now(),1 if r["split"]=="VALIDATION" else 0,
                        "Imported from frozen Gate activation family."))
+
+    # New early-watch lanes are pre-registered as observational hypotheses.
+    # They are counted in the trial ledger now, but cannot influence selection
+    # or capital gates until separately labelled and validated in a future version.
+    early_hypotheses = (
+        ("BINANCE","EARLY_WATCH","WAKE_UP_OR_SILENT_ACCUMULATION_OR_FOLLOWER"),
+        ("GATE","EARLY_WATCH","SPOT_PREBREAKOUT_OR_RETENTION_OR_ONCHAIN_ANOMALY"),
+    )
+    for src,family,hypothesis in early_hypotheses:
+        if source==src:
+            c.execute("""INSERT OR REPLACE INTO research_experiment_registry VALUES(?,?,?,?,?,?,?,?)""",
+                      (source,VERSION,family,hypothesis,"OBSERVATIONAL",now(),0,
+                       "Pre-registered 2026-09-27; no threshold tuning from future outcomes. "
+                       "Requires separately labelled outcomes before FDR-eligible validation."))
     c.commit()
 
 def report(c,source,rows,effective_families):
