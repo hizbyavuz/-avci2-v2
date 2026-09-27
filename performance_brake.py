@@ -43,11 +43,28 @@ def run(c,source):
         if x<0: losses+=1
         else: break
     reasons=[]
+    strong=[]
+    if table(c,"trader_label_ledger"):
+        sr=c.execute("""SELECT final_return_pct FROM trader_label_ledger
+          WHERE source=? AND label='GÜÇLÜ' AND status='CLOSED'
+            AND final_return_pct IS NOT NULL
+          ORDER BY closed_at_utc DESC LIMIT ?""",(source,LOOKBACK)).fetchall()
+        strong=[float(r[0]) for r in sr]
     if len(vals)>=MIN_N:
         if exp is not None and exp<MIN_EXPECTANCY: reasons.append(f"son {len(vals)} paper işlem beklentisi negatif (%{exp:.2f})")
         if p is not None and p<MIN_PROFIT_FACTOR: reasons.append(f"son dönem profit factor düşük ({p:.2f})")
-        if losses>=MAX_CONSECUTIVE_LOSSES: reasons.append(f"arka arkaya {losses} kayıp")
-    status="ENGAGED" if reasons else ("MONITORING" if len(vals)<MIN_N else "CLEAR")
+        if losses>=MAX_CONSECUTIVE_LOSSES: reasons.append(f"arka arkaya {losses} paper kaybı")
+    if len(strong)>=MIN_N:
+        se=sum(strong)/len(strong); sp=pf(strong)
+        sl=0
+        for x in strong:
+            if x<0: sl+=1
+            else: break
+        if se<MIN_EXPECTANCY: reasons.append(f"son GÜÇLÜ sinyallerin beklentisi negatif (%{se:.2f})")
+        if sp is not None and sp<MIN_PROFIT_FACTOR: reasons.append(f"GÜÇLÜ sinyallerin profit factorı düşük ({sp:.2f})")
+        if sl>=MAX_CONSECUTIVE_LOSSES: reasons.append(f"arka arkaya {sl} GÜÇLÜ sinyal kaybı")
+    enough=max(len(vals),len(strong))
+    status="ENGAGED" if reasons else ("MONITORING" if enough<MIN_N else "CLEAR")
     c.execute("""INSERT OR REPLACE INTO performance_brake VALUES(?,?,?,?,?,?,?,?,?)""",
       (source,status,len(vals),exp,p,losses,json.dumps(reasons,ensure_ascii=False),VERSION,now()))
     c.commit()
