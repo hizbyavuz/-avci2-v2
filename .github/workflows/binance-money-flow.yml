@@ -200,7 +200,7 @@ jobs:
         run: python -u binance_history_context_bridge.py
 
       - name: Send one consolidated Binance motor message
-        if: success()
+        if: always()
         continue-on-error: true
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
