@@ -129,6 +129,10 @@ jobs:
         run: python -u binance_activation_math.py
 
 
+      - name: Log active Binance research components
+        continue-on-error: true
+        run: python -u research_component_manifest.py binance
+
       - name: Run P0 governance audit
         continue-on-error: true
         run: python -u research_p0_governance.py binance
