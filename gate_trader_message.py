@@ -257,6 +257,42 @@ def main():
                 lines.append("")
                 shown+=1
 
+        # Observation-only Gate early lane. This is intentionally separate
+        # from security-passed GÜÇLÜ/ORTA/ZAYIF candidates.
+        early_rows=[]
+        if table(c,"gate_spot_watch"):
+            try:
+                early_rows=c.execute("""SELECT w.pair,w.change_24h,w.rise_pct,
+                           w.round_trip_1k_pct,w.entry_path,c.network_id,c.token_contract
+                    FROM gate_spot_watch w
+                    JOIN gate_spot_contracts c ON c.pair=w.pair
+                    WHERE w.status='PAPER_WATCH'
+                    ORDER BY w.rowid DESC LIMIT 3""").fetchall()
+            except sqlite3.OperationalError:
+                early_rows=[]
+        if not early_rows and table(c,"gate_opportunity_observations"):
+            cols={row[1] for row in c.execute("PRAGMA table_info(gate_opportunity_observations)")}
+            if "early_watch" in cols:
+                early_rows=c.execute("""SELECT o.pair,h.change_24h,NULL rise_pct,
+                           NULL round_trip_1k_pct,'OPPORTUNITY' entry_path,
+                           c.network_id,c.token_contract
+                    FROM gate_opportunity_observations o
+                    JOIN gate_spot_history h ON h.batch_id=o.batch_id AND h.pair=o.pair
+                    JOIN gate_spot_contracts c ON c.pair=o.pair
+                    WHERE o.batch_id=? AND o.early_watch=1
+                    ORDER BY COALESCE(o.volume_acceleration,0) DESC LIMIT 3""",(batch,)).fetchall()
+        if early_rows:
+            lines.append("")
+            lines.append("👀 ERKEN İZLEME — ALIM SİNYALİ DEĞİL")
+            used=set()
+            for e in early_rows:
+                if e["pair"] in used: continue
+                used.add(e["pair"])
+                rt="-" if e["round_trip_1k_pct"] is None else f"%{float(e['round_trip_1k_pct']):.1f}"
+                lines.append(f"• {e['pair']} | 24s %{float(e['change_24h'] or 0):+.1f} | yol: {e['entry_path']} | $1k gidiş-dönüş: {rt}")
+                if len(used)>=3: break
+            lines.append("• Resmi kontrat eşleşmesi var; fakat Web3 güvenlik/holder/LP/çıkış teyidi tamamlanmadan alınabilir aday değildir.")
+
         if table(c,"gate_top_mover_audit"):
             latest_spot=c.execute("""SELECT spot_batch_id FROM gate_top_mover_audit
                 ORDER BY created_scan_ts DESC LIMIT 1""").fetchone()
