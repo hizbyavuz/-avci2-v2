@@ -7,7 +7,7 @@ on:
 
 permissions:
   contents: read
-  actions: read
+  actions: write
 
 concurrency:
   group: gate-fast-telegram
@@ -34,6 +34,18 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: python avci_state_guard.py restore-gate
 
+      - name: Restore Gate fast-watch cooldown ledger
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p .gate-fast
+          run_id=$(gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts?name=gate-fast-watch-ledger&per_page=100" \
+            --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | reverse | .[0].workflow_run.id // empty')
+          if test -n "$run_id"; then
+            gh run download "$run_id" --name gate-fast-watch-ledger --dir .gate-fast
+          fi
+
       - name: Restore latest Gate History evidence
         continue-on-error: true
         env:
@@ -52,6 +64,8 @@ jobs:
 
       - name: Build lightweight Gate Spot early-watch cohort
         continue-on-error: true
+        env:
+          GATE_FAST_LEDGER: .gate-fast/watch_ledger.json
         run: python -u gate_spot_watch.py
 
       - name: Refresh missed-mover accountability
@@ -63,6 +77,17 @@ jobs:
         env:
           HISTORY_DB: .history-state/history_miner.db
         run: python -u gate_history_bridge.py
+
+      - name: Save Gate fast-watch cooldown ledger
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate-fast-watch-ledger
+          path: .gate-fast/watch_ledger.json
+          if-no-files-found: ignore
+          retention-days: 2
+          overwrite: true
 
       - name: Send consolidated Gate Web3 Telegram message
         env:
