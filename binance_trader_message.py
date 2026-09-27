@@ -111,6 +111,8 @@ def main():
         rows=[]
         if table(c,"binance_candidate_evidence") and table(c,"trade_readiness"):
             rows=c.execute("""SELECT e.*,f.change_24h,f.btc_relative_24h,
+                       f.taker_buy_ratio_15m,f.retention,f.persistence,f.reignition,
+                       f.oi_change_1h_pct,f.funding_rate,
                        p.status pool_status,p.confirmation_score pool_score,
                        tr.readiness,tr.execution_quality,tr.historical_edge,
                        tr.microstructure_quality,f.raw_json feature_raw_json
@@ -130,33 +132,38 @@ def main():
         ranked.sort(key=lambda x:(x[0],x[1],x[2]))
 
         cap_status,cap_reason=capital_status(c)
-        cap_line="🔒 GERÇEK PARA: KAPALI" if cap_status!="OPEN" else "🔓 GERÇEK PARA: KANIT KAPISI AÇIK"
+        cap_line="🔒 Gerçek para kapısı kapalı" if cap_status!="OPEN" else "🔓 Gerçek para kapısı açık"
         lines=["🛰 BINANCE AVCI",
-               cap_line,
-               f"• Sermaye kapısı: {cap_reason}",
-               f"• Piyasa: {scan['btc_regime']} | BTC 24s %{float(scan['btc_change_24h']):+.2f}",
-               f"• Taranan: {scan['universe_size']} coin",
-               "• Çerçeve: erkenlik + akış + tutunma + yeniden hızlanma + execution",
+               f"• BTC: %{float(scan['btc_change_24h']):+.2f} | Piyasa: {scan['btc_regime']}",
+               f"• {cap_line}",
                ""]
         if not ranked:
-            lines.append("🚫 Bu tur yukarı yönlü anlamlı sinyal yok.")
+            lines.append("🚫 Bu taramada alınabilir görünen coin yok.")
         else:
             icons={"GÜÇLÜ":"🟢","ORTA":"🟡","ZAYIF":"⚪️"}
             shown=0
             for _,_,_,r,label,score in ranked:
-                if shown>=4: break
+                if shown>=3: break
                 lines.append(f"{icons[label]} {label} — {r['symbol']}")
                 hist_line,_=history_context(r)
                 lines.append(hist_line)
-                lines.append(f"• 24s %{float(r['change_24h'] or 0):+.1f} | BTC göreli %{float(r['btc_relative_24h'] or 0):+.1f}")
-                rs=reasons(r)
-                if rs: lines.append("• "+"; ".join(rs))
+                taker=float(r["taker_buy_ratio_15m"] or 0)
+                oi=r["oi_change_1h_pct"]
+                oi_text="veri yok" if oi is None else f"%{float(oi):+.1f}"
+                live={"CONFIRMED":"geçti","BORDERLINE":"sınırda","FADED":"söndü","INSUFFICIENT":"yetersiz"}.get(r["pool_status"],"veri yok")
+                lines.append(f"• Gerçek veri: 24s %{float(r['change_24h'] or 0):+.1f} | BTC'ye göre %{float(r['btc_relative_24h'] or 0):+.1f} | 15dk canlı takip: {live}")
+                lines.append(f"• Taker akışı (piyasa emriyle alıcı oranı): %{100*taker:.0f} | OI 1s (açık vadeli pozisyon değişimi): {oi_text}")
+                sup=arr(r["support_json"]); con=arr(r["counter_json"])
+                why=sup[0] if sup else "birden fazla veri aynı yöne bakıyor"
+                risk=con[0] if con else "kritik karşı kanıt yok"
+                lines.append(f"• Neden girilebilir: {why}")
+                lines.append(f"• Neden girilmez/beklenir: {risk}")
                 if r["historical_candidate_n"]>=8 and r["historical_control_n"]>=8 and r["hit10_rate"] is not None and r["hit10_control"] is not None:
-                    lines.append(f"• Benzer geçmiş +10: %{100*float(r['hit10_rate']):.0f} vs kontrol %{100*float(r['hit10_control']):.0f}")
+                    lines.append(f"• Geçmiş benzerleri: +%10'a ulaşma %{100*float(r['hit10_rate']):.0f} | kontrol %{100*float(r['hit10_control']):.0f}")
                 lines.append("")
                 shown+=1
 
-        lines.append("Not: GÜÇLÜ/ORTA/ZAYIF yukarı yönlü araştırma sinyalidir; 15dk havuz tek başına karar vermez.")
+        lines.append("Not: GÜÇLÜ = en çok dayanak var; yine de otomatik al emri değildir.")
 
     msg="\n".join(lines)
     token=(os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
