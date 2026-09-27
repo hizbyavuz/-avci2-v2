@@ -4,10 +4,40 @@ import json
 import math
 import os
 import sqlite3
+import time
 from urllib import parse, request
 
 DB = os.getenv("GATE_SPOT_DB", "avci2.db")
-VERSION = "gate-spot-watch-v0.4-early-under10-20260927"
+VERSION = "gate-spot-watch-v0.5-fast-ledger-20260927"
+FAST_LEDGER = os.getenv("GATE_FAST_LEDGER", "").strip()
+
+def load_fast_ledger(now):
+    if not FAST_LEDGER or not os.path.exists(FAST_LEDGER):
+        return {}
+    try:
+        with open(FAST_LEDGER, "r", encoding="utf-8") as fh:
+            raw=json.load(fh)
+        out={}
+        for pair,ts in (raw or {}).items():
+            try:
+                t=float(ts)
+            except Exception:
+                continue
+            if now - t < 24*3600:
+                out[str(pair)] = t
+        return out
+    except Exception:
+        return {}
+
+def save_fast_ledger(ledger):
+    if not FAST_LEDGER:
+        return
+    os.makedirs(os.path.dirname(FAST_LEDGER) or ".", exist_ok=True)
+    tmp=FAST_LEDGER+".tmp"
+    with open(tmp, "w", encoding="utf-8") as fh:
+        json.dump(ledger, fh, sort_keys=True)
+    os.replace(tmp, FAST_LEDGER)
+
 
 STABLE_SYMBOLS = {
     "USDT", "USDC", "USDE", "USDS", "DAI", "FDUSD", "TUSD",
@@ -18,7 +48,7 @@ def is_stable_symbol(symbol):
     return str(symbol or "").strip().upper() in STABLE_SYMBOLS
 
 
-def shortlist(con, now, batch, diagnostics=None):
+def shortlist(con, now, batch, diagnostics=None, fast_ledger=None):
     """Require two real observations and exchange-provided identity/quotes."""
     current = con.execute("""SELECT h.pair, h.symbol, h.last, h.volume_24h,
         h.change_24h, q.buy_start, q.bid, q.ask
@@ -32,6 +62,7 @@ def shortlist(con, now, batch, diagnostics=None):
     counts["history"] = counts["rising"] = counts["mapped"] = 0
     counts["momentum"] = counts["retention"] = counts["prebreakout"] = 0
     result = []
+    fast_ledger = fast_ledger or {}
     for pair, symbol, price, volume, day_change, start, bid, ask in current:
         if is_stable_symbol(symbol):
             continue
@@ -109,7 +140,7 @@ def shortlist(con, now, batch, diagnostics=None):
             WHERE w.pair=? AND w.status='PAPER_WATCH'
               AND g.scan_ts BETWEEN ? AND ? LIMIT 1""",
             (pair, now - 24 * 3600, now)).fetchone() if has_watch_table else None
-        if recent_watch:
+        if recent_watch or pair in fast_ledger:
             continue
         result.append({"pair": pair, "symbol": symbol, "price": price,
                        "volume_24h": volume, "change_24h": day_change,
@@ -177,7 +208,7 @@ def orderbook_pressure(orderbook, levels=20):
         return None
 
 
-def orderbook_candidates(con, now, batch, existing_pairs, book_fetch):
+def orderbook_candidates(con, now, batch, existing_pairs, book_fetch, fast_ledger=None):
     """Independent path: quiet price + strong bid depth on verified Gate pairs."""
     rows = con.execute("""SELECT h.pair,h.symbol,h.last,h.volume_24h,h.change_24h,
         q.buy_start,q.bid,q.ask FROM gate_spot_history h
@@ -185,6 +216,7 @@ def orderbook_candidates(con, now, batch, existing_pairs, book_fetch):
         WHERE h.batch_id=? ORDER BY h.volume_24h DESC LIMIT 120""",
         (batch,)).fetchall()
     out = []
+    fast_ledger = fast_ledger or {}
     for pair, symbol, price, volume, day_change, start, bid, ask in rows:
         if pair in existing_pairs or volume < 500000 or not 0 <= day_change < 10:
             continue
@@ -211,7 +243,7 @@ def orderbook_candidates(con, now, batch, existing_pairs, book_fetch):
             WHERE w.pair=? AND w.status='PAPER_WATCH'
               AND g.scan_ts BETWEEN ? AND ? LIMIT 1""",
             (pair, now - 24*3600, now)).fetchone()
-        if recent:
+        if recent or pair in fast_ledger:
             continue
         try:
             book = book_fetch(pair)
@@ -268,9 +300,10 @@ def run(path=DB, book_fetch=fetch_book):
         batch, now, _ = health
         record_watch_paths(con, batch, now)
         counts = {}
-        result = shortlist(con, now, batch, counts)
+        fast_ledger = load_fast_ledger(now)
+        result = shortlist(con, now, batch, counts, fast_ledger)
         existing = {item["pair"] for item in result}
-        book_rows = orderbook_candidates(con, now, batch, existing, book_fetch)
+        book_rows = orderbook_candidates(con, now, batch, existing, book_fetch, fast_ledger)
         counts["orderbook"] = len(book_rows)
         result = sorted(result + book_rows,
             key=lambda x: (x["path_strength"], x["volume_24h"]), reverse=True)
@@ -292,11 +325,13 @@ def run(path=DB, book_fetch=fetch_book):
                  item["change_24h"], item["rise_pct"], loss, status,
                  item["entry_path"]))
             if status == "PAPER_WATCH":
+                fast_ledger[item["pair"]] = now
                 messages.append(f"{item['pair']} ({item['entry_path']}; "
                     f"yakın dönem %{item['rise_pct']:+.1f}; "
                     f"24s +%{item['change_24h']:.1f}; "
                     f"$1k gidiş-dönüş ~%{loss:.1f}; {item['network']} "
                     f"{item['contract']})")
+        save_fast_ledger(fast_ledger)
         return (f"Gate Spot ayrı kağıt izleme: {len(result)} ön eleme, "
                 f"{len(messages)} derinlik doğrulandı. "
                 f"Eleme adımları: hacim+24s değişim {counts['liquid_early']}, "
