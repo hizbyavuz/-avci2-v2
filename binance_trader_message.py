@@ -206,23 +206,24 @@ def main():
         # Accountability: show strong Spot movers even when core Avci did not recommend them.
         if table(c,"top_mover_audit"):
             audits=c.execute("""SELECT * FROM top_mover_audit
-                WHERE scan_time_utc=? ORDER BY current_change_24h DESC LIMIT 4""",(ts,)).fetchall()
+                WHERE scan_time_utc=?
+                  AND audit_status IN ('MISSED','LATE_CAUGHT','OUTSIDE_CORE_UNIVERSE','NOT_IN_SNAPSHOT')
+                ORDER BY current_change_24h DESC""",(ts,)).fetchall()
             if audits:
                 lines.append("")
-                lines.append("🔎 BUGÜN KAÇIRILAN / GEÇ YAKALANAN HAREKETLER")
+                lines.append(f"🔎 KAÇIRILAN / GEÇ YAKALANANLAR ({len(audits)})")
                 status_text={
-                    "EARLY_CAUGHT":"erken gördü",
-                    "CAUGHT":"gördü",
                     "LATE_CAUGHT":"geç gördü",
-                    "OUTSIDE_CORE_UNIVERSE":"çekirdek evren dışında",
+                    "OUTSIDE_CORE_UNIVERSE":"evren dışında kaldı",
                     "MISSED":"kaçırdı",
                     "NOT_IN_SNAPSHOT":"evren kaydı yok",
                 }
                 for a in audits:
                     label=status_text.get(a["audit_status"],a["audit_status"])
-                    lines.append(f"• {a['symbol']} %+{float(a['current_change_24h']):.1f} → {label}")
-                    lines.append(f"  ({a['audit_reason']})")
-                lines.append("• Bu bölüm öneri değil; sistemin kendini denetleme raporudur.")
+                    # Compact on purpose: keep every missed mover in the one Binance message.
+                    reason=str(a["audit_reason"] or "").replace("Çekirdek tarama evreninden elendi: ","")
+                    lines.append(f"• {a['symbol']} %+{float(a['current_change_24h']):.1f} → {label} ({reason})")
+                lines.append("• Eşik: Binance Spot'ta 24s +%10 ve en az $3M hacim. Hepsi kayda alınır.")
 
         lines.append("Not: GÜÇLÜ = en çok dayanak var; yine de otomatik al emri değildir.")
         c.commit()
