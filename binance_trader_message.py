@@ -87,6 +87,12 @@ def reasons(r):
     if con: out.append("Risk: "+con[0])
     return list(dict.fromkeys(out))[:4]
 
+def decision_quality(c,batch,asset):
+    if not table(c,"decision_quality"): return None
+    return c.execute("""SELECT * FROM decision_quality
+        WHERE source='BINANCE' AND batch_key=? AND asset_key=?
+        ORDER BY created_at_utc DESC LIMIT 1""",(str(batch),asset)).fetchone()
+
 def capital_status(c):
     if not table(c,"capital_trust_status"):
         return "CLOSED","kanıt kapısı henüz hesaplanmadı"
@@ -128,7 +134,12 @@ def main():
         ranked=[]
         for r in rows:
             label,score=signal_strength(r)
-            ranked.append(({"GÜÇLÜ":0,"ORTA":1,"ZAYIF":2}[label],-score,-int(r["evidence_count"] or 0),r,label,score))
+            dq=decision_quality(c,ts,r["symbol"])
+            if dq and dq["quality_status"]=="BLOCK":
+                continue
+            if dq and label=="GÜÇLÜ" and dq["quality_status"]=="WATCH":
+                label="ORTA"
+            ranked.append(({"GÜÇLÜ":0,"ORTA":1,"ZAYIF":2}[label],-score,-int(r["evidence_count"] or 0),r,label,score,dq))
         ranked.sort(key=lambda x:(x[0],x[1],x[2]))
 
         cap_status,cap_reason=capital_status(c)
@@ -142,7 +153,7 @@ def main():
         else:
             icons={"GÜÇLÜ":"🟢","ORTA":"🟡","ZAYIF":"⚪️"}
             shown=0
-            for _,_,_,r,label,score in ranked:
+            for _,_,_,r,label,score,dq in ranked:
                 if shown>=3: break
                 lines.append(f"{icons[label]} {label} — {r['symbol']}")
                 hist_line,_=history_context(r)
@@ -156,8 +167,16 @@ def main():
                 sup=arr(r["support_json"]); con=arr(r["counter_json"])
                 why=sup[0] if sup else "birden fazla veri aynı yöne bakıyor"
                 risk=con[0] if con else "kritik karşı kanıt yok"
+                if dq:
+                    lines.append(f"• Bağımsız dayanak: {int(dq['independent_families'])} veri grubu | Geç kalma riski: {dq['late_risk']}")
+                    if dq["late_risk"]!="LOW":
+                        risk=str(dq["late_reason"] or risk)
                 lines.append(f"• Neden girilebilir: {why}")
                 lines.append(f"• Neden girilmez/beklenir: {risk}")
+                if dq and dq["empirical_probability"] is not None and int(dq["empirical_n"] or 0)>=8:
+                    lo=float(dq["empirical_ci_low"] or 0)*100
+                    hi=float(dq["empirical_ci_high"] or 0)*100
+                    lines.append(f"• Geçmiş olasılık: +%10 hedefi %{100*float(dq['empirical_probability']):.0f} (n={int(dq['empirical_n'])}, %95 aralık %{lo:.0f}–%{hi:.0f})")
                 if r["historical_candidate_n"]>=8 and r["historical_control_n"]>=8 and r["hit10_rate"] is not None and r["hit10_control"] is not None:
                     lines.append(f"• Geçmiş benzerleri: +%10'a ulaşma %{100*float(r['hit10_rate']):.0f} | kontrol %{100*float(r['hit10_control']):.0f}")
                 lines.append("")
