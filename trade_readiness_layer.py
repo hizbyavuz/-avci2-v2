@@ -8,7 +8,7 @@ not place orders and does not modify frozen scanner thresholds.
 import json, os, sqlite3, sys
 from datetime import datetime, timezone
 
-VERSION="trade-readiness-v1.1-20260927-live-confirm"
+VERSION="trade-readiness-v1.2-20260927-weighted-live-confirm"
 
 def now(): return datetime.now(timezone.utc).isoformat()
 def table(c,t):
@@ -159,7 +159,7 @@ def binance(c):
         else: unk.append("veri kapsamı orta")
         if scan["data_mode"]=="SPOT_ONLY": unk.append("Binance-native futures eksik")
         else: good.append("spot+futures veri tam")
-        # Trader-entry framework: a Binance candidate cannot become PAPER_ELIGIBLE\n        # from a static snapshot alone. It must survive the dedicated 15-minute\n        # live confirmation pool first. This does not alter frozen scanner rules;\n        # it only tightens the downstream readiness gate.\n        live_required = r["pool_status"] != "CONFIRMED"\n        critical=bool(int(r["climax_risk"] or 0)) or cov<40 or live_required\n        readiness=classify(len(good),len(bad),len(unk),critical)
+        # Trader-entry framework: 15-minute live confirmation is weighted evidence,\n        # not a hard veto. CONFIRMED is a strong positive; BORDERLINE is neutral;\n        # FADED/INSUFFICIENT is a meaningful negative, but exceptionally strong\n        # independent evidence can still keep the asset in WATCH / eligibility.\n        critical=bool(int(r["climax_risk"] or 0)) or cov<40\n        readiness=classify(len(good),len(bad),len(unk),critical)
         hist="GOOD" if any("geçmiş +10" in x for x in good) else ("BAD" if any("geçmiş +10" in x for x in bad) else "UNKNOWN")
         exe="GOOD" if any("spread/price-impact uygun"==x for x in good) else ("BAD" if any("execution maliyeti" in x for x in bad) else "UNKNOWN")
         live=r["pool_status"] or "UNKNOWN"
