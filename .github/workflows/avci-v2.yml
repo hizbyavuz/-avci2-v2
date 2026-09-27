@@ -67,8 +67,8 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install requests
-        run: pip install requests
+      - name: Install requests and Turso sync client
+        run: pip install requests pyturso==0.7.2
 
       - name: Restore verified real fill observations
         continue-on-error: true
@@ -283,6 +283,30 @@ jobs:
       - name: Summarize Gate candidates and controls
         if: success()
         run: python gate_research_report.py
+
+      - name: Mirror Gate main SQLite state to Turso
+        if: success()
+        continue-on-error: true
+        env:
+          TURSO_GATE_MAIN_DATABASE_URL: ${{ secrets.TURSO_GATE_MAIN_DATABASE_URL }}
+          TURSO_GATE_MAIN_AUTH_TOKEN: ${{ secrets.TURSO_GATE_MAIN_AUTH_TOKEN }}
+        run: python -u turso_state_sync.py push avci2.db TURSO_GATE_MAIN_DATABASE_URL TURSO_GATE_MAIN_AUTH_TOKEN
+
+      - name: Mirror Gate outcomes SQLite state to Turso
+        if: success()
+        continue-on-error: true
+        env:
+          TURSO_GATE_OUTCOMES_DATABASE_URL: ${{ secrets.TURSO_GATE_OUTCOMES_DATABASE_URL }}
+          TURSO_GATE_OUTCOMES_AUTH_TOKEN: ${{ secrets.TURSO_GATE_OUTCOMES_AUTH_TOKEN }}
+        run: python -u turso_state_sync.py push avci_outcomes.db TURSO_GATE_OUTCOMES_DATABASE_URL TURSO_GATE_OUTCOMES_AUTH_TOKEN
+
+      - name: Mirror Gate validation SQLite state to Turso
+        if: success()
+        continue-on-error: true
+        env:
+          TURSO_GATE_VALIDATION_DATABASE_URL: ${{ secrets.TURSO_GATE_VALIDATION_DATABASE_URL }}
+          TURSO_GATE_VALIDATION_AUTH_TOKEN: ${{ secrets.TURSO_GATE_VALIDATION_AUTH_TOKEN }}
+        run: python -u turso_state_sync.py push avci_validation_v5.db TURSO_GATE_VALIDATION_DATABASE_URL TURSO_GATE_VALIDATION_AUTH_TOKEN
 
       - name: Save Avci DB
         if: success()
