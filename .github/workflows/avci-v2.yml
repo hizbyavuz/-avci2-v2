@@ -239,6 +239,10 @@ jobs:
         continue-on-error: true
         run: python -u trade_readiness_layer.py gate
 
+      - name: Evaluate fail-closed capital trust gate
+        continue-on-error: true
+        run: python -u capital_trust_gate.py gate
+
       - name: Run Gate readiness-qualified shadow paper trades
         continue-on-error: true
         run: python -u readiness_shadow_paper.py gate
