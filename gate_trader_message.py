@@ -291,17 +291,25 @@ def main():
                         (latest_watch_batch["batch_id"],)).fetchall()
             except sqlite3.OperationalError:
                 early_rows=[]
-        if not early_rows and table(c,"gate_opportunity_observations"):
+        if table(c,"gate_opportunity_observations"):
             cols={row[1] for row in c.execute("PRAGMA table_info(gate_opportunity_observations)")}
             if "early_watch" in cols:
-                early_rows=c.execute("""SELECT o.pair,h.change_24h,NULL rise_pct,
+                opportunity_rows=c.execute("""SELECT o.pair,h.change_24h,NULL rise_pct,
                            NULL round_trip_1k_pct,'OPPORTUNITY' entry_path,
                            c.network_id,c.token_contract
                     FROM gate_opportunity_observations o
                     JOIN gate_spot_history h ON h.batch_id=o.batch_id AND h.pair=o.pair
                     JOIN gate_spot_contracts c ON c.pair=o.pair
-                    WHERE o.batch_id=? AND o.early_watch=1
-                    ORDER BY COALESCE(o.volume_acceleration,0) DESC LIMIT 3""",(batch,)).fetchall()
+                    WHERE o.batch_id=? AND o.early_watch=1 AND h.change_24h<10
+                    ORDER BY CASE WHEN o.early_watch_reason_json LIKE '%ONCHAIN_ANOMALY%' THEN 0 ELSE 1 END,
+                             COALESCE(o.volume_acceleration,0) DESC LIMIT 3""",(batch,)).fetchall()
+                existing={(r["network_id"],r["token_contract"]) for r in early_rows}
+                for r in opportunity_rows:
+                    key=(r["network_id"],r["token_contract"])
+                    if key not in existing:
+                        early_rows.append(r)
+                        existing.add(key)
+                early_rows=early_rows[:3]
         if early_rows:
             lines.append("")
             lines.append("👀 ERKEN İZLEME — ALIM SİNYALİ DEĞİL")
