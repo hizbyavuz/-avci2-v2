@@ -2183,11 +2183,12 @@ def select_tradable_signal_groups(
             save_feature(feature, is_signal=False,
                          selection_class="HISTORY_UNVERIFIED")
             continue
-        if history["history_gain_90d_pct"] >= MAX_GAIN_FROM_90D_FLOOR_PCT:
-            feature["history_exclusion_reason"] = "ALREADY_UP_50_PCT_90D"
-            save_feature(feature, is_signal=False,
-                         selection_class="ALREADY_RISEN")
-            continue
+        # Recent big runners are no longer hard-excluded. A prior +50%/+100%
+        # move lowers directional conviction downstream, but a fresh accumulation
+        # / re-ignition setup may still be valid.
+        feature["recent_runner_flag"] = bool(
+            history["history_gain_90d_pct"] >= MAX_GAIN_FROM_90D_FLOOR_PCT
+        )
 
         if (
             float(liquidity.get("buy_impact_1k_bps") or 0.0) >= 20.0
