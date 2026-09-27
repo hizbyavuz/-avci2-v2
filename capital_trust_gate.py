@@ -50,7 +50,7 @@ def init(c):
       created_at_utc TEXT NOT NULL
     )""")
 
-def classify(cand_n,ctrl_n,cand_net,ctrl_net,cand_hit,ctrl_hit,regime_pass,security_ok=True):
+def classify(cand_n,ctrl_n,cand_net,ctrl_net,cand_hit,ctrl_hit,regime_pass,security_ok=True,brake_ok=True):
     passes=[]; blockers=[]
     if cand_n>=MIN_CANDIDATES: passes.append(f"kapalı aday örneği yeterli ({cand_n})")
     else: blockers.append(f"kapalı aday örneği yetersiz ({cand_n}/{MIN_CANDIDATES})")
@@ -71,6 +71,8 @@ def classify(cand_n,ctrl_n,cand_net,ctrl_net,cand_hit,ctrl_hit,regime_pass,secur
     else: blockers.append(f"rejim dayanıklılığı yetersiz ({regime_pass}/{MIN_REGIMES})")
     if security_ok: passes.append("kritik güvenlik/doğrulama engeli yok")
     else: blockers.append("kritik güvenlik/doğrulama engeli var")
+    if brake_ok: passes.append("son dönem performans freni devrede değil")
+    else: blockers.append("son dönem performans freni devrede")
     status="OPEN" if not blockers else "CLOSED"
     return status,passes,blockers,ce,be,p,lift
 
@@ -99,7 +101,11 @@ def binance(c):
                 hit_k.append(hit)
     regime_pass=sum(1 for xs in regimes.values() if len(xs)>=MIN_REGIME_N and (mean(xs) or -999)>0)
     ch=mean(hit_c); kh=mean(hit_k)
-    status,passes,blockers,ce,be,p,lift=classify(len(cand),len(ctrl),cand,ctrl,ch,kh,regime_pass,True)
+    brake_ok=True
+    if table(c,"performance_brake"):
+        br=c.execute("SELECT status FROM performance_brake WHERE source='BINANCE' LIMIT 1").fetchone()
+        if br and br[0]=="ENGAGED": brake_ok=False
+    status,passes,blockers,ce,be,p,lift=classify(len(cand),len(ctrl),cand,ctrl,ch,kh,regime_pass,True,brake_ok)
     return dict(status=status,candidate_n=len(cand),control_n=len(ctrl),candidate_expectancy=ce,
                 control_expectancy=be,profit_factor=p,candidate_hit10=ch,control_hit10=kh,
                 hit10_lift=lift,regime_pass_count=regime_pass,security_status="N/A",
@@ -134,7 +140,11 @@ def gate(c,v):
     # Absence of validated security evidence is a capital blocker.
     regime_pass=sum(1 for xs in regimes.values() if len(xs)>=MIN_REGIME_N and (mean(xs) or -999)>0)
     ch=mean(hit_c); kh=mean(hit_k)
-    status,passes,blockers,ce,be,p,lift=classify(len(cand),len(ctrl),cand,ctrl,ch,kh,regime_pass,security_ok)
+    brake_ok=True
+    if table(c,"performance_brake"):
+        br=c.execute("SELECT status FROM performance_brake WHERE source='GATE' LIMIT 1").fetchone()
+        if br and br[0]=="ENGAGED": brake_ok=False
+    status,passes,blockers,ce,be,p,lift=classify(len(cand),len(ctrl),cand,ctrl,ch,kh,regime_pass,security_ok,brake_ok)
     return dict(status=status,candidate_n=len(cand),control_n=len(ctrl),candidate_expectancy=ce,
                 control_expectancy=be,profit_factor=p,candidate_hit10=ch,control_hit10=kh,
                 hit10_lift=lift,regime_pass_count=regime_pass,security_status=sec_status,
