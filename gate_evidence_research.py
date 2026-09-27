@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 
 OBS_DB=os.getenv("AVCI_DB","avci2.db")
 VAL_DB=os.getenv("AVCI_VALIDATION_DB","avci_validation_v5.db")
-VERSION="gate-evidence-research-v1.2-20260927-temporal"
+VERSION="gate-evidence-research-v1.3-20260927-history-aux"
 TARGETS=(5,10,15)
 MIN_PEER_N=8
 
@@ -202,16 +202,14 @@ def main():
                     (batch,e["network_id"],e["token_contract"])).fetchone()
             if hb:
                 if hb["status"]=="HISTORY_FDR_SUPPORTED":
-                    try:
-                        pats=json.loads(hb["patterns_json"] or "[]")
-                    except Exception:
-                        pats=[]
-                    support.append("Geçmiş Kazıcı: "+("/".join(pats) if pats else "P2/P3")+
-                                   " deseni canlı aktivasyonla eşleşti ve V5 doğrulamasında FDR geçti")
+                    # IMPORTANT: History Miner is auxiliary context only.
+                    # It must NOT increase evidence_count, coverage, or summary strength.
+                    # Telegram can display it, but live evidence/security/execution decide labels.
+                    pass
                 elif hb["status"]=="HISTORY_PATTERN_ONLY":
-                    unknown.append("Geçmiş Kazıcı P2/P3 desen eşleşmesi var; canlı aktivasyon FDR teyidi yok")
+                    pass
                 elif hb["status"]=="INSUFFICIENT_HISTORY":
-                    unknown.append("Geçmiş Kazıcı için 90g günlük geçmiş yetersiz")
+                    pass
 
             hist=historical_context(v,e)
             rates=hist["rates"]; r10=rates["10"]
