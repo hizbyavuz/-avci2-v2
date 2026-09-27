@@ -5,7 +5,7 @@ and an accountability audit for every liquid Gate Spot mover above +10%.
 """
 import json, sqlite3, statistics
 DB="avci2.db"
-VERSION="gate-opportunity-v0.3-20260927"
+VERSION="gate-opportunity-v0.4-early-watch-20260927"
 MOVER_MIN_CHANGE=10.0
 MOVER_MIN_VOLUME=30000.0
 
@@ -15,8 +15,14 @@ def med(xs):
 
 def ensure_columns(con):
     cols={row[1] for row in con.execute("PRAGMA table_info(gate_opportunity_observations)")}
-    if "miss_reason_json" not in cols:
-        con.execute("ALTER TABLE gate_opportunity_observations ADD COLUMN miss_reason_json TEXT NOT NULL DEFAULT '[]'")
+    additions={
+        "miss_reason_json":"TEXT NOT NULL DEFAULT '[]'",
+        "early_watch":"INTEGER NOT NULL DEFAULT 0",
+        "early_watch_reason_json":"TEXT NOT NULL DEFAULT '[]'",
+    }
+    for name,ddl in additions.items():
+        if name not in cols:
+            con.execute(f"ALTER TABLE gate_opportunity_observations ADD COLUMN {name} {ddl}")
 
 def ensure_audit(con):
     con.execute("""CREATE TABLE IF NOT EXISTS gate_top_mover_audit(
@@ -109,6 +115,7 @@ def main(path=DB):
             silent_accumulation INTEGER NOT NULL DEFAULT 0,
             possible_follower INTEGER NOT NULL DEFAULT 0,
             missed_mover INTEGER NOT NULL DEFAULT 0,miss_reason_json TEXT NOT NULL,
+            early_watch INTEGER NOT NULL DEFAULT 0,early_watch_reason_json TEXT NOT NULL DEFAULT '[]',
             flags_json TEXT NOT NULL,PRIMARY KEY(batch_id,pair,version))""")
         ensure_columns(con)
         ensure_audit(con)
@@ -116,7 +123,7 @@ def main(path=DB):
 
         ranked=sorted(rows,key=lambda r:(float(r["change_24h"]),float(r["volume_24h"])),reverse=True)
         rank={r["pair"]:i+1 for i,r in enumerate(ranked)}
-        missed=silent=followers=0
+        missed=silent=followers=early_watches=0
         audit_counts={}
         early_table=con.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='gate_early_observations'").fetchone()
 
@@ -147,6 +154,25 @@ def main(path=DB):
                         (network,contract,int(health["scan_ts"])-86400)).fetchone():
                         seen=True; break
 
+            # Separate early-watch lane. Official Gate contract mapping remains
+            # mandatory; this is observation only and never bypasses Web3 security.
+            onchain_early=False
+            if contracts and early_table:
+                for network,contract in contracts:
+                    hit=con.execute("""SELECT 1 FROM gate_early_observations
+                        WHERE network_id=? AND token_contract=? AND scan_ts>=?
+                          AND observed_anomaly=1 AND COALESCE(change_24h,0)<10 LIMIT 1""",
+                        (network,contract,int(health["scan_ts"])-86400)).fetchone()
+                    if hit:
+                        onchain_early=True; break
+            early=bool(contracts and float(r["change_24h"])<10 and (sa or follower or onchain_early))
+            early_reasons=[]
+            if early:
+                if sa: early_reasons.append("SPOT_SILENT_ACCUMULATION")
+                if follower: early_reasons.append("SPOT_POSSIBLE_FOLLOWER")
+                if onchain_early: early_reasons.append("ONCHAIN_ANOMALY")
+                flags.append("EARLY_WATCH"); early_watches+=1
+
             mm=bool(float(r["change_24h"])>=MOVER_MIN_CHANGE and not seen)
             reasons=[]
             if mm:
@@ -160,10 +186,11 @@ def main(path=DB):
             con.execute("""INSERT OR REPLACE INTO gate_opportunity_observations
                 (batch_id,pair,version,return_rank,volume_acceleration,
                  price_acceleration,silent_accumulation,possible_follower,
-                 missed_mover,flags_json,miss_reason_json)
-                VALUES(?,?,?,?,?,?,?,?,?,?,?)""",
+                 missed_mover,flags_json,miss_reason_json,early_watch,early_watch_reason_json)
+                VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (batch,r["pair"],VERSION,rank[r["pair"]],vacc,pacc,int(sa),
-                 int(follower),int(mm),json.dumps(flags),json.dumps(reasons)))
+                 int(follower),int(mm),json.dumps(flags),json.dumps(reasons),
+                 int(early),json.dumps(early_reasons)))
 
             if float(r["change_24h"])>=MOVER_MIN_CHANGE:
                 audit=audit_mover(con,health,r,contracts,early_table)
@@ -180,7 +207,7 @@ def main(path=DB):
                      status,reason,int(health["scan_ts"])))
 
         con.commit()
-        print(f"Gate opportunity: {len(rows)} pair; silent={silent}, follower={followers}, "
+        print(f"Gate opportunity: {len(rows)} pair; early_watch={early_watches}, silent={silent}, follower={followers}, "
               f"missed>=10%={missed}; mover_audit={audit_counts}")
     finally: con.close()
 if __name__=="__main__": main()
