@@ -1,0 +1,51 @@
+name: Turso Shadow Sync CI
+
+on:
+  push:
+    paths:
+      - "turso_state_sync.py"
+      - "binance_requirements.txt"
+      - ".github/workflows/turso-shadow-sync-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install stable Turso sync client
+        run: pip install pyturso==0.7.2
+
+      - name: Compile sync helper
+        run: python -m py_compile turso_state_sync.py
+
+      - name: Verify credential-free mode is non-invasive
+        run: |
+          python - <<'PY'
+          import sqlite3
+          con=sqlite3.connect("smoke.db")
+          con.execute("CREATE TABLE t(id INTEGER PRIMARY KEY, value TEXT)")
+          con.execute("INSERT INTO t(value) VALUES('ok')")
+          con.commit()
+          con.close()
+          PY
+          python turso_state_sync.py push smoke.db TEST_TURSO_URL TEST_TURSO_TOKEN
+          python - <<'PY'
+          import sqlite3
+          con=sqlite3.connect("smoke.db")
+          assert con.execute("PRAGMA quick_check").fetchone()[0] == "ok"
+          assert con.execute("SELECT value FROM t").fetchone()[0] == "ok"
+          con.close()
+          print("LOCAL_SQLITE_UNCHANGED_OK")
+          PY
