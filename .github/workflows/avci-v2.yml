@@ -113,6 +113,10 @@ jobs:
          X_API_BEARER_TOKEN: ${{ secrets.X_API_BEARER_TOKEN }}
         run: python scanner.py
 
+      - name: Archive Gate missed-mover prehistory and matched controls
+        continue-on-error: true
+        run: python -u gate_missed_mover_learning.py
+
       - name: Classify old runners and revival moves
         continue-on-error: true
         run: python -u runner_revival_observer.py gate
