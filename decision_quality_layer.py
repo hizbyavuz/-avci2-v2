@@ -97,7 +97,9 @@ def binance(c):
       JOIN features f ON f.scan_time_utc=e.scan_time_utc AND f.symbol=e.symbol
       LEFT JOIN trade_readiness tr ON tr.source='BINANCE'
         AND tr.batch_key=e.scan_time_utc AND tr.asset_key=e.symbol
-      WHERE e.scan_time_utc=?""",(ts,)).fetchall()
+      WHERE e.scan_time_utc=?
+        AND e.version=(SELECT version FROM binance_candidate_evidence
+          WHERE scan_time_utc=? ORDER BY created_at_utc DESC LIMIT 1)""",(ts,ts)).fetchall()
     nout=0
     for r in rows:
         fam=family_set(arr(r["support_json"]),arr(r["counter_json"]))
