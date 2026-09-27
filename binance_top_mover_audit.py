@@ -15,7 +15,7 @@ SPOT_BASES=("https://data-api.binance.vision","https://api.binance.com")
 TIMEOUT=20
 MIN_CHANGE=10.0
 MIN_QUOTE_VOLUME=3_000_000.0
-MAX_ROWS=10
+MAX_ROWS=1000
 
 def api_24h():
     last=None
