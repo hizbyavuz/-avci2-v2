@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 
 OBS_DB=os.getenv("AVCI_DB","avci2.db")
 VAL_DB=os.getenv("AVCI_VALIDATION_DB","avci_validation_v5.db")
-VERSION="gate-evidence-research-v1.1-20260926"
+VERSION="gate-evidence-research-v1.2-20260927-temporal"
 TARGETS=(5,10,15)
 MIN_PEER_N=8
 
@@ -88,6 +88,44 @@ def main():
                 if day>40: counter.append("24s hareket çok ilerlemiş; geç kalma riski")
                 elif -2<=day<=20: support.append("Fiyat henüz aşırı kaçmamış")
             else: unknown.append("Erken on-chain gözlem yok")
+
+            # Temporal persistence / re-ignition evidence.
+            # This is an observational evidence layer only; frozen V5 scanner
+            # thresholds are not changed. It asks whether activity survives
+            # across repeated scans instead of trusting one bright snapshot.
+            temporal=[]
+            if table(c,"snapshots"):
+                temporal=c.execute("""SELECT zaman_utc,volume_5m,buys_5m,sells_5m,
+                                             change_1h,acceleration_5m
+                    FROM snapshots
+                    WHERE network_id=? AND token_contract=?
+                    ORDER BY zaman_utc DESC LIMIT 6""",
+                    (e["network_id"],e["token_contract"])).fetchall()
+            if len(temporal)>=2:
+                active=0
+                for z in temporal:
+                    v5=float(z["volume_5m"] or 0)
+                    b5=float(z["buys_5m"] or 0); s5=float(z["sells_5m"] or 0)
+                    ch1=float(z["change_1h"] or 0)
+                    if v5>0 and b5>=0.8*max(s5,1.0) and ch1>-5:
+                        active+=1
+                persistence_ratio=active/len(temporal)
+                if persistence_ratio>=0.67:
+                    support.append("Aktivite birden fazla taramada korunuyor")
+                elif persistence_ratio<=0.34:
+                    counter.append("Aktivite sonraki taramalarda korunmuyor")
+
+                latest=temporal[0]
+                prior=[float(z["volume_5m"] or 0) for z in temporal[1:] if float(z["volume_5m"] or 0)>0]
+                if prior:
+                    prior_sorted=sorted(prior)
+                    med=prior_sorted[len(prior_sorted)//2]
+                    lv=float(latest["volume_5m"] or 0)
+                    lb=float(latest["buys_5m"] or 0); ls=float(latest["sells_5m"] or 0)
+                    if med>0 and lv>=1.5*med and lb>=1.2*max(ls,1.0):
+                        support.append("İkinci hacim/alıcı hızlanması (re-ignition) var")
+            else:
+                unknown.append("Çoklu tarama persistence verisi henüz yetersiz")
 
             buyers=c.execute("""SELECT buyers_5m,buyers_1h FROM gate_buyer_observations
                 WHERE batch_id=? AND network_id=? AND token_contract=? LIMIT 1""",
