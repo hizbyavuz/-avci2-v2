@@ -183,6 +183,10 @@ jobs:
         continue-on-error: true
         run: python -u capital_trust_gate.py binance
 
+      - name: Audit current Binance Spot top movers against Avci history
+        continue-on-error: true
+        run: python -u binance_top_mover_audit.py
+
       - name: Send one consolidated Binance motor message
         if: success()
         continue-on-error: true
