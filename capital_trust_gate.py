@@ -159,10 +159,11 @@ def gate(c,v):
     cand=[]; ctrl=[]; hit_c=[]; hit_k=[]; regimes=defaultdict(list)
     cand_cluster_keys=[]; ctrl_cluster_keys=[]
     if table(v,"validation_events"):
-        rows=v.execute("""SELECT group_type,btc_regime,signal_iso,net_final_pct,result_10,status
+        rows=v.execute("""SELECT group_type,btc_regime,signal_iso,net_final_pct,result_10,status,rulesets
           FROM validation_events
           WHERE status='CLOSED_72H'
-            AND group_type IN ('CANDIDATE','EXPANDED_CANDIDATE','RANDOM_CONTROL','NEAR_MISS')""").fetchall()
+            AND group_type IN ('CANDIDATE','EXPANDED_CANDIDATE','RANDOM_CONTROL','NEAR_MISS')
+            AND NOT (group_type='CANDIDATE' AND COALESCE(rulesets,'')='')""").fetchall()
         for r in rows:
             try: net=float(r["net_final_pct"]) if r["net_final_pct"] is not None else None
             except Exception: net=None
