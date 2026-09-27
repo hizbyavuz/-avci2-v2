@@ -228,6 +228,14 @@ jobs:
         continue-on-error: true
         run: python -u recommendation_followup.py binance
 
+      - name: Mirror Binance SQLite state to Turso
+        if: success()
+        continue-on-error: true
+        env:
+          TURSO_BINANCE_DATABASE_URL: ${{ secrets.TURSO_BINANCE_DATABASE_URL }}
+          TURSO_BINANCE_AUTH_TOKEN: ${{ secrets.TURSO_BINANCE_AUTH_TOKEN }}
+        run: python -u turso_state_sync.py push binance_avci2.db TURSO_BINANCE_DATABASE_URL TURSO_BINANCE_AUTH_TOKEN
+
       - name: Upload research state
         uses: actions/upload-artifact@v4
         with:
