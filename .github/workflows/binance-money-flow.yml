@@ -195,6 +195,10 @@ jobs:
         continue-on-error: true
         run: python -u binance_missed_mover_learning.py
 
+      - name: Build auxiliary Binance historical context
+        continue-on-error: true
+        run: python -u binance_history_context_bridge.py
+
       - name: Send one consolidated Binance motor message
         if: success()
         continue-on-error: true
