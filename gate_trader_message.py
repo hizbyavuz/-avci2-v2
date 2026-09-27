@@ -223,6 +223,7 @@ def main():
                 contract=r["token_contract"]
                 name=(r["symbol"] if "symbol" in r.keys() and r["symbol"] else symbol_for(c,network,contract))
                 lines.append(f"{icons[label]} {label} — {name} [{network}]")
+                lines.append(f"• Kontrat: {contract}")
                 hist_line,_=gate_history_context(c,network,contract)
                 lines.append(hist_line)
                 obs=c.execute("""SELECT price,change_24h,liquidity,buys_5m,sells_5m,own_volume_ratio
@@ -290,6 +291,7 @@ def main():
                 used.add(e["pair"])
                 rt="-" if e["round_trip_1k_pct"] is None else f"%{float(e['round_trip_1k_pct']):.1f}"
                 lines.append(f"• {e['pair']} | 24s %{float(e['change_24h'] or 0):+.1f} | yol: {e['entry_path']} | $1k gidiş-dönüş: {rt}")
+                lines.append(f"  Kontrat [{e['network_id']}]: {e['token_contract']}")
                 if len(used)>=3: break
             lines.append("• Resmi kontrat eşleşmesi var; fakat Web3 güvenlik/holder/LP/çıkış teyidi tamamlanmadan alınabilir aday değildir.")
 
@@ -315,6 +317,10 @@ def main():
                     label=status_text.get(a["audit_status"],a["audit_status"])
                     symbol=a["symbol"] or a["pair"]
                     lines.append(f"• {symbol} %+{float(a['current_change_24h']):.1f} → {label}")
+                    if a["network_id"] and a["token_contract"]:
+                        lines.append(f"  Kontrat [{a['network_id']}]: {a['token_contract']}")
+                    else:
+                        lines.append("  Kontrat: resmi Gate eşleşmesi yok")
                     lines.append(f"  ({a['audit_reason']})")
                 lines.append("• Eşik: Gate Spot'ta 24s +%10 ve en az $30K hacim. Bunlar öneri değil; sistemin kaçırma denetimidir.")
 
