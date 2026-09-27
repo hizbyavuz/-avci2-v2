@@ -10,7 +10,7 @@ import json, os, sqlite3
 from datetime import datetime, timezone
 
 DB=os.getenv("BINANCE_DB","binance_avci2.db")
-VERSION="binance-evidence-research-v1.1-20260926"
+VERSION="binance-evidence-research-v1.2-20260927-history-aux"
 TARGETS=(5,10,15)
 MIN_PEER_N=8
 
@@ -159,11 +159,9 @@ def main():
 
             wb=c.execute("""SELECT * FROM winner_bridge_scores WHERE scan_time_utc=? AND symbol=?
                 ORDER BY id DESC LIMIT 1""",(ts,f["symbol"])).fetchone() if table(c,"winner_bridge_scores") else None
-            if wb:
-                sim=float(wb["winner_similarity_pct"] or 0)
-                if sim>=60: support.append(f"Geçmiş büyük hareket profiline %{sim:.0f} benziyor")
-                elif sim<40: counter.append(f"Geçmiş winner benzerliği zayıf (%{sim:.0f})")
-            else: unknown.append("Geçmiş winner karşılaştırması yok")
+            # Winner Anatomy is auxiliary historical context only.
+            # It MUST NOT change evidence_count/counter_count/coverage/summary.
+            # The separate history-context bridge and Telegram may display it.
 
             deception=c.execute("""SELECT deception_risk,risk_flags_json,positive_evidence_json
                 FROM binance_deception_evidence WHERE scan_time_utc=? AND symbol=?
