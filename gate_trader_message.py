@@ -115,6 +115,12 @@ def signal_strength(r):
         return "ORTA",score
     return "ZAYIF",score
 
+def decision_quality(c,batch,contract):
+    if not table(c,"decision_quality"): return None
+    return c.execute("""SELECT * FROM decision_quality
+        WHERE source='GATE' AND batch_key=? AND asset_key=?
+        ORDER BY created_at_utc DESC LIMIT 1""",(str(batch),contract)).fetchone()
+
 def capital_status(c):
     if not table(c,"capital_trust_status"):
         return "CLOSED","kanıt kapısı henüz hesaplanmadı"
@@ -158,11 +164,14 @@ def main():
             if label is None: continue
             _,runner_penalty=gate_history_context(c,r["network_id"],r["token_contract"])
             score+=runner_penalty
-            if label=="GÜÇLÜ" and runner_penalty<=-2:
+            dq=decision_quality(c,batch,r["token_contract"])
+            if dq and dq["quality_status"]=="BLOCK":
+                continue
+            if label=="GÜÇLÜ" and (runner_penalty<=-2 or (dq and dq["quality_status"]=="WATCH")):
                 label="ORTA"
             key=(r["network_id"],r["token_contract"])
             seen.add(key)
-            ranked.append(({"GÜÇLÜ":0,"ORTA":1,"ZAYIF":2}[label],-score,-int(r["evidence_count"] or 0),r,label,score))
+            ranked.append(({"GÜÇLÜ":0,"ORTA":1,"ZAYIF":2}[label],-score,-int(r["evidence_count"] or 0),r,label,score,dq))
 
         # Safe early discovery can be shown as ZAYIF only; never upgrades security.
         if table(c,"gate_weighted_discovery"):
@@ -173,7 +182,7 @@ def main():
             for r in extra:
                 key=(r["network_id"],r["token_contract"])
                 if key not in seen:
-                    ranked.append((2,-float(r["score"] or 0),0,r,"ZAYIF",float(r["score"] or 0)))
+                    ranked.append((2,-float(r["score"] or 0),0,r,"ZAYIF",float(r["score"] or 0),None))
 
         ranked.sort(key=lambda x:(x[0],x[1],x[2]))
         cap_status,cap_reason=capital_status(c)
@@ -187,7 +196,7 @@ def main():
         else:
             icons={"GÜÇLÜ":"🟢","ORTA":"🟡","ZAYIF":"⚪️"}
             shown=0
-            for _,_,_,r,label,score in ranked:
+            for _,_,_,r,label,score,dq in ranked:
                 if shown>=3: break
                 network=r["network_id"]
                 contract=r["token_contract"]
@@ -207,9 +216,17 @@ def main():
                     sup=arr(r["support_json"]); con=arr(r["counter_json"])
                     why=sup[0] if sup else "birden fazla on-chain veri aynı yöne bakıyor"
                     risk=con[0] if con else "kritik karşı kanıt yok"
+                    if dq:
+                        lines.append(f"• Bağımsız dayanak: {int(dq['independent_families'])} veri grubu | Geç kalma riski: {dq['late_risk']}")
+                        if dq["late_risk"]!="LOW":
+                            risk=str(dq["late_reason"] or risk)
                     lines.append(f"• Neden girilebilir: {why}")
                     lines.append(f"• Neden girilmez/beklenir: {risk}")
                     lines.append(f"• Güvenlik: {r['security_label']} | Exit (satış/çıkış uygulanabilirliği): {r['execution_quality']}")
+                    if dq and dq["empirical_probability"] is not None and int(dq["empirical_n"] or 0)>=8:
+                        lo=float(dq["empirical_ci_low"] or 0)*100
+                        hi=float(dq["empirical_ci_high"] or 0)*100
+                        lines.append(f"• Geçmiş olasılık: +%10 hedefi %{100*float(dq['empirical_probability']):.0f} (n={int(dq['empirical_n'])}, %95 aralık %{lo:.0f}–%{hi:.0f})")
                 else:
                     ev=arr(r["evidence_json"]) if "evidence_json" in r.keys() else []
                     why=ev[0] if ev else "erken aktivite görülüyor"
