@@ -1,0 +1,50 @@
+name: Gate Fast Telegram
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "8,28,48 * * * *"
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: gate-fast-telegram
+  cancel-in-progress: true
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install requests
+        run: pip install requests
+
+      - name: Restore latest verified Gate state
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python avci_state_guard.py restore-gate
+
+      - name: Refresh Gate Spot market snapshot
+        continue-on-error: true
+        run: python -u gate_spot_observer.py
+
+      - name: Refresh missed-mover accountability
+        continue-on-error: true
+        run: python -u gate_opportunity_observer.py
+
+      - name: Send consolidated Gate Web3 Telegram message
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          HELIUS_API_KEY: ${{ secrets.HELIUS_API_KEY }}
+        run: python -u gate_trader_message.py
