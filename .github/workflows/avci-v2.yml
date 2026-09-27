@@ -239,13 +239,21 @@ jobs:
         continue-on-error: true
         run: python -u trade_readiness_layer.py gate
 
-      - name: Evaluate fail-closed capital trust gate
+      - name: Build independent decision-quality overlay
         continue-on-error: true
-        run: python -u capital_trust_gate.py gate
+        run: python -u decision_quality_layer.py gate
 
       - name: Run Gate readiness-qualified shadow paper trades
         continue-on-error: true
         run: python -u readiness_shadow_paper.py gate
+
+      - name: Evaluate recent-performance brake
+        continue-on-error: true
+        run: python -u performance_brake.py gate
+
+      - name: Evaluate fail-closed capital trust gate
+        continue-on-error: true
+        run: python -u capital_trust_gate.py gate
 
       - name: Send one consolidated Gate Web3 motor message
         if: success()
