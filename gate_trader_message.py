@@ -257,6 +257,31 @@ def main():
                 lines.append("")
                 shown+=1
 
+        if table(c,"gate_top_mover_audit"):
+            latest_spot=c.execute("""SELECT spot_batch_id FROM gate_top_mover_audit
+                ORDER BY created_scan_ts DESC LIMIT 1""").fetchone()
+            audits=[]
+            if latest_spot:
+                audits=c.execute("""SELECT * FROM gate_top_mover_audit
+                    WHERE spot_batch_id=?
+                      AND audit_status IN ('MISSED','LATE_CAUGHT','NO_CONTRACT_MAPPING','NO_ONCHAIN_HISTORY')
+                    ORDER BY current_change_24h DESC""",(latest_spot["spot_batch_id"],)).fetchall()
+            if audits:
+                lines.append("")
+                lines.append(f"🔎 KAÇIRILAN / GEÇ YAKALANANLAR ({len(audits)})")
+                status_text={
+                    "MISSED":"kaçırdı",
+                    "LATE_CAUGHT":"geç gördü",
+                    "NO_CONTRACT_MAPPING":"Web3 ile eşleşmedi",
+                    "NO_ONCHAIN_HISTORY":"erken geçmiş yok",
+                }
+                for a in audits:
+                    label=status_text.get(a["audit_status"],a["audit_status"])
+                    symbol=a["symbol"] or a["pair"]
+                    lines.append(f"• {symbol} %+{float(a['current_change_24h']):.1f} → {label}")
+                    lines.append(f"  ({a['audit_reason']})")
+                lines.append("• Eşik: Gate Spot'ta 24s +%10 ve en az $30K hacim. Bunlar öneri değil; sistemin kaçırma denetimidir.")
+
         lines.append("Not: GÜÇLÜ = yön + güvenlik + çıkış tarafında en çok dayanak; otomatik al emri değildir.")
         c.commit()
 
