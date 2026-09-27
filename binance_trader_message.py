@@ -48,6 +48,8 @@ def signal_strength(r):
     elif hist=="BAD": score-=2
     if micro=="GOOD": score+=1
     elif micro=="BAD": score-=1
+    _,runner_penalty=history_context(r)
+    score+=runner_penalty
 
     # Hard research blocks remain stronger than the aggregate.
     blockers=" | ".join(arr(r["counter_json"])).lower()
@@ -58,6 +60,21 @@ def signal_strength(r):
     if score>=4 and evidence>=counter:
         return "ORTA",score
     return "ZAYIF",score
+
+def history_context(r):
+    try:
+        raw=json.loads(r["feature_raw_json"] or "{}")
+    except Exception:
+        raw={}
+    gain=raw.get("history_gain_90d_pct")
+    if gain is None:
+        return "(Son 90g büyük yükseliş geçmişi doğrulanamadı.)",0
+    gain=float(gain)
+    if gain>=100:
+        return f"(Son 90g dipten +%{gain:.0f} yaptı — tekrar güçlü yükseliş için daha fazla teyit gerekiyor.)",-2
+    if gain>=50:
+        return f"(Son 90g dipten +%{gain:.0f} yaptı — yakın geçmişte büyük koşu var.)",-1
+    return f"(Son 90g dipten +%{gain:.0f} — erkenlik açısından daha temiz.)",0
 
 def reasons(r):
     sup=arr(r["support_json"])
@@ -85,7 +102,7 @@ def main():
             rows=c.execute("""SELECT e.*,f.change_24h,f.btc_relative_24h,
                        p.status pool_status,p.confirmation_score pool_score,
                        tr.readiness,tr.execution_quality,tr.historical_edge,
-                       tr.microstructure_quality
+                       tr.microstructure_quality,f.raw_json feature_raw_json
                 FROM binance_candidate_evidence e
                 JOIN features f ON f.scan_time_utc=e.scan_time_utc AND f.symbol=e.symbol
                 LEFT JOIN binance_live_pool p
@@ -114,6 +131,8 @@ def main():
             for _,_,_,r,label,score in ranked:
                 if shown>=4: break
                 lines.append(f"{icons[label]} {label} — {r['symbol']}")
+                hist_line,_=history_context(r)
+                lines.append(hist_line)
                 lines.append(f"• 24s %{float(r['change_24h'] or 0):+.1f} | BTC göreli %{float(r['btc_relative_24h'] or 0):+.1f}")
                 rs=reasons(r)
                 if rs: lines.append("• "+"; ".join(rs))
