@@ -369,6 +369,11 @@ def main():
                     lines.append(f"• +{len(audits)-len(shown_audits)} olay daha DB'de kayıtlı ({summary}).")
                 lines.append("• Eşik: Gate Spot'ta 24s +%10 ve en az $30K hacim. Bunlar öneri değil; sistemin kaçırma denetimidir.")
 
+        try:
+            selected_early=[line for line in lines if line.startswith("• ") and " | 24s %" in line]
+            print("Gate Telegram early-watch selected:", " || ".join(selected_early[:3]) if selected_early else "NONE")
+        except Exception:
+            pass
         lines.append("Not: GÜÇLÜ = yön + güvenlik + çıkış tarafında en çok dayanak; otomatik al emri değildir.")
         c.commit()
 
