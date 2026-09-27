@@ -128,7 +128,9 @@ def gate(c):
         AND s.network_id=e.network_id AND s.token_contract=e.token_contract
       LEFT JOIN gate_early_observations o ON o.batch_id=e.batch_id
         AND o.network_id=e.network_id AND o.token_contract=e.token_contract
-      WHERE e.batch_id=?""",(batch,)).fetchall()
+      WHERE e.batch_id=?
+        AND e.version=(SELECT version FROM gate_candidate_evidence
+          WHERE batch_id=? ORDER BY created_at_utc DESC LIMIT 1)""",(batch,batch)).fetchall()
     nout=0
     for r in rows:
         fam=family_set(arr(r["support_json"]),arr(r["counter_json"]))
