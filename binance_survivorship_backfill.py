@@ -93,6 +93,9 @@ def parse_month_zip(blob):
         if len(p)<9:continue
         try:
             ot=int(p[0]); ct=int(p[6])
+            # Binance public archives may use microsecond timestamps for newer data.
+            if ot > 10**14: ot //= 1000
+            if ct > 10**14: ct //= 1000
             rows.append((ot,ct,float(p[1]),float(p[2]),float(p[3]),float(p[4]),float(p[7]),int(float(p[8]))))
         except (ValueError,TypeError):
             continue
@@ -126,9 +129,20 @@ def main():
                 VALUES(?,?,?,?,?,?,?)""",(sym,r["first_seen_utc"],r["last_seen_utc"],
                 status,life,now_iso(),VERSION))
             if life!="ACTIVE":
-                done=con.execute("""SELECT status FROM binance_survivorship_backfill_status
+                done=con.execute("""SELECT attempted_at_utc,status FROM binance_survivorship_backfill_status
                     WHERE symbol=?""",(sym,)).fetchone()
-                if not done or done[0]!="COMPLETE":
+                retry=True
+                if done:
+                    if done["status"]=="COMPLETE":
+                        retry=False
+                    else:
+                        try:
+                            age=(datetime.now(timezone.utc)-datetime.fromisoformat(
+                                str(done["attempted_at_utc"]).replace("Z","+00:00"))).total_seconds()
+                            retry=age>=24*3600
+                        except Exception:
+                            retry=True
+                if retry:
                     missing.append((sym,r["last_seen_utc"]))
         missing.sort(key=lambda x:x[1] or "")
         selected=missing[:MAX_SYMBOLS_PER_RUN]
