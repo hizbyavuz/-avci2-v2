@@ -1,10 +1,9 @@
 name: Avci 2 V2 Multi-Chain
 
 # Main Gate Web3 early-signal engine. Research-only; never places orders.
+# TEMPORARILY PAUSED: manual dispatch only.
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "8,28,48 * * * *"
 permissions:
   contents: read
   actions: write
