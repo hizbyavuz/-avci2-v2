@@ -7,7 +7,7 @@ import sqlite3
 from urllib import parse, request
 
 DB = os.getenv("GATE_SPOT_DB", "avci2.db")
-VERSION = "gate-spot-watch-v0.3-no-stables-20260924"
+VERSION = "gate-spot-watch-v0.4-early-under10-20260927"
 
 STABLE_SYMBOLS = {
     "USDT", "USDC", "USDE", "USDS", "DAI", "FDUSD", "TUSD",
@@ -35,7 +35,7 @@ def shortlist(con, now, batch, diagnostics=None):
     for pair, symbol, price, volume, day_change, start, bid, ask in current:
         if is_stable_symbol(symbol):
             continue
-        if volume < 300000 or not 3 <= day_change <= 25:
+        if volume < 300000 or not 3 <= day_change < 10:
             continue
         counts["liquid_early"] += 1
         if start <= 0 or now - start < 30 * 86400:
@@ -89,7 +89,7 @@ def shortlist(con, now, batch, diagnostics=None):
         # This is an observation path only; the exact-contract DEX/security
         # review remains mandatory before any Telegram alert.
         if (entry_path is None and 0.15 <= rise < 1
-                and day_change <= 15 and volume_accel is not None
+                and day_change < 10 and volume_accel is not None
                 and volume_accel >= 1.5):
             entry_path = "PRE_BREAKOUT"
             path_strength = rise + min(volume_accel, 20) / 10
@@ -186,7 +186,7 @@ def orderbook_candidates(con, now, batch, existing_pairs, book_fetch):
         (batch,)).fetchall()
     out = []
     for pair, symbol, price, volume, day_change, start, bid, ask in rows:
-        if pair in existing_pairs or volume < 500000 or not 0 <= day_change <= 15:
+        if pair in existing_pairs or volume < 500000 or not 0 <= day_change < 10:
             continue
         if start <= 0 or now - start < 30 * 86400 or ask <= 0:
             continue
@@ -276,6 +276,9 @@ def run(path=DB, book_fetch=fetch_book):
             key=lambda x: (x["path_strength"], x["volume_24h"]), reverse=True)
         messages = []
         for item in result[:5]:
+            # Fail closed: "early watch" must still be early at write time.
+            if float(item.get("change_24h") or 0) >= 10:
+                continue
             try:
                 loss = round_trip_loss(item.get("_book") or book_fetch(item["pair"]))
             except (OSError, TimeoutError, ValueError):
