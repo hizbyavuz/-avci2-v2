@@ -237,7 +237,7 @@ def freeze_spec(c):
     for feat,op in FEATURES:
         th=choose_threshold(w,z,feat,op)
         if th is None:return {},False
-        c.execute("INSERT INTO oos_spec VALUES(?,?,?,?,?,?,?,?,?,?)",
+        c.execute("INSERT INTO oos_spec VALUES(?,?,?,?,?,?,?,?,?)",
           (feat,op,th,len(w),len(z),median([r[feat] for r in w]),median([r[feat] for r in z]),now,VERSION))
         spec[feat]=(op,th)
     c.commit(); return spec,True
@@ -386,7 +386,7 @@ def main():
         ss=c.execute("SELECT MIN(anchor_ts),MAX(anchor_ts) FROM oos_split WHERE version=? AND split='TEST'",(VERSION,)).fetchone()
         notes=json.dumps({"no_lookahead":True,"split":"chronological_70_30","signal_price":"last_closed_hour_of_anchor_day",
           "outcomes_start_after_signal":True,"hourly_alignment":"anchor_day_end_not_future_onset","random_seed":SEED},separators=(",",":"))
-        c.execute("INSERT OR REPLACE INTO oos_runs VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        c.execute("INSERT OR REPLACE INTO oos_runs VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
           (run,datetime.now(timezone.utc).isoformat(),cut,rr[0],rr[1],ss[0],ss[1],tw,tc,vw,vc,done,missing,int(frozen),verdict,notes,VERSION))
         c.commit()
         print("HISTORY OOS",{"cutoff":utc(cut),"train":[tw,tc],"test":[vw,vc],
