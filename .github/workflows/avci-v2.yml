@@ -117,6 +117,12 @@ jobs:
         continue-on-error: true
         run: python -u gate_missed_mover_learning.py
 
+      - name: Bridge frozen Gate History Miner evidence into live state
+        continue-on-error: true
+        env:
+          HISTORY_DB: .history-state/history_miner.db
+        run: python -u gate_history_bridge.py
+
       - name: Classify old runners and revival moves
         continue-on-error: true
         run: python -u runner_revival_observer.py gate
