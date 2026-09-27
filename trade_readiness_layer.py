@@ -8,7 +8,7 @@ not place orders and does not modify frozen scanner thresholds.
 import json, os, sqlite3, sys
 from datetime import datetime, timezone
 
-VERSION="trade-readiness-v1-20260926"
+VERSION="trade-readiness-v1.1-20260927-live-confirm"
 
 def now(): return datetime.now(timezone.utc).isoformat()
 def table(c,t):
@@ -159,8 +159,7 @@ def binance(c):
         else: unk.append("veri kapsamı orta")
         if scan["data_mode"]=="SPOT_ONLY": unk.append("Binance-native futures eksik")
         else: good.append("spot+futures veri tam")
-        critical=bool(int(r["climax_risk"] or 0)) or cov<40
-        readiness=classify(len(good),len(bad),len(unk),critical)
+        # Trader-entry framework: a Binance candidate cannot become PAPER_ELIGIBLE\n        # from a static snapshot alone. It must survive the dedicated 15-minute\n        # live confirmation pool first. This does not alter frozen scanner rules;\n        # it only tightens the downstream readiness gate.\n        live_required = r["pool_status"] != "CONFIRMED"\n        critical=bool(int(r["climax_risk"] or 0)) or cov<40 or live_required\n        readiness=classify(len(good),len(bad),len(unk),critical)
         hist="GOOD" if any("geçmiş +10" in x for x in good) else ("BAD" if any("geçmiş +10" in x for x in bad) else "UNKNOWN")
         exe="GOOD" if any("spread/price-impact uygun"==x for x in good) else ("BAD" if any("execution maliyeti" in x for x in bad) else "UNKNOWN")
         live=r["pool_status"] or "UNKNOWN"
