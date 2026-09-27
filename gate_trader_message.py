@@ -6,6 +6,7 @@ Security is fail-closed and separate from directional signal strength.
 Only tokens without a security hard veto can appear in GÜÇLÜ/ORTA/ZAYIF.
 """
 import json, os, sqlite3
+from datetime import datetime, timezone, timedelta
 from binance_notify import resolve_chat_id, send_telegram
 
 DB=os.getenv("AVCI_DB","avci2.db")
@@ -19,6 +20,25 @@ def arr(s):
         return x if isinstance(x,list) else []
     except Exception:
         return []
+
+def init_label_ledger(c):
+    c.execute("""CREATE TABLE IF NOT EXISTS trader_label_ledger(
+      source TEXT NOT NULL,batch_key TEXT NOT NULL,asset_key TEXT NOT NULL,
+      display_name TEXT NOT NULL,label TEXT NOT NULL,signal_time_utc TEXT NOT NULL,
+      entry_price REAL,due_at_utc TEXT NOT NULL,latest_price REAL,peak_price REAL,
+      trough_price REAL,mfe_pct REAL,mae_pct REAL,final_return_pct REAL,
+      status TEXT NOT NULL DEFAULT 'OPEN',closed_at_utc TEXT,
+      PRIMARY KEY(source,batch_key,asset_key)
+    )""")
+
+def record_label(c,batch,network,contract,name,label,price,scan_ts):
+    try:t=datetime.fromtimestamp(int(scan_ts),timezone.utc)
+    except Exception:t=datetime.now(timezone.utc)
+    asset=f"{network}:{contract}"
+    c.execute("""INSERT OR IGNORE INTO trader_label_ledger
+      (source,batch_key,asset_key,display_name,label,signal_time_utc,entry_price,due_at_utc,status)
+      VALUES('GATE',?,?,?,?,?,?,?,'OPEN')""",
+      (str(batch),asset,name,label,t.isoformat(),price,(t+timedelta(hours=72)).isoformat()))
 
 def money(v):
     try:
@@ -185,6 +205,7 @@ def main():
                     ranked.append((2,-float(r["score"] or 0),0,r,"ZAYIF",float(r["score"] or 0),None))
 
         ranked.sort(key=lambda x:(x[0],x[1],x[2]))
+        init_label_ledger(c)
         cap_status,cap_reason=capital_status(c)
         cap_line="🔒 Gerçek para kapısı kapalı" if cap_status!="OPEN" else "🔓 Gerçek para kapısı açık"
         lines=["🛰 GATE WEB3 AVCI",
@@ -204,10 +225,11 @@ def main():
                 lines.append(f"{icons[label]} {label} — {name} [{network}]")
                 hist_line,_=gate_history_context(c,network,contract)
                 lines.append(hist_line)
-                obs=c.execute("""SELECT change_24h,liquidity,buys_5m,sells_5m,own_volume_ratio
+                obs=c.execute("""SELECT price,change_24h,liquidity,buys_5m,sells_5m,own_volume_ratio
                     FROM gate_early_observations WHERE batch_id=? AND network_id=? AND token_contract=? LIMIT 1""",
                     (batch,network,contract)).fetchone() if table(c,"gate_early_observations") else None
                 if obs:
+                    record_label(c,batch,network,contract,name,label,obs["price"],health["scan_ts"])
                     b=float(obs["buys_5m"] or 0); sv=float(obs["sells_5m"] or 0)
                     flow=(b/max(sv,1.0)) if b+sv else 0
                     vr="-" if obs["own_volume_ratio"] is None else f"{float(obs['own_volume_ratio']):.1f}x"
@@ -236,6 +258,7 @@ def main():
                 shown+=1
 
         lines.append("Not: GÜÇLÜ = yön + güvenlik + çıkış tarafında en çok dayanak; otomatik al emri değildir.")
+        c.commit()
 
     msg="\n".join(lines)
     token=(os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
