@@ -159,6 +159,14 @@ jobs:
         continue-on-error: true
         run: python -u trade_readiness_layer.py binance
 
+      - name: Refresh institutional validation before capital decision
+        continue-on-error: true
+        run: python -u institutional_validation_suite.py binance
+
+      - name: Evaluate fail-closed capital trust gate
+        continue-on-error: true
+        run: python -u capital_trust_gate.py binance
+
       - name: Send one consolidated Binance motor message
         if: success()
         continue-on-error: true
