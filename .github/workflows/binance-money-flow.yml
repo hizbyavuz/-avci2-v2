@@ -159,9 +159,21 @@ jobs:
         continue-on-error: true
         run: python -u trade_readiness_layer.py binance
 
+      - name: Update readiness-qualified shadow paper trades
+        continue-on-error: true
+        run: python -u readiness_shadow_paper.py binance
+
       - name: Refresh institutional validation before capital decision
         continue-on-error: true
         run: python -u institutional_validation_suite.py binance
+
+      - name: Build independent decision-quality overlay
+        continue-on-error: true
+        run: python -u decision_quality_layer.py binance
+
+      - name: Evaluate recent-performance brake
+        continue-on-error: true
+        run: python -u performance_brake.py binance
 
       - name: Evaluate fail-closed capital trust gate
         continue-on-error: true
@@ -186,10 +198,6 @@ jobs:
       - name: Audit unresolved research evidence gaps
         continue-on-error: true
         run: python -u research_gap_audit.py binance
-
-      - name: Run readiness-qualified shadow paper trades
-        continue-on-error: true
-        run: python -u readiness_shadow_paper.py binance
 
       - name: Record recommendation outcomes silently
         if: success()
