@@ -38,6 +38,10 @@ jobs:
         continue-on-error: true
         run: python -u gate_spot_observer.py
 
+      - name: Build lightweight Gate Spot early-watch cohort
+        continue-on-error: true
+        run: python -u gate_spot_watch.py
+
       - name: Refresh missed-mover accountability
         continue-on-error: true
         run: python -u gate_opportunity_observer.py
