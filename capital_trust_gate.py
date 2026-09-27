@@ -12,9 +12,11 @@ import json, os, sqlite3, sys
 from collections import defaultdict
 from datetime import datetime, timezone
 
-VERSION="capital-trust-v1-20260927"
+VERSION="capital-trust-v1.1-effective-n-20260927"
 MIN_CANDIDATES=100
 MIN_CONTROLS=80
+MIN_EFFECTIVE_CANDIDATES=100.0
+MIN_EFFECTIVE_CONTROLS=80.0
 MIN_REGIME_N=15
 MIN_REGIMES=2
 MIN_PROFIT_FACTOR=1.20
@@ -26,6 +28,14 @@ MIN_STRONG_LABEL_N=30
 def now(): return datetime.now(timezone.utc).isoformat()
 def table(c,t): return c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",(t,)).fetchone() is not None
 def mean(xs): return sum(xs)/len(xs) if xs else None
+def effective_n(keys):
+    counts=defaultdict(int)
+    for key in keys:
+        counts[key]+=1
+    sizes=list(counts.values())
+    raw=sum(sizes)
+    return (raw*raw/sum(x*x for x in sizes)) if sizes else 0.0
+
 def pf(xs):
     pos=sum(x for x in xs if x>0); neg=-sum(x for x in xs if x<0)
     if neg<=0: return None if pos<=0 else 999.0
@@ -51,12 +61,20 @@ def init(c):
       created_at_utc TEXT NOT NULL
     )""")
 
-def classify(cand_n,ctrl_n,cand_net,ctrl_net,cand_hit,ctrl_hit,regime_pass,security_ok=True,brake_ok=True):
+def classify(cand_n,ctrl_n,cand_eff,ctrl_eff,cand_net,ctrl_net,cand_hit,ctrl_hit,regime_pass,security_ok=True,brake_ok=True):
     passes=[]; blockers=[]
     if cand_n>=MIN_CANDIDATES: passes.append(f"kapalı aday örneği yeterli ({cand_n})")
     else: blockers.append(f"kapalı aday örneği yetersiz ({cand_n}/{MIN_CANDIDATES})")
     if ctrl_n>=MIN_CONTROLS: passes.append(f"kontrol örneği yeterli ({ctrl_n})")
     else: blockers.append(f"kontrol örneği yetersiz ({ctrl_n}/{MIN_CONTROLS})")
+    if cand_eff>=MIN_EFFECTIVE_CANDIDATES:
+        passes.append(f"aday effective-N yeterli ({cand_eff:.1f})")
+    else:
+        blockers.append(f"aday effective-N yetersiz ({cand_eff:.1f}/{MIN_EFFECTIVE_CANDIDATES:.0f}); aynı gün/rejim kümeleri bağımsız sayılmıyor")
+    if ctrl_eff>=MIN_EFFECTIVE_CONTROLS:
+        passes.append(f"kontrol effective-N yeterli ({ctrl_eff:.1f})")
+    else:
+        blockers.append(f"kontrol effective-N yetersiz ({ctrl_eff:.1f}/{MIN_EFFECTIVE_CONTROLS:.0f}); aynı gün/rejim kümeleri bağımsız sayılmıyor")
     ce=mean(cand_net); be=mean(ctrl_net)
     p=pf(cand_net)
     if ce is not None and ce>=MIN_EXPECTANCY_PCT: passes.append(f"maliyet sonrası beklenti pozitif (%{ce:.2f})")
@@ -95,8 +113,9 @@ def exact_label_check(c,source):
 
 def binance(c):
     cand=[]; ctrl=[]; hit_c=[]; hit_k=[]; regimes=defaultdict(list)
+    cand_cluster_keys=[]; ctrl_cluster_keys=[]
     if table(c,"signal_events") and table(c,"outcome_labels"):
-        rows=c.execute("""SELECT s.event_class,s.btc_regime,o.net_return_pct,
+        rows=c.execute("""SELECT s.event_class,s.btc_regime,s.signal_time_utc,o.net_return_pct,
             o.reach_json,o.barrier_results_json
           FROM signal_events s JOIN outcome_labels o ON o.event_id=s.event_id
           WHERE o.label_status='CLOSED'
@@ -110,11 +129,16 @@ def binance(c):
                 hit=int(bool(reach.get("10") or reach.get("10.0")))
             except Exception:
                 hit=0
+            day=str(r["signal_time_utc"] or "")[:10] or "UNKNOWN"
+            cluster_key=f"{day}|{r['btc_regime'] or 'UNKNOWN'}"
             if r["event_class"]=="CANDIDATE":
-                if net is not None: cand.append(net); regimes[r["btc_regime"] or "UNKNOWN"].append(net)
+                if net is not None:
+                    cand.append(net); regimes[r["btc_regime"] or "UNKNOWN"].append(net)
+                    cand_cluster_keys.append(cluster_key)
                 hit_c.append(hit)
             else:
-                if net is not None: ctrl.append(net)
+                if net is not None:
+                    ctrl.append(net); ctrl_cluster_keys.append(cluster_key)
                 hit_k.append(hit)
     regime_pass=sum(1 for xs in regimes.values() if len(xs)>=MIN_REGIME_N and (mean(xs) or -999)>0)
     ch=mean(hit_c); kh=mean(hit_k)
@@ -122,7 +146,7 @@ def binance(c):
     if table(c,"performance_brake"):
         br=c.execute("SELECT status FROM performance_brake WHERE source='BINANCE' LIMIT 1").fetchone()
         if br and br[0]=="ENGAGED": brake_ok=False
-    status,passes,blockers,ce,be,p,lift=classify(len(cand),len(ctrl),cand,ctrl,ch,kh,regime_pass,True,brake_ok)
+    status,passes,blockers,ce,be,p,lift=classify(len(cand),len(ctrl),effective_n(cand_cluster_keys),effective_n(ctrl_cluster_keys),cand,ctrl,ch,kh,regime_pass,True,brake_ok)
     label_ok,label_note=exact_label_check(c,"BINANCE")
     (passes if label_ok else blockers).append(label_note)
     status="OPEN" if not blockers else "CLOSED"
@@ -133,8 +157,9 @@ def binance(c):
 
 def gate(c,v):
     cand=[]; ctrl=[]; hit_c=[]; hit_k=[]; regimes=defaultdict(list)
+    cand_cluster_keys=[]; ctrl_cluster_keys=[]
     if table(v,"validation_events"):
-        rows=v.execute("""SELECT group_type,btc_regime,net_final_pct,result_10,status
+        rows=v.execute("""SELECT group_type,btc_regime,signal_iso,net_final_pct,result_10,status
           FROM validation_events
           WHERE status='CLOSED_72H'
             AND group_type IN ('CANDIDATE','EXPANDED_CANDIDATE','RANDOM_CONTROL','NEAR_MISS')""").fetchall()
@@ -142,11 +167,16 @@ def gate(c,v):
             try: net=float(r["net_final_pct"]) if r["net_final_pct"] is not None else None
             except Exception: net=None
             hit=int(str(r["result_10"] or "").upper()=="TARGET_FIRST")
+            day=str(r["signal_iso"] or "")[:10] or "UNKNOWN"
+            cluster_key=f"{day}|{r['btc_regime'] or 'UNKNOWN'}"
             if r["group_type"] in ("CANDIDATE","EXPANDED_CANDIDATE"):
-                if net is not None: cand.append(net); regimes[r["btc_regime"] or "UNKNOWN"].append(net)
+                if net is not None:
+                    cand.append(net); regimes[r["btc_regime"] or "UNKNOWN"].append(net)
+                    cand_cluster_keys.append(cluster_key)
                 hit_c.append(hit)
             else:
-                if net is not None: ctrl.append(net)
+                if net is not None:
+                    ctrl.append(net); ctrl_cluster_keys.append(cluster_key)
                 hit_k.append(hit)
 
     security_ok=False
@@ -164,7 +194,7 @@ def gate(c,v):
     if table(c,"performance_brake"):
         br=c.execute("SELECT status FROM performance_brake WHERE source='GATE' LIMIT 1").fetchone()
         if br and br[0]=="ENGAGED": brake_ok=False
-    status,passes,blockers,ce,be,p,lift=classify(len(cand),len(ctrl),cand,ctrl,ch,kh,regime_pass,security_ok,brake_ok)
+    status,passes,blockers,ce,be,p,lift=classify(len(cand),len(ctrl),effective_n(cand_cluster_keys),effective_n(ctrl_cluster_keys),cand,ctrl,ch,kh,regime_pass,security_ok,brake_ok)
     label_ok,label_note=exact_label_check(c,"GATE")
     (passes if label_ok else blockers).append(label_note)
     status="OPEN" if not blockers else "CLOSED"
