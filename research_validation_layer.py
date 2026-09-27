@@ -26,13 +26,9 @@ from __future__ import annotations
 import hashlib, json, math, os, random, sqlite3, statistics, sys
 from collections import defaultdict
 from datetime import datetime, timezone, timedelta
+from research_windows import DISCOVERY_END_UTC, CALIBRATION_END_UTC, PURGE_HOURS, EMBARGO_HOURS, LABEL_HORIZON_HOURS
 
 VERSION="research-validation-v1-20260926"
-DISCOVERY_END_UTC="2026-09-25T21:00:00+00:00"
-CALIBRATION_END_UTC="2026-10-03T00:00:00+00:00"
-PURGE_HOURS=72
-EMBARGO_HOURS=24
-LABEL_HORIZON_HOURS=72
 PRIMARY_TARGET=10.0
 BOOTSTRAPS=1500
 RNG_SEED=20260926
