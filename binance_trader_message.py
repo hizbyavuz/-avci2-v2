@@ -6,6 +6,7 @@ Compresses the latest research state into a simple upward-signal-strength view.
 The label is research evidence strength, not a price guarantee or order.
 """
 import json, os, sqlite3
+from datetime import datetime, timezone, timedelta
 from binance_notify import resolve_chat_id, send_telegram
 
 DB=os.getenv("BINANCE_DB","binance_avci2.db")
@@ -19,6 +20,24 @@ def arr(s):
         return x if isinstance(x,list) else []
     except Exception:
         return []
+
+def init_label_ledger(c):
+    c.execute("""CREATE TABLE IF NOT EXISTS trader_label_ledger(
+      source TEXT NOT NULL,batch_key TEXT NOT NULL,asset_key TEXT NOT NULL,
+      display_name TEXT NOT NULL,label TEXT NOT NULL,signal_time_utc TEXT NOT NULL,
+      entry_price REAL,due_at_utc TEXT NOT NULL,latest_price REAL,peak_price REAL,
+      trough_price REAL,mfe_pct REAL,mae_pct REAL,final_return_pct REAL,
+      status TEXT NOT NULL DEFAULT 'OPEN',closed_at_utc TEXT,
+      PRIMARY KEY(source,batch_key,asset_key)
+    )""")
+
+def record_label(c,batch,asset,label,price):
+    try:t=datetime.fromisoformat(str(batch).replace("Z","+00:00"))
+    except Exception:t=datetime.now(timezone.utc)
+    c.execute("""INSERT OR IGNORE INTO trader_label_ledger
+      (source,batch_key,asset_key,display_name,label,signal_time_utc,entry_price,due_at_utc,status)
+      VALUES('BINANCE',?,?,?,?,?,?,?,'OPEN')""",
+      (str(batch),asset,asset,label,t.isoformat(),price,(t+timedelta(hours=72)).isoformat()))
 
 def signal_strength(r):
     """Independent evidence ensemble; 15m live pool is weighted, never a sole veto."""
@@ -116,7 +135,7 @@ def main():
         ts=scan["scan_time_utc"]
         rows=[]
         if table(c,"binance_candidate_evidence") and table(c,"trade_readiness"):
-            rows=c.execute("""SELECT e.*,f.change_24h,f.btc_relative_24h,
+            rows=c.execute("""SELECT e.*,f.price,f.change_24h,f.btc_relative_24h,
                        f.taker_buy_ratio_15m,f.retention,f.persistence,f.reignition,
                        f.oi_change_1h_pct,f.funding_rate,
                        p.status pool_status,p.confirmation_score pool_score,
@@ -142,6 +161,7 @@ def main():
             ranked.append(({"GÜÇLÜ":0,"ORTA":1,"ZAYIF":2}[label],-score,-int(r["evidence_count"] or 0),r,label,score,dq))
         ranked.sort(key=lambda x:(x[0],x[1],x[2]))
 
+        init_label_ledger(c)
         cap_status,cap_reason=capital_status(c)
         cap_line="🔒 Gerçek para kapısı kapalı" if cap_status!="OPEN" else "🔓 Gerçek para kapısı açık"
         lines=["🛰 BINANCE AVCI",
@@ -155,6 +175,7 @@ def main():
             shown=0
             for _,_,_,r,label,score,dq in ranked:
                 if shown>=3: break
+                record_label(c,ts,r["symbol"],label,r["price"])
                 lines.append(f"{icons[label]} {label} — {r['symbol']}")
                 hist_line,_=history_context(r)
                 lines.append(hist_line)
@@ -183,6 +204,7 @@ def main():
                 shown+=1
 
         lines.append("Not: GÜÇLÜ = en çok dayanak var; yine de otomatik al emri değildir.")
+        c.commit()
 
     msg="\n".join(lines)
     token=(os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
