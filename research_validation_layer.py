@@ -306,6 +306,7 @@ def load_gate(obs,val):
     vc=cols(val,"validation_events")
     rows=val.execute("""SELECT * FROM validation_events WHERE status='CLOSED_72H'
       AND group_type IN ('CANDIDATE','EXPANDED_CANDIDATE','NEAR_MISS','RANDOM_CONTROL')
+      AND NOT (group_type='CANDIDATE' AND COALESCE(rulesets,'')='')
       ORDER BY signal_ts,id""").fetchall()
     out=[]
     for r in rows:
