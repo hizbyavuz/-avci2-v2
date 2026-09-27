@@ -1,1 +1,2 @@
 requests>=2.32.0,<3
+pyturso==0.7.2
