@@ -226,6 +226,16 @@ def main():
                 lines.append(f"• Kontrat: {contract}")
                 hist_line,_=gate_history_context(c,network,contract)
                 lines.append(hist_line)
+                if table(c,"gate_history_bridge"):
+                    hb=c.execute("""SELECT status,patterns_json,activation_name,validation_json
+                        FROM gate_history_bridge WHERE batch_id=? AND network_id=? AND token_contract=?
+                        ORDER BY created_at_utc DESC LIMIT 1""",(batch,network,contract)).fetchone()
+                    if hb:
+                        pats="/".join(arr(hb["patterns_json"])) or "-"
+                        if hb["status"]=="HISTORY_FDR_SUPPORTED":
+                            lines.append(f"• Geçmiş Kazıcı: GÜÇLÜ DESTEK | {pats} | aktivasyon: {hb['activation_name']} | FDR geçti")
+                        elif hb["status"]=="HISTORY_PATTERN_ONLY":
+                            lines.append(f"• Geçmiş Kazıcı: DESEN VAR | {pats} | aktivasyon/FDR teyidi yok")
                 obs=c.execute("""SELECT price,change_24h,liquidity,buys_5m,sells_5m,own_volume_ratio
                     FROM gate_early_observations WHERE batch_id=? AND network_id=? AND token_contract=? LIMIT 1""",
                     (batch,network,contract)).fetchone() if table(c,"gate_early_observations") else None
@@ -292,6 +302,13 @@ def main():
                 rt="-" if e["round_trip_1k_pct"] is None else f"%{float(e['round_trip_1k_pct']):.1f}"
                 lines.append(f"• {e['pair']} | 24s %{float(e['change_24h'] or 0):+.1f} | yol: {e['entry_path']} | $1k gidiş-dönüş: {rt}")
                 lines.append(f"  Kontrat [{e['network_id']}]: {e['token_contract']}")
+                if table(c,"gate_history_bridge"):
+                    hb=c.execute("""SELECT status,patterns_json,activation_name FROM gate_history_bridge
+                        WHERE batch_id=? AND pair=? ORDER BY created_at_utc DESC LIMIT 1""",(batch,e["pair"])).fetchone()
+                    if hb and hb["status"] in ("HISTORY_FDR_SUPPORTED","HISTORY_PATTERN_ONLY"):
+                        pats="/".join(arr(hb["patterns_json"])) or "-"
+                        tag="FDR destekli" if hb["status"]=="HISTORY_FDR_SUPPORTED" else "desen eşleşmesi"
+                        lines.append(f"  Geçmiş Kazıcı: {tag} | {pats} | aktivasyon: {hb['activation_name'] or '-'}")
                 if len(used)>=3: break
             lines.append("• Resmi kontrat eşleşmesi var; fakat Web3 güvenlik/holder/LP/çıkış teyidi tamamlanmadan alınabilir aday değildir.")
 
