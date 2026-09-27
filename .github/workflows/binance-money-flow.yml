@@ -171,6 +171,10 @@ jobs:
         continue-on-error: true
         run: python -u decision_quality_layer.py binance
 
+      - name: Update exact Telegram-label outcomes
+        continue-on-error: true
+        run: python -u trader_label_outcome.py binance
+
       - name: Evaluate recent-performance brake
         continue-on-error: true
         run: python -u performance_brake.py binance
