@@ -11,6 +11,7 @@ from gate_notify import security_decision
 from gate_spot_observer import identity
 
 VERSION = "gate-spot-bridge-v0.2-multipath-20260923"
+MAX_FUTURE_CLOCK_SKEW_SECONDS = 30
 
 
 def recent_watches(db_path, now=None):
@@ -21,7 +22,12 @@ def recent_watches(db_path, now=None):
             return []
         latest = con.execute("""SELECT scan_ts, status FROM gate_spot_health
             ORDER BY scan_ts DESC LIMIT 1""").fetchone()
-        if not latest or latest[1] != "VALID" or now - latest[0] > 20 * 60:
+        if not latest or latest[1] != "VALID":
+            return []
+        # A snapshot can be written a fraction later than the caller's captured
+        # `now` value (or clocks can differ slightly). Treat small positive skew
+        # as valid, but fail closed on materially future-dated data.
+        if now - latest[0] > 20 * 60 or latest[0] - now > MAX_FUTURE_CLOCK_SKEW_SECONDS:
             return []
         exists = con.execute("SELECT 1 FROM sqlite_master WHERE name='gate_spot_watch'").fetchone()
         if not exists:
@@ -36,7 +42,7 @@ def recent_watches(db_path, now=None):
             WHERE w.status='PAPER_WATCH' AND g.status='VALID'
               AND g.scan_ts BETWEEN ? AND ?
             ORDER BY g.scan_ts DESC, w.rise_pct DESC LIMIT 6""",
-            (now - 20 * 60, now)).fetchall()
+            (now - 20 * 60, now + MAX_FUTURE_CLOCK_SKEW_SECONDS)).fetchall()
 
 
 def exact_pool(rows, network, contract, gate_price):
