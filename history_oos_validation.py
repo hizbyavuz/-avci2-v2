@@ -310,7 +310,7 @@ def metrics(c):
           for t in TARGETS:
             key=f"hit{t}"; hits=sum(int(r[key]) for r in g); n=len(g)
             prec=hits/n if n else None
-            recall=sum(int(r["signal"]==1 and r[key]) for r in winners)/sum(int(r[key]) for r in winners) if group=="SIGNAL" and sum(int(r[key]) for r in winners) else None
+            recall=(sum(int(r["signal"]==1) for r in winners)/len(winners)) if group=="SIGNAL" and winners else None
             rand=[r for r in rows if r["random_control"]==1]
             br=sum(int(r[key]) for r in rand)/len(rand) if rand else None
             lift=prec/br if prec is not None and br not in (None,0) else None
@@ -318,6 +318,12 @@ def metrics(c):
               (split,regime,group,t,n,hits,prec,recall,br,lift,VERSION))
             out.append((split,regime,group,t,n,hits,prec,recall,br,lift))
     c.commit(); return out
+
+def fisher_greater(a,b,c,d):
+    n1=a+b; n2=c+d; K=a+c; N=n1+n2
+    if n1==0 or n2==0:return None
+    lo=max(0,n1-(N-K)); hi=min(n1,K); den=math.comb(N,n1)
+    return min(1.0,sum((math.comb(K,x)*math.comb(N-K,n1-x))/den for x in range(max(a,lo),hi+1)))
 
 def report(c,cut,spec):
     def counts(split):
@@ -336,15 +342,18 @@ def report(c,cut,spec):
     def mrow(split,regime,group,t):
         return next((r for r in m if r["split"]==split and r["regime"]==regime and r["group_name"]==group and r["target_pct"]==t),None)
     test10=mrow("TEST","ALL","SIGNAL",10); rand10=mrow("TEST","ALL","RANDOM_CONTROL",10)
-    verdict="INSUFFICIENT"
+    verdict="INSUFFICIENT"; primary_p=None; primary_diff=None
     if test10 and test10["n"]>=20 and rand10 and rand10["n"]>=20:
-        diff=(test10["precision"] or 0)-(rand10["precision"] or 0)
-        verdict="OOS_EDGE_PRESENT" if diff>0 else "NO_OOS_EDGE"
+        sp=float(test10["precision"] or 0); rp=float(rand10["precision"] or 0)
+        primary_diff=sp-rp
+        primary_p=fisher_greater(int(test10["hits"]),int(test10["n"]-test10["hits"]),
+                                 int(rand10["hits"]),int(rand10["n"]-rand10["hits"]))
+        verdict="OOS_EDGE_PRESENT" if primary_diff>0 and primary_p is not None and primary_p<0.05 else "NO_CONFIRMED_OOS_EDGE"
     data={"version":VERSION,"horizon_days":HORIZON_DAYS,"cutoff_date":utc(cut),
       "train":{"date_range":ranges["TRAIN"],"winners":tw,"controls":tc},
       "test":{"date_range":ranges["TEST"],"winners":vw,"controls":vc},
       "spec":{k:{"operator":v[0],"threshold":v[1]} for k,v in spec.items()},
-      "metrics":m,"verdict":verdict,
+      "metrics":m,"primary_test":{"target_pct":10,"precision_diff_vs_random":primary_diff,"fisher_one_sided_p":primary_p},"verdict":verdict,
       "caveat":"Historical archive is still active-pair seeded; delisted-market survivorship coverage remains incomplete."}
     with open("history_oos_report.json","w",encoding="utf-8") as fp: json.dump(data,fp,ensure_ascii=False,indent=2)
     lines=["# Avcı Historical OOS 70/30","",f"- Version: {VERSION}",f"- Horizon: {HORIZON_DAYS}d",
