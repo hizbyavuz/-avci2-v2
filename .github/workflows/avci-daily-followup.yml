@@ -1,7 +1,8 @@
 name: Avci candidate 24 hour follow-up
 
-# TEMPORARY RESEARCH FOCUS: automatic runs paused; manual dispatch remains available.
 on:
+  schedule:
+    - cron: "20 7 * * *"
   workflow_dispatch:
     inputs:
       day:
