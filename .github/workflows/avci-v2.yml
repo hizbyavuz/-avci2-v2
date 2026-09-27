@@ -269,16 +269,8 @@ jobs:
         continue-on-error: true
         run: python -u capital_trust_gate.py gate
 
-      - name: Send one consolidated Gate Web3 motor message
-        if: success()
-        continue-on-error: true
-        env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          HELIUS_API_KEY: ${{ secrets.HELIUS_API_KEY }}
-          HISTORY_DB: .history-state/history_miner.db
-          TWIN_DB: .history-twin/history_miner.db
-        run: python -u gate_trader_message.py
+      # Telegram is intentionally sent only by gate-fast-telegram.yml.
+      # The heavy engine owns verified state; the fast lane owns delivery.
       - name: Record recommendation outcomes silently
         if: success()
         continue-on-error: true
