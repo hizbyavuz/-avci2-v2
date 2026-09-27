@@ -1,8 +1,9 @@
 name: Avci scan and state watchdog
 
-# TEMPORARY RESEARCH FOCUS: automatic runs paused; manual dispatch remains available.
 on:
   workflow_dispatch:
+  schedule:
+    - cron: "17,47 * * * *"
 permissions:
   contents: read
   actions: read
