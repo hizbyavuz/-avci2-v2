@@ -220,7 +220,7 @@ def main():
                 status="INSUFFICIENT_HISTORY"
             counts[status]=counts.get(status,0)+1
             c.execute("""INSERT OR REPLACE INTO gate_history_bridge VALUES(
-              ?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",(
+              ?,?,?,?,?,?,?,?,?,?,?,?,?)""",(
               batch,pair,mapped["network_id"] if mapped else None,
               mapped["token_contract"] if mapped else None,status,
               json.dumps(patterns),json.dumps(feat) if feat else None,act,
