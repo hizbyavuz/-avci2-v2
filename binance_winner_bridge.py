@@ -394,20 +394,37 @@ def latest_candidates(
     connection,
     scan,
 ):
+    # Historical comparison is observation-only, so include both full candidates
+    # and the separate early-watch lane. This never changes scanner membership.
+    has_early = connection.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='opportunity_observations'"
+    ).fetchone() is not None
+    if has_early:
+        return connection.execute(
+            """
+            SELECT f.*
+            FROM features f
+            LEFT JOIN opportunity_observations o
+              ON o.scan_time_utc=f.scan_time_utc AND o.symbol=f.symbol
+            WHERE f.scan_time_utc = ?
+              AND f.config_version = ?
+              AND COALESCE(f.climax_risk, 0) = 0
+              AND (f.selection_class='CANDIDATE' OR COALESCE(o.early_watch,0)=1)
+            ORDER BY CASE WHEN f.selection_class='CANDIDATE' THEN 0 ELSE 1 END,
+                     f.score DESC, f.symbol ASC
+            """,
+            (scan["scan_time_utc"], scan["config_version"]),
+        ).fetchall()
     return connection.execute(
         """
-        SELECT *
-        FROM features
+        SELECT * FROM features
         WHERE scan_time_utc = ?
           AND config_version = ?
           AND selection_class = 'CANDIDATE'
           AND COALESCE(climax_risk, 0) = 0
         ORDER BY score DESC, symbol ASC
         """,
-        (
-            scan["scan_time_utc"],
-            scan["config_version"],
-        ),
+        (scan["scan_time_utc"], scan["config_version"]),
     ).fetchall()
 
 
