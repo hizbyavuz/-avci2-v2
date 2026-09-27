@@ -35,6 +35,7 @@ FEATURE_RAW_EXTRA_KEYS = (
     "history_gain_30d_pct",
     "history_days_available",
     "history_exclusion_reason",
+    "recent_runner_flag",
 )
 
 
