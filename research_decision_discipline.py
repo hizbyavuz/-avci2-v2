@@ -10,9 +10,10 @@ from __future__ import annotations
 import json, math, os, random, sqlite3, statistics, sys
 from collections import defaultdict
 from datetime import datetime, timezone, timedelta
+from research_windows import HOLDOUT_START_UTC
 
 VERSION="decision-discipline-v1-20260926"
-HOLDOUT_START="2026-10-07T00:00:00+00:00"  # calibration end + 72h purge + 24h embargo
+HOLDOUT_START=HOLDOUT_START_UTC  # derived from shared calibration/purge/embargo window
 MIN_HOLDOUT_DAYS=60
 MAX_HOLDOUT_DAYS=120
 CHECKPOINT_EFFECTIVE_N=(50,100,200)
