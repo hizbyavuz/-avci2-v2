@@ -18,8 +18,11 @@ def table(c,t):
     return c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",(t,)).fetchone() is not None
 
 def obj(s):
-    try: return json.loads(s or "{}")
-    except Exception: return {}
+    try:
+        value=json.loads(s or "{}")
+        return {} if value is None else value
+    except Exception:
+        return {}
 
 def target_value(d,target):
     for k in (str(target), f"{float(target):.1f}"):
