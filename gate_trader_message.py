@@ -423,7 +423,42 @@ def main():
                 if len(used)>=3: break
             lines.append("• Resmi kontrat eşleşmesi var; fakat Web3 güvenlik/holder/LP/çıkış teyidi tamamlanmadan alınabilir aday değildir.")
 
-        if table(c,"gate_top_mover_audit"):
+        # Full Gate Spot coverage audit. Prefer the all-tradable-pairs audit so
+        # low-liquidity movers are still visible as diagnostics; never promote
+        # them into GÜÇLÜ/ORTA/ZAYIF or bypass security/tradability gates.
+        if table(c,"gate_full_mover_coverage"):
+            latest_cov=c.execute("""SELECT spot_batch_id FROM gate_full_mover_coverage
+                ORDER BY created_scan_ts DESC LIMIT 1""").fetchone()
+            cov=[]
+            if latest_cov:
+                cov=c.execute("""SELECT * FROM gate_full_mover_coverage
+                    WHERE spot_batch_id=? AND current_change_24h>=40
+                    ORDER BY current_change_24h DESC""",(latest_cov["spot_batch_id"],)).fetchall()
+            if cov:
+                lines.append("")
+                lines.append(f"🎯 GATE SPOT KAPSAMA DENETİMİ — +%40 ({len(cov)})")
+                status_text={
+                    "OUTSIDE_CORE_LIQUIDITY":"gördü; çekirdek hacim filtresinin dışında",
+                    "NO_CONTRACT_MAPPING":"Spot'ta gördü; Web3 kontratı eşleşmedi",
+                    "NO_ONCHAIN_HISTORY":"Spot'ta gördü; erken on-chain geçmiş yok",
+                    "SEEN_NO_ANOMALY":"Web3 gördü; erken anomali üretmedi",
+                    "EARLY_CAUGHT":"erken yakaladı",
+                    "CAUGHT":"yakaladı",
+                    "LATE_CAUGHT":"geç yakaladı",
+                }
+                for a in cov[:6]:
+                    label=status_text.get(a["coverage_status"],a["coverage_status"])
+                    symbol=a["symbol"] or a["pair"]
+                    lines.append(f"• {symbol} %+{float(a['current_change_24h']):.1f} | hacim {money(a['volume_24h'])} → {label}")
+                if len(cov)>6:
+                    counts={}
+                    for a in cov[6:]:
+                        key=status_text.get(a["coverage_status"],a["coverage_status"])
+                        counts[key]=counts.get(key,0)+1
+                    summary=", ".join(f"{k}: {v}" for k,v in sorted(counts.items()))
+                    lines.append(f"• +{len(cov)-6} büyük mover daha kayıtlı ({summary}).")
+                lines.append("• Bu bölüm alım önerisi değil; Gate Spot'taki büyük hareketlerin sistemde nerede kaldığını gösterir.")
+        elif table(c,"gate_top_mover_audit"):
             latest_spot=c.execute("""SELECT spot_batch_id FROM gate_top_mover_audit
                 ORDER BY created_scan_ts DESC LIMIT 1""").fetchone()
             audits=[]
@@ -441,26 +476,14 @@ def main():
                     "NO_CONTRACT_MAPPING":"Web3 ile eşleşmedi",
                     "NO_ONCHAIN_HISTORY":"erken geçmiş yok",
                 }
-                # Keep the Telegram message compact; every audit row remains in DB.
-                # Show the largest moves and summarize the remainder by failure class.
                 shown_audits=audits[:6]
                 for a in shown_audits:
                     label=status_text.get(a["audit_status"],a["audit_status"])
                     symbol=a["symbol"] or a["pair"]
                     lines.append(f"• {symbol} %+{float(a['current_change_24h']):.1f} → {label}")
-                    if a["network_id"] and a["token_contract"]:
-                        lines.append(f"  Kontrat [{a['network_id']}]: {a['token_contract']}")
-                    else:
-                        lines.append("  Kontrat: resmi Gate eşleşmesi yok")
-                    lines.append(f"  ({a['audit_reason']})")
                 if len(audits)>len(shown_audits):
-                    counts={}
-                    for a in audits[len(shown_audits):]:
-                        key=status_text.get(a["audit_status"],a["audit_status"])
-                        counts[key]=counts.get(key,0)+1
-                    summary=", ".join(f"{k}: {v}" for k,v in sorted(counts.items()))
-                    lines.append(f"• +{len(audits)-len(shown_audits)} olay daha DB'de kayıtlı ({summary}).")
-                lines.append("• Eşik: Gate Spot'ta 24s +%10 ve en az $30K hacim. Bunlar öneri değil; sistemin kaçırma denetimidir.")
+                    lines.append(f"• +{len(audits)-len(shown_audits)} olay daha DB'de kayıtlı.")
+                lines.append("• Bunlar öneri değil; sistemin kaçırma denetimidir.")
 
         try:
             selected_early=[line for line in lines if line.startswith("• ") and " | 24s %" in line]
