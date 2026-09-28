@@ -72,6 +72,10 @@ jobs:
         continue-on-error: true
         run: python -u gate_opportunity_observer.py
 
+      - name: Audit full Gate Spot mover coverage including low liquidity
+        continue-on-error: true
+        run: python -u gate_full_mover_coverage.py
+
       - name: Bridge Gate History Miner evidence
         continue-on-error: true
         env:
