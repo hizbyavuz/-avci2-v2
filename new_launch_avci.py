@@ -180,6 +180,22 @@ def init_db(c):
       mae_pct REAL,
       PRIMARY KEY(network,contract,signal_ts,checked_ts)
     );
+    CREATE TABLE IF NOT EXISTS signal_evaluations(
+      network TEXT NOT NULL,
+      contract TEXT NOT NULL,
+      signal_ts INTEGER NOT NULL,
+      checked_ts INTEGER NOT NULL,
+      symbol TEXT,
+      signal_price REAL,
+      signal_liquidity REAL,
+      current_price REAL,
+      current_liquidity REAL,
+      return_pct REAL,
+      liquidity_change_pct REAL,
+      outcome_class TEXT NOT NULL,
+      outcome_reason TEXT NOT NULL,
+      PRIMARY KEY(network,contract,signal_ts,checked_ts)
+    );
     """)
 
 def token_map(payload):
@@ -500,9 +516,24 @@ def update_signal_outcomes(c, ts, limit=20):
     updated=0
     for s in signals:
         live=refresh_token_pool(s["network"],s["contract"])
-        if not live or live["price"]<=0 or num(s["first_signal_price"])<=0:
+        if not live or num(s["first_signal_price"])<=0:
             continue
-        ret=100*(live["price"]/num(s["first_signal_price"])-1)
+
+        # Recover the immutable signal-time snapshot for evaluation only.
+        sig=c.execute(
+            """SELECT symbol,price,liquidity FROM observations
+               WHERE network=? AND contract=? AND scan_ts=?
+               ORDER BY rowid ASC LIMIT 1""",
+            (s["network"],s["contract"],s["first_signal_ts"])
+        ).fetchone()
+        signal_liq=num(sig["liquidity"]) if sig else 0.0
+        signal_price=num(s["first_signal_price"])
+        current_price=num(live.get("price"))
+        current_liq=num(live.get("liquidity"))
+        if current_price<=0:
+            continue
+
+        ret=100*(current_price/signal_price-1)
         old=c.execute(
             """SELECT MAX(return_pct) mx, MIN(return_pct) mn
                FROM signal_outcomes
@@ -519,12 +550,46 @@ def update_signal_outcomes(c, ts, limit=20):
                 return_pct,mfe_pct,mae_pct)
                VALUES(?,?,?,?,?,?,?,?,?,?)""",
             (s["network"],s["contract"],s["first_signal_ts"],ts,horizon,
-             live["price"],live["liquidity"],ret,mfe,mae)
+             current_price,current_liq,ret,mfe,mae)
+        )
+
+        liq_change=(100*(current_liq/signal_liq-1)) if signal_liq>0 else None
+        # Evaluation-only labels. They never change candidate/security thresholds.
+        if signal_liq>0 and current_liq<=max(100.0,0.05*signal_liq):
+            outcome="FALSE_POSITIVE_LIQUIDITY_COLLAPSE"
+            reason=(
+                f"Likidite sinyal anındaki ${signal_liq:.2f} seviyesinden "
+                f"${current_liq:.2f} seviyesine çöktü"
+            )
+        elif ret<=-80:
+            outcome="FALSE_POSITIVE_PRICE_COLLAPSE"
+            reason=f"Fiyat sinyalden sonra %{ret:.1f} düştü"
+        elif mfe>=15:
+            outcome="FOLLOW_THROUGH_15_PLUS"
+            reason=f"Sinyal sonrası MFE en az %{mfe:.1f}"
+        elif mfe>=10:
+            outcome="FOLLOW_THROUGH_10_PLUS"
+            reason=f"Sinyal sonrası MFE en az %{mfe:.1f}"
+        elif mfe>=5:
+            outcome="FOLLOW_THROUGH_5_PLUS"
+            reason=f"Sinyal sonrası MFE en az %{mfe:.1f}"
+        else:
+            outcome="OPEN_OR_WEAK_FOLLOW_THROUGH"
+            reason=f"Şimdilik MFE %{mfe:.1f}, MAE %{mae:.1f}"
+
+        c.execute(
+            """INSERT OR REPLACE INTO signal_evaluations(
+               network,contract,signal_ts,checked_ts,symbol,signal_price,
+               signal_liquidity,current_price,current_liquidity,return_pct,
+               liquidity_change_pct,outcome_class,outcome_reason)
+               VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (s["network"],s["contract"],s["first_signal_ts"],ts,
+             sig["symbol"] if sig else None,signal_price,signal_liq,
+             current_price,current_liq,ret,liq_change,outcome,reason)
         )
         updated+=1
         time.sleep(0.12)
     return updated
-
 
 def scan():
     os.makedirs(os.path.dirname(DB) or ".",exist_ok=True)
