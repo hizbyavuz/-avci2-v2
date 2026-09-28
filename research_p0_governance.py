@@ -228,7 +228,7 @@ def write(c,source,files,stats,leakage,dependence):
     m=manifest(files)
     c.execute("DELETE FROM research_p0_governance WHERE source=? AND version=?",(source,VERSION))
     c.execute("""INSERT INTO research_p0_governance VALUES
-      (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+      (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
       (source,VERSION,now(),m["git_sha"],json.dumps(m,sort_keys=True),
        stats["total"],stats["candidate_n"],stats["control_n"],stats["unique_assets"],
        stats["unique_weeks"],stats["unique_asset_weeks"],stats["unique_regimes"],
