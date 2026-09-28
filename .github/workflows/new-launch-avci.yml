@@ -46,12 +46,41 @@ jobs:
             gh run download "$run_id" --name new-launch-avci-state --dir .new-launch-state
           fi
 
+      - name: Bootstrap Telegram chat id without touching live motors
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CONFIGURED_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          if test -n "$CONFIGURED_CHAT_ID"; then
+            echo "NEW_LAUNCH_CHAT_ID=$CONFIGURED_CHAT_ID" >> "$GITHUB_ENV"
+            exit 0
+          fi
+          # Read a local copy of the latest Gate state artifact only to reuse
+          # the already-known private Telegram chat id. No Gate workflow/state
+          # is changed by this step.
+          python avci_state_guard.py restore-gate || true
+          python - <<'PY'
+          import os, sqlite3
+          db="avci2.db"
+          chat=""
+          if os.path.exists(db):
+              try:
+                  with sqlite3.connect(db) as c:
+                      r=c.execute("SELECT value FROM runtime_settings WHERE key='telegram_chat_id'").fetchone()
+                      chat=str(r[0]).strip() if r and r[0] else ""
+              except Exception:
+                  pass
+          if chat:
+              with open(os.environ["GITHUB_ENV"],"a",encoding="utf-8") as f:
+                  f.write("NEW_LAUNCH_CHAT_ID="+chat+"\n")
+          PY
+
       - name: Run isolated New Launch Avci
         env:
           NEW_LAUNCH_DB: .new-launch-state/new_launch_avci.db
           NEW_LAUNCH_SEND_TELEGRAM: "1"
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           HELIUS_API_KEY: ${{ secrets.HELIUS_API_KEY }}
           SOLANA_RPC_URL: ${{ secrets.SOLANA_RPC_URL }}
         run: python -u new_launch_avci.py
