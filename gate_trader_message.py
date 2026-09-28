@@ -6,10 +6,18 @@ Security is fail-closed and separate from directional signal strength.
 Only tokens without a security hard veto can appear in GÜÇLÜ/ORTA/ZAYIF.
 """
 import json, os, sqlite3
+import requests
 from datetime import datetime, timezone, timedelta
 from binance_notify import resolve_chat_id, send_telegram
 
 DB=os.getenv("AVCI_DB","avci2.db")
+
+# Telegram adaylari eski/agır tarama snapshot'ına körü körüne güvenmez.
+# Bu taban scanner.py içindeki frozen MIN_LIQUIDITY=15000 ile aynıdır;
+# yeni bir performans eşiği değildir, mesaj katmanını mevcut tradability kuralıyla hizalar.
+GECKO_BASE_URL="https://api.geckoterminal.com/api/v2"
+LIVE_MIN_LIQUIDITY_USD=15000.0
+LIVE_TIMEOUT_SECONDS=12
 
 def table(c,t):
     return c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",(t,)).fetchone() is not None
@@ -48,6 +56,67 @@ def money(v):
         return "$"+f"{x:.0f}"
     except Exception:
         return "-"
+
+def _live_num(v):
+    try:
+        return float(v or 0)
+    except (TypeError,ValueError):
+        return 0.0
+
+
+def live_contract_snapshot(network,contract):
+    """Fresh GeckoTerminal revalidation immediately before Telegram output.
+
+    Fail-closed: if live data cannot be verified, the token is not allowed to
+    appear as GÜÇLÜ/ORTA/ZAYIF in the trader-facing message. Multiple pools for
+    the same contract are aggregated for liquidity; price/flow comes from the
+    deepest current pool.
+    """
+    try:
+        url=f"{GECKO_BASE_URL}/networks/{network}/tokens/{contract}/pools"
+        r=requests.get(
+            url,
+            params={"include":"base_token,quote_token"},
+            headers={"accept":"application/json;version=20230203"},
+            timeout=LIVE_TIMEOUT_SECONDS,
+        )
+        r.raise_for_status()
+        payload=r.json()
+        pools=[]
+        for pool in payload.get("data") or []:
+            a=pool.get("attributes") or {}
+            liq=_live_num(a.get("reserve_in_usd"))
+            if liq<=0:
+                continue
+            changes=a.get("price_change_percentage") or {}
+            tx=a.get("transactions") or {}
+            m5=tx.get("m5") or {}
+            pools.append({
+                "liquidity":liq,
+                "price":_live_num(a.get("base_token_price_usd")),
+                "change_24h":_live_num(changes.get("h24")),
+                "buys_5m":_live_num(m5.get("buys")),
+                "sells_5m":_live_num(m5.get("sells")),
+                "pool_address":a.get("address") or "",
+            })
+        if not pools:
+            return {"ok":False,"reason":"canlı havuz verisi yok"}
+        deepest=max(pools,key=lambda x:x["liquidity"])
+        return {
+            "ok":True,
+            "reason":None,
+            "liquidity":sum(x["liquidity"] for x in pools),
+            "deepest_liquidity":deepest["liquidity"],
+            "price":deepest["price"],
+            "change_24h":deepest["change_24h"],
+            "buys_5m":deepest["buys_5m"],
+            "sells_5m":deepest["sells_5m"],
+            "pool_count":len(pools),
+            "pool_address":deepest["pool_address"],
+        }
+    except Exception as e:
+        return {"ok":False,"reason":f"canlı Web3 doğrulaması başarısız: {type(e).__name__}"}
+
 
 def symbol_for(c,network,contract):
     if table(c,"snapshots"):
@@ -219,11 +288,25 @@ def main():
         else:
             icons={"GÜÇLÜ":"🟢","ORTA":"🟡","ZAYIF":"⚪️"}
             shown=0
+            live_rejected=[]
             for _,_,_,r,label,score,dq in ranked:
                 if shown>=3: break
                 network=r["network_id"]
                 contract=r["token_contract"]
                 name=(r["symbol"] if "symbol" in r.keys() and r["symbol"] else symbol_for(c,network,contract))
+
+                # Son ağır taramada iyi görünen token dakikalar içinde likidite
+                # kaybedebilir. Telegram'a aday basmadan hemen önce canlı Web3
+                # revalidation zorunludur. Doğrulanamayan veya mevcut frozen
+                # likidite tabanının altına düşen token fail-closed elenir.
+                live=live_contract_snapshot(network,contract)
+                if not live.get("ok"):
+                    live_rejected.append((name,live.get("reason") or "canlı veri yok"))
+                    continue
+                if float(live.get("liquidity") or 0)<LIVE_MIN_LIQUIDITY_USD:
+                    live_rejected.append((name,f"canlı likidite {money(live.get('liquidity'))} < {money(LIVE_MIN_LIQUIDITY_USD)}"))
+                    continue
+
                 lines.append(f"{icons[label]} {label} — {name} [{network}]")
                 lines.append(f"• Kontrat: {contract}")
                 hist_line,_=gate_history_context(c,network,contract)
@@ -242,11 +325,12 @@ def main():
                     FROM gate_early_observations WHERE batch_id=? AND network_id=? AND token_contract=? LIMIT 1""",
                     (batch,network,contract)).fetchone() if table(c,"gate_early_observations") else None
                 if obs:
-                    record_label(c,batch,network,contract,name,label,obs["price"],health["scan_ts"])
-                    b=float(obs["buys_5m"] or 0); sv=float(obs["sells_5m"] or 0)
+                    entry_price=float(live.get("price") or obs["price"] or 0)
+                    record_label(c,batch,network,contract,name,label,entry_price,health["scan_ts"])
+                    b=float(live.get("buys_5m") or 0); sv=float(live.get("sells_5m") or 0)
                     flow=(b/max(sv,1.0)) if b+sv else 0
                     vr="-" if obs["own_volume_ratio"] is None else f"{float(obs['own_volume_ratio']):.1f}x"
-                    lines.append(f"• Gerçek veri: 24s %{float(obs['change_24h'] or 0):+.1f} | likidite {money(obs['liquidity'])} | hacim anomalisi (kendi normaline göre): {vr} | 5dk alıcı/satıcı: {flow:.1f}x")
+                    lines.append(f"• Canlı veri: 24s %{float(live.get('change_24h') or 0):+.1f} | likidite {money(live.get('liquidity'))} | hacim anomalisi (kendi normaline göre): {vr} | 5dk alıcı/satıcı: {flow:.1f}x")
                 if "support_json" in r.keys():
                     sup=arr(r["support_json"]); con=arr(r["counter_json"])
                     why=sup[0] if sup else "birden fazla on-chain veri aynı yöne bakıyor"
@@ -269,6 +353,15 @@ def main():
                     lines.append("• Neden henüz girilmez: güvenlik/çıkış ve devam teyidi tamamlanmadı")
                 lines.append("")
                 shown+=1
+
+            if shown==0:
+                lines.append("🚫 Bu taramada canlı Web3 doğrulamasını geçen alınabilir görünen token yok.")
+            if live_rejected:
+                preview="; ".join(f"{n}: {reason}" for n,reason in live_rejected[:3])
+                extra=len(live_rejected)-3
+                if extra>0:
+                    preview+=f"; +{extra} aday daha"
+                lines.append(f"• Canlı doğrulamada elenen: {preview}")
 
         # Observation-only Gate early lane. This is intentionally separate
         # from security-passed GÜÇLÜ/ORTA/ZAYIF candidates.
