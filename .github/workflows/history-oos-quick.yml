@@ -39,6 +39,9 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Install runtime dependency
+        run: python -m pip install requests
+
       - name: Run representative blind OOS sample
         env:
           HISTORY_OOS_QUICK_TARGET: "1500"
