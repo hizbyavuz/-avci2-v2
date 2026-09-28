@@ -155,7 +155,7 @@ def main():
                     p=proportion_p(sh,len(sel),bhit,len(base)) if len(sel)>=8 and len(base)>=8 else None
                     q=qmap.get((combo,target)) if split=="VALIDATION" else None
                     c.execute("""INSERT OR REPLACE INTO binance_activation_math_results VALUES
-                        (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                        (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                         (VERSION,split,combo,label,target,len(sel),sh,sr,len(base),bhit,br,lift,p,q,now))
         c.commit()
         best=c.execute("""SELECT combo,combo_label,target_pct,selected_n,selected_rate,baseline_n,
