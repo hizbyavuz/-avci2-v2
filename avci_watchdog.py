@@ -8,6 +8,7 @@ from pathlib import Path
 
 from avci_state_guard import artifacts, download, gh_json, valid_database
 from binance_health_alert import telegram_call
+from binance_notify import resolve_chat_id
 
 
 LIMIT_MINUTES = 75  # Allows for queue delays and an occasionally skipped run.
@@ -88,12 +89,19 @@ def send_warning(problems):
         raise RuntimeError("TELEGRAM_BOT_TOKEN is missing; cannot alert")
     chat_id = os.getenv("TELEGRAM_CHAT_ID")
     if not chat_id:
-        updates = telegram_call(token, "getUpdates", {})
-        private = [item["message"]["chat"]["id"] for item in updates.get("result", [])
-                   if item.get("message", {}).get("chat", {}).get("type") == "private"]
-        if not private:
-            raise RuntimeError("TELEGRAM_CHAT_ID is missing and no private chat found")
-        chat_id = private[-1]
+        # Scheduled workflows often have an empty getUpdates queue. Reuse the
+        # private chat id already persisted by the live Binance state first.
+        try:
+            saved = artifacts("binance-avci2-state")
+            if saved:
+                with tempfile.TemporaryDirectory() as folder:
+                    download(saved[0], folder)
+                    db_path = Path(folder) / "binance_avci2.db"
+                    chat_id = resolve_chat_id(token, "", str(db_path), "Watchdog")
+        except Exception as error:
+            print("Watchdog chat-id cache fallback:", type(error).__name__)
+        if not chat_id:
+            chat_id = resolve_chat_id(token, "", "", "Watchdog")
     message = ("⚠️ AVCI TARAMA KONTROLU\n" + "\n".join(problems) +
                f"\nGitHub: https://github.com/{os.environ['GITHUB_REPOSITORY']}/actions")
     result = telegram_call(token, "sendMessage", {"chat_id": chat_id, "text": message})
