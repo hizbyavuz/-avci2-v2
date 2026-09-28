@@ -167,6 +167,19 @@ def init_db(c):
       signal_count INTEGER NOT NULL,
       PRIMARY KEY(network,contract)
     );
+    CREATE TABLE IF NOT EXISTS signal_outcomes(
+      network TEXT NOT NULL,
+      contract TEXT NOT NULL,
+      signal_ts INTEGER NOT NULL,
+      checked_ts INTEGER NOT NULL,
+      horizon_min INTEGER NOT NULL,
+      price REAL,
+      liquidity REAL,
+      return_pct REAL,
+      mfe_pct REAL,
+      mae_pct REAL,
+      PRIMARY KEY(network,contract,signal_ts,checked_ts)
+    );
     """)
 
 def token_map(payload):
@@ -299,6 +312,8 @@ def evm_security(network, contract):
         except Exception: pass
         if bad:
             result.update(label="WEAK",reason=", ".join(bad),hard_veto=True)
+        elif result["holder_count"] == 0:
+            result.update(label="MEDIUM",reason="holder verisi henüz oluşmamış / sağlayıcı gecikmeli",hard_veto=False)
         elif sell_tax>=10 or buy_tax>=10 or yes("is_proxy"):
             result.update(label="MEDIUM",reason=f"vergi/proxy uyarısı (buy %{buy_tax:.1f}, sell %{sell_tax:.1f})",hard_veto=False)
         else:
@@ -395,9 +410,23 @@ def classify(c, row, sec):
         score-=2; warnings.append(f"hacim/likidite aşırı {turnover:.1f}x")
 
     hard=(liq<MIN_LIQUIDITY or sec["hard_veto"])
+    core_activity=(
+        row["volume_5m"]>=MIN_VOLUME_5M
+        and row["tx_5m"]>=MIN_TX_5M
+        and row["buy_sell_ratio_5m"]>=MIN_BUY_SELL_5M
+    )
+    candidate_ready=(
+        score>=MIN_SCORE_CANDIDATE
+        and late=="LOW"
+        and retention>=MIN_RETENTION
+        and core_activity
+        and sec["label"]=="STRONG"
+        and age>=MIN_AGE_MIN
+        and age<=MAX_CANDIDATE_AGE_MIN
+    )
     if hard:
         cls="REJECT"
-    elif score>=MIN_SCORE_CANDIDATE and late=="LOW" and retention>=MIN_RETENTION:
+    elif candidate_ready:
         cls="CANDIDATE"
     elif age<=MAX_WATCH_AGE_MIN:
         cls="WATCH"
@@ -442,6 +471,60 @@ def record(c, run_id, ts, row, sec, d):
         else:
             c.execute("""INSERT INTO signals VALUES(?,?,?,?,?,?,?,?)""",
                       (row["network"],row["contract"],ts,ts,row["price"],row["price"],d["score"],1))
+
+def refresh_token_pool(network, contract):
+    try:
+        payload=get_json(
+            f"{GECKO}/networks/{network}/tokens/{contract}/pools",
+            {"include":"base_token,quote_token","page":1},
+        )
+        rows=parse_new_pools(network,payload)
+        exact=[r for r in rows if (
+            r["contract"]==contract if network=="solana"
+            else r["contract"].lower()==contract.lower()
+        )]
+        if not exact:
+            return None
+        return max(exact,key=lambda r:r["liquidity"])
+    except Exception:
+        return None
+
+
+def update_signal_outcomes(c, ts, limit=20):
+    signals=c.execute(
+        """SELECT * FROM signals
+           WHERE first_signal_ts>=?
+           ORDER BY last_signal_ts DESC LIMIT ?""",
+        (ts-24*3600,limit)
+    ).fetchall()
+    updated=0
+    for s in signals:
+        live=refresh_token_pool(s["network"],s["contract"])
+        if not live or live["price"]<=0 or num(s["first_signal_price"])<=0:
+            continue
+        ret=100*(live["price"]/num(s["first_signal_price"])-1)
+        old=c.execute(
+            """SELECT MAX(return_pct) mx, MIN(return_pct) mn
+               FROM signal_outcomes
+               WHERE network=? AND contract=? AND signal_ts=?""",
+            (s["network"],s["contract"],s["first_signal_ts"])
+        ).fetchone()
+        prior_mx=num(old["mx"]) if old and old["mx"] is not None else ret
+        prior_mn=num(old["mn"]) if old and old["mn"] is not None else ret
+        mfe=max(ret,prior_mx); mae=min(ret,prior_mn)
+        horizon=max(0,int((ts-int(s["first_signal_ts"]))/60))
+        c.execute(
+            """INSERT OR REPLACE INTO signal_outcomes
+               (network,contract,signal_ts,checked_ts,horizon_min,price,liquidity,
+                return_pct,mfe_pct,mae_pct)
+               VALUES(?,?,?,?,?,?,?,?,?,?)""",
+            (s["network"],s["contract"],s["first_signal_ts"],ts,horizon,
+             live["price"],live["liquidity"],ret,mfe,mae)
+        )
+        updated+=1
+        time.sleep(0.12)
+    return updated
+
 
 def scan():
     os.makedirs(os.path.dirname(DB) or ".",exist_ok=True)
@@ -489,6 +572,9 @@ def scan():
                   (run_id,ts,"VALID" if networks_ok>=3 else "DEGRADED",
                    networks_ok,len(all_rows),len(inspect),len(candidates),
                    json.dumps(errors,ensure_ascii=False)))
+        # Existing signals are independently followed for up to 24h even after
+        # they leave the "new pools" feed. This is evaluation only.
+        update_signal_outcomes(c,ts)
         c.commit()
     candidates.sort(key=lambda x:(-x[2]["score"],x[0]["age_min"]))
     return run_id,ts,networks_ok,len(all_rows),len(inspect),candidates,errors
@@ -534,7 +620,7 @@ def format_message(result):
 
 def send_telegram(text):
     token=os.getenv("TELEGRAM_BOT_TOKEN","").strip()
-    chat=os.getenv("TELEGRAM_CHAT_ID","").strip()
+    chat=(os.getenv("NEW_LAUNCH_CHAT_ID","") or os.getenv("TELEGRAM_CHAT_ID","")).strip()
     if not token:
         print("Telegram token yok"); return False
     if not chat:
