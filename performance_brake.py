@@ -74,5 +74,7 @@ def main():
     if m not in ("binance","gate"): raise SystemExit("usage: performance_brake.py binance|gate")
     db=os.getenv("BINANCE_DB","binance_avci2.db") if m=="binance" else os.getenv("AVCI_DB","avci2.db")
     if not os.path.exists(db): return
-    with sqlite3.connect(db,timeout=60) as c: run(c,m.upper())
+    with sqlite3.connect(db,timeout=60) as c:
+        init(c)
+        run(c,m.upper())
 if __name__=="__main__":main()
