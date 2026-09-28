@@ -104,6 +104,10 @@ jobs:
         continue-on-error: true
         run: python -u gate_opportunity_observer.py
 
+      - name: Audit full Gate Spot mover coverage including low liquidity
+        continue-on-error: true
+        run: python -u gate_full_mover_coverage.py
+
       - name: Run Avci 2 V2
         env:
          JUPITER_API_KEY: ${{ secrets.JUPITER_API_KEY }}
