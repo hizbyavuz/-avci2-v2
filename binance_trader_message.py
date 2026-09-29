@@ -217,9 +217,11 @@ def main():
                 if dq and dq["empirical_probability"] is not None and int(dq["empirical_n"] or 0)>=8:
                     lines.append(f"• Benzer geçmiş: +%10'a ulaşma %{100*float(dq['empirical_probability']):.0f} (n={int(dq['empirical_n'])})")
                 elif r["historical_candidate_n"]>=8 and r["historical_control_n"]>=8 and r["hit10_rate"] is not None and r["hit10_control"] is not None:
-                    lines.append(f"• Benzer geçmiş: +%10 %{100*float(r['hit10_rate']):.0f} | kontrol %{100*float(r['hit10_control']):.0f}")
+                    cand=100*float(r["hit10_rate"]); ctrl=100*float(r["hit10_control"])
+                    diff=cand-ctrl
+                    lines.append(f"• Sistem farkı: benzer adaylarda +%10 %{cand:.0f} | benzer seçilmeyenlerde %{ctrl:.0f} | fark {diff:+.0f} puan")
                 else:
-                    lines.append("• Benzer geçmiş: henüz yeterli örnek yok")
+                    lines.append("• Sistem farkı: karşılaştırmak için henüz yeterli geçmiş örnek yok")
                 lines.append("")
                 shown+=1
 
