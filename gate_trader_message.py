@@ -405,7 +405,7 @@ def main():
                 early_rows=early_rows[:3]
         if early_rows:
             lines.append("")
-            lines.append("👀 ERKEN İZLEME — ALIM SİNYALİ DEĞİL")
+            lines.append("🔎 HAM KEŞİF — ALIM SİNYALİ DEĞİL")
             used=set()
             for e in early_rows:
                 if e["pair"] in used: continue
@@ -421,7 +421,7 @@ def main():
                         tag="FDR destekli" if hb["status"]=="HISTORY_FDR_SUPPORTED" else "desen eşleşmesi"
                         lines.append(f"  Geçmiş Kazıcı: {tag} | {pats} | aktivasyon: {hb['activation_name'] or '-'}")
                 if len(used)>=3: break
-            lines.append("• Resmi kontrat eşleşmesi var; fakat Web3 güvenlik/holder/LP/çıkış teyidi tamamlanmadan alınabilir aday değildir.")
+            lines.append("• Bu bölüm yalnızca RAW DISCOVERY'dir: güvenlik + holder/LP + gerçek satış/çıkış teyidi tamamlanmadan ERKEN İZLEME veya alınabilir aday sayılmaz.")
 
         # Full Gate Spot coverage audit. Prefer the all-tradable-pairs audit so
         # low-liquidity movers are still visible as diagnostics; never promote
