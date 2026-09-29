@@ -5,7 +5,7 @@
 Security is fail-closed and separate from directional signal strength.
 Only tokens without a security hard veto can appear in GÜÇLÜ/ORTA/ZAYIF.
 """
-import json, os, sqlite3
+import json, os, sqlite3, math
 import requests
 from datetime import datetime, timezone, timedelta
 from binance_notify import resolve_chat_id, send_telegram
@@ -28,6 +28,26 @@ def arr(s):
         return x if isinstance(x,list) else []
     except Exception:
         return []
+
+def historical_control_line(candidate_n,control_n,candidate_rate,control_rate):
+    """Plain comparison with a 95% uncertainty interval; descriptive only."""
+    try:
+        n1=int(candidate_n or 0); n0=int(control_n or 0)
+        p1=float(candidate_rate); p0=float(control_rate)
+    except (TypeError,ValueError):
+        return None
+    if n1<8 or n0<8:
+        return None
+    diff=p1-p0
+    se=math.sqrt(max(0.0,p1*(1-p1)/n1 + p0*(1-p0)/n0))
+    lo=diff-1.96*se; hi=diff+1.96*se
+    if lo>0:
+        return (f"• Sistem farkı: benzer adaylarda +%10 %{100*p1:.0f} | "
+                f"benzer seçilmeyenlerde %{100*p0:.0f} | fark {100*diff:+.0f} puan "
+                f"(yaklaşık %95 aralık {100*lo:+.0f}..{100*hi:+.0f})")
+    return (f"• Geçmiş karşılaştırma: aday %{100*p1:.0f} | kontrol %{100*p0:.0f} | "
+            f"fark {100*diff:+.0f} puan; henüz belirsiz "
+            f"(%95 aralık {100*lo:+.0f}..{100*hi:+.0f}, 0'ı kapsıyor)")
 
 def init_label_ledger(c):
     c.execute("""CREATE TABLE IF NOT EXISTS trader_label_ledger(
@@ -363,14 +383,17 @@ def main():
 
                 hist_line,_=gate_history_context(c,network,contract)
                 lines.append(f"• Geçmiş koşu: {hist_line.strip('()')}")
-                if "historical_candidate_n" in r.keys() and int(r["historical_candidate_n"] or 0)>=8 and int(r["historical_control_n"] or 0)>=8 and r["hit10_rate"] is not None and r["hit10_control"] is not None:
-                    cand=100*float(r["hit10_rate"]); ctrl=100*float(r["hit10_control"])
-                    diff=cand-ctrl
-                    lines.append(f"• Sistem farkı: benzer adaylarda +%10 %{cand:.0f} | benzer seçilmeyenlerde %{ctrl:.0f} | fark {diff:+.0f} puan")
-                elif dq and dq["empirical_probability"] is not None and int(dq["empirical_n"] or 0)>=8:
-                    lines.append(f"• Benzer geçmiş: +%10'a ulaşma %{100*float(dq['empirical_probability']):.0f} (n={int(dq['empirical_n'])})")
+                cmp=None
+                if "historical_candidate_n" in r.keys():
+                    cmp=historical_control_line(r["historical_candidate_n"],r["historical_control_n"],
+                                                r["hit10_rate"],r["hit10_control"])
+                if cmp:
+                    lines.append(cmp)
+                elif dq and dq["empirical_probability"] is not None and int(dq["empirical_n"] or 0)>=30:
+                    lines.append(f"• Benzer geçmiş: +%10'a ulaşma %{100*float(dq['empirical_probability']):.0f} "
+                                 f"(n={int(dq['empirical_n'])}); uygun kontrol kıyası olmadığı için avantaj yorumu yapılmıyor")
                 else:
-                    lines.append("• Sistem farkı: karşılaştırmak için henüz yeterli geçmiş örnek yok")
+                    lines.append("• Sistem farkı: güvenilir karşılaştırma için henüz yeterli geçmiş örnek yok")
                 lines.append(f"• Kontrat: {contract}")
                 lines.append("")
                 shown+=1
