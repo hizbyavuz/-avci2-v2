@@ -173,6 +173,10 @@ jobs:
         continue-on-error: true
         run: python -u research_validation_layer.py binance
 
+      - name: Run Binance edge-hardening diagnostics
+        continue-on-error: true
+        run: python -u research_edge_hardening.py binance
+
       - name: Enforce Binance frozen decision discipline
         continue-on-error: true
         run: python -u research_decision_discipline.py binance
@@ -212,6 +216,7 @@ jobs:
             binance_latest_report.md
             binance_dashboard.html
             binance_research_validation.md
+            binance_edge_hardening.md
           if-no-files-found: error
           retention-days: 21
           compression-level: 6
