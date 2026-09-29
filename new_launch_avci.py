@@ -648,42 +648,32 @@ def format_message(result):
     run_id,ts,net_ok,pools,obs,cands,errors=result
     lines=[
         "🍼 NEW LAUNCH AVCI",
-        "• Tamamen ayrı motor | 🔒 PAPER / gerçek para kapalı",
-        f"• Ağ: {net_ok}/{len(NETWORKS)} | yeni havuz: {pools} | detaylı incelenen: {obs}",
-        f"• Ham/erken izleme: {len(cands)}",
+        "• Çok yeni tokenları tarar | 🔒 sadece gözlem",
+        f"• {net_ok}/{len(NETWORKS)} ağ çalıştı | {pools} yeni havuz görüldü | {obs} detaylı incelendi",
         "",
     ]
     if not cands:
         lines += [
-            "🚫 Bu tur ham keşiften güvenli izlemeye yükselebilen token yok.",
-            "Bu sonuç normaldir; sırf mesaj üretmek için zayıf token yükseltilmez.",
+            "🚫 Bu tur izlemeye değer yeni token çıkmadı.",
+            "Bu normal: zayıf token sırf mesaj gelsin diye öne çıkarılmaz.",
         ]
     else:
         for r,sec,d in cands[:MAX_MESSAGE_CANDIDATES]:
-            lg=d["liquidity_growth_pct"]
-            pg=d["price_growth_pct"]
-            # Internal CANDIDATE is a research label only. Until independent
-            # holder/LP + executable sell/exit verification is complete, never
-            # present it to the user as a buyable/qualified candidate.
-            lines.append(f"👀 ERKEN İZLEME — ALIM SİNYALİ DEĞİL — {r['symbol']} [{r['network']}]")
-            lines.append(f"• Yaş: {r['age_min']:.0f} dk | fiyat: ${r['price']:.10g}")
-            lines.append(f"• Likidite: {money(r['liquidity'])}" + (f" | önceki taramaya göre %{lg:+.0f}" if lg is not None else ""))
-            lines.append(f"• 5dk hacim: {money(r['volume_5m'])} | işlem: {int(r['tx_5m'])} | alıcı/satıcı: {r['buy_sell_ratio_5m']:.1f}x")
-            lines.append(f"• Hareket: 5dk %{r['change_5m']:+.1f} | 1s %{r['change_1h']:+.1f} | 24s %{r['change_24h']:+.1f}")
-            lines.append(f"• Retention (ilk tepenin korunması): %{d['retention_pct']:.0f} | geç kalma: {d['late_risk']}")
-            lines.append(f"• Güvenlik: {sec['label']} — {sec['reason']}")
-            if sec.get("holder_count") is not None:
-                lines.append(f"• Holder: {sec['holder_count']}")
-            if sec.get("top10_pct") is not None:
-                lines.append(f"• Ham Top10 yoğunluğu: %{sec['top10_pct']:.1f} (LP/sistem hesapları içerebilir)")
-            lines.append(f"• Dayanak: {'; '.join(d['reasons'][:4])}")
-            if d["warnings"]:
-                lines.append(f"• Risk: {'; '.join(d['warnings'][:3])}")
+            late={"LOW":"Düşük","MEDIUM":"Orta","HIGH":"Yüksek"}.get(d["late_risk"],"Bilinmiyor")
+            why="; ".join(d["reasons"][:2]) if d["reasons"] else "erken aktivite güçleniyor"
+            risk="; ".join(d["warnings"][:2]) if d["warnings"] else "şimdilik belirgin ek uyarı yok"
+            lines.append(f"🟡 {r['symbol']} [{r['network']}] — SADECE İZLE")
+            lines.append(f"• Yaş: {r['age_min']:.0f} dk | hareket: 5dk %{r['change_5m']:+.1f} | 1s %{r['change_1h']:+.1f}")
+            lines.append(f"• Neden: {why}")
+            lines.append(f"• Risk: {risk}")
+            lines.append(f"• Güvenlik: {sec['reason']}")
+            lines.append(f"• Geç kalma: {late} | likidite: {money(r['liquidity'])}")
+            lines.append("• Durum: alım adayı değil; holder/LP ve gerçek satış teyidi eksik.")
             lines.append(f"• Kontrat: {r['contract']}")
             lines.append("")
     if errors:
-        lines.append("⚠️ Veri hatası: " + ", ".join(errors[:4]))
-    lines.append("Not: Bu motor yeni launch keşfi içindir. Güvenlik + holder/LP + gerçek satış/çıkış teyidi tamamlanmadan hiçbir token ERKEN ADAY / alınabilir aday sayılmaz; Binance Avcı ve Gate Web3 Avcı kararlarına/DB'lerine dokunmaz.")
+        lines.append("⚠️ Veri sorunu: " + ", ".join(errors[:3]))
+    lines.append("Not: Bu motor sadece çok erken keşif yapar. Tüm güvenlik ve satış kontrolleri tamamlanmadan token alınabilir aday sayılmaz.")
     return "\n".join(lines)[:4000]
 
 def send_telegram(text):
