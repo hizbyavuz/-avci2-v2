@@ -1,0 +1,28 @@
+name: Avci 3 Day Plain Scorecard
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "35 8 */3 * *"
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  scorecard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: pip install -r binance_requirements.txt
+      - name: Send plain 3-day scorecard
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python -u avci_three_day_scorecard.py
