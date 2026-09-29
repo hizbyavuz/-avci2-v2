@@ -322,7 +322,8 @@ def main():
                ""]
 
         if not ranked:
-            lines.append("🚫 Bu taramada güvenliği geçen alınabilir görünen token yok.")
+            lines.append("🔴 ALINABİLİR ADAY YOK")
+            lines.append("• Şu an güvenlik + çıkış kontrollerini geçen token çıkmadı.")
         else:
             icons={"GÜÇLÜ":"🟢","ORTA":"🟡","ZAYIF":"⚪️"}
             shown=0
@@ -399,7 +400,8 @@ def main():
                 shown+=1
 
             if shown==0:
-                lines.append("🚫 Bu taramada canlı Web3 doğrulamasını geçen alınabilir görünen token yok.")
+                lines.append("🔴 ALINABİLİR ADAY YOK")
+                lines.append("• Canlı Web3 doğrulamasını geçen token çıkmadı.")
             if live_rejected:
                 preview="; ".join(f"{n}: {reason}" for n,reason in live_rejected[:3])
                 extra=len(live_rejected)-3
@@ -449,15 +451,17 @@ def main():
                 early_rows=early_rows[:3]
         if early_rows:
             lines.append("")
-            lines.append("🔎 HAM KEŞİF — ALIM SİNYALİ DEĞİL")
+            lines.append("🟡 ERKEN İZLEME")
             used=set()
             for e in early_rows:
                 if e["pair"] in used: continue
                 used.add(e["pair"])
-                lines.append(f"• {e['pair']} — sadece izle | 24s %{float(e['change_24h'] or 0):+.1f}")
-                lines.append(f"  Neden: erken hareket izi var; güvenlik ve satış teyidi henüz tamamlanmadı.")
+                lines.append(f"🟡 {e['pair']} — İZLE")
+                lines.append(f"• Hareket: 24s %{float(e['change_24h'] or 0):+.1f}")
+                lines.append("• Neden: erken hareket var ama güvenlik ve satılabilirlik henüz tamamlanmadı.")
+                lines.append("• Karar: Henüz alma; tüm kontrollerin geçmesini bekle.")
                 if len(used)>=3: break
-            lines.append("• Bunlar alım adayı değil; tüm güvenlik/çıkış kontrolleri geçerse üst bölüme çıkar.")
+            lines.append("• 🟡 = erken izleme; alım sinyali değil.")
 
         # Full Gate Spot coverage audit. Prefer the all-tradable-pairs audit so
         # low-liquidity movers are still visible as diagnostics; never promote
@@ -472,7 +476,7 @@ def main():
                     ORDER BY current_change_24h DESC""",(latest_cov["spot_batch_id"],)).fetchall()
             if cov:
                 lines.append("")
-                lines.append(f"🎯 GATE SPOT KAPSAMA DENETİMİ — +%40 ({len(cov)})")
+                lines.append(f"⚪ KAÇIRILAN / GEÇ YAKALANANLAR — +%40 ({len(cov)})")
                 status_text={
                     "OUTSIDE_CORE_LIQUIDITY":"gördü; çekirdek hacim filtresinin dışında",
                     "NO_CONTRACT_MAPPING":"Spot'ta gördü; Web3 kontratı eşleşmedi",
@@ -485,7 +489,7 @@ def main():
                 for a in cov[:4]:
                     label=status_text.get(a["coverage_status"],a["coverage_status"])
                     symbol=a["symbol"] or a["pair"]
-                    lines.append(f"• {symbol} %{float(a['current_change_24h']):+.1f} → {label}")
+                    lines.append(f"⚪ {symbol} %{float(a['current_change_24h']):+.1f} — {label}")
                 if len(cov)>4:
                     lines.append(f"• +{len(cov)-4} büyük hareket daha DB'de kayıtlı.")
                 lines.append("• Bu bölüm sadece sistemin kaçırma/erken yakalama denetimidir.")
@@ -500,7 +504,7 @@ def main():
                     ORDER BY current_change_24h DESC""",(latest_spot["spot_batch_id"],)).fetchall()
             if audits:
                 lines.append("")
-                lines.append(f"🔎 KAÇIRILAN / GEÇ YAKALANANLAR ({len(audits)})")
+                lines.append(f"⚪ KAÇIRILAN / GEÇ YAKALANANLAR ({len(audits)})")
                 status_text={
                     "MISSED":"kaçırdı",
                     "LATE_CAUGHT":"geç gördü",
@@ -511,7 +515,7 @@ def main():
                 for a in shown_audits:
                     label=status_text.get(a["audit_status"],a["audit_status"])
                     symbol=a["symbol"] or a["pair"]
-                    lines.append(f"• {symbol} %+{float(a['current_change_24h']):.1f} → {label}")
+                    lines.append(f"⚪ {symbol} %+{float(a['current_change_24h']):.1f} — {label}")
                 if len(audits)>len(shown_audits):
                     lines.append(f"• +{len(audits)-len(shown_audits)} olay daha DB'de kayıtlı.")
                 lines.append("• Bunlar öneri değil; sistemin kaçırma denetimidir.")
@@ -521,7 +525,9 @@ def main():
             print("Gate Telegram early-watch selected:", " || ".join(selected_early[:3]) if selected_early else "NONE")
         except Exception:
             pass
-        lines.append("Not: Mesaj sadeleştirilmiştir. Teknik ayrıntılar DB'de kalır; sistem otomatik emir vermez.")
+        lines.append("")
+        lines.append("Renkler: 🟢 güçlü aday | 🟡 izle/bekle | 🔴 girme | ⚪ kaçırılan/geç")
+        lines.append("Not: Teknik ayrıntılar DB'de kalır; sistem otomatik emir vermez.")
         c.commit()
 
     msg="\n".join(lines)
