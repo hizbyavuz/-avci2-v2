@@ -223,6 +223,21 @@ def process_due(c,source):
         out.append((r,px,ch,peak,max_gain))
     return out
 
+def simple_result(ch,max_gain):
+    if max_gain is None and ch is None:
+        return "⚪️ ÖLÇÜLEMEDİ","fiyat verisi eksik"
+    mg=float(max_gain or 0)
+    final=float(ch or 0)
+    if mg>=10:
+        return "🟢 BAŞARILI",f"sinyalden sonra en az +%10 gördü"
+    if mg>=5:
+        return "🟡 KISMİ BAŞARI",f"sinyalden sonra +%5 ile +%10 arası yükseldi"
+    if final<=-7:
+        return "🔴 BAŞARISIZ",f"72 saat sonunda yaklaşık %{final:+.1f}"
+    if mg>=3:
+        return "🟡 ZAYIF DEVAM",f"yükseldi ama +%5 seviyesine ulaşamadı"
+    return "🔴 DEVAM GELMEDİ",f"sinyalden sonra anlamlı yükseliş oluşmadı"
+
 def send_followups(db,source,rows):
     if not rows:
         return
@@ -231,11 +246,18 @@ def send_followups(db,source,rows):
         return
     chat=resolve_chat_id(token,(os.getenv("TELEGRAM_CHAT_ID") or "").strip(),db,
                          "Binance Motor" if source=="BINANCE" else "Gate Web3 Motor")
-    lines=["⏱ 3 GÜN SONRA KONTROL"]
+    name="BINANCE" if source=="BINANCE" else "GATE WEB3"
+    lines=[f"⏱ {name} — 3 GÜN SONRA SONUÇ",""]
     for r,px,ch,peak,max_gain in rows:
-        gain="-" if max_gain is None else f"%{max_gain:+.1f}"
-        current="-" if ch is None else f"%{ch:+.1f}"
-        lines.append(f"• {r['display_name']}: 3 günde en fazla {gain} | 72s sonu {current}")
+        label,reason=simple_result(ch,max_gain)
+        gain="ölçülemedi" if max_gain is None else f"%{max_gain:+.1f}"
+        current="ölçülemedi" if ch is None else f"%{ch:+.1f}"
+        lines.append(f"{label} — {r['display_name']}")
+        lines.append(f"• En iyi gördüğü seviye: {gain}")
+        lines.append(f"• 72 saat sonundaki durum: {current}")
+        lines.append(f"• Kısaca: {reason}")
+        lines.append("")
+    lines.append("Not: Bu sonuçlar sinyal geldikten sonraki hareketi ölçer; sinyal öncesi yükseliş başarı sayılmaz.")
     send_telegram(token,chat,"\n".join(lines)[:3900])
 
 def main():
