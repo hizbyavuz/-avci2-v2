@@ -178,6 +178,10 @@ jobs:
         continue-on-error: true
         run: python -u research_validation_layer.py gate
 
+      - name: Run Gate edge-hardening diagnostics
+        continue-on-error: true
+        run: python -u research_edge_hardening.py gate
+
       - name: Enforce Gate frozen decision discipline
         continue-on-error: true
         run: python -u research_decision_discipline.py gate
@@ -331,6 +335,7 @@ jobs:
             avci_outcomes.db
             avci_validation_v5.db
             gate_research_validation.md
+            gate_edge_hardening.md
             research_gap_status_gate.json
             historical_timing_proxy_gate.json
             security_external_replay_report.json
