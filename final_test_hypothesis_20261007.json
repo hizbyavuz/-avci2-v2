@@ -1,0 +1,32 @@
+{
+  "name": "AVCI_FINAL_TEST_PRIMARY_HYPOTHESIS_V1",
+  "sealed_on": "2026-09-30",
+  "holdout_start_utc": "2026-10-07T00:00:00+00:00",
+  "status": "PRE_REGISTERED_RESEARCH_ONLY",
+  "scanner_rules_mutated": false,
+  "primary_hypothesis": "In BTC-DOWN episodes, frozen Avci candidates outperform same-scan matched controls on conditional-BTC-beta-residual, cost-stressed fixed-exit net return.",
+  "unit_of_inference": "72h overlapping market episode, not individual coin event",
+  "primary_comparison": "candidate minus same-scan matched-control fixed-exit return",
+  "primary_adjustments": [
+    "pre-signal conditional BTC beta residualization where data coverage is sufficient",
+    "2x transaction-cost stress",
+    "72h episode clustered bootstrap"
+  ],
+  "primary_success_rule": "Episode-cluster bootstrap 95% lower bound of matched candidate-control mean difference is greater than 0.",
+  "minimum_interpretability": [
+    "at least 10 independent BTC-DOWN episodes",
+    "matching coverage and covariate balance must be reported",
+    "no threshold or rule changes from FINAL_TEST outcomes"
+  ],
+  "secondary_diagnostics": [
+    "raw and effective sample size",
+    "MFE and MAE normalized by realized volatility when available",
+    "execution realism and gap-risk flags",
+    "candidate/control hit rates as descriptive only"
+  ],
+  "non_goals": [
+    "FINAL_TEST is not used to retune frozen v1/V5",
+    "MFE touch rate is not the primary success metric",
+    "Telegram scorecards are not selection criteria"
+  ]
+}
