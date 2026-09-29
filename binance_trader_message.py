@@ -95,6 +95,24 @@ def history_context(r):
         return f"(Son 90g dipten +%{gain:.0f} yaptı — yakın geçmişte büyük koşu var.)",-1
     return f"(Son 90g dipten +%{gain:.0f} — erkenlik açısından daha temiz.)",0
 
+def plain_late(value):
+    return {"LOW":"Düşük","MEDIUM":"Orta","HIGH":"Yüksek"}.get(str(value or "").upper(),"Bilinmiyor")
+
+def plain_decision(label):
+    return {
+        "GÜÇLÜ":("🟢","İZLEMEYE DEĞER"),
+        "ORTA":("🟡","BEKLE / TAKİP ET"),
+        "ZAYIF":("🔴","ŞİMDİLİK GİRME"),
+    }.get(label,("⚪️","BELİRSİZ"))
+
+def plain_live(value):
+    return {
+        "CONFIRMED":"güçlü kaldı",
+        "BORDERLINE":"sınırda",
+        "FADED":"hareket söndü",
+        "INSUFFICIENT":"veri yetersiz",
+    }.get(value,"veri yok")
+
 def reasons(r):
     sup=arr(r["support_json"])
     con=arr(r["counter_json"])
@@ -178,50 +196,30 @@ def main():
             for _,_,_,r,label,score,dq in ranked:
                 if shown>=3: break
                 record_label(c,ts,r["symbol"],label,r["price"])
-                lines.append(f"{icons[label]} {label} — {r['symbol']}")
-                hist_line,_=history_context(r)
-                lines.append(hist_line)
-                if table(c,"binance_history_context"):
-                    hc=c.execute("""SELECT * FROM binance_history_context
-                        WHERE scan_time_utc=? AND symbol=?
-                        ORDER BY created_at_utc DESC LIMIT 1""",(ts,r["symbol"])).fetchone()
-                    if hc:
-                        parts=[]
-                        if hc["winner_similarity_pct"] is not None:
-                            parts.append(f"Winner Anatomy %{float(hc['winner_similarity_pct']):.0f}")
-                        if hc["missed_similarity_pct"] is not None:
-                            parts.append(f"kaçırılan mover %{float(hc['missed_similarity_pct']):.0f}")
-                        if hc["first_anomaly_time_utc"]:
-                            gain="" if hc["gain_from_first_anomaly_pct"] is None else f" | ilk anomaliden %{float(hc['gain_from_first_anomaly_pct']):+.1f}"
-                            parts.append("ilk anomali kayıtlı"+gain)
-                        if parts:
-                            tag={"BOTH_SUPPORT":"iki tarihsel kaynak destekli",
-                                 "WINNER_ANATOMY_SUPPORT":"Winner Anatomy desteği",
-                                 "MISSED_MOVER_SUPPORT":"kaçırılan mover desteği",
-                                 "MIXED_OR_WEAK":"karışık/zayıf tarihsel benzerlik",
-                                 "INSUFFICIENT_HISTORY":"tarihsel örnek yetersiz"}.get(hc["context_status"],hc["context_status"])
-                            lines.append(f"• Tarihsel bağlam ({tag}): "+" | ".join(parts))
-                taker=float(r["taker_buy_ratio_15m"] or 0)
-                oi=r["oi_change_1h_pct"]
-                oi_text="veri yok" if oi is None else f"%{float(oi):+.1f}"
-                live={"CONFIRMED":"geçti","BORDERLINE":"sınırda","FADED":"söndü","INSUFFICIENT":"yetersiz"}.get(r["pool_status"],"veri yok")
-                lines.append(f"• Gerçek veri: 24s %{float(r['change_24h'] or 0):+.1f} | BTC'ye göre %{float(r['btc_relative_24h'] or 0):+.1f} | 15dk canlı takip: {live}")
-                lines.append(f"• Taker akışı (piyasa emriyle alıcı oranı): %{100*taker:.0f} | OI 1s (açık vadeli pozisyon değişimi): {oi_text}")
+                icon,decision=plain_decision(label)
                 sup=arr(r["support_json"]); con=arr(r["counter_json"])
-                why=sup[0] if sup else "birden fazla veri aynı yöne bakıyor"
-                risk=con[0] if con else "kritik karşı kanıt yok"
+                why=sup[0] if sup else "birden fazla veri aynı yönde"
+                risk=con[0] if con else "kritik karşı sinyal yok"
+                late="Bilinmiyor"
                 if dq:
-                    lines.append(f"• Bağımsız dayanak: {int(dq['independent_families'])} veri grubu | Geç kalma riski: {dq['late_risk']}")
+                    late=plain_late(dq["late_risk"])
                     if dq["late_risk"]!="LOW":
                         risk=str(dq["late_reason"] or risk)
-                lines.append(f"• Neden girilebilir: {why}")
-                lines.append(f"• Neden girilmez/beklenir: {risk}")
+
+                lines.append(f"{icon} {r['symbol']} — {decision}")
+                lines.append(f"• Durum: 24s %{float(r['change_24h'] or 0):+.1f} | BTC'ye göre %{float(r['btc_relative_24h'] or 0):+.1f} | 15dk: {plain_live(r['pool_status'])}")
+                lines.append(f"• Neden: {why}")
+                lines.append(f"• Risk: {risk}")
+                lines.append(f"• Geç kalma: {late}")
+
+                hist_line,_=history_context(r)
+                lines.append(f"• Geçmiş koşu: {hist_line.strip('()')}")
                 if dq and dq["empirical_probability"] is not None and int(dq["empirical_n"] or 0)>=8:
-                    lo=float(dq["empirical_ci_low"] or 0)*100
-                    hi=float(dq["empirical_ci_high"] or 0)*100
-                    lines.append(f"• Geçmiş olasılık: +%10 hedefi %{100*float(dq['empirical_probability']):.0f} (n={int(dq['empirical_n'])}, %95 aralık %{lo:.0f}–%{hi:.0f})")
-                if r["historical_candidate_n"]>=8 and r["historical_control_n"]>=8 and r["hit10_rate"] is not None and r["hit10_control"] is not None:
-                    lines.append(f"• Geçmiş benzerleri: +%10'a ulaşma %{100*float(r['hit10_rate']):.0f} | kontrol %{100*float(r['hit10_control']):.0f}")
+                    lines.append(f"• Benzer geçmiş: +%10'a ulaşma %{100*float(dq['empirical_probability']):.0f} (n={int(dq['empirical_n'])})")
+                elif r["historical_candidate_n"]>=8 and r["historical_control_n"]>=8 and r["hit10_rate"] is not None and r["hit10_control"] is not None:
+                    lines.append(f"• Benzer geçmiş: +%10 %{100*float(r['hit10_rate']):.0f} | kontrol %{100*float(r['hit10_control']):.0f}")
+                else:
+                    lines.append("• Benzer geçmiş: henüz yeterli örnek yok")
                 lines.append("")
                 shown+=1
 
@@ -244,23 +242,10 @@ def main():
                     lines.append("👀 ERKEN İZLEME — ALIM SİNYALİ DEĞİL")
                     for e in early:
                         why=arr(e["early_watch_reason_json"])
-                        why_text=", ".join(why) if why else "erken hareket izi"
-                        accel="-" if e["acceleration_ratio"] is None else f"{float(e['acceleration_ratio']):.1f}x"
-                        lines.append(f"• {e['symbol']} | 15dk %{float(e['change_15m'] or 0):+.1f} | 24s %{float(e['change_24h'] or 0):+.1f}")
-                        lines.append(f"  İz: {why_text} | hacim hızlanması: {accel} | alıcı oranı: %{100*float(e['taker_buy_ratio_15m'] or 0):.0f}")
-                        if table(c,"binance_history_context"):
-                            hc=c.execute("""SELECT * FROM binance_history_context
-                                WHERE scan_time_utc=? AND symbol=?
-                                ORDER BY created_at_utc DESC LIMIT 1""",(ts,e["symbol"])).fetchone()
-                            if hc:
-                                bits=[]
-                                if hc["winner_similarity_pct"] is not None:
-                                    bits.append(f"Winner Anatomy %{float(hc['winner_similarity_pct']):.0f}")
-                                if hc["missed_similarity_pct"] is not None:
-                                    bits.append(f"kaçırılan mover %{float(hc['missed_similarity_pct']):.0f}")
-                                if bits:
-                                    lines.append("  Tarihsel bağlam: "+" | ".join(bits)+" | sadece ek bilgi")
-                    lines.append("• Bu bölüm teyit bekleyen erken izdir; güvenlik/continuation tamamlanmadan alınabilir aday sayılmaz.")
+                        why_text=", ".join(why[:2]) if why else "erken hareket izi"
+                        lines.append(f"• {e['symbol']} — sadece izle")
+                        lines.append(f"  Neden: {why_text} | 15dk %{float(e['change_15m'] or 0):+.1f} | 24s %{float(e['change_24h'] or 0):+.1f}")
+                    lines.append("• Bunlar alım adayı değil; ana teyit gelirse üst bölüme çıkar.")
 
         # Accountability: show strong Spot movers even when core Avci did not recommend them.
         if table(c,"top_mover_audit"):
@@ -277,14 +262,13 @@ def main():
                     "MISSED":"kaçırdı",
                     "NOT_IN_SNAPSHOT":"evren kaydı yok",
                 }
-                for a in audits:
+                for a in audits[:5]:
                     label=status_text.get(a["audit_status"],a["audit_status"])
-                    # Compact on purpose: keep every missed mover in the one Binance message.
-                    reason=str(a["audit_reason"] or "").replace("Çekirdek tarama evreninden elendi: ","")
-                    lines.append(f"• {a['symbol']} %+{float(a['current_change_24h']):.1f} → {label} ({reason})")
-                lines.append("• Eşik: Binance Spot'ta 24s +%10 ve en az $3M hacim. Hepsi kayda alınır.")
+                    lines.append(f"• {a['symbol']} %{float(a['current_change_24h']):+.1f} → {label}")
+                if len(audits)>5:
+                    lines.append(f"• +{len(audits)-5} coin daha kayda alındı; Telegram'a taşınmadı.")
 
-        lines.append("Not: GÜÇLÜ = en çok dayanak var; yine de otomatik al emri değildir.")
+        lines.append("Not: Mesaj sadeleştirilmiştir. Ayrıntılı teknik veriler DB'de tutulur; sistem otomatik emir vermez.")
         c.commit()
 
     msg="\n".join(lines)
