@@ -24,11 +24,16 @@ def obj(s):
 
 def historical_context(v,e):
     # Strict peer: same ruleset + BTC regime, then fallback to ruleset only.
+    # AS-OF GUARD: a historical outcome may be used only if its entire 72h
+    # label horizon had already finished before the current signal existed.
+    # This prevents later outcomes from leaking into an earlier live dossier.
+    asof_ts=int(e["signal_ts"])
     rows=v.execute("""SELECT group_type,rulesets,btc_regime,result_5,result_10,result_15,status
         FROM validation_events WHERE status='CLOSED_72H'
           AND group_type IN ('CANDIDATE','EXPANDED_CANDIDATE','NEAR_MISS','RANDOM_CONTROL')
-          AND COALESCE(rulesets,'')=? AND COALESCE(btc_regime,'')=?""",
-        (e["rulesets"] or "",e["btc_regime"] or "")).fetchall()
+          AND COALESCE(rulesets,'')=? AND COALESCE(btc_regime,'')=?
+          AND horizon_end_ts<=?""",
+        (e["rulesets"] or "",e["btc_regime"] or "",asof_ts)).fetchall()
     strict=True
     cand=[r for r in rows if r["group_type"] in ("CANDIDATE","EXPANDED_CANDIDATE")]
     ctrl=[r for r in rows if r["group_type"] in ("NEAR_MISS","RANDOM_CONTROL")]
@@ -37,7 +42,8 @@ def historical_context(v,e):
         rows=v.execute("""SELECT group_type,rulesets,btc_regime,result_5,result_10,result_15,status
             FROM validation_events WHERE status='CLOSED_72H'
               AND group_type IN ('CANDIDATE','EXPANDED_CANDIDATE','NEAR_MISS','RANDOM_CONTROL')
-              AND COALESCE(rulesets,'')=?""",(e["rulesets"] or "",)).fetchall()
+              AND COALESCE(rulesets,'')=?
+              AND horizon_end_ts<=?""",(e["rulesets"] or "",asof_ts)).fetchall()
         cand=[r for r in rows if r["group_type"] in ("CANDIDATE","EXPANDED_CANDIDATE")]
         ctrl=[r for r in rows if r["group_type"] in ("NEAR_MISS","RANDOM_CONTROL")]
     out={"peer_mode":"STRICT_RULESET_REGIME" if strict else "RULESET_ONLY",
