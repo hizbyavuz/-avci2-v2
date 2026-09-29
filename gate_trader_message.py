@@ -204,6 +204,24 @@ def signal_strength(r):
         return "ORTA",score
     return "ZAYIF",score
 
+def plain_late(value):
+    return {"LOW":"Düşük","MEDIUM":"Orta","HIGH":"Yüksek"}.get(str(value or "").upper(),"Bilinmiyor")
+
+def plain_decision(label):
+    return {
+        "GÜÇLÜ":("🟢","İZLEMEYE DEĞER"),
+        "ORTA":("🟡","BEKLE / TAKİP ET"),
+        "ZAYIF":("🔴","ŞİMDİLİK GİRME"),
+    }.get(label,("⚪️","BELİRSİZ"))
+
+def plain_security(value):
+    return {
+        "STRONG":"güvenlik teyidi güçlü",
+        "MEDIUM":"bazı güvenlik kontrolleri eksik/uyarı var",
+        "WEAK":"güvenlik zayıf",
+        "UNKNOWN":"güvenlik verisi eksik",
+    }.get(str(value or "").upper(),str(value or "bilinmiyor"))
+
 def decision_quality(c,batch,contract):
     if not table(c,"decision_quality"): return None
     return c.execute("""SELECT * FROM decision_quality
@@ -307,50 +325,49 @@ def main():
                     live_rejected.append((name,f"canlı likidite {money(live.get('liquidity'))} < {money(LIVE_MIN_LIQUIDITY_USD)}"))
                     continue
 
-                lines.append(f"{icons[label]} {label} — {name} [{network}]")
-                lines.append(f"• Kontrat: {contract}")
-                hist_line,_=gate_history_context(c,network,contract)
-                lines.append(hist_line)
-                if table(c,"gate_history_bridge"):
-                    hb=c.execute("""SELECT status,patterns_json,activation_name,validation_json
-                        FROM gate_history_bridge WHERE batch_id=? AND network_id=? AND token_contract=?
-                        ORDER BY created_at_utc DESC LIMIT 1""",(batch,network,contract)).fetchone()
-                    if hb:
-                        pats="/".join(arr(hb["patterns_json"])) or "-"
-                        if hb["status"]=="HISTORY_FDR_SUPPORTED":
-                            lines.append(f"• Geçmiş Kazıcı: GÜÇLÜ DESTEK | {pats} | aktivasyon: {hb['activation_name']} | FDR geçti")
-                        elif hb["status"]=="HISTORY_PATTERN_ONLY":
-                            lines.append(f"• Geçmiş Kazıcı: DESEN VAR | {pats} | aktivasyon/FDR teyidi yok")
+                icon,decision=plain_decision(label)
+                lines.append(f"{icon} {name} [{network}] — {decision}")
                 obs=c.execute("""SELECT price,change_24h,liquidity,buys_5m,sells_5m,own_volume_ratio
                     FROM gate_early_observations WHERE batch_id=? AND network_id=? AND token_contract=? LIMIT 1""",
                     (batch,network,contract)).fetchone() if table(c,"gate_early_observations") else None
+
+                flow=0.0
+                vr="-"
                 if obs:
                     entry_price=float(live.get("price") or obs["price"] or 0)
                     record_label(c,batch,network,contract,name,label,entry_price,health["scan_ts"])
                     b=float(live.get("buys_5m") or 0); sv=float(live.get("sells_5m") or 0)
                     flow=(b/max(sv,1.0)) if b+sv else 0
                     vr="-" if obs["own_volume_ratio"] is None else f"{float(obs['own_volume_ratio']):.1f}x"
-                    lines.append(f"• Canlı veri: 24s %{float(live.get('change_24h') or 0):+.1f} | likidite {money(live.get('liquidity'))} | hacim anomalisi (kendi normaline göre): {vr} | 5dk alıcı/satıcı: {flow:.1f}x")
+
                 if "support_json" in r.keys():
                     sup=arr(r["support_json"]); con=arr(r["counter_json"])
-                    why=sup[0] if sup else "birden fazla on-chain veri aynı yöne bakıyor"
-                    risk=con[0] if con else "kritik karşı kanıt yok"
-                    if dq:
-                        lines.append(f"• Bağımsız dayanak: {int(dq['independent_families'])} veri grubu | Geç kalma riski: {dq['late_risk']}")
-                        if dq["late_risk"]!="LOW":
-                            risk=str(dq["late_reason"] or risk)
-                    lines.append(f"• Neden girilebilir: {why}")
-                    lines.append(f"• Neden girilmez/beklenir: {risk}")
-                    lines.append(f"• Güvenlik: {r['security_label']} | Exit (satış/çıkış uygulanabilirliği): {r['execution_quality']}")
-                    if dq and dq["empirical_probability"] is not None and int(dq["empirical_n"] or 0)>=8:
-                        lo=float(dq["empirical_ci_low"] or 0)*100
-                        hi=float(dq["empirical_ci_high"] or 0)*100
-                        lines.append(f"• Geçmiş olasılık: +%10 hedefi %{100*float(dq['empirical_probability']):.0f} (n={int(dq['empirical_n'])}, %95 aralık %{lo:.0f}–%{hi:.0f})")
+                    why=sup[0] if sup else "birden fazla on-chain veri aynı yönde"
+                    risk=con[0] if con else "kritik karşı sinyal yok"
                 else:
                     ev=arr(r["evidence_json"]) if "evidence_json" in r.keys() else []
                     why=ev[0] if ev else "erken aktivite görülüyor"
-                    lines.append(f"• Neden izlenir: {why}")
-                    lines.append("• Neden henüz girilmez: güvenlik/çıkış ve devam teyidi tamamlanmadı")
+                    risk="güvenlik/çıkış ve devam teyidi tamamlanmadı"
+
+                late="Bilinmiyor"
+                if dq:
+                    late=plain_late(dq["late_risk"])
+                    if dq["late_risk"]!="LOW":
+                        risk=str(dq["late_reason"] or risk)
+
+                lines.append(f"• Durum: 24s %{float(live.get('change_24h') or 0):+.1f} | likidite {money(live.get('liquidity'))} | alıcı/satıcı {flow:.1f}x")
+                lines.append(f"• Neden: {why}")
+                lines.append(f"• Risk: {risk}")
+                lines.append(f"• Güvenlik: {plain_security(r['security_label'] if 'security_label' in r.keys() else 'UNKNOWN')} | satış/çıkış: {r['execution_quality'] if 'execution_quality' in r.keys() else 'henüz teyit yok'}")
+                lines.append(f"• Geç kalma: {late}")
+
+                hist_line,_=gate_history_context(c,network,contract)
+                lines.append(f"• Geçmiş koşu: {hist_line.strip('()')}")
+                if dq and dq["empirical_probability"] is not None and int(dq["empirical_n"] or 0)>=8:
+                    lines.append(f"• Benzer geçmiş: +%10'a ulaşma %{100*float(dq['empirical_probability']):.0f} (n={int(dq['empirical_n'])})")
+                else:
+                    lines.append("• Benzer geçmiş: henüz yeterli örnek yok")
+                lines.append(f"• Kontrat: {contract}")
                 lines.append("")
                 shown+=1
 
@@ -410,18 +427,10 @@ def main():
             for e in early_rows:
                 if e["pair"] in used: continue
                 used.add(e["pair"])
-                rt="-" if e["round_trip_1k_pct"] is None else f"%{float(e['round_trip_1k_pct']):.1f}"
-                lines.append(f"• {e['pair']} | 24s %{float(e['change_24h'] or 0):+.1f} | yol: {e['entry_path']} | $1k gidiş-dönüş: {rt}")
-                lines.append(f"  Kontrat [{e['network_id']}]: {e['token_contract']}")
-                if table(c,"gate_history_bridge"):
-                    hb=c.execute("""SELECT status,patterns_json,activation_name FROM gate_history_bridge
-                        WHERE batch_id=? AND pair=? ORDER BY created_at_utc DESC LIMIT 1""",(batch,e["pair"])).fetchone()
-                    if hb and hb["status"] in ("HISTORY_FDR_SUPPORTED","HISTORY_PATTERN_ONLY"):
-                        pats="/".join(arr(hb["patterns_json"])) or "-"
-                        tag="FDR destekli" if hb["status"]=="HISTORY_FDR_SUPPORTED" else "desen eşleşmesi"
-                        lines.append(f"  Geçmiş Kazıcı: {tag} | {pats} | aktivasyon: {hb['activation_name'] or '-'}")
+                lines.append(f"• {e['pair']} — sadece izle | 24s %{float(e['change_24h'] or 0):+.1f}")
+                lines.append(f"  Neden: erken hareket izi var; güvenlik ve satış teyidi henüz tamamlanmadı.")
                 if len(used)>=3: break
-            lines.append("• Bu bölüm yalnızca RAW DISCOVERY'dir: güvenlik + holder/LP + gerçek satış/çıkış teyidi tamamlanmadan ERKEN İZLEME veya alınabilir aday sayılmaz.")
+            lines.append("• Bunlar alım adayı değil; tüm güvenlik/çıkış kontrolleri geçerse üst bölüme çıkar.")
 
         # Full Gate Spot coverage audit. Prefer the all-tradable-pairs audit so
         # low-liquidity movers are still visible as diagnostics; never promote
@@ -446,18 +455,13 @@ def main():
                     "CAUGHT":"yakaladı",
                     "LATE_CAUGHT":"geç yakaladı",
                 }
-                for a in cov[:6]:
+                for a in cov[:4]:
                     label=status_text.get(a["coverage_status"],a["coverage_status"])
                     symbol=a["symbol"] or a["pair"]
-                    lines.append(f"• {symbol} %+{float(a['current_change_24h']):.1f} | hacim {money(a['volume_24h'])} → {label}")
-                if len(cov)>6:
-                    counts={}
-                    for a in cov[6:]:
-                        key=status_text.get(a["coverage_status"],a["coverage_status"])
-                        counts[key]=counts.get(key,0)+1
-                    summary=", ".join(f"{k}: {v}" for k,v in sorted(counts.items()))
-                    lines.append(f"• +{len(cov)-6} büyük mover daha kayıtlı ({summary}).")
-                lines.append("• Bu bölüm alım önerisi değil; Gate Spot'taki büyük hareketlerin sistemde nerede kaldığını gösterir.")
+                    lines.append(f"• {symbol} %{float(a['current_change_24h']):+.1f} → {label}")
+                if len(cov)>4:
+                    lines.append(f"• +{len(cov)-4} büyük hareket daha DB'de kayıtlı.")
+                lines.append("• Bu bölüm sadece sistemin kaçırma/erken yakalama denetimidir.")
         elif table(c,"gate_top_mover_audit"):
             latest_spot=c.execute("""SELECT spot_batch_id FROM gate_top_mover_audit
                 ORDER BY created_scan_ts DESC LIMIT 1""").fetchone()
@@ -490,7 +494,7 @@ def main():
             print("Gate Telegram early-watch selected:", " || ".join(selected_early[:3]) if selected_early else "NONE")
         except Exception:
             pass
-        lines.append("Not: GÜÇLÜ = yön + güvenlik + çıkış tarafında en çok dayanak; otomatik al emri değildir.")
+        lines.append("Not: Mesaj sadeleştirilmiştir. Teknik ayrıntılar DB'de kalır; sistem otomatik emir vermez.")
         c.commit()
 
     msg="\n".join(lines)
