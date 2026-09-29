@@ -133,6 +133,23 @@ def plain_live(value):
         "INSUFFICIENT":"veri yetersiz",
     }.get(value,"veri yok")
 
+def plain_early_reason(values):
+    mapping={
+        "SILENT_ACCUMULATION":"hacim/fiyat sessizce güçleniyor",
+        "POSSIBLE_FOLLOWER":"önde giden coinleri takip etme ihtimali var",
+        "WAKE_UP":"normaline göre erken hareket başladı",
+        "REIGNITION":"ilk hareketten sonra yeniden hızlanıyor",
+        "FOLLOWER":"sektör hareketini takip ediyor",
+        "LEADER":"grubunda öne çıkıyor",
+    }
+    out=[]
+    for value in values:
+        key=str(value or "").strip().upper()
+        text=mapping.get(key)
+        if text and text not in out:
+            out.append(text)
+    return ", ".join(out[:2]) if out else "erken hareket izi var"
+
 def reasons(r):
     sup=arr(r["support_json"])
     con=arr(r["counter_json"])
@@ -209,7 +226,8 @@ def main():
                f"• {cap_line}",
                ""]
         if not ranked:
-            lines.append("🚫 Bu taramada alınabilir görünen coin yok.")
+            lines.append("🔴 ALINABİLİR ADAY YOK")
+            lines.append("• Şu an ana kuralları geçen coin çıkmadı.")
         else:
             icons={"GÜÇLÜ":"🟢","ORTA":"🟡","ZAYIF":"⚪️"}
             shown=0
@@ -262,13 +280,15 @@ def main():
                              COALESCE(f.taker_buy_ratio_15m,0) DESC LIMIT 3""",(ts,)).fetchall()
                 if early:
                     lines.append("")
-                    lines.append("👀 ERKEN İZLEME — ALIM SİNYALİ DEĞİL")
+                    lines.append("🟡 ERKEN İZLEME")
                     for e in early:
                         why=arr(e["early_watch_reason_json"])
-                        why_text=", ".join(why[:2]) if why else "erken hareket izi"
-                        lines.append(f"• {e['symbol']} — sadece izle")
-                        lines.append(f"  Neden: {why_text} | 15dk %{float(e['change_15m'] or 0):+.1f} | 24s %{float(e['change_24h'] or 0):+.1f}")
-                    lines.append("• Bunlar alım adayı değil; ana teyit gelirse üst bölüme çıkar.")
+                        why_text=plain_early_reason(why)
+                        lines.append(f"🟡 {e['symbol']} — İZLE")
+                        lines.append(f"• Neden: {why_text}.")
+                        lines.append(f"• Hareket: 15dk %{float(e['change_15m'] or 0):+.1f} | 24s %{float(e['change_24h'] or 0):+.1f}")
+                        lines.append("• Karar: Henüz alma; ana teyit bekleniyor.")
+                    lines.append("• 🟡 = erken izleme; alım sinyali değil.")
 
         # Accountability: show strong Spot movers even when core Avci did not recommend them.
         if table(c,"top_mover_audit"):
@@ -278,7 +298,7 @@ def main():
                 ORDER BY current_change_24h DESC""",(ts,)).fetchall()
             if audits:
                 lines.append("")
-                lines.append(f"🔎 KAÇIRILAN / GEÇ YAKALANANLAR ({len(audits)})")
+                lines.append(f"⚪ KAÇIRILAN / GEÇ YAKALANANLAR ({len(audits)})")
                 status_text={
                     "LATE_CAUGHT":"geç gördü",
                     "OUTSIDE_CORE_UNIVERSE":"evren dışında kaldı",
@@ -287,11 +307,13 @@ def main():
                 }
                 for a in audits[:5]:
                     label=status_text.get(a["audit_status"],a["audit_status"])
-                    lines.append(f"• {a['symbol']} %{float(a['current_change_24h']):+.1f} → {label}")
+                    lines.append(f"⚪ {a['symbol']} %{float(a['current_change_24h']):+.1f} — {label}")
                 if len(audits)>5:
                     lines.append(f"• +{len(audits)-5} coin daha kayda alındı; Telegram'a taşınmadı.")
 
-        lines.append("Not: Mesaj sadeleştirilmiştir. Ayrıntılı teknik veriler DB'de tutulur; sistem otomatik emir vermez.")
+        lines.append("")
+        lines.append("Renkler: 🟢 güçlü aday | 🟡 izle/bekle | 🔴 girme | ⚪ kaçırılan/geç")
+        lines.append("Not: Teknik ayrıntılar DB'de tutulur; sistem otomatik emir vermez.")
         c.commit()
 
     msg="\n".join(lines)
