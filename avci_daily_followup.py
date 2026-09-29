@@ -157,28 +157,44 @@ def format_price(value):
 
 def build_message(day, rows, repo, run_id):
     available = [r for r in rows if r["24s_degisimi_yuzde"] is not None]
-    lines = [f"📊 AVCI | {day} SİNYALLERİNİN 24 SAAT SONRAKİ DURUMU",
-             "Bu rapor sinyalden tam 24 saat sonraki fiyatı karşılaştırır. "
-             "Arada erişilen en yüksek fiyatı veya gerçekleşen kârı göstermez.",
-             "Saatler Türkiye saatidir. Bot hesabında işlem yapmadı.", ""]
+    up = [r for r in available if r["24s_degisimi_yuzde"] > 0]
+    down = [r for r in available if r["24s_degisimi_yuzde"] <= 0]
+    hit5 = [r for r in available if r["24s_degisimi_yuzde"] >= 5]
+    hit10 = [r for r in available if r["24s_degisimi_yuzde"] >= 10]
+
+    lines = [
+        f"📊 AVCI — {day} | 24 SAAT SONRA",
+        f"• Toplam aday: {len(rows)} | ölçülen: {len(available)}",
+    ]
+    if available:
+        lines.append(
+            f"• Pozitif kalan: {len(up)}/{len(available)} | +%5 üstü: {len(hit5)} | +%10 üstü: {len(hit10)}"
+        )
+    lines.append("")
+
     if not rows:
-        lines.append("Bu gün iki sistemde de yeni izleme adayı yok.")
-    for item in rows[:16]:
-        move = (f"{item['24s_degisimi_yuzde']:+.2f}%" if item["24s_degisimi_yuzde"]
-                 is not None else "ölçülemedi")
-        extra = f" ({item['ag']}, {item['kontrat'][:8]}...)" if item["ag"] else ""
-        lines.append(f"• {item['sistem']} {item['coin']}{extra} | {move}")
-        lines.append(f"  Sinyal: {item['sinyal_zamani_turkiye']} • "
-                     f"{format_price(item['sinyal_fiyati_usd'])} → "
-                     f"24 saat sonra {format_price(item['24s_fiyati_usd'])}")
-        if item["24s_degisimi_yuzde"] is None:
-            lines.append(f"  Neden: {item['olcum']}")
-    if len(rows) > 16:
-        lines.append(f"Diğer {len(rows)-16} adayın kaydı bağlantıda.")
-    lines.extend(["", f"Toplam {len(rows)} aday • 24 saatlik fiyatı ölçülen: {len(available)} "
-                   f"• Henüz ölçülemeyen/verisi eksik: {len(rows)-len(available)}.",
-                   "Bütün adayların tablosu:",
-                  f"https://github.com/{repo}/actions/runs/{run_id}"])
+        lines.append("Bu gün Binance ve Gate tarafında yeni aday yoktu.")
+    else:
+        ranked = sorted(
+            rows,
+            key=lambda r: r["24s_degisimi_yuzde"] if r["24s_degisimi_yuzde"] is not None else -10**9,
+            reverse=True,
+        )
+        for item in ranked[:10]:
+            if item["24s_degisimi_yuzde"] is None:
+                lines.append(f"⚪️ {item['sistem']} {item['coin']} — ölçülemedi ({item['olcum']})")
+                continue
+            move=item["24s_degisimi_yuzde"]
+            icon="🟢" if move>=5 else ("🟡" if move>0 else "🔴")
+            lines.append(f"{icon} {item['sistem']} {item['coin']} — 24s {move:+.2f}%")
+        if len(rows)>10:
+            lines.append(f"• +{len(rows)-10} aday daha tabloda kayıtlı.")
+
+    lines.extend([
+        "",
+        "Not: Bu rapor sinyalden tam 24 saat sonraki fiyatı gösterir; aradaki en yüksek kazancı göstermez.",
+        f"Tüm kayıtlar: https://github.com/{repo}/actions/runs/{run_id}",
+    ])
     return "\n".join(lines)
 
 
