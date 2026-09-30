@@ -9,6 +9,9 @@ on:
       - "audit_write_only_20260930.py"
       - "new_launch_audit_observer.py"
       - "final_test_hypothesis_20261007.json"
+      - "AVCI_CONFIRMATORY_PREREG_2026-09-30.md"
+      - "strict_execution_evidence.py"
+      - "preholdout_integrity_audit.py"
       - "research_gap_audit.py"
       - "institutional_validation_suite.py"
       - "avci_global_stress.py"
@@ -77,6 +80,8 @@ jobs:
           python -m py_compile \
             research_validation_layer.py \
             research_edge_hardening.py \
+            strict_execution_evidence.py \
+            preholdout_integrity_audit.py \
             audit_write_only_20260930.py \
             new_launch_audit_observer.py \
             research_gap_audit.py \
@@ -116,6 +121,9 @@ jobs:
             gate_trader_message.py
           python -m json.tool research_validation_spec.json >/dev/null
           python -m json.tool final_test_hypothesis_20261007.json >/dev/null
+
+      - name: Run pre-holdout integrity inventory
+        run: python -u preholdout_integrity_audit.py
 
       - name: Run validation-layer tests
         run: python -m unittest tests.test_research_validation_layer -v
