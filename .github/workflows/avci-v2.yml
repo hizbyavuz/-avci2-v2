@@ -21,9 +21,9 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
       - name: Restore Avci DB
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830
         with:
           path: |
             avci2.db
@@ -63,12 +63,12 @@ jobs:
           fi
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: "3.12"
 
       - name: Install requests and Turso sync client
-        run: pip install requests pyturso==0.7.2
+        run: pip install requests==2.32.5 pyturso==0.7.2
 
       - name: Restore verified real fill observations
         continue-on-error: true
@@ -322,7 +322,7 @@ jobs:
 
       - name: Save Avci DB
         if: success()
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830
         with:
           path: |
             avci2.db
@@ -331,7 +331,7 @@ jobs:
           key: avci2-db-${{ github.run_id }}
       - name: Publish shared signal history
         if: success()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: gate-avci2-signal-history
           path: |
@@ -354,7 +354,7 @@ jobs:
 
       - name: Save independent Gate daily archive
         if: steps.daily.outputs.needed == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: ${{ steps.daily.outputs.name }}
           path: |
