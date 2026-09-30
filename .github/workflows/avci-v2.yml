@@ -182,6 +182,10 @@ jobs:
         continue-on-error: true
         run: python -u research_edge_hardening.py gate
 
+      - name: Record strict Gate execution evidence
+        continue-on-error: true
+        run: python -u strict_execution_evidence.py gate
+
       - name: Enforce Gate frozen decision discipline
         continue-on-error: true
         run: python -u research_decision_discipline.py gate
