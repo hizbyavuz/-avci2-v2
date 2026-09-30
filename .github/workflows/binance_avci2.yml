@@ -43,7 +43,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
 
       - name: Restore latest research state
         env:
@@ -51,7 +51,7 @@ jobs:
         run: python avci_state_guard.py restore-binance
 
       - name: Setup Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
         with:
           python-version: "3.12"
 
@@ -212,7 +212,7 @@ jobs:
 
 
       - name: Upload research state
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: binance-avci2-state
           path: |
@@ -233,7 +233,7 @@ jobs:
 
       - name: Save independent daily archive
         if: steps.daily.outputs.needed == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: ${{ steps.daily.outputs.name }}
           path: binance_avci2.db
