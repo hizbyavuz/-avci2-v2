@@ -19,6 +19,60 @@ GECKO_BASE_URL="https://api.geckoterminal.com/api/v2"
 LIVE_MIN_LIQUIDITY_USD=15000.0
 LIVE_TIMEOUT_SECONDS=12
 
+NOTIFY_REAPPEAR_HOURS=6
+
+def init_notification_state(c):
+    c.execute("""CREATE TABLE IF NOT EXISTS trader_notification_state(
+      source TEXT NOT NULL,lane TEXT NOT NULL,asset_key TEXT NOT NULL,
+      last_label TEXT,last_score REAL,last_reignition INTEGER NOT NULL DEFAULT 0,
+      last_seen_utc TEXT NOT NULL,last_notified_utc TEXT,
+      PRIMARY KEY(source,lane,asset_key)
+    )""")
+
+def notification_decision(c,source,lane,asset_key,label,score,seen_at,reignition=False):
+    """Telegram-only dedupe. Never changes signal selection, scoring, or research logs."""
+    init_notification_state(c)
+    now_text=seen_at.isoformat()
+    old=c.execute("""SELECT * FROM trader_notification_state
+        WHERE source=? AND lane=? AND asset_key=?""",(source,lane,asset_key)).fetchone()
+    event=None
+    if old is None:
+        event="NEW"
+    else:
+        try:
+            last_seen=datetime.fromisoformat(str(old["last_seen_utc"]).replace("Z","+00:00"))
+            gap_h=max(0.0,(seen_at-last_seen).total_seconds()/3600.0)
+        except Exception:
+            gap_h=0.0
+        rank={"ZAYIF":1,"ORTA":2,"GÜÇLÜ":3}
+        old_label=str(old["last_label"] or "")
+        if gap_h>=NOTIFY_REAPPEAR_HOURS:
+            event="REIGNITED"
+        elif label!=old_label:
+            if rank.get(label,0)>rank.get(old_label,0):
+                event="STRENGTHENED"
+            else:
+                event="CHANGED"
+        elif reignition and not int(old["last_reignition"] or 0):
+            event="REIGNITED"
+        elif score is not None and old["last_score"] is not None and float(score)-float(old["last_score"])>=3:
+            event="STRENGTHENED"
+
+    last_notified=(now_text if event else (old["last_notified_utc"] if old else None))
+    c.execute("""INSERT OR REPLACE INTO trader_notification_state
+      (source,lane,asset_key,last_label,last_score,last_reignition,last_seen_utc,last_notified_utc)
+      VALUES(?,?,?,?,?,?,?,?)""",
+      (source,lane,asset_key,label,score,1 if reignition else 0,now_text,last_notified))
+    return event
+
+def notification_prefix(event):
+    return {
+        "NEW":"🆕 YENİ",
+        "STRENGTHENED":"⬆️ GÜÇLENDİ",
+        "REIGNITED":"🔥 YENİDEN CANLANDI",
+        "CHANGED":"↔️ DURUM DEĞİŞTİ",
+    }.get(event,"")
+
 def table(c,t):
     return c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",(t,)).fetchone() is not None
 
@@ -315,6 +369,8 @@ def main():
 
         ranked.sort(key=lambda x:(x[0],x[1],x[2]))
         init_label_ledger(c)
+        init_notification_state(c)
+        notify_now=datetime.fromtimestamp(int(health["scan_ts"]),timezone.utc)
         cap_status,cap_reason=capital_status(c)
         cap_line="🔒 Gerçek para kapısı kapalı" if cap_status!="OPEN" else "🔓 Gerçek para kapısı açık"
         lines=["🛰 GATE WEB3 AVCI",
@@ -333,6 +389,12 @@ def main():
                 network=r["network_id"]
                 contract=r["token_contract"]
                 name=(r["symbol"] if "symbol" in r.keys() and r["symbol"] else symbol_for(c,network,contract))
+                asset_key=f"{network}:{contract}"
+                notify_event=notification_decision(
+                    c,"GATE","CANDIDATE",asset_key,label,score,notify_now,False
+                )
+                if not notify_event:
+                    continue
 
                 # Son ağır taramada iyi görünen token dakikalar içinde likidite
                 # kaybedebilir. Telegram'a aday basmadan hemen önce canlı Web3
@@ -347,7 +409,8 @@ def main():
                     continue
 
                 icon,decision=plain_decision(label)
-                lines.append(f"{icon} {name} [{network}] — {decision}")
+                prefix=notification_prefix(notify_event)
+                lines.append(f"{icon} {prefix} | {name} [{network}] — {decision}")
                 obs=c.execute("""SELECT price,change_24h,liquidity,buys_5m,sells_5m,own_volume_ratio
                     FROM gate_early_observations WHERE batch_id=? AND network_id=? AND token_contract=? LIMIT 1""",
                     (batch,network,contract)).fetchone() if table(c,"gate_early_observations") else None
@@ -400,8 +463,7 @@ def main():
                 shown+=1
 
             if shown==0:
-                lines.append("🔴 ALINABİLİR ADAY YOK")
-                lines.append("• Canlı Web3 doğrulamasını geçen token çıkmadı.")
+                lines.append("ℹ️ Yeni/değişen aday yok; aynı durumdaki tokenlar Telegram'da tekrar edilmedi.")
             if live_rejected:
                 preview="; ".join(f"{n}: {reason}" for n,reason in live_rejected[:3])
                 extra=len(live_rejected)-3
@@ -450,18 +512,29 @@ def main():
                         existing.add(key)
                 early_rows=early_rows[:3]
         if early_rows:
-            lines.append("")
-            lines.append("🟡 ERKEN İZLEME")
+            early_lines=[]
             used=set()
             for e in early_rows:
                 if e["pair"] in used: continue
                 used.add(e["pair"])
-                lines.append(f"🟡 {e['pair']} — İZLE")
-                lines.append(f"• Hareket: 24s %{float(e['change_24h'] or 0):+.1f}")
-                lines.append("• Neden: erken hareket var ama güvenlik ve satılabilirlik henüz tamamlanmadı.")
-                lines.append("• Karar: Henüz alma; tüm kontrollerin geçmesini bekle.")
+                asset_key=f"{e['network_id']}:{e['token_contract']}"
+                early_score=float(e["rise_pct"] or e["change_24h"] or 0)
+                early_label=str(e["entry_path"] or "EARLY_WATCH")
+                notify_event=notification_decision(
+                    c,"GATE","EARLY",asset_key,early_label,early_score,notify_now,False
+                )
+                if not notify_event:
+                    continue
+                early_lines.append(f"🟡 {notification_prefix(notify_event)} | {e['pair']} — İZLE")
+                early_lines.append(f"• Hareket: 24s %{float(e['change_24h'] or 0):+.1f}")
+                early_lines.append("• Neden: erken hareket var ama güvenlik ve satılabilirlik henüz tamamlanmadı.")
+                early_lines.append("• Karar: Henüz alma; tüm kontrollerin geçmesini bekle.")
                 if len(used)>=3: break
-            lines.append("• 🟡 = erken izleme; alım sinyali değil.")
+            if early_lines:
+                lines.append("")
+                lines.append("🟡 ERKEN İZLEME")
+                lines.extend(early_lines)
+                lines.append("• 🟡 = erken izleme; alım sinyali değil.")
 
         # Full Gate Spot coverage audit. Prefer the all-tradable-pairs audit so
         # low-liquidity movers are still visible as diagnostics; never promote
