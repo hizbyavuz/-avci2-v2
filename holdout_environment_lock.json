@@ -1,0 +1,17 @@
+{
+  "version": "avci-holdout-environment-lock-v1-20260930",
+  "python": "3.12",
+  "packages": {
+    "requests": "2.32.5",
+    "pyturso": "0.7.2"
+  },
+  "github_actions": {
+    "actions/checkout@v5": "fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09",
+    "actions/checkout@v4": "11d5960a326750d5838078e36cf38b85af677262",
+    "actions/setup-python@v6": "ece7cb06caefa5fff74198d8649806c4678c61a1",
+    "actions/setup-python@v5": "a26af69be951a213d495a4c3e4e4022e16d87065",
+    "actions/upload-artifact@v4": "ea165f8d65b6e75b540449e92b4886f43607fa02",
+    "actions/cache@v4": "0057852bfaa89a56745cba8c7296529d2fc39830"
+  },
+  "rule": "Protected workflow/runtime changes require the intervention protocol and output-equivalence evidence or a new prospective version."
+}
