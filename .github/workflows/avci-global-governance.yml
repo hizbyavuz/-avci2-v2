@@ -5,6 +5,7 @@ on:
   push:
     paths:
       - "avci_global_governance.py"
+      - "audit_write_only_20260930.py"
       - "research_validation_spec.json"
       - "institutional_model_registry.py"
       - "avci_global_stress.py"
@@ -52,6 +53,24 @@ jobs:
           AVCI_DB: .global/gate/avci2.db
           AVCI_VALIDATION_DB: .global/gate/avci_validation_v5.db
         run: python -u avci_global_governance.py
+
+      - name: Run independent-audit write-only layer
+        env:
+          BINANCE_DB: .global/binance/binance_avci2.db
+          AVCI_DB: .global/gate/avci2.db
+          AVCI_VALIDATION_DB: .global/gate/avci_validation_v5.db
+        run: python -u audit_write_only_20260930.py all
+
+      - name: Upload isolated audit-enriched state copies
+        uses: actions/upload-artifact@v4
+        with:
+          name: avci-writeonly-audit-state
+          path: |
+            .global/binance/binance_avci2.db
+            .global/gate/avci2.db
+          if-no-files-found: error
+          retention-days: 30
+          overwrite: true
 
       - name: Build institutional model registry
         run: python -u institutional_model_registry.py
