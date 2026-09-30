@@ -2,7 +2,7 @@
   "name": "AVCI_FINAL_TEST_PRIMARY_HYPOTHESIS_V1",
   "sealed_on": "2026-09-30",
   "holdout_start_utc": "2026-10-07T00:00:00+00:00",
-  "status": "PRE_REGISTERED_RESEARCH_ONLY",
+  "status": "PRE_REGISTERED_RESEARCH_ONLY_PRE_HOLDOUT",
   "scanner_rules_mutated": false,
   "primary_hypothesis": "In BTC-DOWN episodes, frozen Avci candidates outperform same-scan matched controls on conditional-BTC-beta-residual, cost-stressed fixed-exit net return.",
   "unit_of_inference": "72h overlapping market episode, not individual coin event",
@@ -28,5 +28,61 @@
     "FINAL_TEST is not used to retune frozen v1/V5",
     "MFE touch rate is not the primary success metric",
     "Telegram scorecards are not selection criteria"
-  ]
+  ],
+  "canonical_role": "This file is the single confirmatory hypothesis contract for the 2026-10-07 prospective holdout. Other targets/horizons are secondary unless explicitly listed here.",
+  "engine_scope": {
+    "binance": "Confirmatory only where the required BTC-DOWN, same-scan matched-control, residual and execution-stress evidence exists.",
+    "gate": "Reported separately; it may not substitute for the primary hypothesis unless a future prospective version pre-registers a Gate-specific primary hypothesis.",
+    "new_launch": "Exploratory/observational only; excluded from this confirmatory claim."
+  },
+  "primary_endpoint": {
+    "horizon_hours": 72,
+    "return_definition": "fixed-exit net return after 2x transaction-cost stress, residualized for pre-signal conditional BTC beta where coverage is sufficient",
+    "comparison": "candidate minus same-scan matched control",
+    "inference_unit": "72h overlapping market episode",
+    "regime": "BTC-DOWN",
+    "success_rule": "episode-cluster bootstrap lower confidence bound > 0 under the registered sequential alpha rule"
+  },
+  "secondary_only": [
+    "+3/+5/+7/+10/+15 barrier hit rates and hit times",
+    "MFE/MAE and raw/executable MFE",
+    "Telegram/PAPER_ELIGIBLE outcomes",
+    "other BTC regimes",
+    "Gate weighted discovery and New Launch",
+    "subgroup/feature-combination results"
+  ],
+  "sequential_testing": {
+    "effective_n_checkpoints": [
+      50,
+      100,
+      200
+    ],
+    "checkpoint_50": "diagnostic only; cannot authorize tiny-live review",
+    "family_alpha": 0.025,
+    "multiplicity_rule": "three-look Bonferroni within the primary family",
+    "nominal_alpha_per_registered_look": 0.008333333333333333,
+    "activation_note": "Statistical success alone never authorizes live trading; all governance/execution/data-quality gates remain required."
+  },
+  "execution_evidence": {
+    "hierarchy": [
+      "REALIZED_FILL",
+      "BARRIER_TIME_QUOTE",
+      "SIGNAL_TIME_QUOTE_OR_BOOK",
+      "MODEL_ONLY",
+      "MISSING"
+    ],
+    "rule": "Quote-observed cost is never called realized cost. Missing realized fills remain missing.",
+    "primary_reporting": "Report evidence-grade coverage beside the primary result."
+  },
+  "data_failure_sensitivity": {
+    "rule": "Report primary result and a pessimistic sensitivity treating unresolved/data-failure candidate outcomes as stop/loss.",
+    "tiny_live_block": "If pessimistic candidate-control expectancy is <= 0, tiny-live review is blocked."
+  },
+  "metric_clarifications": {
+    "event_series_sharpe_sortino": "Diagnostic only; sqrt(365) event-series annualization cannot substitute for a time-normalized portfolio Sharpe/Sortino.",
+    "timeout_expectancy": "Timeout returns remain in the return series; expectancy is not computed only from win/loss classes.",
+    "mae": "Diagnostic adverse excursion should be floored at zero when the path never moves adversely.",
+    "primary_bootstrap_samples": 2000
+  },
+  "no_post_start_edits": "After 2026-10-07T00:00:00Z, any semantic change requires a new prospective version/cohort."
 }
