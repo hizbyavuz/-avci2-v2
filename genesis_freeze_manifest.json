@@ -1,17 +1,19 @@
 {
-  "version": "genesis-freeze-v1-20260927",
-  "sealed_at_utc": "2026-09-26T20:35:50Z",
-  "baseline_git_commit": "9d3c428c63b1282e97c7a22a3925d3d679a2c8e2",
+  "version": "genesis-freeze-v2-20260930",
+  "sealed_at_utc": "2026-09-30T18:18:00Z",
+  "baseline_git_commit": "21032dba3bdf9fb2830d5e9795e4537f35995419",
   "genesis_holdout_start_utc": "2026-10-07T00:00:00+00:00",
-  "status": "SEALED_PRE_HOLDOUT",
-  "purpose": "Prospective untouched holdout integrity. Baseline git commit is the canonical byte-level reference.",
+  "status": "RESEALED_PRE_HOLDOUT",
+  "purpose": "Prospective untouched holdout integrity after transparent pre-holdout reseal. Previous baseline was superseded because semantic selection/validation drift was found before holdout start.",
   "policy": {
     "after_holdout_start": "Any semantic change to a contamination-sensitive file contaminates this version. Do not repair in place; create a new version/cohort.",
     "operational_fix_rule": "Operational changes are allowed only when they cannot change selection, feature values, labels, execution assumptions, security eligibility, targets/stops, or validation decisions. They must be logged.",
     "no_retroactive_reseal": true,
     "no_threshold_tuning_from_holdout": true,
     "no_feature_selection_from_holdout": true,
-    "no_optional_stopping_outside_registered_checkpoints": true
+    "no_optional_stopping_outside_registered_checkpoints": true,
+    "pre_holdout_reseal_rule": "Before holdout start, material semantic drift requires explicit audit plus transparent reseal or revert. Silent classification as operational is prohibited.",
+    "contract_hash_guard": "Canonical final-test JSON SHA-256 and protected-file byte drift are enforced by CI."
   },
   "contamination_sensitive_files": [
     "research_validation_spec.json",
@@ -40,7 +42,13 @@
     "research_decision_discipline.py",
     "research_p0_governance.py",
     "institutional_signal_overlay.py",
-    "institutional_validation_suite.py"
+    "institutional_validation_suite.py",
+    "research_windows.py",
+    "final_test_hypothesis_20261007.json",
+    "final_test_contract_lock.json",
+    "final_test_contract_guard.py",
+    "strict_execution_evidence.py",
+    ".github/workflows/research-validation-ci.yml"
   ],
   "outcome_contract": {
     "horizons_hours": [
@@ -82,8 +90,22 @@
     "min_execution_coverage": 0.9
   },
   "notes": [
+    "2026-09-30 reseal is prospective and occurs before the 2026-10-07 holdout; PREHOLDOUT_RESEAL_REPORT_2026-09-30.md documents the reason.",
     "Historical/discovery evidence before genesis is not untouched OOS.",
     "Yellow weighted discovery is a separate observational cohort and is not allowed to alter frozen V5 membership/statistics.",
     "Passing the research gate permits only tiny-live review; it never authorizes automatic trading."
-  ]
+  ],
+  "supersedes": {
+    "version": "genesis-freeze-v1-20260927",
+    "baseline_git_commit": "9d3c428c63b1282e97c7a22a3925d3d679a2c8e2",
+    "reason": "Pre-holdout audit found material selection/validation semantic changes, including Binance 90-day runner eligibility and Gate validation-cohort qualification. Old baseline is not used for the 2026-10-07 untouched holdout."
+  },
+  "canonical_final_test_contract": {
+    "file": "final_test_hypothesis_20261007.json",
+    "lock_file": "final_test_contract_lock.json",
+    "guard_file": "final_test_contract_guard.py",
+    "sha256": "93492e20a7c06988f0e65f03a953865f6b223fdf664c5d8721c797f7439af3c4",
+    "canonical_contract_commit": "dadada65ed6cb7a16c6ae7ca3d0c7665db55ae5a",
+    "primary_engine": "BINANCE"
+  }
 }
