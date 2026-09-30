@@ -1,0 +1,14 @@
+{
+  "version": "avci-final-test-contract-lock-v1-20260930",
+  "sealed_at_utc": "2026-09-30T18:18:00Z",
+  "holdout_start_utc": "2026-10-07T00:00:00+00:00",
+  "canonical_file": "final_test_hypothesis_20261007.json",
+  "canonical_commit": "dadada65ed6cb7a16c6ae7ca3d0c7665db55ae5a",
+  "canonical_git_blob_sha": "b34b70b1a892d3aad190b11d0051d726d6b6b475",
+  "canonical_sha256": "93492e20a7c06988f0e65f03a953865f6b223fdf664c5d8721c797f7439af3c4",
+  "primary_engine": "BINANCE",
+  "primary_regime": "BTC-DOWN at scan time: Binance BTCUSDT spot 24h priceChangePercent <= -2.0%",
+  "primary_endpoint": "72h same-scan matched candidate-control fixed-exit net-return difference, pre-signal conditional BTC-beta residualized where eligible, under 2x transaction-cost stress, inferred by overlapping 72h market episode",
+  "mutation_rule": "After holdout start, any byte change to the canonical contract or semantic change to protected research files requires a new prospective version/cohort.",
+  "old_baseline_superseded": "9d3c428c63b1282e97c7a22a3925d3d679a2c8e2"
+}
