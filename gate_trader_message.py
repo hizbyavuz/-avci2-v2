@@ -19,6 +19,7 @@ GECKO_BASE_URL="https://api.geckoterminal.com/api/v2"
 LIVE_MIN_LIQUIDITY_USD=15000.0
 LIVE_TIMEOUT_SECONDS=12
 GATE_TRADER_MAX_SPOT_AGE_SECONDS=int(os.getenv("GATE_TRADER_MAX_SPOT_AGE_SECONDS","900"))
+GATE_TRADER_MAX_HEAVY_AGE_SECONDS=int(os.getenv("GATE_TRADER_MAX_HEAVY_AGE_SECONDS","7200"))
 
 NOTIFY_REAPPEAR_HOURS=6
 
@@ -324,9 +325,11 @@ def main():
         if not health:
             print("Gate trader message: valid scan yok"); return
         batch=health["batch_id"]
+        heavy_age_seconds=int(datetime.now(timezone.utc).timestamp())-int(health["scan_ts"])
+        heavy_fresh=(-60 <= heavy_age_seconds <= GATE_TRADER_MAX_HEAVY_AGE_SECONDS)
 
         rows=[]
-        if table(c,"gate_candidate_evidence") and table(c,"trade_readiness") and table(c,"gate_security_confidence_history"):
+        if heavy_fresh and table(c,"gate_candidate_evidence") and table(c,"trade_readiness") and table(c,"gate_security_confidence_history"):
             rows=c.execute("""SELECT e.*,tr.readiness,tr.execution_quality,tr.historical_edge,
                        s.label security_label,s.hard_veto
                 FROM gate_candidate_evidence e
@@ -371,14 +374,17 @@ def main():
         ranked.sort(key=lambda x:(x[0],x[1],x[2]))
         init_label_ledger(c)
         init_notification_state(c)
-        notify_now=datetime.fromtimestamp(int(health["scan_ts"]),timezone.utc)
+        notify_now=datetime.now(timezone.utc)
         cap_status,cap_reason=capital_status(c)
         cap_line="🔒 Gerçek para kapısı kapalı" if cap_status!="OPEN" else "🔓 Gerçek para kapısı açık"
         lines=["🛰 GATE WEB3 AVCI",
                f"• İzlenen: {health['observed_tokens']} token | {cap_line}",
                ""]
 
-        if not ranked:
+        if not heavy_fresh:
+            lines.append("⚠️ ANA WEB3 TARAMASI TAZE DEĞİL")
+            lines.append("• Eski ağır taramadan aday göstermedim; yeni geçerli Web3 taraması bekleniyor.")
+        elif not ranked:
             lines.append("🔴 ALINABİLİR ADAY YOK")
             lines.append("• Şu an güvenlik + çıkış kontrollerini geçen token çıkmadı.")
         else:
