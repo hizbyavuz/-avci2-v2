@@ -11,6 +11,8 @@ from binance_notify import resolve_chat_id, send_telegram
 
 DB=os.getenv("BINANCE_DB","binance_avci2.db")
 
+BINANCE_TRADER_MAX_SCAN_AGE_SECONDS=int(os.getenv("BINANCE_TRADER_MAX_SCAN_AGE_SECONDS","4500"))
+
 NOTIFY_REAPPEAR_HOURS=6
 
 def init_notification_state(c):
@@ -242,8 +244,16 @@ def main():
         if not scan:
             print("Binance trader message: scan yok"); return
         ts=scan["scan_time_utc"]
+        try:
+            scan_dt=datetime.fromisoformat(str(ts).replace("Z","+00:00"))
+            if scan_dt.tzinfo is None:
+                scan_dt=scan_dt.replace(tzinfo=timezone.utc)
+            scan_age_seconds=(datetime.now(timezone.utc)-scan_dt).total_seconds()
+            scan_fresh=(-60 <= scan_age_seconds <= BINANCE_TRADER_MAX_SCAN_AGE_SECONDS)
+        except Exception:
+            scan_fresh=False
         rows=[]
-        if table(c,"binance_candidate_evidence") and table(c,"trade_readiness"):
+        if scan_fresh and table(c,"binance_candidate_evidence") and table(c,"trade_readiness"):
             rows=c.execute("""SELECT e.*,f.price,f.change_24h,f.btc_relative_24h,
                        f.taker_buy_ratio_15m,f.retention,f.persistence,f.reignition,
                        f.oi_change_1h_pct,f.funding_rate,
@@ -284,7 +294,11 @@ def main():
                f"• BTC: %{float(scan['btc_change_24h']):+.2f} | Piyasa: {scan['btc_regime']}",
                f"• {cap_line}",
                ""]
-        if not ranked:
+        if not scan_fresh:
+            lines.append("⚠️ VERİ TAZE DEĞİL")
+            lines.append("• Son Binance taraması güncel değil; eski snapshot'tan coin göstermedim.")
+            lines.append("• Yeni geçerli tarama gelince adaylar yeniden değerlendirilecek.")
+        elif not ranked:
             lines.append("🔴 ALINABİLİR ADAY YOK")
             lines.append("• Şu an ana kuralları geçen coin çıkmadı.")
         else:
@@ -334,7 +348,7 @@ def main():
 
         # Observation-only early lane: visible before a coin becomes a full candidate.
         # Never promoted to GÜÇLÜ/ORTA/ZAYIF and never recorded as a recommendation.
-        if table(c,"opportunity_observations"):
+        if scan_fresh and table(c,"opportunity_observations"):
             cols={row[1] for row in c.execute("PRAGMA table_info(opportunity_observations)")}
             if "early_watch" in cols:
                 early=c.execute("""SELECT o.symbol,o.early_watch_reason_json,
@@ -370,7 +384,7 @@ def main():
                         lines.append("• 🟡 = erken izleme; alım sinyali değil.")
 
         # Accountability: show strong Spot movers even when core Avci did not recommend them.
-        if table(c,"top_mover_audit"):
+        if scan_fresh and table(c,"top_mover_audit"):
             audits=c.execute("""SELECT * FROM top_mover_audit
                 WHERE scan_time_utc=?
                   AND audit_status IN ('MISSED','LATE_CAUGHT','OUTSIDE_CORE_UNIVERSE','NOT_IN_SNAPSHOT')
