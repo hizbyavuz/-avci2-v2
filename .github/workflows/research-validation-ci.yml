@@ -6,6 +6,8 @@ on:
     paths:
       - "research_validation_layer.py"
       - "research_edge_hardening.py"
+      - "audit_write_only_20260930.py"
+      - "new_launch_audit_observer.py"
       - "final_test_hypothesis_20261007.json"
       - "research_gap_audit.py"
       - "institutional_validation_suite.py"
@@ -75,6 +77,8 @@ jobs:
           python -m py_compile \
             research_validation_layer.py \
             research_edge_hardening.py \
+            audit_write_only_20260930.py \
+            new_launch_audit_observer.py \
             research_gap_audit.py \
             institutional_validation_suite.py \
             avci_global_stress.py \
