@@ -6,6 +6,7 @@ on:
     branches: [main]
     paths:
       - "new_launch_avci.py"
+      - "new_launch_audit_observer.py"
       - ".github/workflows/new-launch-avci.yml"
   schedule:
     - cron: "3,13,23,33,43,53 * * * *"
@@ -84,6 +85,11 @@ jobs:
           HELIUS_API_KEY: ${{ secrets.HELIUS_API_KEY }}
           SOLANA_RPC_URL: ${{ secrets.SOLANA_RPC_URL }}
         run: python -u new_launch_avci.py
+
+      - name: Append write-only audit outcomes
+        env:
+          NEW_LAUNCH_DB: .new-launch-state/new_launch_avci.db
+        run: python -u new_launch_audit_observer.py
 
       - name: Persist isolated New Launch state
         if: always()
