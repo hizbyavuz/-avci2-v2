@@ -684,23 +684,32 @@ def scan():
 
 def format_message(result):
     run_id,ts,net_ok,pools,obs,cands,errors=result
+    display_cands=[]
+    with sqlite3.connect(DB,timeout=30) as c:
+        c.row_factory=sqlite3.Row
+        init_notification_state(c)
+        for r,sec,d in cands:
+            event=should_notify_candidate(c,ts,r,d)
+            if event:
+                display_cands.append((r,sec,d,event))
+        c.commit()
     lines=[
         "🍼 NEW LAUNCH AVCI",
         "• Çok yeni tokenları tarar | 🔒 sadece gözlem",
         f"• {net_ok}/{len(NETWORKS)} ağ çalıştı | {pools} yeni havuz görüldü | {obs} detaylı incelendi",
         "",
     ]
-    if not cands:
+    if not display_cands:
         lines += [
-            "🚫 Bu tur izlemeye değer yeni token çıkmadı.",
-            "Bu normal: zayıf token sırf mesaj gelsin diye öne çıkarılmaz.",
+            "ℹ️ Yeni/değişen erken aday yok.",
+            "Aynı durumda kalan tokenlar Telegram'da tekrar edilmedi; tarama ve kayıt devam ediyor.",
         ]
     else:
-        for r,sec,d in cands[:MAX_MESSAGE_CANDIDATES]:
+        for r,sec,d,notify_event in display_cands[:MAX_MESSAGE_CANDIDATES]:
             late={"LOW":"Düşük","MEDIUM":"Orta","HIGH":"Yüksek"}.get(d["late_risk"],"Bilinmiyor")
             why="; ".join(d["reasons"][:2]) if d["reasons"] else "erken aktivite güçleniyor"
             risk="; ".join(d["warnings"][:2]) if d["warnings"] else "anlık ek uyarı yok; likidite yine de değişebilir"
-            lines.append(f"🟡 {r['symbol']} [{r['network']}] — SADECE İZLE")
+            lines.append(f"🟡 {notification_prefix(notify_event)} | {r['symbol']} [{r['network']}] — SADECE İZLE")
             lines.append(f"• Yaş: {r['age_min']:.0f} dk | hareket: 5dk %{r['change_5m']:+.1f} | 1s %{r['change_1h']:+.1f}")
             lines.append(f"• Neden: {why}")
             lines.append(f"• Risk: {risk}")
