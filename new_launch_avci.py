@@ -45,6 +45,10 @@ MAX_CANDIDATE_CHANGE = 90.0
 LATE_CHANGE = 150.0
 MIN_RETENTION = 70.0
 MIN_SCORE_CANDIDATE = 7
+# Anti-rug / stale-snapshot guardrails for this isolated New Launch motor.
+# These do not touch Binance Avci or Gate Web3 Avci frozen rules.
+MAX_LIQUIDITY_DROP_PCT = -20.0
+LIVE_RECHECK_MIN_RATIO = 0.80
 MAX_MESSAGE_CANDIDATES = 4
 REQUEST_TIMEOUT = 15
 
@@ -403,8 +407,12 @@ def classify(c, row, sec):
     if liq_growth is not None:
         if liq_growth>=10:
             score+=1; reasons.append(f"likidite %{liq_growth:+.0f} büyüdü")
-        elif liq_growth<=-20:
-            score-=2; warnings.append(f"likidite %{liq_growth:+.0f} düştü")
+        elif liq_growth<=MAX_LIQUIDITY_DROP_PCT:
+            score-=6; warnings.append(f"LIKIDITE COKUSU %{liq_growth:+.0f}")
+    else:
+        # First sighting is useful discovery, but one liquidity snapshot is not
+        # evidence that liquidity will persist.
+        warnings.append("likidite tek ölçüm; kalıcılık henüz doğrulanmadı")
 
     if sec["label"]=="STRONG":
         score+=2; reasons.append("güvenlik güçlü")
@@ -425,7 +433,11 @@ def classify(c, row, sec):
     if turnover>20:
         score-=2; warnings.append(f"hacim/likidite aşırı {turnover:.1f}x")
 
-    hard=(liq<MIN_LIQUIDITY or sec["hard_veto"])
+    hard=(
+        liq<MIN_LIQUIDITY
+        or sec["hard_veto"]
+        or (liq_growth is not None and liq_growth<=MAX_LIQUIDITY_DROP_PCT)
+    )
     core_activity=(
         row["volume_5m"]>=MIN_VOLUME_5M
         and row["tx_5m"]>=MIN_TX_5M
@@ -629,6 +641,32 @@ def scan():
         for r in inspect:
             sec=security(r["network"],r["contract"])
             d=classify(c,r,sec)
+
+            # Candidate snapshots can become stale during the same scan on very
+            # new pools. Re-read the deepest pool immediately before an alert.
+            # If liquidity vanished or materially shrank, fail closed.
+            if d["classification"]=="CANDIDATE":
+                live=refresh_token_pool(r["network"],r["contract"])
+                if live:
+                    live_liq=num(live.get("liquidity"))
+                    scan_liq=max(num(r.get("liquidity")),1.0)
+                    live_ratio=live_liq/scan_liq
+                    if live_liq<MIN_LIQUIDITY or live_ratio<LIVE_RECHECK_MIN_RATIO:
+                        d["classification"]="REJECT"
+                        d["score"]-=6
+                        d["warnings"].insert(
+                            0,
+                            f"canlı tekrar kontrolde likidite düştü: "
+                            f"{money(scan_liq)} → {money(live_liq)}"
+                        )
+                        # Record the freshest market state so the collapse is
+                        # preserved in the observation history.
+                        r=live
+                    else:
+                        # Use the freshest price/liquidity in the recorded alert.
+                        r=live
+                        d=classify(c,r,sec)
+
             record(c,run_id,ts,r,sec,d)
             if d["classification"]=="CANDIDATE":
                 candidates.append((r,sec,d))
@@ -661,7 +699,7 @@ def format_message(result):
         for r,sec,d in cands[:MAX_MESSAGE_CANDIDATES]:
             late={"LOW":"Düşük","MEDIUM":"Orta","HIGH":"Yüksek"}.get(d["late_risk"],"Bilinmiyor")
             why="; ".join(d["reasons"][:2]) if d["reasons"] else "erken aktivite güçleniyor"
-            risk="; ".join(d["warnings"][:2]) if d["warnings"] else "şimdilik belirgin ek uyarı yok"
+            risk="; ".join(d["warnings"][:2]) if d["warnings"] else "anlık ek uyarı yok; likidite yine de değişebilir"
             lines.append(f"🟡 {r['symbol']} [{r['network']}] — SADECE İZLE")
             lines.append(f"• Yaş: {r['age_min']:.0f} dk | hareket: 5dk %{r['change_5m']:+.1f} | 1s %{r['change_1h']:+.1f}")
             lines.append(f"• Neden: {why}")
