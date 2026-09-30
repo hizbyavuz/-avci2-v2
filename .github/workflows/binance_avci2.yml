@@ -154,6 +154,10 @@ jobs:
       - name: Run outcome labeler
         run: python -u binance_outcome_labeler.py
 
+      - name: Record strict Binance execution evidence
+        continue-on-error: true
+        run: python -u strict_execution_evidence.py binance
+
       - name: Compare candidates with Winner Anatomy
         run: python -u binance_winner_bridge.py
 
