@@ -563,14 +563,10 @@ def main():
         # Full Gate Spot coverage audit. Prefer the all-tradable-pairs audit so
         # low-liquidity movers are still visible as diagnostics; never promote
         # them into GÜÇLÜ/ORTA/ZAYIF or bypass security/tradability gates.
-        if table(c,"gate_full_mover_coverage"):
-            latest_cov=c.execute("""SELECT spot_batch_id FROM gate_full_mover_coverage
-                ORDER BY created_scan_ts DESC LIMIT 1""").fetchone()
-            cov=[]
-            if latest_cov:
-                cov=c.execute("""SELECT * FROM gate_full_mover_coverage
-                    WHERE spot_batch_id=? AND current_change_24h>=40
-                    ORDER BY current_change_24h DESC""",(latest_cov["spot_batch_id"],)).fetchall()
+        if spot_fresh and spot_batch and table(c,"gate_full_mover_coverage"):
+            cov=c.execute("""SELECT * FROM gate_full_mover_coverage
+                WHERE spot_batch_id=? AND current_change_24h>=40
+                ORDER BY current_change_24h DESC""",(spot_batch,)).fetchall()
             if cov:
                 lines.append("")
                 lines.append(f"⚪ KAÇIRILAN / GEÇ YAKALANANLAR — +%40 ({len(cov)})")
@@ -590,15 +586,11 @@ def main():
                 if len(cov)>4:
                     lines.append(f"• +{len(cov)-4} büyük hareket daha DB'de kayıtlı.")
                 lines.append("• Bu bölüm sadece sistemin kaçırma/erken yakalama denetimidir.")
-        elif table(c,"gate_top_mover_audit"):
-            latest_spot=c.execute("""SELECT spot_batch_id FROM gate_top_mover_audit
-                ORDER BY created_scan_ts DESC LIMIT 1""").fetchone()
-            audits=[]
-            if latest_spot:
-                audits=c.execute("""SELECT * FROM gate_top_mover_audit
-                    WHERE spot_batch_id=?
-                      AND audit_status IN ('MISSED','LATE_CAUGHT','NO_CONTRACT_MAPPING','NO_ONCHAIN_HISTORY')
-                    ORDER BY current_change_24h DESC""",(latest_spot["spot_batch_id"],)).fetchall()
+        elif spot_fresh and spot_batch and table(c,"gate_top_mover_audit"):
+            audits=c.execute("""SELECT * FROM gate_top_mover_audit
+                WHERE spot_batch_id=?
+                  AND audit_status IN ('MISSED','LATE_CAUGHT','NO_CONTRACT_MAPPING','NO_ONCHAIN_HISTORY')
+                ORDER BY current_change_24h DESC""",(spot_batch,)).fetchall()
             if audits:
                 lines.append("")
                 lines.append(f"⚪ KAÇIRILAN / GEÇ YAKALANANLAR ({len(audits)})")
