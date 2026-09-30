@@ -34,17 +34,18 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: python avci_state_guard.py restore-gate
 
-      - name: Restore Gate fast-watch cooldown ledger
-        continue-on-error: true
+      - name: Restore Gate fast presentation state
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          set -euo pipefail
           mkdir -p .gate-fast
           run_id=$(gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts?name=gate-fast-watch-ledger&per_page=100" \
             --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | reverse | .[0].workflow_run.id // empty')
           if test -n "$run_id"; then
             gh run download "$run_id" --name gate-fast-watch-ledger --dir .gate-fast
           fi
+          python -u trader_notification_state_io.py import .gate-fast/notification_state.db avci2.db
 
       - name: Restore latest Gate History evidence
         continue-on-error: true
@@ -82,20 +83,26 @@ jobs:
           HISTORY_DB: .history-state/history_miner.db
         run: python -u gate_history_bridge.py
 
-      - name: Save Gate fast-watch cooldown ledger
-        if: always()
-        continue-on-error: true
-        uses: actions/upload-artifact@v4
-        with:
-          name: gate-fast-watch-ledger
-          path: .gate-fast/watch_ledger.json
-          if-no-files-found: ignore
-          retention-days: 2
-          overwrite: true
-
       - name: Send consolidated Gate Web3 Telegram message
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           HELIUS_API_KEY: ${{ secrets.HELIUS_API_KEY }}
+          GATE_TRADER_MAX_SPOT_AGE_SECONDS: "900"
         run: python -u gate_trader_message.py
+
+      - name: Export Gate fast notification state
+        if: success()
+        run: python -u trader_notification_state_io.py export avci2.db .gate-fast/notification_state.db
+
+      - name: Save Gate fast presentation state
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate-fast-watch-ledger
+          path: |
+            .gate-fast/watch_ledger.json
+            .gate-fast/notification_state.db
+          if-no-files-found: warn
+          retention-days: 2
+          overwrite: true
