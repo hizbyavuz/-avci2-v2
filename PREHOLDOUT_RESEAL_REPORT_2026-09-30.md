@@ -5,9 +5,7 @@ The previous baseline commit `9d3c428c63b1282e97c7a22a3925d3d679a2c8e2` is **sup
 
 Reason: the audit found real semantic drift after the old seal. Calling all drift "operational" would be inaccurate.
 
-The new prospective baseline is:
-
-`dadada65ed6cb7a16c6ae7ca3d0c7665db55ae5a`
+The final prospective baseline SHA is recorded in `genesis_freeze_manifest.json` after all pre-holdout governance, workflow and dependency-lock changes are complete.
 
 The planned holdout start remains **2026-10-07T00:00:00Z** because the reseal occurs before the holdout and the final contract is fixed before the protected period begins.
 
