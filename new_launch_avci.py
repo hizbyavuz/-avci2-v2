@@ -22,6 +22,47 @@ from datetime import datetime, timezone
 import requests
 
 DB = os.getenv("NEW_LAUNCH_DB", ".new-launch-state/new_launch_avci.db")
+NOTIFY_REAPPEAR_HOURS = 6
+
+def init_notification_state(c):
+    c.execute("""CREATE TABLE IF NOT EXISTS new_launch_notification_state(
+      network TEXT NOT NULL,contract TEXT NOT NULL,last_class TEXT,last_score REAL,
+      last_seen_ts INTEGER NOT NULL,last_notified_ts INTEGER,
+      PRIMARY KEY(network,contract)
+    )""")
+
+def should_notify_candidate(c,ts,row,d):
+    """Telegram-only dedupe. Scanner observations and signal counters remain untouched."""
+    init_notification_state(c)
+    key=(row["network"],row["contract"])
+    old=c.execute("""SELECT * FROM new_launch_notification_state
+        WHERE network=? AND contract=?""",key).fetchone()
+    event=None
+    if old is None:
+        event="NEW"
+    else:
+        gap_h=max(0.0,(ts-int(old["last_seen_ts"] or ts))/3600.0)
+        if gap_h>=NOTIFY_REAPPEAR_HOURS:
+            event="REIGNITED"
+        elif str(old["last_class"] or "")!=str(d["classification"]):
+            event="CHANGED"
+        elif old["last_score"] is not None and float(d["score"])-float(old["last_score"])>=3:
+            event="STRENGTHENED"
+    notified=ts if event else (old["last_notified_ts"] if old else None)
+    c.execute("""INSERT OR REPLACE INTO new_launch_notification_state
+      (network,contract,last_class,last_score,last_seen_ts,last_notified_ts)
+      VALUES(?,?,?,?,?,?)""",
+      (row["network"],row["contract"],d["classification"],d["score"],ts,notified))
+    return event
+
+def notification_prefix(event):
+    return {
+        "NEW":"🆕 YENİ",
+        "STRENGTHENED":"⬆️ GÜÇLENDİ",
+        "REIGNITED":"🔥 YENİDEN CANLANDI",
+        "CHANGED":"↔️ DURUM DEĞİŞTİ",
+    }.get(event,"")
+
 GECKO = "https://api.geckoterminal.com/api/v2"
 NETWORKS = {
     "solana": "Solana",
