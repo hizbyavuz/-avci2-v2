@@ -390,11 +390,6 @@ def main():
                 contract=r["token_contract"]
                 name=(r["symbol"] if "symbol" in r.keys() and r["symbol"] else symbol_for(c,network,contract))
                 asset_key=f"{network}:{contract}"
-                notify_event=notification_decision(
-                    c,"GATE","CANDIDATE",asset_key,label,score,notify_now,False
-                )
-                if not notify_event:
-                    continue
 
                 # Son ağır taramada iyi görünen token dakikalar içinde likidite
                 # kaybedebilir. Telegram'a aday basmadan hemen önce canlı Web3
@@ -406,6 +401,12 @@ def main():
                     continue
                 if float(live.get("liquidity") or 0)<LIVE_MIN_LIQUIDITY_USD:
                     live_rejected.append((name,f"canlı likidite {money(live.get('liquidity'))} < {money(LIVE_MIN_LIQUIDITY_USD)}"))
+                    continue
+
+                notify_event=notification_decision(
+                    c,"GATE","CANDIDATE",asset_key,label,score,notify_now,False
+                )
+                if not notify_event:
                     continue
 
                 icon,decision=plain_decision(label)
