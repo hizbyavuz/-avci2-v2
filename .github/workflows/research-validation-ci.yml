@@ -9,6 +9,9 @@ on:
       - "audit_write_only_20260930.py"
       - "new_launch_audit_observer.py"
       - "final_test_hypothesis_20261007.json"
+      - "final_test_contract_lock.json"
+      - "final_test_contract_guard.py"
+      - "PREHOLDOUT_RESEAL_REPORT_2026-09-30.md"
       - "AVCI_CONFIRMATORY_PREREG_2026-09-30.md"
       - "strict_execution_evidence.py"
       - "preholdout_integrity_audit.py"
@@ -82,6 +85,7 @@ jobs:
             research_edge_hardening.py \
             strict_execution_evidence.py \
             preholdout_integrity_audit.py \
+            final_test_contract_guard.py \
             audit_write_only_20260930.py \
             new_launch_audit_observer.py \
             research_gap_audit.py \
@@ -121,6 +125,9 @@ jobs:
             gate_trader_message.py
           python -m json.tool research_validation_spec.json >/dev/null
           python -m json.tool final_test_hypothesis_20261007.json >/dev/null
+
+      - name: Run fail-closed final-test contract guard
+        run: python -u final_test_contract_guard.py
 
       - name: Run pre-holdout integrity inventory
         run: python -u preholdout_integrity_audit.py
