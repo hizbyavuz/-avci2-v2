@@ -36,15 +36,16 @@ jobs:
         run: pip install requests
 
       - name: Restore isolated New Launch state
-        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          set -euo pipefail
           mkdir -p .new-launch-state
           run_id=$(gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts?name=new-launch-avci-state&per_page=100" \
             --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | reverse | .[0].workflow_run.id // empty')
           if test -n "$run_id"; then
             gh run download "$run_id" --name new-launch-avci-state --dir .new-launch-state
+            test -s .new-launch-state/new_launch_avci.db
           fi
 
       - name: Bootstrap Telegram chat id without touching live motors
