@@ -1,9 +1,9 @@
 {
   "version": "genesis-freeze-v2-20260930",
-  "sealed_at_utc": "2026-09-30T18:18:00Z",
-  "baseline_git_commit": "21032dba3bdf9fb2830d5e9795e4537f35995419",
+  "sealed_at_utc": "2026-09-30T18:45:00Z",
+  "baseline_git_commit": "1a9d0a07826bdfebf857e73398dcac5f680497ae",
   "genesis_holdout_start_utc": "2026-10-07T00:00:00+00:00",
-  "status": "RESEALED_PRE_HOLDOUT",
+  "status": "RESEALED_PRE_HOLDOUT_FINAL",
   "purpose": "Prospective untouched holdout integrity after transparent pre-holdout reseal. Previous baseline was superseded because semantic selection/validation drift was found before holdout start.",
   "policy": {
     "after_holdout_start": "Any semantic change to a contamination-sensitive file contaminates this version. Do not repair in place; create a new version/cohort.",
@@ -13,7 +13,11 @@
     "no_feature_selection_from_holdout": true,
     "no_optional_stopping_outside_registered_checkpoints": true,
     "pre_holdout_reseal_rule": "Before holdout start, material semantic drift requires explicit audit plus transparent reseal or revert. Silent classification as operational is prohibited.",
-    "contract_hash_guard": "Canonical final-test JSON SHA-256 and protected-file byte drift are enforced by CI."
+    "contract_hash_guard": "Canonical final-test JSON SHA-256 and protected-file byte drift are enforced by CI.",
+    "intervention_protocol": "HOLDOUT_INTERVENTION_PROTOCOL_2026-09-30.md",
+    "environment_lock": "holdout_environment_lock.json",
+    "intervention_ledger": "holdout_interventions.jsonl",
+    "holdout_extension": "No extension in this version. At 120 days, insufficient evidence => INCONCLUSIVE_RESTART_VERSION."
   },
   "contamination_sensitive_files": [
     "research_validation_spec.json",
@@ -48,7 +52,15 @@
     "final_test_contract_lock.json",
     "final_test_contract_guard.py",
     "strict_execution_evidence.py",
-    ".github/workflows/research-validation-ci.yml"
+    ".github/workflows/research-validation-ci.yml",
+    "HOLDOUT_INTERVENTION_PROTOCOL_2026-09-30.md",
+    "holdout_environment_lock.json",
+    "holdout_interventions.jsonl",
+    "binance_requirements.txt",
+    ".github/workflows/binance_avci2.yml",
+    ".github/workflows/binance-money-flow.yml",
+    ".github/workflows/avci-v2.yml",
+    ".github/workflows/read-only-execution-evidence.yml"
   ],
   "outcome_contract": {
     "horizons_hours": [
