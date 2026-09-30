@@ -1,82 +1,78 @@
 # AVCI Confirmatory Pre-Registration Supplement — 2026-09-30
 
-Status: PRE-HOLDOUT, immutable after 2026-10-07T00:00:00Z except by starting a new version/cohort.
+**Canonical confirmatory contract:** `final_test_hypothesis_20261007.json`
 
-This supplement clarifies the confirmatory endpoint without changing any scanner selection threshold, feature, security veto, candidate membership rule, entry delay, target, stop, or execution assumption.
+This note is explanatory only. If any sentence here conflicts with the JSON contract, the JSON contract wins.
 
-## Scope
-- BINANCE and GATE are separate confirmatory engines.
-- NEW_LAUNCH is observational/exploratory only and cannot make either main engine pass.
-- No pooled "global success" may substitute for an engine-specific pass.
+## What happens on 7 October 2026?
+At **2026-10-07 00:00 UTC (03:00 Europe/Istanbul)** the prospective untouched holdout begins. Nothing starts trading automatically. From that timestamp onward, new observations are treated as protected FINAL_TEST evidence. Scanner rules, thresholds, features, candidate membership and confirmatory analysis definitions may not be tuned from those outcomes.
 
-## Prospective holdout
-- Start: 2026-10-07T00:00:00Z.
-- Pre-holdout data are discovery/calibration and are not untouched OOS evidence.
-- Minimum calendar age before go-live review: 60 days.
-- Maximum window: 120 days; insufficient evidence at that point => INCONCLUSIVE_RESTART_VERSION.
-- Results may be monitored continuously, but no rule/threshold/feature may be selected from holdout results.
+## What is the single primary confirmatory test?
+The pre-registered primary hypothesis remains:
 
-## Binance primary confirmatory endpoint
-- Cohort: frozen CANDIDATE events only; controls are contemporaneous NEAR_MISS + RANDOM_CONTROL under the same outcome/cost rules.
-- Entry: signal + 120 seconds, using the frozen executable-entry model.
-- Primary target: +10%.
-- Stop: -7%.
-- Primary horizon: 72 hours.
-- Path: first barrier; 1-minute path resolves same-candle ambiguity when available, otherwise stop-first.
-- Primary return series: 72h primary-barrier net_return_pct after the frozen cost model.
-- Primary contrast: mean(candidate net return) - mean(control net return).
-- Required direction: > 0, with the pre-registered economic floor of +0.50 percentage point retained as a separate economic-materiality gate.
-- Benchmark excess vs BTC remains required.
+> In BTC-DOWN episodes, frozen Avci candidates outperform same-scan matched controls on conditional-BTC-beta-residual, 2x transaction-cost-stressed, 72-hour fixed-exit net return.
 
-## Gate primary confirmatory endpoint
-- Cohort: frozen V5 CANDIDATE events only. EXPANDED/YELLOW/WEIGHTED discovery remains exploratory unless separately pre-registered in a future version.
-- Controls: contemporaneous NEAR_MISS + RANDOM_CONTROL exposed to the same 2-minute entry delay, barrier logic, horizon and cost accounting.
-- Entry delay: 2 minutes.
-- Primary target: +10%.
-- Stop: -7%.
-- Primary horizon: 72 hours.
-- Path: first barrier; 1-minute path where available, otherwise stop-first.
-- Primary return series: cost-adjusted validation net return. Quote-observed cost is not called realized cost.
-- Primary contrast: mean(candidate net return) - mean(control net return).
-- Required direction: > 0, with +0.50 percentage point retained as an economic-materiality gate.
+The unit of inference is the **72-hour overlapping market episode**, not each coin event.
 
-## Sequential looks / multiplicity
-- Effective-N checkpoints remain 50, 100 and 200.
-- N_eff=50 is diagnostic only; it cannot authorize tiny-live review.
-- A go-live review still requires all existing gates: >=60 calendar days, >=150 closed candidates, N_eff>=100, execution coverage, data-failure, drawdown, PF, Sharpe/Sortino and benchmark requirements.
-- To avoid repeated-look inflation, confirmatory significance is evaluated conservatively per engine with family alpha 0.025 and three-look Bonferroni allocation: alpha <= 0.00833 at each registered checkpoint. Exploratory subgroups/targets/regimes never substitute for the primary endpoint.
-- BH-FDR remains for exploratory checkpoint families; it does not replace the primary confirmatory rule above.
+The primary comparison is candidate minus same-scan matched-control return.
 
-## Data failures / survivorship
-- Unresolved, delisted, suspended or missing-data cases remain explicit.
-- Primary statistics do not silently convert them to success or ordinary loss.
-- A mandatory pessimistic sensitivity must also be reported with unresolved/data-failure candidate outcomes treated as stop/loss.
-- Tiny-live review is blocked if the pessimistic candidate-control expectancy is <= 0.
+## What is secondary?
+The following remain useful but cannot replace the primary confirmatory result:
+- +3/+5/+7/+10/+15 barrier hit rates and hit times;
+- +10 target / -7 stop first-touch outcomes;
+- MFE/MAE;
+- other BTC regimes;
+- Telegram/PAPER_ELIGIBLE outcomes;
+- feature combinations;
+- Gate weighted discovery;
+- New Launch.
 
-## Execution evidence hierarchy
-1. REALIZED_FILL — independently imported/read-only fill evidence.
-2. BARRIER_TIME_QUOTE — executable quote captured at/near the barrier time.
-3. SIGNAL_TIME_QUOTE / BOOK — observed but not barrier-time realized evidence.
-4. MODEL_ONLY — assumed fee/slippage/network cost.
-5. MISSING — no execution evidence; never imputed as realized.
+The Binance frozen outcome engine still records **+10 target / -7 stop / 72h** as its main operational barrier result, but that operational label is not allowed to silently replace the registered final-test hypothesis above.
 
-Primary reports must show coverage by evidence grade. Quote-observed is never labeled realized.
+## Engine separation
+- Binance, Gate and New Launch are not pooled into one success claim.
+- New Launch is observational and has no claim on this holdout.
+- Gate results are reported separately; they cannot rescue or replace the registered primary hypothesis.
+- A future Gate/New Launch confirmatory claim needs its own prospective version.
 
-## Readiness isolation
-- trade_readiness and trader-message layers may use historical evidence for human-facing prioritization, but they do not redefine the frozen confirmatory CANDIDATE cohort.
-- PAPER_ELIGIBLE/Telegram selection must not be substituted for the primary candidate cohort in the prospective holdout.
+## Sequential testing
+Registered N_eff checkpoints remain 50/100/200.
+- 50 is diagnostic only.
+- The primary family uses alpha 0.025.
+- Three registered looks use conservative Bonferroni allocation: alpha <= 0.00833 per look.
+- Statistical significance alone does not authorize live trading.
 
-## New Launch
-- NEW_LAUNCH is excluded from the Binance/Gate prospective confirmatory claim.
-- Its thresholds, security guardrails and notification state belong to a separate observational cohort.
-- Any future claim for New Launch requires its own prospective pre-registration.
+## Existing go-live gates still apply
+A tiny-live review also needs the existing governance requirements, including at least:
+- 60 calendar days;
+- 150 closed candidates;
+- N_eff >= 100;
+- positive net expectancy and benchmark excess;
+- PF / drawdown / execution / data-quality gates;
+- candidate-control evidence;
+- pessimistic unresolved/data-failure sensitivity.
 
-## Metric interpretation clarifications
-- Event-series Sharpe/Sortino annualized with sqrt(365) are diagnostic only unless computed from an explicitly time-normalized daily portfolio series.
-- The go-live Sharpe/Sortino gate should be evaluated on the canonical time-normalized portfolio return series; event-series values cannot substitute.
-- Timeout outcomes are included in return expectancy through their realized/close return; expectancy is not computed from only win/loss probabilities.
-- MAE diagnostics should be interpreted as adverse excursion relative to entry; non-adverse paths should be floored at 0 adverse excursion in diagnostic reporting.
-- Canonical bootstrap count for the primary validation report: 2000. Older modules using another count remain historical diagnostics, not the confirmatory implementation.
+Passing never enables automatic execution.
 
-## No post-start edits
-After 2026-10-07T00:00:00Z, changing this document or any rule it defines contaminates this cohort. A change requires a new version and a new prospective start date.
+## Execution evidence
+Evidence hierarchy:
+1. REALIZED_FILL
+2. BARRIER_TIME_QUOTE
+3. SIGNAL_TIME_QUOTE_OR_BOOK
+4. MODEL_ONLY
+5. MISSING
+
+Quote is not fill. Missing fills are not imputed. The write-only `strict_execution_evidence.py` ledger records this distinction without changing frozen returns or candidate selection.
+
+## Data failures
+Primary results must be accompanied by a pessimistic sensitivity treating unresolved/data-failure candidate outcomes as stop/loss. If that pessimistic candidate-control expectancy is <= 0, tiny-live review is blocked.
+
+## Metric clarifications
+- Event-series Sharpe/Sortino with sqrt(365) are diagnostic only.
+- Time-normalized portfolio returns are required for the go-live Sharpe/Sortino interpretation.
+- Timeout returns stay in expectancy.
+- MAE diagnostic adverse excursion should not be reported positive when there was no adverse excursion.
+- Canonical primary bootstrap count is 2000.
+
+## Holdout rule
+After 2026-10-07T00:00:00Z, changing the canonical hypothesis or the frozen selection/label/execution semantics contaminates the cohort. The remedy is a new version and a new prospective start date, not an in-place repair.
