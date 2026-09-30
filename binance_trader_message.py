@@ -11,6 +11,60 @@ from binance_notify import resolve_chat_id, send_telegram
 
 DB=os.getenv("BINANCE_DB","binance_avci2.db")
 
+NOTIFY_REAPPEAR_HOURS=6
+
+def init_notification_state(c):
+    c.execute("""CREATE TABLE IF NOT EXISTS trader_notification_state(
+      source TEXT NOT NULL,lane TEXT NOT NULL,asset_key TEXT NOT NULL,
+      last_label TEXT,last_score REAL,last_reignition INTEGER NOT NULL DEFAULT 0,
+      last_seen_utc TEXT NOT NULL,last_notified_utc TEXT,
+      PRIMARY KEY(source,lane,asset_key)
+    )""")
+
+def notification_decision(c,source,lane,asset_key,label,score,seen_at,reignition=False):
+    """Telegram-only dedupe. Never changes signal selection, scoring, or research logs."""
+    init_notification_state(c)
+    now_text=seen_at.isoformat()
+    old=c.execute("""SELECT * FROM trader_notification_state
+        WHERE source=? AND lane=? AND asset_key=?""",(source,lane,asset_key)).fetchone()
+    event=None
+    if old is None:
+        event="NEW"
+    else:
+        try:
+            last_seen=datetime.fromisoformat(str(old["last_seen_utc"]).replace("Z","+00:00"))
+            gap_h=max(0.0,(seen_at-last_seen).total_seconds()/3600.0)
+        except Exception:
+            gap_h=0.0
+        rank={"ZAYIF":1,"ORTA":2,"GÜÇLÜ":3}
+        old_label=str(old["last_label"] or "")
+        if gap_h>=NOTIFY_REAPPEAR_HOURS:
+            event="REIGNITED"
+        elif label!=old_label:
+            if rank.get(label,0)>rank.get(old_label,0):
+                event="STRENGTHENED"
+            else:
+                event="CHANGED"
+        elif reignition and not int(old["last_reignition"] or 0):
+            event="REIGNITED"
+        elif score is not None and old["last_score"] is not None and float(score)-float(old["last_score"])>=3:
+            event="STRENGTHENED"
+
+    last_notified=(now_text if event else (old["last_notified_utc"] if old else None))
+    c.execute("""INSERT OR REPLACE INTO trader_notification_state
+      (source,lane,asset_key,last_label,last_score,last_reignition,last_seen_utc,last_notified_utc)
+      VALUES(?,?,?,?,?,?,?,?)""",
+      (source,lane,asset_key,label,score,1 if reignition else 0,now_text,last_notified))
+    return event
+
+def notification_prefix(event):
+    return {
+        "NEW":"🆕 YENİ",
+        "STRENGTHENED":"⬆️ GÜÇLENDİ",
+        "REIGNITED":"🔥 YENİDEN CANLANDI",
+        "CHANGED":"↔️ DURUM DEĞİŞTİ",
+    }.get(event,"")
+
 def table(c,t):
     return c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",(t,)).fetchone() is not None
 
@@ -219,6 +273,11 @@ def main():
         ranked.sort(key=lambda x:(x[0],x[1],x[2]))
 
         init_label_ledger(c)
+        init_notification_state(c)
+        try:
+            notify_now=datetime.fromisoformat(str(ts).replace("Z","+00:00"))
+        except Exception:
+            notify_now=datetime.now(timezone.utc)
         cap_status,cap_reason=capital_status(c)
         cap_line="🔒 Gerçek para kapısı kapalı" if cap_status!="OPEN" else "🔓 Gerçek para kapısı açık"
         lines=["🛰 BINANCE AVCI",
@@ -233,6 +292,12 @@ def main():
             shown=0
             for _,_,_,r,label,score,dq in ranked:
                 if shown>=3: break
+                reignition=bool(r["reignition"])
+                notify_event=notification_decision(
+                    c,"BINANCE","CANDIDATE",r["symbol"],label,score,notify_now,reignition
+                )
+                if not notify_event:
+                    continue
                 record_label(c,ts,r["symbol"],label,r["price"])
                 icon,decision=plain_decision(label)
                 sup=arr(r["support_json"]); con=arr(r["counter_json"])
@@ -244,7 +309,8 @@ def main():
                     if dq["late_risk"]!="LOW":
                         risk=str(dq["late_reason"] or risk)
 
-                lines.append(f"{icon} {r['symbol']} — {decision}")
+                prefix=notification_prefix(notify_event)
+                lines.append(f"{icon} {prefix} | {r['symbol']} — {decision}")
                 lines.append(f"• Durum: 24s %{float(r['change_24h'] or 0):+.1f} | BTC'ye göre %{float(r['btc_relative_24h'] or 0):+.1f} | 15dk: {plain_live(r['pool_status'])}")
                 lines.append(f"• Neden: {why}")
                 lines.append(f"• Risk: {risk}")
@@ -263,6 +329,8 @@ def main():
                     lines.append("• Sistem farkı: güvenilir karşılaştırma için henüz yeterli geçmiş örnek yok")
                 lines.append("")
                 shown+=1
+            if shown==0:
+                lines.append("ℹ️ Yeni/değişen aday yok; aynı durumdaki coinler Telegram'da tekrar edilmedi.")
 
         # Observation-only early lane: visible before a coin becomes a full candidate.
         # Never promoted to GÜÇLÜ/ORTA/ZAYIF and never recorded as a recommendation.
@@ -279,16 +347,27 @@ def main():
                     ORDER BY COALESCE(o.acceleration_ratio,0) DESC,
                              COALESCE(f.taker_buy_ratio_15m,0) DESC LIMIT 3""",(ts,)).fetchall()
                 if early:
-                    lines.append("")
-                    lines.append("🟡 ERKEN İZLEME")
+                    early_lines=[]
                     for e in early:
                         why=arr(e["early_watch_reason_json"])
+                        reignition=("REIGNITION" in [str(x).upper() for x in why]) or str(e["stage"] or "").upper()=="REIGNITION"
+                        early_score=float(e["acceleration_ratio"] or 0)
+                        early_label=str(e["stage"] or "EARLY_WATCH")
+                        notify_event=notification_decision(
+                            c,"BINANCE","EARLY",e["symbol"],early_label,early_score,notify_now,reignition
+                        )
+                        if not notify_event:
+                            continue
                         why_text=plain_early_reason(why)
-                        lines.append(f"🟡 {e['symbol']} — İZLE")
-                        lines.append(f"• Neden: {why_text}.")
-                        lines.append(f"• Hareket: 15dk %{float(e['change_15m'] or 0):+.1f} | 24s %{float(e['change_24h'] or 0):+.1f}")
-                        lines.append("• Karar: Henüz alma; ana teyit bekleniyor.")
-                    lines.append("• 🟡 = erken izleme; alım sinyali değil.")
+                        early_lines.append(f"🟡 {notification_prefix(notify_event)} | {e['symbol']} — İZLE")
+                        early_lines.append(f"• Neden: {why_text}.")
+                        early_lines.append(f"• Hareket: 15dk %{float(e['change_15m'] or 0):+.1f} | 24s %{float(e['change_24h'] or 0):+.1f}")
+                        early_lines.append("• Karar: Henüz alma; ana teyit bekleniyor.")
+                    if early_lines:
+                        lines.append("")
+                        lines.append("🟡 ERKEN İZLEME")
+                        lines.extend(early_lines)
+                        lines.append("• 🟡 = erken izleme; alım sinyali değil.")
 
         # Accountability: show strong Spot movers even when core Avci did not recommend them.
         if table(c,"top_mover_audit"):
