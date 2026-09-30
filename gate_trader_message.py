@@ -18,6 +18,7 @@ DB=os.getenv("AVCI_DB","avci2.db")
 GECKO_BASE_URL="https://api.geckoterminal.com/api/v2"
 LIVE_MIN_LIQUIDITY_USD=15000.0
 LIVE_TIMEOUT_SECONDS=12
+GATE_TRADER_MAX_SPOT_AGE_SECONDS=int(os.getenv("GATE_TRADER_MAX_SPOT_AGE_SECONDS","900"))
 
 NOTIFY_REAPPEAR_HOURS=6
 
@@ -475,13 +476,25 @@ def main():
         # Observation-only Gate early lane. This is intentionally separate
         # from security-passed GÜÇLÜ/ORTA/ZAYIF candidates.
         early_rows=[]
-        if table(c,"gate_spot_watch"):
+        spot_fresh=False
+        spot_batch=None
+        if table(c,"gate_spot_health"):
+            latest_spot=c.execute("""SELECT batch_id,scan_ts,status
+                FROM gate_spot_health ORDER BY scan_ts DESC LIMIT 1""").fetchone()
+            if latest_spot and latest_spot["status"]=="VALID":
+                age_seconds=int(datetime.now(timezone.utc).timestamp())-int(latest_spot["scan_ts"])
+                spot_fresh=(-60 <= age_seconds <= GATE_TRADER_MAX_SPOT_AGE_SECONDS)
+                if spot_fresh:
+                    spot_batch=latest_spot["batch_id"]
+        if spot_fresh and table(c,"gate_spot_watch"):
             try:
-                latest_watch_batch=c.execute("""SELECT w.batch_id
+                latest_watch_batch=c.execute("""SELECT w.batch_id,g.scan_ts
                     FROM gate_spot_watch w
                     JOIN gate_spot_health g ON g.batch_id=w.batch_id
-                    WHERE w.status='PAPER_WATCH'
-                    ORDER BY g.scan_ts DESC LIMIT 1""").fetchone()
+                    WHERE w.status='PAPER_WATCH' AND g.status='VALID'
+                      AND g.scan_ts>=?
+                    ORDER BY g.scan_ts DESC LIMIT 1""",
+                    (int(datetime.now(timezone.utc).timestamp())-GATE_TRADER_MAX_SPOT_AGE_SECONDS,)).fetchone()
                 if latest_watch_batch:
                     early_rows=c.execute("""SELECT w.pair,w.change_24h,w.rise_pct,
                                w.round_trip_1k_pct,w.entry_path,c.network_id,c.token_contract
@@ -493,7 +506,7 @@ def main():
                         (latest_watch_batch["batch_id"],)).fetchall()
             except sqlite3.OperationalError:
                 early_rows=[]
-        if table(c,"gate_opportunity_observations"):
+        if spot_fresh and spot_batch and table(c,"gate_opportunity_observations"):
             cols={row[1] for row in c.execute("PRAGMA table_info(gate_opportunity_observations)")}
             if "early_watch" in cols:
                 opportunity_rows=c.execute("""SELECT o.pair,h.change_24h,NULL rise_pct,
@@ -504,7 +517,7 @@ def main():
                     JOIN gate_spot_contracts c ON c.pair=o.pair
                     WHERE o.batch_id=? AND o.early_watch=1 AND h.change_24h<10
                     ORDER BY CASE WHEN o.early_watch_reason_json LIKE '%ONCHAIN_ANOMALY%' THEN 0 ELSE 1 END,
-                             COALESCE(o.volume_acceleration,0) DESC LIMIT 3""",(batch,)).fetchall()
+                             COALESCE(o.volume_acceleration,0) DESC LIMIT 3""",(spot_batch,)).fetchall()
                 existing={(r["network_id"],r["token_contract"]) for r in early_rows}
                 for r in opportunity_rows:
                     key=(r["network_id"],r["token_contract"])
@@ -512,6 +525,10 @@ def main():
                         early_rows.append(r)
                         existing.add(key)
                 early_rows=early_rows[:3]
+        if not spot_fresh:
+            lines.append("")
+            lines.append("⚠️ ERKEN İZLEME VERİSİ TAZE DEĞİL")
+            lines.append("• Eski Spot snapshot'ından coin göstermedim; yeni Gate Spot taraması bekleniyor.")
         if early_rows:
             early_lines=[]
             used=set()
