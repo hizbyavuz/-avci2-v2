@@ -7,6 +7,8 @@ from datetime import datetime, timezone
 
 LOCK="final_test_contract_lock.json"
 MANIFEST="genesis_freeze_manifest.json"
+EXPECTED_CONTRACT_SHA256="93492e20a7c06988f0e65f03a953865f6b223fdf664c5d8721c797f7439af3c4"
+EXPECTED_CONTRACT_COMMIT="dadada65ed6cb7a16c6ae7ca3d0c7665db55ae5a"
 
 def git_bytes(ref,path):
     p=subprocess.run(["git","show",f"{ref}:{path}"],text=False,capture_output=True)
@@ -18,7 +20,11 @@ def main():
     path=lock["canonical_file"]
     data=open(path,"rb").read()
     actual=hashlib.sha256(data).hexdigest()
-    hash_ok=(actual==lock["canonical_sha256"])
+    lock_ok=(
+        lock.get("canonical_sha256")==EXPECTED_CONTRACT_SHA256
+        and lock.get("canonical_commit")==EXPECTED_CONTRACT_COMMIT
+    )
+    hash_ok=(actual==EXPECTED_CONTRACT_SHA256 and lock_ok)
     baseline=manifest["baseline_git_commit"]
     changed=[]
     missing=[]
@@ -36,7 +42,8 @@ def main():
     status={
       "phase":phase,
       "canonical_file":path,
-      "expected_sha256":lock["canonical_sha256"],
+      "expected_sha256":EXPECTED_CONTRACT_SHA256,
+      "lock_metadata_ok":lock_ok,
       "actual_sha256":actual,
       "contract_hash_ok":hash_ok,
       "baseline_git_commit":baseline,
