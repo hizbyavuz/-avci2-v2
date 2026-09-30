@@ -84,5 +84,25 @@
     "mae": "Diagnostic adverse excursion should be floored at zero when the path never moves adversely.",
     "primary_bootstrap_samples": 2000
   },
-  "no_post_start_edits": "After 2026-10-07T00:00:00Z, any semantic change requires a new prospective version/cohort."
+  "no_post_start_edits": "After 2026-10-07T00:00:00Z, any semantic change requires a new prospective version/cohort.",
+  "primary_engine": "BINANCE",
+  "gate_role": "SEPARATE_SECONDARY_ENGINE_NOT_ELIGIBLE_TO_SATISFY_PRIMARY_CONFIRMATORY_CLAIM",
+  "new_launch_role": "EXPLORATORY_ONLY",
+  "btc_down_definition": {
+    "source": "Binance BTCUSDT spot 24h ticker priceChangePercent fetched during the scan",
+    "threshold_pct": "<= -2.0",
+    "timing_rule": "The value must be available at scan/signal time. No later candle, end-of-day label, or future regime reclassification may be used.",
+    "scanner_reference": "binance_scanner.py::btc_regime(change_24h)"
+  },
+  "primary_adjustment_precedence": [
+    "Primary comparison is the same-scan matched candidate-minus-control fixed-exit return difference.",
+    "Pre-signal conditional BTC-beta residualization is applied to that return where frozen coverage requirements are met.",
+    "2x transaction-cost stress is then applied under the registered execution audit.",
+    "Inference is clustered by 72h overlapping market episode."
+  ],
+  "inconclusive_rule": {
+    "no_down_regimes": "If the holdout does not produce enough BTC-DOWN episodes/events to satisfy interpretability and governance requirements within 120 days, the result is INCONCLUSIVE. Other regimes may not replace BTC-DOWN post hoc.",
+    "insufficient_execution": "If required execution evidence/coverage is insufficient, the result is INCONCLUSIVE for go-live purposes.",
+    "no_rescue_by_other_engines": "Gate or New Launch performance cannot rescue a failed or inconclusive Binance primary test."
+  }
 }
