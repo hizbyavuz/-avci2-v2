@@ -51,7 +51,7 @@ class GenesisManifestTests(unittest.TestCase):
     def test_manifest_has_prospective_contract(self):
         m=json.loads(Path("genesis_freeze_manifest.json").read_text(encoding="utf-8"))
         self.assertEqual(m["baseline_git_commit"],
-                         "9d3c428c63b1282e97c7a22a3925d3d679a2c8e2")
+                         "21032dba3bdf9fb2830d5e9795e4537f35995419")
         self.assertEqual(m["genesis_holdout_start_utc"],
                          "2026-10-07T00:00:00+00:00")
         self.assertTrue(m["policy"]["no_retroactive_reseal"])
