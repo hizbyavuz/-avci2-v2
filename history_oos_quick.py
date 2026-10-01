@@ -185,12 +185,19 @@ def notify(c,data):
              "INSUFFICIENT":"VERİ YETERSİZ"}.get(data["verdict"],data["verdict"])
     msg="\n".join([
       "🧪 AVCI | HIZLI OOS SONUCU",
-      f"• Train +%10: {pc(data['train_precision_10'])}",
-      f"• Test +%10: {pc(data['test_precision_10'])}",
-      f"• Random control: {pc(data['test_random_10'])}",
-      f"• Near-miss: {pc(data['test_near_miss_10'])}",
-      f"• Recall: {pc(data['test_recall'])}",
+      f"• Train +%10: {pc(data['train_precision_10'])} (öğrenme bölümünde +%10 gören sinyaller)",
+      f"• Test +%10: {pc(data['test_precision_10'])} (kurallara dokunulmadan ayrı testte +%10 gören sinyaller)",
+      f"• Random control: {pc(data['test_random_10'])} (rastgele benzer örneklerde +%10 oranı)",
+      f"• Near-miss: {pc(data['test_near_miss_10'])} (sinyali az farkla kaçıran örneklerde +%10 oranı)",
+      f"• Recall: {pc(data['test_recall'])} (gerçek yükselişlerin ne kadarını yakalayabildi)",
       f"• Sonuç: {verdict}",
+      "",
+      "Kısa yorum:",
+      "• Test oranı yüksek görünse bile tek başına yeterli değildir.",
+      "• Recall düşükse sistem seçici olabilir ama çok fazla gerçek hareketi kaçırıyor olabilir.",
+      "• Near-miss çok güçlüyse mevcut eşiklerin ayırma gücü ayrıca incelenmelidir.",
+      "• VERİ YETERSİZ = örnek/kapsama henüz güvenilir edge sonucu çıkarmaya yetmiyor.",
+      "• Bu rapor frozen kuralları değiştirmez; yalnızca gözlemsel doğrulamadır.",
     ])
     chat=resolve_chat_id(token,configured,DB,"History OOS Quick")
     send_telegram(token,chat,msg)
