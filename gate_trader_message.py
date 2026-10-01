@@ -549,7 +549,8 @@ def main():
                 )
                 if not notify_event:
                     continue
-                early_lines.append(f"🟡 {notification_prefix(notify_event)} | {e['pair']} — İZLE")
+                early_lines.append(f"🟡 {notification_prefix(notify_event)} | {e['pair']} [{e['network_id']}] — İZLE")
+                early_lines.append(f"• Kontrat: {e['token_contract']}")
                 early_lines.append(f"• Hareket: 24s %{float(e['change_24h'] or 0):+.1f}")
                 early_lines.append("• Neden: erken hareket var ama güvenlik ve satılabilirlik henüz tamamlanmadı.")
                 early_lines.append("• Karar: Henüz alma; tüm kontrollerin geçmesini bekle.")
