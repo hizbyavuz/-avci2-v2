@@ -24,6 +24,10 @@ jobs:
           python-version: "3.12"
       - name: Install requests
         run: pip install -r binance_requirements.txt
+      - name: Restore Binance state for Telegram destination
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python avci_state_guard.py restore-binance
       - name: Pick report date in Turkey
         id: period
         env:
