@@ -286,7 +286,7 @@ def build_results(c,spec):
 
     for r,sig,near,rand,ret,hits in staged:
         c.execute("""INSERT OR REPLACE INTO oos_case_results VALUES
-          (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+          (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
           (r["pair"],int(r["anchor_ts"]),r["label"],r["split"],r["btc_regime"],
            sig,near,rand,float(r["signal_price"]),hits[5],hits[10],hits[15],ret,VERSION))
     c.commit()
