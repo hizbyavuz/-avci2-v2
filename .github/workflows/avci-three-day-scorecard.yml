@@ -25,6 +25,10 @@ jobs:
           python-version: "3.12"
       - name: Install dependencies
         run: pip install -r binance_requirements.txt
+      - name: Restore Binance state for Telegram destination
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python avci_state_guard.py restore-binance
       - name: Send plain 3-day scorecard
         env:
           GH_TOKEN: ${{ github.token }}
