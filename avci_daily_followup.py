@@ -162,9 +162,10 @@ def build_message(day, rows, repo, run_id):
     hit5 = [r for r in available if r["24s_degisimi_yuzde"] >= 5]
     hit10 = [r for r in available if r["24s_degisimi_yuzde"] >= 10]
 
+    missing = len(rows) - len(available)
     lines = [
         f"📊 AVCI — {day} | 24 SAAT SONRA",
-        f"• Toplam aday: {len(rows)} | ölçülen: {len(available)}",
+        f"• Toplam aday: {len(rows)} | ölçülen: {len(available)} | verisi eksik: {missing}",
     ]
     if available:
         lines.append(
@@ -192,7 +193,8 @@ def build_message(day, rows, repo, run_id):
 
     lines.extend([
         "",
-        "Not: Bu rapor sinyalden tam 24 saat sonraki fiyatı gösterir; aradaki en yüksek kazancı göstermez.",
+        "Not: Bu rapor sinyalden tam 24 saat sonraki fiyatı gösterir. Arada erişilen en yüksek fiyatı veya en yüksek kazancı göstermez.",
+        "Bot hesabında işlem yapmadı; bu yalnızca paper-trade / araştırma takibidir.",
         f"Tüm kayıtlar: https://github.com/{repo}/actions/runs/{run_id}",
     ])
     return "\n".join(lines)
