@@ -1,0 +1,59 @@
+name: Long Short Analyst V1
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "7,22,37,52 * * * *"
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: long-short-analyst-v1
+  cancel-in-progress: false
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+
+      - name: Setup Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        run: pip install requests==2.32.5
+
+      - name: Restore latest analyst state
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p .lsa-state
+          run_id=$(gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts?name=long-short-analyst-state&per_page=100"             --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | reverse | .[0].workflow_run.id // empty')
+          if test -n "$run_id"; then
+            gh run download "$run_id" --name long-short-analyst-state --dir .lsa-state || true
+            test -f .lsa-state/long_short_analyst.db && cp .lsa-state/long_short_analyst.db .
+          fi
+
+      - name: Run deterministic analyst
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          LS_MAX_SYMBOLS: "80"
+          LS_MIN_24H_QUOTE_VOL: "25000000"
+        run: python -u long_short_analyst.py
+
+      - name: Upload analyst state
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: long-short-analyst-state
+          path: long_short_analyst.db
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 6
