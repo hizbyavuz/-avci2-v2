@@ -2,13 +2,6 @@ name: External Shadow Universe Validation
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "11 * * * *"
-  push:
-    paths:
-      - "external_shadow_universe.py"
-      - ".github/workflows/external-shadow-universe.yml"
-
 permissions:
   contents: read
   actions: write
