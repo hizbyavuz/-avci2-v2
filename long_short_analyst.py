@@ -38,7 +38,12 @@ MIN_24H_QUOTE_VOL = float(os.getenv("LS_MIN_24H_QUOTE_VOL", "25000000"))
 MAX_SYMBOLS = int(os.getenv("LS_MAX_SYMBOLS", "80"))
 REQUEST_TIMEOUT = 12
 TELEGRAM_LIMIT = 4096
-VERSION = "LSA_V1_1_CHART_2026-10-03"
+VERSION = "LSA_V1_2_MEASURED_2026-10-03"
+OKX_BASE = "https://www.okx.com"
+FEE_BPS_PER_SIDE = float(os.getenv("LS_FEE_BPS_PER_SIDE", "5"))
+SLIPPAGE_BPS_PER_SIDE = float(os.getenv("LS_SLIPPAGE_BPS_PER_SIDE", "5"))
+SIGNAL_EXPIRY_MIN = int(os.getenv("LS_SIGNAL_EXPIRY_MIN", "180"))
+SIGNAL_COOLDOWN_MIN = int(os.getenv("LS_SIGNAL_COOLDOWN_MIN", "120"))
 
 EXCLUDED_BASES = {
     "USDC","FDUSD","TUSD","USDP","DAI","BUSD","EUR","TRY","BTCST",
@@ -102,6 +107,48 @@ def fget(path: str, params: dict | None = None):
             except (requests.RequestException, ValueError) as exc:
                 last = exc
     raise last or RuntimeError("Binance market data unavailable")
+
+
+def okx_get(path: str, params: dict | None = None):
+    r=requests.get(
+        OKX_BASE + path, params=params or {}, timeout=REQUEST_TIMEOUT,
+        headers={"User-Agent":"long-short-analyst/1.2"},
+    )
+    r.raise_for_status()
+    body=r.json()
+    if str(body.get("code","0"))!="0":
+        raise RuntimeError(body.get("msg") or "OKX error")
+    return body.get("data") or []
+
+
+def okx_derivatives(symbol: str):
+    """Cross-venue derivatives context. Never mislabeled as Binance-native."""
+    base=symbol[:-4] if symbol.endswith("USDT") else symbol
+    inst=f"{base}-USDT-SWAP"
+    out={
+        "source":"CROSS_VENUE_OKX","inst_id":inst,"status":"UNAVAILABLE",
+        "oi_usd":None,"funding_pct":None,"mark_price":None,
+        "index_price":None,"basis_pct":None,
+    }
+    try:
+        oi=(okx_get("/api/v5/public/open-interest",{"instType":"SWAP","instId":inst}) or [{}])[0]
+        fr=(okx_get("/api/v5/public/funding-rate",{"instId":inst}) or [{}])[0]
+        mp=(okx_get("/api/v5/public/mark-price",{"instType":"SWAP","instId":inst}) or [{}])[0]
+        ix=(okx_get("/api/v5/market/index-tickers",{"instId":f"{base}-USDT"}) or [{}])[0]
+        def fv(x):
+            try: return float(x)
+            except (TypeError,ValueError): return None
+        out["oi_usd"]=fv(oi.get("oiUsd"))
+        fund=fv(fr.get("fundingRate"))
+        out["funding_pct"]=fund*100.0 if fund is not None else None
+        out["mark_price"]=fv(mp.get("markPx"))
+        out["index_price"]=fv(ix.get("idxPx"))
+        if out["mark_price"] is not None and out["index_price"] not in (None,0):
+            out["basis_pct"]=100.0*(out["mark_price"]/out["index_price"]-1.0)
+        out["status"]="OK"
+    except Exception as exc:
+        out["error"]=f"{type(exc).__name__}:{str(exc)[:140]}"
+    return out
 
 
 def pct(a: float, b: float) -> float:
@@ -387,6 +434,7 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0):
     ls=fetch_long_short(symbol)
     depth=fetch_depth_imbalance(symbol)
     chart=chart_state(t1,t5,t15,t1h)
+    cross=okx_derivatives(symbol) if DATA_MODE!="BINANCE_FUTURES" else None
 
     long=short=0
     reasons=[]; risks=[]
@@ -428,6 +476,21 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0):
     # Derivatives.
     price1h=t1h["change_1"]
     oic=oi["oi_change_1h"]
+    deriv_source="BINANCE_FUTURES"
+    deriv_funding=funding
+    deriv_basis=None
+    if DATA_MODE!="BINANCE_FUTURES" and cross and cross.get("status")=="OK":
+        deriv_source="CROSS_VENUE_OKX"
+        deriv_funding=cross.get("funding_pct") or 0.0
+        deriv_basis=cross.get("basis_pct")
+        # Cross-venue context is observational only. It can add reasons/risk,
+        # but cannot unlock a trade while Binance Futures feed is unavailable.
+        if deriv_funding>=0.05:
+            risks.append(f"OKX funding yüksek pozitif %{deriv_funding:.3f}; long kalabalık olabilir")
+        elif deriv_funding<=-0.05:
+            risks.append(f"OKX funding yüksek negatif %{deriv_funding:.3f}; short kalabalık olabilir")
+        if deriv_basis is not None and abs(deriv_basis)>=0.15:
+            risks.append(f"OKX basis %{deriv_basis:+.2f}; spot-perp ayrışması yüksek")
     if price1h>0 and oic>1.5:
         long+=8; reasons.append(f"Fiyat↑ + OI↑ ({oic:+.1f}%): yeni kaldıraçlı talep")
     elif price1h<0 and oic>1.5:
@@ -455,6 +518,14 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0):
 
     if market_regime=="UP": long+=4; short-=2
     elif market_regime=="DOWN": short+=4; long-=2
+
+    # Multi-timeframe veto: do not fight both 4h and 1h trend.
+    htf_bull = t4h["price"]>t4h["ema20"]>t4h["ema50"] and t1h["price"]>t1h["ema20"]>t1h["ema50"]
+    htf_bear = t4h["price"]<t4h["ema20"]<t4h["ema50"] and t1h["price"]<t1h["ema20"]<t1h["ema50"]
+    if htf_bull:
+        short=max(0,short-12); risks.append("4s+1s ana trend yukarı; karşı-trend SHORT ağır cezalı")
+    elif htf_bear:
+        long=max(0,long-12); risks.append("4s+1s ana trend aşağı; karşı-trend LONG ağır cezalı")
 
     long=max(0,min(100,int(round(long))))
     short=max(0,min(100,int(round(short))))
@@ -505,6 +576,8 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0):
         "t1":t1,"t5":t5,"t15":t15,"t1h":t1h,"t4h":t4h,
         "oi":oi,"funding_pct":funding,"taker_ratio":taker,
         "long_short_ratio":ls,"depth_imbalance":depth,
+        "derivatives_source":deriv_source,"cross_venue":cross,
+        "derivatives_funding_pct":deriv_funding,"derivatives_basis_pct":deriv_basis,
     }
     return Analysis(symbol,status,long,short,confidence,price,entry_low,entry_high,
                     stop,tp1,tp2,rr1,reasons[:8],risks[:6],payload)
@@ -529,12 +602,29 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             symbol TEXT NOT NULL, direction TEXT NOT NULL,
             signal_time_utc TEXT NOT NULL, signal_price REAL NOT NULL,
-            stop REAL NOT NULL, tp1 REAL NOT NULL, tp2 REAL NOT NULL,
+            signal_score INTEGER, stop REAL NOT NULL, tp1 REAL NOT NULL, tp2 REAL NOT NULL,
             status TEXT NOT NULL DEFAULT 'OPEN',
-            closed_time_utc TEXT, outcome TEXT, close_price REAL
+            expires_at_utc TEXT, closed_time_utc TEXT, outcome TEXT, close_price REAL,
+            gross_return_pct REAL, net_return_pct REAL, r_multiple REAL,
+            fee_bps_per_side REAL, slippage_bps_per_side REAL,
+            funding_pct_at_signal REAL, deriv_source TEXT
         )""")
+        cols={r[1] for r in con.execute("PRAGMA table_info(paper_setups)")}
+        additions={
+            "signal_score":"INTEGER","expires_at_utc":"TEXT","gross_return_pct":"REAL",
+            "net_return_pct":"REAL","r_multiple":"REAL","fee_bps_per_side":"REAL",
+            "slippage_bps_per_side":"REAL","funding_pct_at_signal":"REAL","deriv_source":"TEXT",
+        }
+        for name,typ in additions.items():
+            if name not in cols:
+                con.execute(f"ALTER TABLE paper_setups ADD COLUMN {name} {typ}")
         con.execute("CREATE INDEX IF NOT EXISTS ix_analyses_time ON analyses(scan_time_utc)")
         con.execute("CREATE INDEX IF NOT EXISTS ix_paper_open ON paper_setups(status,symbol)")
+        con.execute("""CREATE TABLE IF NOT EXISTS performance_reports(
+            report_time_utc TEXT PRIMARY KEY, closed_trades INTEGER,
+            win_rate REAL, expectancy_r REAL, avg_net_return_pct REAL,
+            max_drawdown_pct REAL, buckets_json TEXT
+        )""")
 
 
 def save_scan(ts, regime, n, results):
@@ -553,39 +643,126 @@ def save_scan(ts, regime, n, results):
              json.dumps(a.payload,ensure_ascii=False)))
             if a.status in ("LONG","SHORT") and a.stop and a.tp1 and a.tp2:
                 exists=con.execute("""SELECT 1 FROM paper_setups
-                    WHERE symbol=? AND direction=? AND status='OPEN'""",
-                    (a.symbol,a.status)).fetchone()
+                    WHERE symbol=? AND direction=? AND (
+                      status='OPEN' OR datetime(signal_time_utc) >= datetime(?, ?)
+                    ) LIMIT 1""",
+                    (a.symbol,a.status,ts,f"-{SIGNAL_COOLDOWN_MIN} minutes")).fetchone()
                 if not exists:
+                    from datetime import timedelta
+                    exp=(datetime.fromisoformat(ts)+timedelta(minutes=SIGNAL_EXPIRY_MIN)).isoformat()
+                    score=max(a.long_score,a.short_score)
                     con.execute("""INSERT INTO paper_setups(
-                        symbol,direction,signal_time_utc,signal_price,stop,tp1,tp2
-                    ) VALUES(?,?,?,?,?,?,?)""",
-                    (a.symbol,a.status,ts,a.price,a.stop,a.tp1,a.tp2))
+                        symbol,direction,signal_time_utc,signal_price,signal_score,
+                        stop,tp1,tp2,status,expires_at_utc,fee_bps_per_side,
+                        slippage_bps_per_side,funding_pct_at_signal,deriv_source
+                    ) VALUES(?,?,?,?,?,?,?,?,'OPEN',?,?,?,?,?)""",
+                    (a.symbol,a.status,ts,a.price,score,a.stop,a.tp1,a.tp2,exp,
+                     FEE_BPS_PER_SIDE,SLIPPAGE_BPS_PER_SIDE,
+                     a.payload.get("derivatives_funding_pct"),
+                     a.payload.get("derivatives_source")))
 
 
 def update_paper():
     with sqlite3.connect(DB) as con:
-        rows=con.execute("""SELECT id,symbol,direction,stop,tp1,tp2
+        rows=con.execute("""SELECT id,symbol,direction,signal_time_utc,signal_price,
+                            signal_score,stop,tp1,tp2,expires_at_utc,
+                            fee_bps_per_side,slippage_bps_per_side,
+                            funding_pct_at_signal,deriv_source
                             FROM paper_setups WHERE status='OPEN'""").fetchall()
-        for rid,symbol,direction,stop,tp1,tp2 in rows:
+        now=now_iso()
+        for row in rows:
+            (rid,symbol,direction,signal_time,entry,score,stop,tp1,tp2,expires,
+             fee_bps,slip_bps,funding_at_signal,deriv_source)=row
             try:
-                k=fetch_klines(symbol,"5m",3)
-                hi=max(k["high"][-2:]); lo=min(k["low"][-2:]); last=k["close"][-1]
-                outcome=None
-                # Pessimistic same-candle ordering: stop first.
-                if direction=="LONG":
-                    if lo<=stop: outcome="STOP"
-                    elif hi>=tp2: outcome="TP2"
-                    elif hi>=tp1: outcome="TP1"
+                if expires and now >= expires:
+                    last=fetch_klines(symbol,"5m",2)["close"][-1]
+                    outcome="TIMEOUT"
+                    exit_price=last
                 else:
-                    if hi>=stop: outcome="STOP"
-                    elif lo<=tp2: outcome="TP2"
-                    elif lo<=tp1: outcome="TP1"
-                if outcome:
-                    con.execute("""UPDATE paper_setups SET status='CLOSED',
-                        closed_time_utc=?,outcome=?,close_price=? WHERE id=?""",
-                        (now_iso(),outcome,last,rid))
-            except Exception:
-                pass
+                    k=fetch_klines(symbol,"5m",3)
+                    hi=max(k["high"][-2:]); lo=min(k["low"][-2:]); last=k["close"][-1]
+                    outcome=None; exit_price=None
+                    # Pessimistic same-candle ordering: stop first.
+                    if direction=="LONG":
+                        if lo<=stop: outcome="STOP"; exit_price=stop
+                        elif hi>=tp2: outcome="TP2"; exit_price=tp2
+                        elif hi>=tp1: outcome="TP1"; exit_price=tp1
+                    else:
+                        if hi>=stop: outcome="STOP"; exit_price=stop
+                        elif lo<=tp2: outcome="TP2"; exit_price=tp2
+                        elif lo<=tp1: outcome="TP1"; exit_price=tp1
+                    if not outcome:
+                        continue
+
+                gross=(exit_price/entry-1.0)*100.0
+                if direction=="SHORT":
+                    gross=-gross
+                trading_cost_pct=2.0*((fee_bps or FEE_BPS_PER_SIDE)+(slip_bps or SLIPPAGE_BPS_PER_SIDE))/100.0
+                # Funding is charged only when native Binance funding is known.
+                funding_cost=0.0
+                if deriv_source=="BINANCE_FUTURES" and funding_at_signal is not None:
+                    if direction=="LONG":
+                        funding_cost=max(0.0,float(funding_at_signal))
+                    else:
+                        funding_cost=max(0.0,-float(funding_at_signal))
+                net=gross-trading_cost_pct-funding_cost
+                risk_pct=abs((entry-stop)/entry)*100.0 if entry else 0.0
+                rmult=(net/risk_pct) if risk_pct>0 else None
+                con.execute("""UPDATE paper_setups SET status='CLOSED',
+                    closed_time_utc=?,outcome=?,close_price=?,gross_return_pct=?,
+                    net_return_pct=?,r_multiple=? WHERE id=?""",
+                    (now_iso(),outcome,exit_price,gross,net,rmult,rid))
+            except Exception as exc:
+                print("paper update error",symbol,type(exc).__name__,str(exc)[:120])
+
+
+def performance_summary():
+    with sqlite3.connect(DB) as con:
+        rows=con.execute("""SELECT signal_score,outcome,net_return_pct,r_multiple
+                            FROM paper_setups
+                            WHERE status='CLOSED' AND net_return_pct IS NOT NULL
+                            ORDER BY closed_time_utc,id""").fetchall()
+        if not rows:
+            return {"closed":0,"text":"Henüz kapanmış paper trade yok."}
+        net=[float(r[2]) for r in rows]
+        rs=[float(r[3]) for r in rows if r[3] is not None]
+        wins=sum(1 for x in net if x>0)
+        equity=0.0; peak=0.0; max_dd=0.0
+        for x in net:
+            equity+=x
+            peak=max(peak,equity)
+            max_dd=min(max_dd,equity-peak)
+        buckets={}
+        for lo,hi,label in ((55,64,"55-64"),(65,74,"65-74"),(75,100,"75+")):
+            sub=[r for r in rows if r[0] is not None and lo<=int(r[0])<=hi]
+            if sub:
+                vals=[float(r[2]) for r in sub]
+                rvals=[float(r[3]) for r in sub if r[3] is not None]
+                buckets[label]={
+                    "n":len(sub),
+                    "win_rate":100.0*sum(1 for x in vals if x>0)/len(vals),
+                    "avg_net_pct":mean(vals),
+                    "expectancy_r":mean(rvals) if rvals else None,
+                }
+        summary={
+            "closed":len(rows),
+            "win_rate":100.0*wins/len(rows),
+            "expectancy_r":mean(rs) if rs else 0.0,
+            "avg_net_pct":mean(net),
+            "max_drawdown_pct":max_dd,
+            "buckets":buckets,
+        }
+        con.execute("""INSERT OR REPLACE INTO performance_reports
+            (report_time_utc,closed_trades,win_rate,expectancy_r,
+             avg_net_return_pct,max_drawdown_pct,buckets_json)
+             VALUES(?,?,?,?,?,?,?)""",
+            (now_iso(),summary["closed"],summary["win_rate"],summary["expectancy_r"],
+             summary["avg_net_pct"],summary["max_drawdown_pct"],
+             json.dumps(buckets,ensure_ascii=False)))
+        summary["text"]=(f"Paper: {summary['closed']} kapanış | Win %{summary['win_rate']:.1f} | "
+                         f"Exp {summary['expectancy_r']:+.2f}R | Net ort %{summary['avg_net_pct']:+.2f} | "
+                         f"Max DD %{summary['max_drawdown_pct']:.2f}")
+        return summary
 
 
 def fmtp(x):
@@ -600,7 +777,7 @@ def turkish_status(s):
             "WAIT":"🟡 TEYİT BEKLE","NO_TRADE":"⚪ İŞLEM YOK"}.get(s,s)
 
 
-def build_message(ts, regime, results, errors):
+def build_message(ts, regime, results, errors, perf=None):
     actionable=[x for x in results if x.status in ("LONG","SHORT")]
     waits=[x for x in results if x.status=="WAIT"]
     actionable.sort(key=lambda x:(x.confidence,abs(x.payload.get("day_change_pct",0))), reverse=True)
@@ -610,6 +787,7 @@ def build_message(ts, regime, results, errors):
         f"Veri: {DATA_MODE}",
         f"BTC rejimi: {regime} | Taranan: {len(results)} | Hata: {errors}",
         "Otomatik emir YOK — paper-trade / analiz modu.",
+        (perf or {}).get("text",""),
         "",
     ]
     shown=(actionable[:5] if actionable else waits[:3])
@@ -682,7 +860,8 @@ def main():
             print(f"{symbol}: {type(e).__name__}: {e}")
         time.sleep(0.03)
     save_scan(ts,regime,len(uni),results)
-    msg=build_message(ts,regime,results,errors)
+    perf=performance_summary()
+    msg=build_message(ts,regime,results,errors,perf)
     print(msg)
     send_telegram(msg)
 
