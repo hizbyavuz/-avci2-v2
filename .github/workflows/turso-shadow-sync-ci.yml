@@ -1,11 +1,6 @@
 name: Turso Shadow Sync CI
 
 on:
-  push:
-    paths:
-      - "turso_state_sync.py"
-      - "binance_requirements.txt"
-      - ".github/workflows/turso-shadow-sync-ci.yml"
   workflow_dispatch:
 
 permissions:
