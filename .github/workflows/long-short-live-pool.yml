@@ -9,7 +9,7 @@ permissions:
 
 concurrency:
   group: long-short-live-pool
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   watch:
@@ -78,3 +78,12 @@ jobs:
           if-no-files-found: warn
           retention-days: 30
           compression-level: 6
+
+
+      - name: Start next analyst cycle
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          sleep 10
+          gh workflow run long-short-analyst.yml --ref main
