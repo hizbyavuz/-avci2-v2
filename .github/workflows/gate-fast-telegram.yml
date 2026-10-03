@@ -2,9 +2,6 @@ name: Gate Fast Telegram
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "18,38,58 * * * *"
-
 permissions:
   contents: read
   actions: write
