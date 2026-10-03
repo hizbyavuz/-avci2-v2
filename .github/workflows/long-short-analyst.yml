@@ -8,8 +8,6 @@ on:
     paths:
       - "long_short_analyst.py"
       - ".github/workflows/long-short-analyst.yml"
-  schedule:
-    - cron: "*/5 * * * *"
 
 permissions:
   contents: read
@@ -17,7 +15,7 @@ permissions:
 
 concurrency:
   group: long-short-analyst-v1-fast
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   analyze:
