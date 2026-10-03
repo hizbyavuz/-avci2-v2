@@ -2,15 +2,6 @@ name: New Launch Avci
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - "new_launch_avci.py"
-      - "new_launch_audit_observer.py"
-      - ".github/workflows/new-launch-avci.yml"
-  schedule:
-    - cron: "3,13,23,33,43,53 * * * *"
-
 permissions:
   contents: read
   actions: write
