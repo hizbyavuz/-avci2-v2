@@ -38,7 +38,7 @@ MIN_24H_QUOTE_VOL = float(os.getenv("LS_MIN_24H_QUOTE_VOL", "25000000"))
 MAX_SYMBOLS = int(os.getenv("LS_MAX_SYMBOLS", "80"))
 REQUEST_TIMEOUT = 12
 TELEGRAM_LIMIT = 4096
-VERSION = "LSA_V1_2_MEASURED_2026-10-03"
+VERSION = "LSA_V1_3_TRIGGER_2026-10-03"
 OKX_BASE = "https://www.okx.com"
 FEE_BPS_PER_SIDE = float(os.getenv("LS_FEE_BPS_PER_SIDE", "5"))
 SLIPPAGE_BPS_PER_SIDE = float(os.getenv("LS_SLIPPAGE_BPS_PER_SIDE", "5"))
@@ -244,6 +244,81 @@ def timeframe_features(k):
     }
 
 
+def swing_levels(k, lookback=48):
+    """Recent structural support/resistance from completed candles."""
+    h=k["high"][-lookback:]
+    l=k["low"][-lookback:]
+    c=k["close"][-lookback:]
+    if len(h)<8:
+        p=c[-1]
+        return {"support":p,"resistance":p,"support2":p,"resistance2":p}
+    # Ignore current candle; use local pivots from completed bars.
+    piv_hi=[]; piv_lo=[]
+    for i in range(2,len(h)-2):
+        if h[i]>=h[i-1] and h[i]>=h[i-2] and h[i]>=h[i+1] and h[i]>=h[i+2]:
+            piv_hi.append(h[i])
+        if l[i]<=l[i-1] and l[i]<=l[i-2] and l[i]<=l[i+1] and l[i]<=l[i+2]:
+            piv_lo.append(l[i])
+    price=c[-1]
+    below=sorted([x for x in piv_lo if x<price], reverse=True)
+    above=sorted([x for x in piv_hi if x>price])
+    support=below[0] if below else min(l[-12:])
+    support2=below[1] if len(below)>1 else min(l[-24:])
+    resistance=above[0] if above else max(h[-12:])
+    resistance2=above[1] if len(above)>1 else max(h[-24:])
+    return {
+        "support":support,"support2":support2,
+        "resistance":resistance,"resistance2":resistance2,
+    }
+
+
+def build_setup_plan(direction, price, t5k, t15, chart):
+    levels=swing_levels(t5k,48)
+    a=max(t15["atr"],price*0.002)
+    pad=max(0.12*a,price*0.001)
+    if direction=="SHORT":
+        trigger=levels["support"]
+        retest_low=trigger
+        retest_high=trigger+pad
+        invalid=max(levels["resistance"], trigger+0.9*a)
+        target1=levels["support2"]
+        if target1>=trigger:
+            target1=trigger-1.5*a
+        target2=min(target1-0.8*a, trigger-2.5*a)
+        candle="5dk"
+        text=(
+            f"{candle} mum {trigger:.10g} altında kapanırsa ve "
+            f"{trigger:.10g}-{retest_high:.10g} retestinde tekrar reddedilirse SHORT değerlendirilebilir."
+        )
+        return {
+            "direction":"SHORT","trigger_level":trigger,"close_tf":candle,
+            "retest_low":retest_low,"retest_high":retest_high,
+            "invalidation":invalid,"target1":target1,"target2":target2,
+            "triggered":bool(chart["short_trigger"] and price<trigger),
+            "instruction":text,
+        }
+    trigger=levels["resistance"]
+    retest_low=trigger-pad
+    retest_high=trigger
+    invalid=min(levels["support"], trigger-0.9*a)
+    target1=levels["resistance2"]
+    if target1<=trigger:
+        target1=trigger+1.5*a
+    target2=max(target1+0.8*a, trigger+2.5*a)
+    candle="5dk"
+    text=(
+        f"{candle} mum {trigger:.10g} üstünde kapanırsa ve "
+        f"{retest_low:.10g}-{trigger:.10g} retestinde seviye korunursa LONG değerlendirilebilir."
+    )
+    return {
+        "direction":"LONG","trigger_level":trigger,"close_tf":candle,
+        "retest_low":retest_low,"retest_high":retest_high,
+        "invalidation":invalid,"target1":target1,"target2":target2,
+        "triggered":bool(chart["long_trigger"] and price>trigger),
+        "instruction":text,
+    }
+
+
 def chart_state(t1, t5, t15, t1h):
     """Deterministic price-action state. No LLM/AI scoring."""
     bullish_htf = t1h["price"] > t1h["ema20"] > t1h["ema50"]
@@ -424,7 +499,8 @@ class Analysis:
 
 def score_symbol(symbol, market_regime, day_change_pct=0.0):
     t1=timeframe_features(fetch_klines(symbol,"1m",220))
-    t5=timeframe_features(fetch_klines(symbol,"5m",220))
+    k5=fetch_klines(symbol,"5m",220)
+    t5=timeframe_features(k5)
     t15=timeframe_features(fetch_klines(symbol,"15m",220))
     t1h=timeframe_features(fetch_klines(symbol,"1h",220))
     t4h=timeframe_features(fetch_klines(symbol,"4h",220))
@@ -570,9 +646,11 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0):
             status="WAIT"
 
     confidence=min(99, max(0, int(best*0.75 + edge*0.25)))
+    preferred_direction="LONG" if long>short else "SHORT"
+    setup_plan=build_setup_plan(preferred_direction,price,k5,t15,chart)
     payload={
         "version":VERSION,"data_mode":DATA_MODE,"market_regime":market_regime,
-        "day_change_pct":day_change_pct,"chart":chart,
+        "day_change_pct":day_change_pct,"chart":chart,"setup_plan":setup_plan,
         "t1":t1,"t5":t5,"t15":t15,"t1h":t1h,"t4h":t4h,
         "oi":oi,"funding_pct":funding,"taker_ratio":taker,
         "long_short_ratio":ls,"depth_imbalance":depth,
@@ -783,7 +861,7 @@ def build_message(ts, regime, results, errors, perf=None):
     actionable.sort(key=lambda x:(x.confidence,abs(x.payload.get("day_change_pct",0))), reverse=True)
     waits.sort(key=lambda x:(x.confidence,abs(x.payload.get("day_change_pct",0))), reverse=True)
     lines=[
-        "📊 LONG / SHORT ANALİST V1.1",
+        "📊 LONG / SHORT ANALİST V1.3 — SETUP/TRIGGER",
         f"Veri: {DATA_MODE}",
         f"BTC rejimi: {regime} | Taranan: {len(results)} | Hata: {errors}",
         "Otomatik emir YOK — paper-trade / analiz modu.",
@@ -806,11 +884,24 @@ def build_message(ts, regime, results, errors, perf=None):
                 f"Stop/yanlışlanma: {fmtp(a.stop)}",
                 f"Hedef 1: {fmtp(a.tp1)} | Hedef 2: {fmtp(a.tp2)} | R/R≈{a.rr1:.2f}",
             ]
+        plan=a.payload.get("setup_plan") or {}
+        if plan:
+            lines.append("ŞU AN: " + ("✅ TETİK OLUŞTU" if plan.get("triggered") else "⛔ GİRİŞ YOK — şart bekleniyor"))
+            lines.append("📍 " + str(plan.get("instruction","")))
+            lines.append(
+                f"Retest bölgesi: {fmtp(plan.get('retest_low'))} – {fmtp(plan.get('retest_high'))}"
+            )
+            lines.append(
+                f"❌ Fikir iptal: {fmtp(plan.get('invalidation'))} seviyesi karşı yönde 5dk kapanış"
+            )
+            lines.append(
+                f"🎯 Hedef bölgeleri: {fmtp(plan.get('target1'))} / {fmtp(plan.get('target2'))}"
+            )
         if a.status=="WAIT":
             if a.long_score>a.short_score:
-                lines.append("⏳ Beklenen: 1dk+5dk higher-low/reclaim ile LONG tetikleyicisi")
+                lines.append("⏳ LONG bias var; kapanış + retest şartı tamamlanmadan giriş yok.")
             elif a.short_score>a.long_score:
-                lines.append("⏳ Beklenen: 1dk+5dk lower-high/destek kaybı ile SHORT tetikleyicisi")
+                lines.append("⏳ SHORT bias var; kapanış + retest şartı tamamlanmadan giriş yok.")
         for r in a.reasons[:4]: lines.append("• " + r)
         for r in a.risks[:2]: lines.append("⚠️ " + r)
         lines.append("")
