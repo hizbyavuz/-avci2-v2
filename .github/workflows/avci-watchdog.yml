@@ -2,8 +2,6 @@ name: Avci scan and state watchdog
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "17,47 * * * *"
 permissions:
   contents: read
   actions: read
