@@ -51,7 +51,7 @@ jobs:
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          LS_MAX_SYMBOLS: "80"
+          LS_MAX_SYMBOLS: "30"
           LS_MIN_24H_QUOTE_VOL: "25000000"
         run: python -u long_short_analyst.py
 
