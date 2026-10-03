@@ -2,13 +2,6 @@ name: Gate History Quick OOS
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - "history_oos_quick.py"
-      - ".github/workflows/history-oos-quick.yml"
-  schedule:
-    - cron: "33 * * * *"
-
 permissions:
   contents: read
 
