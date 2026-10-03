@@ -27,6 +27,11 @@ FUTURES_BASES = (
     "https://fapi3.binance.com",
     "https://fapi4.binance.com",
 )
+SPOT_BASES = (
+    "https://data-api.binance.vision",
+    "https://api.binance.com",
+)
+DATA_MODE = "BINANCE_FUTURES"
 DB = os.getenv("LS_DB", "long_short_analyst.db")
 MIN_24H_QUOTE_VOL = float(os.getenv("LS_MIN_24H_QUOTE_VOL", "25000000"))
 MAX_SYMBOLS = int(os.getenv("LS_MAX_SYMBOLS", "80"))
@@ -45,6 +50,7 @@ def now_iso() -> str:
 
 
 def fget(path: str, params: dict | None = None):
+    global DATA_MODE
     last = None
     for base in FUTURES_BASES:
         try:
@@ -53,10 +59,32 @@ def fget(path: str, params: dict | None = None):
                 headers={"User-Agent": "long-short-analyst/1.1"},
             )
             r.raise_for_status()
-            return r.json()
-        except requests.RequestException as exc:
+            body = r.json()
+            DATA_MODE = "BINANCE_FUTURES"
+            return body
+        except (requests.RequestException, ValueError) as exc:
             last = exc
-    raise last or RuntimeError("Binance Futures endpoint unavailable")
+
+    spot_map = {
+        "/fapi/v1/klines": "/api/v3/klines",
+        "/fapi/v1/exchangeInfo": "/api/v3/exchangeInfo",
+        "/fapi/v1/ticker/24hr": "/api/v3/ticker/24hr",
+        "/fapi/v1/depth": "/api/v3/depth",
+    }
+    spot_path = spot_map.get(path)
+    if spot_path:
+        for base in SPOT_BASES:
+            try:
+                r = requests.get(
+                    base + spot_path, params=params or {}, timeout=REQUEST_TIMEOUT,
+                    headers={"User-Agent": "long-short-analyst/1.1"},
+                )
+                r.raise_for_status()
+                DATA_MODE = "BINANCE_SPOT_GRAPH_ONLY"
+                return r.json()
+            except (requests.RequestException, ValueError) as exc:
+                last = exc
+    raise last or RuntimeError("Binance market data unavailable")
 
 
 def pct(a: float, b: float) -> float:
@@ -196,34 +224,46 @@ def chart_state(t1, t5, t15, t1h):
 
 
 def fetch_oi(symbol):
-    rows = fget("/futures/data/openInterestHist", {
-        "symbol":symbol,"period":"5m","limit":13
-    })
-    if not rows:
+    try:
+        rows = fget("/futures/data/openInterestHist", {
+            "symbol":symbol,"period":"5m","limit":13
+        })
+        if not rows:
+            return {"oi_change_1h":0.0,"oi_now":0.0}
+        vals=[float(x.get("sumOpenInterestValue") or 0) for x in rows]
+        return {"oi_change_1h":pct(vals[0],vals[-1]),"oi_now":vals[-1]}
+    except Exception:
         return {"oi_change_1h":0.0,"oi_now":0.0}
-    vals=[float(x.get("sumOpenInterestValue") or 0) for x in rows]
-    return {"oi_change_1h":pct(vals[0],vals[-1]),"oi_now":vals[-1]}
 
 
 def fetch_funding(symbol):
-    x=fget("/fapi/v1/premiumIndex",{"symbol":symbol})
-    return float(x.get("lastFundingRate") or 0.0) * 100.0
+    try:
+        x=fget("/fapi/v1/premiumIndex",{"symbol":symbol})
+        return float(x.get("lastFundingRate") or 0.0) * 100.0
+    except Exception:
+        return 0.0
 
 
 def fetch_taker(symbol):
-    rows=fget("/futures/data/takerlongshortRatio",{
-        "symbol":symbol,"period":"5m","limit":12
-    })
-    ratios=[float(x.get("buySellRatio") or 1.0) for x in rows]
-    return mean(ratios[-6:]) if ratios else 1.0
+    try:
+        rows=fget("/futures/data/takerlongshortRatio",{
+            "symbol":symbol,"period":"5m","limit":12
+        })
+        ratios=[float(x.get("buySellRatio") or 1.0) for x in rows]
+        return mean(ratios[-6:]) if ratios else 1.0
+    except Exception:
+        return 1.0
 
 
 def fetch_long_short(symbol):
-    rows=fget("/futures/data/globalLongShortAccountRatio",{
-        "symbol":symbol,"period":"5m","limit":12
-    })
-    if not rows: return 1.0
-    return float(rows[-1].get("longShortRatio") or 1.0)
+    try:
+        rows=fget("/futures/data/globalLongShortAccountRatio",{
+            "symbol":symbol,"period":"5m","limit":12
+        })
+        if not rows: return 1.0
+        return float(rows[-1].get("longShortRatio") or 1.0)
+    except Exception:
+        return 1.0
 
 
 def fetch_depth_imbalance(symbol):
@@ -243,7 +283,9 @@ def universe():
     tick=fget("/fapi/v1/ticker/24hr")
     tradable={}
     for x in info.get("symbols",[]):
-        if x.get("quoteAsset")!="USDT" or x.get("contractType")!="PERPETUAL" or x.get("status")!="TRADING":
+        if x.get("quoteAsset")!="USDT" or x.get("status")!="TRADING":
+            continue
+        if DATA_MODE=="BINANCE_FUTURES" and x.get("contractType")!="PERPETUAL":
             continue
         base=x.get("baseAsset","")
         if base in EXCLUDED_BASES or any(base.endswith(m) for m in EXCLUDED_MARKERS):
@@ -420,6 +462,11 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0):
         risk=abs(price-stop)
         rr1=abs(tp1-price)/risk if risk else None
 
+    # Futures-data safety gate: chart-only fallback can watch, never issue entry.
+    if DATA_MODE!="BINANCE_FUTURES" and status in ("LONG","SHORT"):
+        risks.append("Binance Futures türev verisi erişilemiyor; grafik izleniyor ama giriş sinyali kilitli")
+        status="WAIT"
+
     # Volatility risk gate.
     if t15["atr_pct"]>=4.0:
         risks.append(f"15dk ATR %{t15['atr_pct']:.1f}; aşırı oynaklık")
@@ -428,7 +475,7 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0):
 
     confidence=min(99, max(0, int(best*0.75 + edge*0.25)))
     payload={
-        "version":VERSION,"market_regime":market_regime,
+        "version":VERSION,"data_mode":DATA_MODE,"market_regime":market_regime,
         "day_change_pct":day_change_pct,"chart":chart,
         "t1":t1,"t5":t5,"t15":t15,"t1h":t1h,"t4h":t4h,
         "oi":oi,"funding_pct":funding,"taker_ratio":taker,
@@ -534,7 +581,8 @@ def build_message(ts, regime, results, errors):
     actionable.sort(key=lambda x:(x.confidence,abs(x.payload.get("day_change_pct",0))), reverse=True)
     waits.sort(key=lambda x:(x.confidence,abs(x.payload.get("day_change_pct",0))), reverse=True)
     lines=[
-        "📊 LONG / SHORT ANALİST V1",
+        "📊 LONG / SHORT ANALİST V1.1",
+        f"Veri: {DATA_MODE}",
         f"BTC rejimi: {regime} | Taranan: {len(results)} | Hata: {errors}",
         "Otomatik emir YOK — paper-trade / analiz modu.",
         "",
