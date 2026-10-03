@@ -1,0 +1,44 @@
+name: Long Short Watchdog
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "*/10 * * * *"
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: long-short-watchdog
+  cancel-in-progress: true
+
+jobs:
+  heal:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check analyst freshness and restart if stale
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          latest=$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/long-short-analyst.yml/runs?per_page=20"             --jq '[.workflow_runs[] | select(.status=="completed" and .conclusion=="success")] | sort_by(.updated_at) | reverse | .[0].updated_at // empty')
+
+          now=$(date -u +%s)
+          if test -z "$latest"; then
+            echo "No successful analyst run found; restarting."
+            gh workflow run long-short-analyst.yml --ref main
+            exit 0
+          fi
+
+          last=$(date -u -d "$latest" +%s)
+          age=$((now-last))
+          echo "Latest successful analyst age: ${age}s"
+
+          if test "$age" -gt 600; then
+            echo "Analyst stale for >10m; restarting."
+            gh workflow run long-short-analyst.yml --ref main
+          else
+            echo "Analyst fresh; no action."
+          fi
