@@ -3,9 +3,6 @@ name: Binance Early Signal Engine
 # Automatic trader-framework scan restored.
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "2,32 * * * *"
-
 permissions:
   contents: read
   actions: write
