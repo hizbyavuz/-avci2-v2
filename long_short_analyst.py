@@ -38,7 +38,7 @@ MIN_24H_QUOTE_VOL = float(os.getenv("LS_MIN_24H_QUOTE_VOL", "25000000"))
 MAX_SYMBOLS = int(os.getenv("LS_MAX_SYMBOLS", "80"))
 REQUEST_TIMEOUT = 12
 TELEGRAM_LIMIT = 4096
-VERSION = "LSA_V1_3_TRIGGER_2026-10-03"
+VERSION = "LSA_V1_4_PLAIN_TR_2026-10-03"
 OKX_BASE = "https://www.okx.com"
 FEE_BPS_PER_SIDE = float(os.getenv("LS_FEE_BPS_PER_SIDE", "5"))
 SLIPPAGE_BPS_PER_SIDE = float(os.getenv("LS_SLIPPAGE_BPS_PER_SIDE", "5"))
@@ -861,7 +861,7 @@ def build_message(ts, regime, results, errors, perf=None):
     actionable.sort(key=lambda x:(x.confidence,abs(x.payload.get("day_change_pct",0))), reverse=True)
     waits.sort(key=lambda x:(x.confidence,abs(x.payload.get("day_change_pct",0))), reverse=True)
     lines=[
-        "📊 LONG / SHORT ANALİST V1.3 — SETUP/TRIGGER",
+        "📊 LONG / SHORT MOTORU — SADE ANLATIM",
         f"Veri: {DATA_MODE}",
         f"BTC rejimi: {regime} | Taranan: {len(results)} | Hata: {errors}",
         "Otomatik emir YOK — paper-trade / analiz modu.",
@@ -886,27 +886,39 @@ def build_message(ts, regime, results, errors, perf=None):
             ]
         plan=a.payload.get("setup_plan") or {}
         if plan:
-            lines.append("ŞU AN: " + ("✅ TETİK OLUŞTU" if plan.get("triggered") else "⛔ GİRİŞ YOK — şart bekleniyor"))
-            lines.append("📍 " + str(plan.get("instruction","")))
+            lines.append("ŞU AN: " + ("✅ GİRİŞ ŞARTI OLUŞTU" if plan.get("triggered") else "⛔ ŞU AN GİRİŞ YOK — şart bekleniyor"))
+            direction=plan.get("direction")
+            trig=fmtp(plan.get("trigger_level"))
+            rl=fmtp(plan.get("retest_low")); rh=fmtp(plan.get("retest_high"))
+            if direction=="SHORT":
+                lines.append(f"Ne bekliyoruz? Fiyat {trig} altına insin ve 5 dakikalık mum bu seviyenin altında kapansın.")
+                lines.append(f"Sonra fiyat {rl}–{rh} bölgesine geri çıkıp burayı aşamaz ve yeniden aşağı dönerse SHORT düşünülebilir.")
+                lines.append("Not: Sadece anlık fitil atması yeterli değil; 5 dakikalık mum kapanışı istiyoruz.")
+            else:
+                lines.append(f"Ne bekliyoruz? Fiyat {trig} üstüne çıksın ve 5 dakikalık mum bu seviyenin üstünde kapansın.")
+                lines.append(f"Sonra fiyat {rl}–{rh} bölgesine geri gelip bu bölgenin üstünde tutunursa LONG düşünülebilir.")
+                lines.append("Not: Sadece anlık yukarı değmesi yeterli değil; 5 dakikalık mum kapanışı istiyoruz.")
             lines.append(
                 f"Retest bölgesi: {fmtp(plan.get('retest_low'))} – {fmtp(plan.get('retest_high'))}"
             )
             lines.append(
-                f"❌ Fikir iptal: {fmtp(plan.get('invalidation'))} seviyesi karşı yönde 5dk kapanış"
+                f"❌ Bu fikir ne zaman bozulur? Fiyat {fmtp(plan.get('invalidation'))} seviyesinin karşı tarafında 5 dakikalık mum kapatırsa bu senaryoyu iptal ederiz."
             )
             lines.append(
-                f"🎯 Hedef bölgeleri: {fmtp(plan.get('target1'))} / {fmtp(plan.get('target2'))}"
+                f"🎯 Kâr alınabilecek bölgeler: İlk hedef {fmtp(plan.get('target1'))} | İkinci hedef {fmtp(plan.get('target2'))}"
             )
         if a.status=="WAIT":
             if a.long_score>a.short_score:
-                lines.append("⏳ LONG bias var; kapanış + retest şartı tamamlanmadan giriş yok.")
+                lines.append("⏳ Yükseliş tarafı daha güçlü görünüyor; ama mum kapanışı ve kırılan seviyenin tekrar korunması gelmeden giriş yok.")
             elif a.short_score>a.long_score:
-                lines.append("⏳ SHORT bias var; kapanış + retest şartı tamamlanmadan giriş yok.")
+                lines.append("⏳ Düşüş tarafı daha güçlü görünüyor; ama mum kapanışı ve kırılan seviyenin tekrar reddedilmesi gelmeden giriş yok.")
         for r in a.reasons[:4]: lines.append("• " + r)
         for r in a.risks[:2]: lines.append("⚠️ " + r)
         lines.append("")
     lines += [
-        "Not: Skor deterministik veriden hesaplanır; AI tahmini değildir.",
+        "Terimler: OI = açık vadeli pozisyon miktarı | Funding = long/short taraflarının birbirine ödediği ücret.",
+        "Retest = kırılan seviyenin geri dönüp tekrar denenmesi | Fitil = mumun kısa süreli iğnesi.",
+        "Not: Skor veriden hesaplanır; kesin fiyat tahmini değildir.",
         "Kaldıraç, kötü bir setup'ı iyi yapmaz. Stop ve pozisyon büyüklüğü ayrı karardır."
     ]
     return "\n".join(lines)[:TELEGRAM_LIMIT]
