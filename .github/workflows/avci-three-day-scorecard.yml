@@ -2,14 +2,6 @@ name: Avci 3 Day Plain Scorecard
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - "avci_three_day_scorecard.py"
-      - ".github/workflows/avci-three-day-scorecard.yml"
-  schedule:
-    - cron: "35 8 */3 * *"
-
 permissions:
   contents: read
   actions: read
