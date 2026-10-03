@@ -26,7 +26,7 @@ MIN_24H_QUOTE_VOL = float(os.getenv("LS_MIN_24H_QUOTE_VOL", "25000000"))
 MAX_SYMBOLS = int(os.getenv("LS_MAX_SYMBOLS", "80"))
 REQUEST_TIMEOUT = 12
 TELEGRAM_LIMIT = 4096
-VERSION = "LSA_V1_2026-10-03"
+VERSION = "LSA_V1_1_CHART_2026-10-03"
 
 EXCLUDED_BASES = {
     "USDC","FDUSD","TUSD","USDP","DAI","BUSD","EUR","TRY","BTCST",
@@ -137,6 +137,49 @@ def timeframe_features(k):
     }
 
 
+def chart_state(t1, t5, t15, t1h):
+    """Deterministic price-action state. No LLM/AI scoring."""
+    bullish_htf = t1h["price"] > t1h["ema20"] > t1h["ema50"]
+    bearish_htf = t1h["price"] < t1h["ema20"] < t1h["ema50"]
+    bullish_ltf = t5["structure"] > 0 and t5["above20"]
+    bearish_ltf = t5["structure"] < 0 and not t5["above20"]
+
+    if bullish_htf and bullish_ltf and t15["structure"] >= 0:
+        state = "TRENDING_UP"
+    elif bearish_htf and bearish_ltf and t15["structure"] <= 0:
+        state = "TRENDING_DOWN"
+    elif bullish_htf and t5["structure"] < 0:
+        state = "UPTREND_PULLBACK"
+    elif bearish_htf and t5["structure"] > 0:
+        state = "DOWNTREND_BOUNCE"
+    elif t15["breakout20"]:
+        state = "BREAKOUT"
+    elif t15["breakdown20"]:
+        state = "BREAKDOWN"
+    else:
+        state = "RANGE_TRANSITION"
+
+    short_trigger = (
+        t5["structure"] < 0
+        and t1["structure"] <= 0
+        and not t5["above20"]
+        and (t15["structure"] < 0 or t15["change_1"] < 0)
+    )
+    long_trigger = (
+        t5["structure"] > 0
+        and t1["structure"] >= 0
+        and t5["above20"]
+        and (t15["structure"] > 0 or t15["change_1"] > 0)
+    )
+    return {
+        "state": state,
+        "long_trigger": bool(long_trigger),
+        "short_trigger": bool(short_trigger),
+        "overextended_up": bool(t15["rsi"] >= 74 or t15["change_4"] >= 6.0),
+        "overextended_down": bool(t15["rsi"] <= 26 or t15["change_4"] <= -6.0),
+    }
+
+
 def fetch_oi(symbol):
     rows = fget("/futures/data/openInterestHist", {
         "symbol":symbol,"period":"5m","limit":13
@@ -177,6 +220,10 @@ def fetch_depth_imbalance(symbol):
 
 
 def universe():
+    """
+    Futures action universe:
+    liquid USDT perpetuals; daily top movers first, then volume leaders.
+    """
     info=fget("/fapi/v1/exchangeInfo")
     tick=fget("/fapi/v1/ticker/24hr")
     tradable={}
@@ -187,15 +234,34 @@ def universe():
         if base in EXCLUDED_BASES or any(base.endswith(m) for m in EXCLUDED_MARKERS):
             continue
         tradable[x["symbol"]]=base
-    rows=[]
+
+    eligible=[]
     for x in tick:
-        s=x.get("symbol")
-        if s not in tradable: continue
+        sym=x.get("symbol")
+        if sym not in tradable:
+            continue
         qv=float(x.get("quoteVolume") or 0)
-        if qv < MIN_24H_QUOTE_VOL: continue
-        rows.append((s,qv,float(x.get("lastPrice") or 0),float(x.get("priceChangePercent") or 0)))
-    rows.sort(key=lambda z:z[1], reverse=True)
-    return rows[:MAX_SYMBOLS]
+        if qv < MIN_24H_QUOTE_VOL:
+            continue
+        eligible.append((
+            sym, qv,
+            float(x.get("lastPrice") or 0),
+            float(x.get("priceChangePercent") or 0),
+        ))
+
+    by_move=sorted(eligible,key=lambda z:abs(z[3]),reverse=True)
+    by_vol=sorted(eligible,key=lambda z:z[1],reverse=True)
+    mover_n=max(20, min(50, int(MAX_SYMBOLS*0.60)))
+    selected=[]
+    seen=set()
+    for row in by_move[:mover_n] + by_vol:
+        if row[0] in seen:
+            continue
+        selected.append(row)
+        seen.add(row[0])
+        if len(selected)>=MAX_SYMBOLS:
+            break
+    return selected
 
 
 def btc_regime():
@@ -227,7 +293,8 @@ class Analysis:
     payload: dict[str,Any]
 
 
-def score_symbol(symbol, market_regime):
+def score_symbol(symbol, market_regime, day_change_pct=0.0):
+    t1=timeframe_features(fetch_klines(symbol,"1m",220))
     t5=timeframe_features(fetch_klines(symbol,"5m",220))
     t15=timeframe_features(fetch_klines(symbol,"15m",220))
     t1h=timeframe_features(fetch_klines(symbol,"1h",220))
@@ -237,6 +304,7 @@ def score_symbol(symbol, market_regime):
     taker=fetch_taker(symbol)
     ls=fetch_long_short(symbol)
     depth=fetch_depth_imbalance(symbol)
+    chart=chart_state(t1,t5,t15,t1h)
 
     long=short=0
     reasons=[]; risks=[]
@@ -257,6 +325,15 @@ def score_symbol(symbol, market_regime):
         long+=5; reasons.append("15dk hacimli kırılım")
     if t15["breakdown20"] and t15["vol_mult"]>=1.25:
         short+=5; reasons.append("15dk hacimli aşağı kırılım")
+
+    if chart["long_trigger"]:
+        long+=10; reasons.append("Grafik tetikleyicisi: 1dk+5dk yapı LONG lehine")
+    if chart["short_trigger"]:
+        short+=10; reasons.append("Grafik tetikleyicisi: 1dk+5dk yapı SHORT lehine")
+    if chart["overextended_up"]:
+        long-=5; risks.append("Grafik yukarı aşırı uzamış; long kovalamak yerine pullback/retest bekle")
+    if chart["overextended_down"]:
+        short-=5; risks.append("Grafik aşağı aşırı uzamış; short kovalamak yerine tepki/retest bekle")
 
     # Momentum / RSI: avoid chasing extremes.
     if 52 <= t15["rsi"] <= 68 and t5["rsi"]>=50: long+=8
@@ -304,7 +381,10 @@ def score_symbol(symbol, market_regime):
 
     if best>=55 and edge>=12:
         direction="LONG" if long>short else "SHORT"
-        status=direction
+        trigger_ok = chart["long_trigger"] if direction=="LONG" else chart["short_trigger"]
+        status=direction if trigger_ok else "WAIT"
+        if not trigger_ok:
+            risks.append(direction + " yönü güçlü ama grafik giriş tetikleyicisi henüz oluşmadı")
     elif best>=42:
         status="WAIT"
     else:
@@ -334,7 +414,8 @@ def score_symbol(symbol, market_regime):
     confidence=min(99, max(0, int(best*0.75 + edge*0.25)))
     payload={
         "version":VERSION,"market_regime":market_regime,
-        "t5":t5,"t15":t15,"t1h":t1h,"t4h":t4h,
+        "day_change_pct":day_change_pct,"chart":chart,
+        "t1":t1,"t5":t5,"t15":t15,"t1h":t1h,"t4h":t4h,
         "oi":oi,"funding_pct":funding,"taker_ratio":taker,
         "long_short_ratio":ls,"depth_imbalance":depth,
     }
@@ -435,8 +516,8 @@ def turkish_status(s):
 def build_message(ts, regime, results, errors):
     actionable=[x for x in results if x.status in ("LONG","SHORT")]
     waits=[x for x in results if x.status=="WAIT"]
-    actionable.sort(key=lambda x:x.confidence, reverse=True)
-    waits.sort(key=lambda x:x.confidence, reverse=True)
+    actionable.sort(key=lambda x:(x.confidence,abs(x.payload.get("day_change_pct",0))), reverse=True)
+    waits.sort(key=lambda x:(x.confidence,abs(x.payload.get("day_change_pct",0))), reverse=True)
     lines=[
         "📊 LONG / SHORT ANALİST V1",
         f"BTC rejimi: {regime} | Taranan: {len(results)} | Hata: {errors}",
@@ -448,7 +529,8 @@ def build_message(ts, regime, results, errors):
         lines.append("⚪ Şu an temiz setup yok. İşlem açmamak da geçerli sonuç.")
     for a in shown:
         lines += [
-            f"{turkish_status(a.status)} | {a.symbol}",
+            f"{turkish_status(a.status)} | {a.symbol} | 24s {a.payload.get('day_change_pct',0):+.1f}%",
+            f"Grafik: {a.payload.get('chart',{}).get('state','N/A')}",
             f"Long: {a.long_score}/100 | Short: {a.short_score}/100 | Güven: {a.confidence}/99",
             f"Fiyat: {fmtp(a.price)}",
         ]
@@ -458,6 +540,11 @@ def build_message(ts, regime, results, errors):
                 f"Stop/yanlışlanma: {fmtp(a.stop)}",
                 f"Hedef 1: {fmtp(a.tp1)} | Hedef 2: {fmtp(a.tp2)} | R/R≈{a.rr1:.2f}",
             ]
+        if a.status=="WAIT":
+            if a.long_score>a.short_score:
+                lines.append("⏳ Beklenen: 1dk+5dk higher-low/reclaim ile LONG tetikleyicisi")
+            elif a.short_score>a.long_score:
+                lines.append("⏳ Beklenen: 1dk+5dk lower-high/destek kaybı ile SHORT tetikleyicisi")
         for r in a.reasons[:4]: lines.append("• " + r)
         for r in a.risks[:2]: lines.append("⚠️ " + r)
         lines.append("")
@@ -487,9 +574,9 @@ def main():
     regime=btc_regime()
     uni=universe()
     results=[]; errors=0
-    for symbol,_,_,_ in uni:
+    for symbol,_,_,day_change in uni:
         try:
-            results.append(score_symbol(symbol,regime))
+            results.append(score_symbol(symbol,regime,day_change))
         except Exception as e:
             errors+=1
             print(f"{symbol}: {type(e).__name__}: {e}")
