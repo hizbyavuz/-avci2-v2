@@ -2,18 +2,6 @@ name: Avci Global Governance
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - "avci_global_governance.py"
-      - "audit_write_only_20260930.py"
-      - "research_validation_spec.json"
-      - "institutional_model_registry.py"
-      - "avci_global_stress.py"
-      - "institutional_coverage_audit.py"
-      - ".github/workflows/avci-global-governance.yml"
-  schedule:
-    - cron: "55 * * * *"
-
 permissions:
   contents: read
   actions: read
