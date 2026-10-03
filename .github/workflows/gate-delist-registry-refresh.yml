@@ -2,13 +2,6 @@ name: Gate Official Delist Registry Refresh
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - "gate_official_delist_import.py"
-      - ".github/workflows/gate-delist-registry-refresh.yml"
-  schedule:
-    - cron: "11 1 * * *"
-
 permissions:
   contents: read
 
