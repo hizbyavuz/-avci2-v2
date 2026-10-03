@@ -38,7 +38,10 @@ MIN_24H_QUOTE_VOL = float(os.getenv("LS_MIN_24H_QUOTE_VOL", "25000000"))
 MAX_SYMBOLS = int(os.getenv("LS_MAX_SYMBOLS", "80"))
 REQUEST_TIMEOUT = 12
 TELEGRAM_LIMIT = 4096
-VERSION = "LSA_V1_5_TARGET_GUARD_2026-10-03"
+VERSION = "LSA_V1_6_FAST_TWO_STAGE_2026-10-04"
+PRESELECT_MAX = int(os.getenv("LS_PRESELECT_MAX", "12"))
+HTF_CACHE_TTL_1H = int(os.getenv("LS_HTF_CACHE_TTL_1H", "900"))
+HTF_CACHE_TTL_4H = int(os.getenv("LS_HTF_CACHE_TTL_4H", "3600"))
 OKX_BASE = "https://www.okx.com"
 FEE_BPS_PER_SIDE = float(os.getenv("LS_FEE_BPS_PER_SIDE", "5"))
 SLIPPAGE_BPS_PER_SIDE = float(os.getenv("LS_SLIPPAGE_BPS_PER_SIDE", "5"))
@@ -472,8 +475,53 @@ def universe():
     return selected
 
 
+def fetch_htf_cached(symbol, interval, limit=220):
+    """Persist 1h/4h candles across runs so slow higher-timeframe data is not refetched every 5m."""
+    ttl = HTF_CACHE_TTL_4H if interval=="4h" else HTF_CACHE_TTL_1H
+    now_ts = time.time()
+    try:
+        with sqlite3.connect(DB) as con:
+            row=con.execute(
+                "SELECT fetched_at_epoch,payload_json FROM htf_cache WHERE symbol=? AND interval=?",
+                (symbol,interval)
+            ).fetchone()
+            if row and now_ts-float(row[0]) <= ttl:
+                return json.loads(row[1])
+    except Exception:
+        pass
+    data=fetch_klines(symbol,interval,limit)
+    try:
+        with sqlite3.connect(DB) as con:
+            con.execute("""INSERT OR REPLACE INTO htf_cache(symbol,interval,fetched_at_epoch,payload_json)
+                           VALUES(?,?,?,?)""",
+                        (symbol,interval,now_ts,json.dumps(data,separators=(",",":"))))
+    except Exception:
+        pass
+    return data
+
+
+def prefilter_symbol(symbol, day_change_pct):
+    """Cheap first pass: only 5m + 15m chart data. No OKX/derivatives/order book."""
+    k5=fetch_klines(symbol,"5m",90)
+    k15=fetch_klines(symbol,"15m",90)
+    t5=timeframe_features(k5)
+    t15=timeframe_features(k15)
+    score=0.0
+    score += min(abs(float(day_change_pct)),30.0)*0.35
+    score += min(abs(t15["change_4"]),12.0)*1.40
+    score += min(abs(t5["change_4"]),8.0)*1.10
+    score += min(max(t15["vol_mult"]-1.0,0.0),4.0)*2.2
+    score += 2.5 if t15["structure"] != 0 else 0.0
+    score += 4.0 if (t15["breakout20"] or t15["breakdown20"]) else 0.0
+    score += 1.5 if t5["structure"] != 0 else 0.0
+    return {
+        "symbol":symbol,"day_change":day_change_pct,"rank":score,
+        "k5":k5,"t5":t5,"k15":k15,"t15":t15,
+    }
+
+
 def btc_regime():
-    k=fetch_klines("BTCUSDT","1h",220)
+    k=fetch_htf_cached("BTCUSDT","1h",220)
     f=timeframe_features(k)
     if f["price"]>f["ema20"]>f["ema50"] and f["structure"]>=0:
         return "UP"
@@ -501,13 +549,16 @@ class Analysis:
     payload: dict[str,Any]
 
 
-def score_symbol(symbol, market_regime, day_change_pct=0.0):
-    t1=timeframe_features(fetch_klines(symbol,"1m",220))
-    k5=fetch_klines(symbol,"5m",220)
-    t5=timeframe_features(k5)
-    t15=timeframe_features(fetch_klines(symbol,"15m",220))
-    t1h=timeframe_features(fetch_klines(symbol,"1h",220))
-    t4h=timeframe_features(fetch_klines(symbol,"4h",220))
+def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
+    t1=timeframe_features(fetch_klines(symbol,"1m",120))
+    if pre:
+        k5=pre["k5"]; t5=pre["t5"]; t15=pre["t15"]
+    else:
+        k5=fetch_klines(symbol,"5m",220)
+        t5=timeframe_features(k5)
+        t15=timeframe_features(fetch_klines(symbol,"15m",220))
+    t1h=timeframe_features(fetch_htf_cached(symbol,"1h",220))
+    t4h=timeframe_features(fetch_htf_cached(symbol,"4h",220))
     oi=fetch_oi(symbol)
     funding=fetch_funding(symbol)
     taker=fetch_taker(symbol)
@@ -667,6 +718,13 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0):
 
 def init_db():
     with sqlite3.connect(DB) as con:
+        con.execute("""CREATE TABLE IF NOT EXISTS htf_cache(
+            symbol TEXT NOT NULL,
+            interval TEXT NOT NULL,
+            fetched_at_epoch REAL NOT NULL,
+            payload_json TEXT NOT NULL,
+            PRIMARY KEY(symbol,interval)
+        )""")
         con.execute("""CREATE TABLE IF NOT EXISTS scans(
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             scan_time_utc TEXT NOT NULL, version TEXT NOT NULL,
@@ -956,24 +1014,43 @@ def send_telegram(msg):
 
 
 def main():
+    started=time.time()
     init_db()
     update_paper()
     ts=now_iso()
     regime=btc_regime()
     uni=universe()
-    results=[]; errors=0
+
+    # Stage 1: cheap broad scan. Keep Binance coverage wide without doing
+    # expensive derivatives/HTF calls for every symbol.
+    preselected=[]; errors=0
     for symbol,_,_,day_change in uni:
         try:
-            results.append(score_symbol(symbol,regime,day_change))
+            preselected.append(prefilter_symbol(symbol,day_change))
         except Exception as e:
             errors+=1
-            print(f"{symbol}: {type(e).__name__}: {e}")
-        time.sleep(0.03)
+            print(f"prefilter {symbol}: {type(e).__name__}: {e}")
+    preselected.sort(key=lambda x:x["rank"], reverse=True)
+    shortlist=preselected[:max(1,min(PRESELECT_MAX,len(preselected)))]
+    print("FAST_PREFILTER",len(uni),"->",len(shortlist),
+          ",".join(x["symbol"] for x in shortlist))
+
+    # Stage 2: full deterministic model only on the strongest shortlist.
+    results=[]
+    for pre in shortlist:
+        symbol=pre["symbol"]
+        try:
+            results.append(score_symbol(symbol,regime,pre["day_change"],pre=pre))
+        except Exception as e:
+            errors+=1
+            print(f"deep {symbol}: {type(e).__name__}: {e}")
+
     save_scan(ts,regime,len(uni),results)
     perf=performance_summary()
     msg=build_message(ts,regime,results,errors,perf)
     print(msg)
     send_telegram(msg)
+    print(f"SCAN_RUNTIME_SECONDS {time.time()-started:.1f}")
 
 
 if __name__=="__main__":
