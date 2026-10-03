@@ -1,0 +1,286 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""Long/Short Live Pool
+
+Separate from Avci/Gate/Long-Short analyst scoring.
+- Reads latest Long/Short analyst candidates from long_short_analyst.db.
+- Keeps its own state in long_short_live_pool.db.
+- Polls watched symbols every ~15 seconds during a short-lived worker window.
+- Sends Telegram only on meaningful stage transitions.
+- Never places orders.
+"""
+from __future__ import annotations
+
+import json
+import os
+import sqlite3
+import time
+from datetime import datetime, timezone
+
+import requests
+from binance_notify import resolve_chat_id
+
+ANALYST_DB=os.getenv("LS_DB","long_short_analyst.db")
+LIVE_DB=os.getenv("LS_LIVE_DB","long_short_live_pool.db")
+POLL_SECONDS=float(os.getenv("LS_LIVE_POLL_SECONDS","15"))
+RUN_SECONDS=int(os.getenv("LS_LIVE_RUN_SECONDS","250"))
+MAX_WATCH=int(os.getenv("LS_LIVE_MAX_WATCH","12"))
+APPROACH_PCT=float(os.getenv("LS_LIVE_APPROACH_PCT","0.25"))
+TELEGRAM_LIMIT=4096
+
+SPOT_BASES=("https://data-api.binance.vision","https://api.binance.com")
+
+def now_iso():
+    return datetime.now(timezone.utc).isoformat()
+
+def spot_get(path,params=None):
+    last=None
+    for base in SPOT_BASES:
+        try:
+            r=requests.get(base+path,params=params or {},timeout=10,
+                           headers={"User-Agent":"long-short-live-pool/1.0"})
+            r.raise_for_status()
+            return r.json()
+        except Exception as exc:
+            last=exc
+    raise last or RuntimeError("Binance Spot unavailable")
+
+def fmtp(x):
+    if x is None: return "-"
+    x=float(x)
+    if abs(x)>=1000: return f"{x:,.2f}"
+    if abs(x)>=1: return f"{x:.4f}"
+    return f"{x:.8f}".rstrip("0")
+
+def init_db():
+    with sqlite3.connect(LIVE_DB) as con:
+        con.execute("""CREATE TABLE IF NOT EXISTS watch_state(
+            symbol TEXT PRIMARY KEY,
+            direction TEXT NOT NULL,
+            trigger_level REAL NOT NULL,
+            retest_low REAL,
+            retest_high REAL,
+            invalidation REAL,
+            target1 REAL,
+            target2 REAL,
+            analyst_scan_time TEXT,
+            analyst_confidence INTEGER,
+            stage TEXT NOT NULL DEFAULT 'WATCH',
+            close_confirmed_time TEXT,
+            retest_seen INTEGER NOT NULL DEFAULT 0,
+            last_price REAL,
+            last_closed_5m REAL,
+            last_update_utc TEXT NOT NULL
+        )""")
+        con.execute("""CREATE TABLE IF NOT EXISTS events(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            event_time_utc TEXT NOT NULL,
+            symbol TEXT NOT NULL,
+            direction TEXT NOT NULL,
+            stage_from TEXT,
+            stage_to TEXT NOT NULL,
+            price REAL,
+            closed_5m REAL,
+            payload_json TEXT
+        )""")
+
+def load_watchlist():
+    if not os.path.exists(ANALYST_DB):
+        return []
+    with sqlite3.connect(ANALYST_DB) as con:
+        con.row_factory=sqlite3.Row
+        scan=con.execute("SELECT MAX(scan_time_utc) AS ts FROM analyses").fetchone()
+        if not scan or not scan["ts"]:
+            return []
+        rows=con.execute("""SELECT symbol,status,long_score,short_score,confidence,payload_json
+                           FROM analyses WHERE scan_time_utc=?
+                           ORDER BY confidence DESC LIMIT ?""",(scan["ts"],MAX_WATCH*3)).fetchall()
+        out=[]
+        for r in rows:
+            try:
+                p=json.loads(r["payload_json"] or "{}")
+                plan=p.get("setup_plan") or {}
+                if not plan.get("direction") or plan.get("trigger_level") is None:
+                    continue
+                # Watch only meaningful WAIT/LONG/SHORT candidates.
+                if r["status"] not in ("WAIT","LONG","SHORT"):
+                    continue
+                out.append({
+                    "symbol":r["symbol"],"direction":plan["direction"],
+                    "trigger_level":float(plan["trigger_level"]),
+                    "retest_low":float(plan.get("retest_low") or plan["trigger_level"]),
+                    "retest_high":float(plan.get("retest_high") or plan["trigger_level"]),
+                    "invalidation":float(plan.get("invalidation") or 0),
+                    "target1":float(plan.get("target1") or 0),
+                    "target2":float(plan.get("target2") or 0),
+                    "confidence":int(r["confidence"] or 0),
+                    "scan_time":scan["ts"],
+                })
+                if len(out)>=MAX_WATCH:
+                    break
+            except Exception:
+                continue
+        return out
+
+def sync_watchlist(items):
+    with sqlite3.connect(LIVE_DB) as con:
+        keep={x["symbol"] for x in items}
+        for x in items:
+            old=con.execute("SELECT direction,trigger_level FROM watch_state WHERE symbol=?",(x["symbol"],)).fetchone()
+            reset = not old or old[0]!=x["direction"] or abs(float(old[1])-x["trigger_level"])>max(1e-12,x["trigger_level"]*0.001)
+            if reset:
+                con.execute("""INSERT OR REPLACE INTO watch_state(
+                    symbol,direction,trigger_level,retest_low,retest_high,invalidation,target1,target2,
+                    analyst_scan_time,analyst_confidence,stage,close_confirmed_time,retest_seen,
+                    last_price,last_closed_5m,last_update_utc
+                ) VALUES(?,?,?,?,?,?,?,?,?,?,'WATCH',NULL,0,NULL,NULL,?)""",
+                (x["symbol"],x["direction"],x["trigger_level"],x["retest_low"],x["retest_high"],
+                 x["invalidation"],x["target1"],x["target2"],x["scan_time"],x["confidence"],now_iso()))
+            else:
+                con.execute("""UPDATE watch_state SET retest_low=?,retest_high=?,invalidation=?,
+                    target1=?,target2=?,analyst_scan_time=?,analyst_confidence=?,last_update_utc=?
+                    WHERE symbol=?""",
+                (x["retest_low"],x["retest_high"],x["invalidation"],x["target1"],x["target2"],
+                 x["scan_time"],x["confidence"],now_iso(),x["symbol"]))
+        if keep:
+            q=",".join("?" for _ in keep)
+            con.execute(f"DELETE FROM watch_state WHERE symbol NOT IN ({q})",tuple(keep))
+        else:
+            con.execute("DELETE FROM watch_state")
+
+def market_snapshot(symbol):
+    kl=spot_get("/api/v3/klines",{"symbol":symbol,"interval":"5m","limit":3})
+    ticker=spot_get("/api/v3/ticker/price",{"symbol":symbol})
+    price=float(ticker["price"])
+    # Binance last row is normally the currently forming candle; use previous row as closed.
+    closed=float(kl[-2][4]) if len(kl)>=2 else float(kl[-1][4])
+    return price,closed
+
+def next_stage(row,price,closed):
+    direction=row["direction"]
+    trig=float(row["trigger_level"])
+    rl=float(row["retest_low"])
+    rh=float(row["retest_high"])
+    inv=float(row["invalidation"] or 0)
+    stage=row["stage"]
+    dist=abs(price/trig-1.0)*100.0 if trig else 999
+
+    if direction=="LONG":
+        if inv and closed < inv:
+            return "INVALIDATED"
+        close_ok=closed>trig
+        in_retest=(rl<=price<=rh)
+        moving_away=price>rh
+    else:
+        if inv and closed > inv:
+            return "INVALIDATED"
+        close_ok=closed<trig
+        in_retest=(rl<=price<=rh)
+        moving_away=price<rl
+
+    if stage in ("WATCH","APPROACHING"):
+        if close_ok:
+            return "CLOSE_CONFIRMED"
+        if dist<=APPROACH_PCT:
+            return "APPROACHING"
+        return "WATCH"
+    if stage=="CLOSE_CONFIRMED":
+        if in_retest:
+            return "RETESTING"
+        return "CLOSE_CONFIRMED"
+    if stage=="RETESTING":
+        if moving_away:
+            return "TRIGGERED"
+        return "RETESTING"
+    return stage
+
+def message_for(row,stage,price,closed):
+    sym=row["symbol"]; d=row["direction"]
+    trig=float(row["trigger_level"]); rl=float(row["retest_low"]); rh=float(row["retest_high"])
+    inv=float(row["invalidation"] or 0); t1=float(row["target1"] or 0); t2=float(row["target2"] or 0)
+    if stage=="APPROACHING":
+        return (f"🟠 {sym} — {d} SEVİYESİNE YAKLAŞIYOR\n"
+                f"Şu an fiyat: {fmtp(price)}\n"
+                f"Henüz giriş yok.\n"
+                f"{'LONG' if d=='LONG' else 'SHORT'} için beklenen ana seviye: {fmtp(trig)}\n"
+                f"5 dakikalık mumun {'üstünde' if d=='LONG' else 'altında'} kapanmasını bekliyoruz.")
+    if stage=="CLOSE_CONFIRMED":
+        return (f"🟡 {sym} — İLK ŞART TAMAMLANDI\n"
+                f"5 dakikalık mum {fmtp(trig)} seviyesinin {'üstünde' if d=='LONG' else 'altında'} kapandı.\n"
+                f"Şimdi hemen girmek yerine geri dönüşü bekliyoruz.\n"
+                f"Fiyat {fmtp(rl)}–{fmtp(rh)} bölgesine geri gelip "
+                f"{'burada tutunursa LONG' if d=='LONG' else 'burayı aşamazsa SHORT'} fikri güçlenecek.")
+    if stage=="RETESTING":
+        return (f"🟠 {sym} — GERİ DÖNÜŞ TESTİ YAPILIYOR\n"
+                f"Fiyat kırdığı bölgeyi tekrar deniyor: {fmtp(rl)}–{fmtp(rh)}\n"
+                f"Henüz giriş teyidi yok.\n"
+                f"{'Bu bölgenin üstünde kalıp yeniden yukarı dönerse LONG' if d=='LONG' else 'Bu bölgeyi aşamayıp yeniden aşağı dönerse SHORT'} düşünülebilir.")
+    if stage=="TRIGGERED":
+        return (f"{'🟢' if d=='LONG' else '🔴'} {sym} — {d} ŞARTLARI OLUŞTU\n"
+                f"Fiyat: {fmtp(price)}\n"
+                f"1) Ana seviye kırıldı ve 5dk mum kapandı.\n"
+                f"2) Fiyat kırdığı bölgeyi tekrar denedi.\n"
+                f"3) Fiyat tekrar {('yukarı' if d=='LONG' else 'aşağı')} dönmeye başladı.\n\n"
+                f"Bu yüzden {d} değerlendirilebilir. Karar yine sende.\n"
+                f"❌ Fikir bozulur: {fmtp(inv)} karşı tarafında 5dk kapanış.\n"
+                f"🎯 İlk hedef: {fmtp(t1)} | İkinci hedef: {fmtp(t2)}")
+    if stage=="INVALIDATED":
+        return (f"⚪ {sym} — ESKİ {d} FİKRİ İPTAL\n"
+                f"Fiyat fikri bozan seviyenin karşı tarafında 5 dakikalık mum kapattı.\n"
+                f"Bu setup artık kullanılmamalı. Yeni tarama bekleniyor.")
+    return None
+
+def send_telegram(msg):
+    token=(os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
+    configured=(os.getenv("TELEGRAM_CHAT_ID") or "").strip()
+    if not token:
+        print(msg)
+        return
+    chat=resolve_chat_id(token,configured,"binance_avci2.db","Long/Short Live Pool")
+    r=requests.post(f"https://api.telegram.org/bot{token}/sendMessage",
+                    json={"chat_id":chat,"text":msg[:TELEGRAM_LIMIT],"disable_web_page_preview":True},
+                    timeout=10)
+    r.raise_for_status()
+
+def loop_once():
+    with sqlite3.connect(LIVE_DB) as con:
+        con.row_factory=sqlite3.Row
+        rows=con.execute("SELECT * FROM watch_state ORDER BY analyst_confidence DESC").fetchall()
+        for row in rows:
+            try:
+                price,closed=market_snapshot(row["symbol"])
+                old=row["stage"]
+                new=next_stage(row,price,closed)
+                if new!=old:
+                    msg=message_for(row,new,price,closed)
+                    con.execute("""INSERT INTO events(event_time_utc,symbol,direction,stage_from,stage_to,price,closed_5m,payload_json)
+                                   VALUES(?,?,?,?,?,?,?,?)""",
+                        (now_iso(),row["symbol"],row["direction"],old,new,price,closed,json.dumps(dict(row),ensure_ascii=False)))
+                    con.execute("""UPDATE watch_state SET stage=?,last_price=?,last_closed_5m=?,last_update_utc=?,
+                                   close_confirmed_time=CASE WHEN ?='CLOSE_CONFIRMED' THEN ? ELSE close_confirmed_time END,
+                                   retest_seen=CASE WHEN ?='RETESTING' THEN 1 ELSE retest_seen END
+                                   WHERE symbol=?""",
+                        (new,price,closed,now_iso(),new,now_iso(),new,row["symbol"]))
+                    con.commit()
+                    if msg:
+                        print(msg)
+                        send_telegram(msg)
+                else:
+                    con.execute("UPDATE watch_state SET last_price=?,last_closed_5m=?,last_update_utc=? WHERE symbol=?",
+                                (price,closed,now_iso(),row["symbol"]))
+                    con.commit()
+            except Exception as exc:
+                print("live error",row["symbol"],type(exc).__name__,str(exc)[:120])
+
+def main():
+    init_db()
+    items=load_watchlist()
+    sync_watchlist(items)
+    print(f"Live pool started: {len(items)} symbols, poll={POLL_SECONDS}s, run={RUN_SECONDS}s")
+    end=time.time()+RUN_SECONDS
+    while time.time()<end:
+        loop_once()
+        time.sleep(POLL_SECONDS)
+
+if __name__=="__main__":
+    main()
