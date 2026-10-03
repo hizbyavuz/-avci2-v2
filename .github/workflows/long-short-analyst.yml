@@ -16,7 +16,7 @@ permissions:
   actions: write
 
 concurrency:
-  group: long-short-analyst-v1
+  group: long-short-analyst-v1-fast
   cancel-in-progress: true
 
 jobs:
