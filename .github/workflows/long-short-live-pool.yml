@@ -3,14 +3,6 @@ name: Long Short Live Pool
 # Separate near-live watcher. Reads analyst candidates, never places orders.
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - "long_short_live_pool.py"
-      - ".github/workflows/long-short-live-pool.yml"
-  schedule:
-    - cron: "*/5 * * * *"
-
 permissions:
   contents: read
   actions: write
