@@ -57,7 +57,7 @@ def init_db():
         con.execute("""CREATE TABLE IF NOT EXISTS watch_state(
             symbol TEXT PRIMARY KEY,
             direction TEXT NOT NULL,
-            trigger_level REAL NOT NULL,
+            entry_level REAL NOT NULL,
             retest_low REAL,
             retest_high REAL,
             invalidation REAL,
@@ -100,7 +100,7 @@ def load_watchlist():
             try:
                 p=json.loads(r["payload_json"] or "{}")
                 plan=p.get("setup_plan") or {}
-                if not plan.get("direction") or plan.get("trigger_level") is None:
+                if not plan.get("direction") or plan.get("entry_level") is None:
                     continue
                 # Watch only meaningful WAIT/LONG/SHORT candidates.
                 if r["status"] not in ("WAIT","LONG","SHORT"):
@@ -108,8 +108,8 @@ def load_watchlist():
                 out.append({
                     "symbol":r["symbol"],"direction":plan["direction"],
                     "trigger_level":float(plan["trigger_level"]),
-                    "retest_low":float(plan.get("retest_low") or plan["trigger_level"]),
-                    "retest_high":float(plan.get("retest_high") or plan["trigger_level"]),
+                    "retest_low":float(plan.get("retest_low") or plan["entry_level"]),
+                    "retest_high":float(plan.get("retest_high") or plan["entry_level"]),
                     "invalidation":float(plan.get("invalidation") or 0),
                     "target1":float(plan.get("target1") or 0),
                     "target2":float(plan.get("target2") or 0),
@@ -126,11 +126,11 @@ def sync_watchlist(items):
     with sqlite3.connect(LIVE_DB) as con:
         keep={x["symbol"] for x in items}
         for x in items:
-            old=con.execute("SELECT direction,trigger_level FROM watch_state WHERE symbol=?",(x["symbol"],)).fetchone()
+            old=con.execute("SELECT direction,entry_level FROM watch_state WHERE symbol=?",(x["symbol"],)).fetchone()
             reset = not old or old[0]!=x["direction"] or abs(float(old[1])-x["trigger_level"])>max(1e-12,x["trigger_level"]*0.001)
             if reset:
                 con.execute("""INSERT OR REPLACE INTO watch_state(
-                    symbol,direction,trigger_level,retest_low,retest_high,invalidation,target1,target2,
+                    symbol,direction,entry_level,retest_low,retest_high,invalidation,target1,target2,
                     analyst_scan_time,analyst_confidence,stage,close_confirmed_time,retest_seen,
                     last_price,last_closed_5m,last_update_utc
                 ) VALUES(?,?,?,?,?,?,?,?,?,?,'WATCH',NULL,0,NULL,NULL,?)""",
@@ -202,7 +202,7 @@ def message_for(row,stage,price,closed):
         return (f"🟠 {sym} — {d} SEVİYESİNE YAKLAŞIYOR\n"
                 f"Şu an fiyat: {fmtp(price)}\n"
                 f"Henüz giriş yok.\n"
-                f"{'LONG' if d=='LONG' else 'SHORT'} için beklenen ana seviye: {fmtp(trig)}\n"
+                f"{'LONG' if d=='LONG' else 'SHORT'} için beklenen giriş için beklenen seviye: {fmtp(trig)}\n"
                 f"5 dakikalık mumun {'üstünde' if d=='LONG' else 'altında'} kapanmasını bekliyoruz.")
     if stage=="CLOSE_CONFIRMED":
         return (f"🟡 {sym} — İLK ŞART TAMAMLANDI\n"
