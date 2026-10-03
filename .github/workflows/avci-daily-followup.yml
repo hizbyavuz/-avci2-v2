@@ -1,8 +1,6 @@
 name: Avci candidate 24 hour follow-up
 
 on:
-  schedule:
-    - cron: "20 7 * * *"
   workflow_dispatch:
     inputs:
       day:
