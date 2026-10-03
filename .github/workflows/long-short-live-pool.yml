@@ -1,0 +1,88 @@
+name: Long Short Live Pool
+
+# Separate near-live watcher. Reads analyst candidates, never places orders.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "long_short_live_pool.py"
+      - ".github/workflows/long-short-live-pool.yml"
+  schedule:
+    - cron: "*/5 * * * *"
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: long-short-live-pool
+  cancel-in-progress: true
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+
+      - name: Restore Binance state for Telegram cache
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python avci_state_guard.py restore-binance
+
+      - name: Setup Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        run: pip install requests==2.32.5
+
+      - name: Restore latest analyst state
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p .lsa-state
+          run_id=$(gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts?name=long-short-analyst-state&per_page=100" \
+            --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | reverse | .[0].workflow_run.id // empty')
+          if test -n "$run_id"; then
+            gh run download "$run_id" --name long-short-analyst-state --dir .lsa-state
+            cp .lsa-state/long_short_analyst.db .
+          fi
+          test -f long_short_analyst.db
+
+      - name: Restore live-pool state
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p .live-state
+          run_id=$(gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts?name=long-short-live-pool-state&per_page=100" \
+            --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | reverse | .[0].workflow_run.id // empty')
+          if test -n "$run_id"; then
+            gh run download "$run_id" --name long-short-live-pool-state --dir .live-state || true
+            test -f .live-state/long_short_live_pool.db && cp .live-state/long_short_live_pool.db .
+          fi
+
+      - name: Run near-live watch pool
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          LS_LIVE_POLL_SECONDS: "15"
+          LS_LIVE_RUN_SECONDS: "250"
+          LS_LIVE_MAX_WATCH: "12"
+          LS_LIVE_APPROACH_PCT: "0.25"
+        run: python -u long_short_live_pool.py
+
+      - name: Upload live-pool state
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: long-short-live-pool-state
+          path: long_short_live_pool.db
+          if-no-files-found: warn
+          retention-days: 30
+          compression-level: 6
