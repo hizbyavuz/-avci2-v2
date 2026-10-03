@@ -2,15 +2,6 @@ name: Gate History V5
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - "history_validation_v5.py"
-      - "history_oos_validation.py"
-      - "history_telegram_status.py"
-      - ".github/workflows/history-miner.yml"
-  schedule:
-    - cron: "6 * * * *"
-
 permissions:
   contents: read
 
