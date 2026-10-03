@@ -19,6 +19,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 import requests
+from binance_notify import resolve_chat_id
 
 FUTURES_BASES = (
     "https://fapi.binance.com",
@@ -643,21 +644,14 @@ def build_message(ts, regime, results, errors):
 
 
 def resolve_telegram_chat(token, configured=""):
-    chat=(configured or "").strip()
-    if chat:
-        return chat
-    r=requests.get(f"https://api.telegram.org/bot{token}/getUpdates",timeout=REQUEST_TIMEOUT)
-    r.raise_for_status()
-    body=r.json()
-    ids=[]
-    for upd in body.get("result",[]):
-        msg=upd.get("message") or upd.get("edited_message") or {}
-        ch=msg.get("chat") or {}
-        if ch.get("type")=="private" and ch.get("id") is not None:
-            ids.append(str(ch["id"]))
-    if not ids:
-        raise RuntimeError("Telegram Chat ID bulunamadı; bota bir mesaj gönder")
-    return ids[-1]
+    # Reuse the Binance bot's persisted chat-id cache first. This avoids
+    # depending on getUpdates being non-empty on every run.
+    return resolve_chat_id(
+        token,
+        configured,
+        "binance_avci2.db",
+        "Long/Short Telegram",
+    )
 
 
 def send_telegram(msg):
