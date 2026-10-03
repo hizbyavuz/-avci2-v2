@@ -4,8 +4,6 @@ name: Avci 2 V2 Multi-Chain
 # Automatic trader-framework scan restored.
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "8 * * * *"
 permissions:
   contents: read
   actions: write
