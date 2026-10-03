@@ -277,44 +277,44 @@ def build_setup_plan(direction, price, t5k, t15, chart):
     a=max(t15["atr"],price*0.002)
     pad=max(0.12*a,price*0.001)
     if direction=="SHORT":
-        giriş şartı=levels["support"]
-        retest_low=giriş şartı
-        retest_high=giriş şartı+pad
-        invalid=max(levels["resistance"], giriş şartı+0.9*a)
+        trigger=levels["support"]
+        retest_low=trigger
+        retest_high=trigger+pad
+        invalid=max(levels["resistance"], trigger+0.9*a)
         target1=levels["support2"]
-        if target1>=giriş şartı:
-            target1=giriş şartı-1.5*a
-        target2=min(target1-0.8*a, giriş şartı-2.5*a)
+        if target1>=trigger:
+            target1=trigger-1.5*a
+        target2=min(target1-0.8*a, trigger-2.5*a)
         candle="5dk"
         text=(
-            f"{candle} mum {giriş şartı:.10g} altında kapanırsa ve "
-            f"{giriş şartı:.10g}-{retest_high:.10g} retestinde tekrar reddedilirse SHORT değerlendirilebilir."
+            f"{candle} mum {trigger:.10g} altında kapanırsa ve "
+            f"{trigger:.10g}-{retest_high:.10g} retestinde tekrar reddedilirse SHORT değerlendirilebilir."
         )
         return {
-            "direction":"SHORT","entry_level":giriş şartı,"close_tf":candle,
+            "direction":"SHORT","trigger_level":trigger,"close_tf":candle,
             "retest_low":retest_low,"retest_high":retest_high,
             "invalidation":invalid,"target1":target1,"target2":target2,
-            "triggered":bool(chart["short_giriş şartı"] and price<giriş şartı),
+            "triggered":bool(chart["short_trigger"] and price<trigger),
             "instruction":text,
         }
-    giriş şartı=levels["resistance"]
-    retest_low=giriş şartı-pad
-    retest_high=giriş şartı
-    invalid=min(levels["support"], giriş şartı-0.9*a)
+    trigger=levels["resistance"]
+    retest_low=trigger-pad
+    retest_high=trigger
+    invalid=min(levels["support"], trigger-0.9*a)
     target1=levels["resistance2"]
-    if target1<=giriş şartı:
-        target1=giriş şartı+1.5*a
-    target2=max(target1+0.8*a, giriş şartı+2.5*a)
+    if target1<=trigger:
+        target1=trigger+1.5*a
+    target2=max(target1+0.8*a, trigger+2.5*a)
     candle="5dk"
     text=(
-        f"{candle} mum {giriş şartı:.10g} üstünde kapanırsa ve "
-        f"{retest_low:.10g}-{giriş şartı:.10g} retestinde seviye korunursa LONG değerlendirilebilir."
+        f"{candle} mum {trigger:.10g} üstünde kapanırsa ve "
+        f"{retest_low:.10g}-{trigger:.10g} retestinde seviye korunursa LONG değerlendirilebilir."
     )
     return {
-        "direction":"LONG","entry_level":giriş şartı,"close_tf":candle,
+        "direction":"LONG","trigger_level":trigger,"close_tf":candle,
         "retest_low":retest_low,"retest_high":retest_high,
         "invalidation":invalid,"target1":target1,"target2":target2,
-        "triggered":bool(chart["long_giriş şartı"] and price>giriş şartı),
+        "triggered":bool(chart["long_trigger"] and price>trigger),
         "instruction":text,
     }
 
@@ -341,13 +341,13 @@ def chart_state(t1, t5, t15, t1h):
     else:
         state = "RANGE_TRANSITION"
 
-    short_giriş şartı = (
+    short_trigger = (
         t5["structure"] < 0
         and t1["structure"] <= 0
         and not t5["above20"]
         and (t15["structure"] < 0 or t15["change_1"] < 0)
     )
-    long_giriş şartı = (
+    long_trigger = (
         t5["structure"] > 0
         and t1["structure"] >= 0
         and t5["above20"]
@@ -355,8 +355,8 @@ def chart_state(t1, t5, t15, t1h):
     )
     return {
         "state": state,
-        "long_giriş şartı": bool(long_giriş şartı),
-        "short_giriş şartı": bool(short_giriş şartı),
+        "long_trigger": bool(long_trigger),
+        "short_trigger": bool(short_trigger),
         "overextended_up": bool(t15["rsi"] >= 74 or t15["change_4"] >= 6.0),
         "overextended_down": bool(t15["rsi"] <= 26 or t15["change_4"] <= -6.0),
     }
@@ -532,9 +532,9 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0):
     if t15["breakdown20"] and t15["vol_mult"]>=1.25:
         short+=5; reasons.append("15dk hacimli aşağı kırılım")
 
-    if chart["long_giriş şartı"]:
+    if chart["long_trigger"]:
         long+=10; reasons.append("Grafik tetikleyicisi: 1dk+5dk yapı LONG lehine")
-    if chart["short_giriş şartı"]:
+    if chart["short_trigger"]:
         short+=10; reasons.append("Grafik tetikleyicisi: 1dk+5dk yapı SHORT lehine")
     if chart["overextended_up"]:
         long-=5; risks.append("Grafik yukarı aşırı uzamış; long kovalamak yerine pullback/retest bekle")
@@ -610,9 +610,9 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0):
 
     if best>=55 and edge>=12:
         direction="LONG" if long>short else "SHORT"
-        giriş şartı_ok = chart["long_giriş şartı"] if direction=="LONG" else chart["short_giriş şartı"]
-        status=direction if giriş şartı_ok else "WAIT"
-        if not giriş şartı_ok:
+        trigger_ok = chart["long_trigger"] if direction=="LONG" else chart["short_trigger"]
+        status=direction if trigger_ok else "WAIT"
+        if not trigger_ok:
             risks.append(direction + " yönü güçlü ama grafik giriş tetikleyicisi henüz oluşmadı")
     elif best>=42:
         status="WAIT"
