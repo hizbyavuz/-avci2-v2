@@ -2,13 +2,6 @@ name: Read-Only Execution Evidence
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - "read_only_execution_collector.py"
-      - ".github/workflows/read-only-execution-evidence.yml"
-  schedule:
-    - cron: "27 * * * *"
-
 permissions:
   contents: read
 
