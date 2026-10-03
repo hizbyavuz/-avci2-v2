@@ -1,0 +1,55 @@
+name: Long Short Telegram Smoke
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/long-short-smoke-telegram.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Send startup message
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          python - <<'PY'
+          import json, os, urllib.request
+          token=(os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
+          chat=(os.getenv("TELEGRAM_CHAT_ID") or "").strip()
+          if not token:
+              raise SystemExit("TELEGRAM_BOT_TOKEN missing")
+          if not chat:
+              with urllib.request.urlopen(f"https://api.telegram.org/bot{token}/getUpdates", timeout=20) as r:
+                  body=json.load(r)
+              ids=[]
+              for u in body.get("result", []):
+                  m=u.get("message") or u.get("edited_message") or {}
+                  c=m.get("chat") or {}
+                  if c.get("type")=="private" and c.get("id") is not None:
+                      ids.append(str(c["id"]))
+              if not ids:
+                  raise SystemExit("Telegram chat id not found; send the bot one message")
+              chat=ids[-1]
+          msg=("🟢 LONG / SHORT MOTOR AKTİF\n"
+               "• Futures top-mover mantığı + grafik izleme açıldı.\n"
+               "• 1dk / 5dk / 15dk / 1s yapı takip ediliyor.\n"
+               "• Otomatik emir YOK; paper-trade / analiz modu.\n"
+               "• Binance Futures veri erişimi yoksa giriş sinyali kilitlenir.")
+          data=json.dumps({"chat_id":chat,"text":msg}).encode()
+          req=urllib.request.Request(
+              f"https://api.telegram.org/bot{token}/sendMessage",
+              data=data, headers={"Content-Type":"application/json"})
+          with urllib.request.urlopen(req, timeout=20) as r:
+              out=json.load(r)
+          if not out.get("ok"):
+              raise SystemExit(str(out))
+          print("telegram startup message sent")
+          PY
