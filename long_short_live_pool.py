@@ -65,6 +65,7 @@ def init_db():
             target2 REAL,
             analyst_scan_time TEXT,
             analyst_confidence INTEGER,
+            data_mode TEXT,
             stage TEXT NOT NULL DEFAULT 'WATCH',
             close_confirmed_time TEXT,
             retest_seen INTEGER NOT NULL DEFAULT 0,
@@ -75,6 +76,8 @@ def init_db():
         cols={r[1] for r in con.execute("PRAGMA table_info(watch_state)")}
         if "trigger_level" not in cols and "entry_level" in cols:
             con.execute("ALTER TABLE watch_state RENAME COLUMN entry_level TO trigger_level")
+        if "data_mode" not in cols:
+            con.execute("ALTER TABLE watch_state ADD COLUMN data_mode TEXT")
         con.execute("""CREATE TABLE IF NOT EXISTS events(
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             event_time_utc TEXT NOT NULL,
@@ -128,6 +131,7 @@ def load_watchlist():
                     "target1":float(plan.get("target1") or 0),
                     "target2":float(plan.get("target2") or 0),
                     "confidence":int(r["confidence"] or 0),
+                    "data_mode":str(p.get("data_mode") or "UNKNOWN"),
                     "scan_time":scan["ts"],
                 })
                 if len(out)>=MAX_WATCH:
@@ -145,17 +149,17 @@ def sync_watchlist(items):
             if reset:
                 con.execute("""INSERT OR REPLACE INTO watch_state(
                     symbol,direction,trigger_level,retest_low,retest_high,invalidation,target1,target2,
-                    analyst_scan_time,analyst_confidence,stage,close_confirmed_time,retest_seen,
+                    analyst_scan_time,analyst_confidence,data_mode,stage,close_confirmed_time,retest_seen,
                     last_price,last_closed_5m,last_update_utc
-                ) VALUES(?,?,?,?,?,?,?,?,?,?,'WATCH',NULL,0,NULL,NULL,?)""",
+                ) VALUES(?,?,?,?,?,?,?,?,?,?,?,'WATCH',NULL,0,NULL,NULL,?)""",
                 (x["symbol"],x["direction"],x["trigger_level"],x["retest_low"],x["retest_high"],
-                 x["invalidation"],x["target1"],x["target2"],x["scan_time"],x["confidence"],now_iso()))
+                 x["invalidation"],x["target1"],x["target2"],x["scan_time"],x["confidence"],x["data_mode"],now_iso()))
             else:
                 con.execute("""UPDATE watch_state SET retest_low=?,retest_high=?,invalidation=?,
-                    target1=?,target2=?,analyst_scan_time=?,analyst_confidence=?,last_update_utc=?
+                    target1=?,target2=?,analyst_scan_time=?,analyst_confidence=?,data_mode=?,last_update_utc=?
                     WHERE symbol=?""",
                 (x["retest_low"],x["retest_high"],x["invalidation"],x["target1"],x["target2"],
-                 x["scan_time"],x["confidence"],now_iso(),x["symbol"]))
+                 x["scan_time"],x["confidence"],x["data_mode"],now_iso(),x["symbol"]))
         if keep:
             q=",".join("?" for _ in keep)
             con.execute(f"DELETE FROM watch_state WHERE symbol NOT IN ({q})",tuple(keep))
@@ -233,6 +237,17 @@ def message_for(row,stage,price,closed):
                 f"Henüz giriş teyidi yok.\n"
                 f"{'Bu bölgenin üstünde kalıp yeniden yukarı dönerse LONG' if d=='LONG' else 'Bu bölgeyi aşamayıp yeniden aşağı dönerse SHORT'} düşünülebilir.")
     if stage=="TRIGGERED":
+        data_mode=(row["data_mode"] or "UNKNOWN") if "data_mode" in row.keys() else "UNKNOWN"
+        if data_mode!="BINANCE_FUTURES":
+            return (f"{'🟢' if d=='LONG' else '🔴'} {sym} — GRAFİK {d} ŞARTLARI OLUŞTU\n"
+                    f"⚠️ Binance Futures teyidi YOK; bu mesaj Spot grafik şartına dayanıyor.\n"
+                    f"Fiyat: {fmtp(price)}\n"
+                    f"1) Ana seviye kırıldı ve 5dk mum kapandı.\n"
+                    f"2) Fiyat kırdığı bölgeyi tekrar denedi.\n"
+                    f"3) Fiyat tekrar {('yukarı' if d=='LONG' else 'aşağı')} dönmeye başladı.\n\n"
+                    f"Bu tam Futures teyidi değildir; işlem açmadan önce Perp grafiğini ayrıca kontrol et.\n"
+                    f"❌ Grafik fikri bozulur: {fmtp(inv)} karşı tarafında 5dk kapanış.\n"
+                    f"🎯 Grafik hedefleri: {fmtp(t1)} | {fmtp(t2)}")
         return (f"{'🟢' if d=='LONG' else '🔴'} {sym} — {d} ŞARTLARI OLUŞTU\n"
                 f"Fiyat: {fmtp(price)}\n"
                 f"1) Ana seviye kırıldı ve 5dk mum kapandı.\n"
