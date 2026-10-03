@@ -852,7 +852,7 @@ def fmtp(x):
 
 def turkish_status(s):
     return {"LONG":"🟢 LONG SETUP","SHORT":"🔴 SHORT SETUP",
-            "WAIT":"🟡 TEYİT BEKLE","NO_TRADE":"⚪ İŞLEM YOK"}.get(s,s)
+            "WAIT":"🟡 ŞİMDİ ALMA — CANLI HAVUZ BEKLİYOR","NO_TRADE":"⚪ İŞLEM YOK"}.get(s,s)
 
 
 def build_message(ts, regime, results, errors, perf=None):
@@ -886,38 +886,41 @@ def build_message(ts, regime, results, errors, perf=None):
             ]
         plan=a.payload.get("setup_plan") or {}
         if plan:
-            lines.append("ŞU AN: " + ("✅ GİRİŞ ŞARTI OLUŞTU" if plan.get("triggered") else "⛔ ŞU AN GİRİŞ YOK — şart bekleniyor"))
             direction=plan.get("direction")
             trig=fmtp(plan.get("trigger_level"))
             rl=fmtp(plan.get("retest_low")); rh=fmtp(plan.get("retest_high"))
-            if direction=="SHORT":
-                lines.append(f"Ne bekliyoruz? Fiyat {trig} altına insin ve 5 dakikalık mum bu seviyenin altında kapansın.")
-                lines.append(f"Sonra fiyat {rl}–{rh} bölgesine geri çıkıp burayı aşamaz ve yeniden aşağı dönerse SHORT düşünülebilir.")
-                lines.append("Not: Sadece anlık fitil atması yeterli değil; 5 dakikalık mum kapanışı istiyoruz.")
+            if plan.get("triggered"):
+                lines.append(f"✅ {direction} giriş şartı oluşmuş görünüyor.")
             else:
-                lines.append(f"Ne bekliyoruz? Fiyat {trig} üstüne çıksın ve 5 dakikalık mum bu seviyenin üstünde kapansın.")
-                lines.append(f"Sonra fiyat {rl}–{rh} bölgesine geri gelip bu bölgenin üstünde tutunursa LONG düşünülebilir.")
-                lines.append("Not: Sadece anlık yukarı değmesi yeterli değil; 5 dakikalık mum kapanışı istiyoruz.")
+                lines.append("⛔ ŞİMDİ ALMA — canlı havuz giriş şartını bekliyor.")
+                if direction=="SHORT":
+                    lines.append(
+                        f"Beklediğimiz şey: {trig} altında 5 dakikalık mum kapanışı; "
+                        f"sonra fiyat {rl}–{rh} bölgesine geri gelip burayı aşamadan yeniden aşağı dönsün."
+                    )
+                else:
+                    lines.append(
+                        f"Beklediğimiz şey: {trig} üstünde 5 dakikalık mum kapanışı; "
+                        f"sonra fiyat {rl}–{rh} bölgesine geri gelip bu bölgenin üstünde tutunsun."
+                    )
+                lines.append(
+                    f"📩 Bu şartlar oluşursa canlı havuz ayrıca Telegram'dan “{direction} giriş şartları oluştu” mesajı gönderecek."
+                )
             lines.append(
-                f"Retest bölgesi: {fmtp(plan.get('retest_low'))} – {fmtp(plan.get('retest_high'))}"
+                f"❌ Fikir bozulur: {fmtp(plan.get('invalidation'))} seviyesinin karşı tarafında 5 dakikalık mum kapanışı."
             )
             lines.append(
-                f"❌ Bu fikir ne zaman bozulur? Fiyat {fmtp(plan.get('invalidation'))} seviyesinin karşı tarafında 5 dakikalık mum kapatırsa bu senaryoyu iptal ederiz."
+                f"🎯 Olası hedefler: {fmtp(plan.get('target1'))} / {fmtp(plan.get('target2'))}"
             )
-            lines.append(
-                f"🎯 Kâr alınabilecek bölgeler: İlk hedef {fmtp(plan.get('target1'))} | İkinci hedef {fmtp(plan.get('target2'))}"
-            )
-        if a.status=="WAIT":
-            if a.long_score>a.short_score:
-                lines.append("⏳ Yükseliş tarafı daha güçlü görünüyor; ama mum kapanışı ve kırılan seviyenin tekrar korunması gelmeden giriş yok.")
-            elif a.short_score>a.long_score:
-                lines.append("⏳ Düşüş tarafı daha güçlü görünüyor; ama mum kapanışı ve kırılan seviyenin tekrar reddedilmesi gelmeden giriş yok.")
-        for r in a.reasons[:4]: lines.append("• " + r)
+        for r in a.reasons[:4]:
+            if "Grafik tetikleyicisi" in r:
+                continue
+            lines.append("• " + r)
         for r in a.risks[:2]: lines.append("⚠️ " + r)
         lines.append("")
     lines += [
         "Terimler: OI = açık vadeli pozisyon miktarı | Funding = long/short taraflarının birbirine ödediği ücret.",
-        "Retest = kırılan seviyenin geri dönüp tekrar denenmesi | Fitil = mumun kısa süreli iğnesi.",
+        "Canlı havuz = bu coinleri daha sık izleyen ayrı takip sistemi.",
         "Not: Skor veriden hesaplanır; kesin fiyat tahmini değildir.",
         "Kaldıraç, kötü bir setup'ı iyi yapmaz. Stop ve pozisyon büyüklüğü ayrı karardır."
     ]
