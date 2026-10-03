@@ -38,7 +38,7 @@ MIN_24H_QUOTE_VOL = float(os.getenv("LS_MIN_24H_QUOTE_VOL", "25000000"))
 MAX_SYMBOLS = int(os.getenv("LS_MAX_SYMBOLS", "80"))
 REQUEST_TIMEOUT = 12
 TELEGRAM_LIMIT = 4096
-VERSION = "LSA_V1_4_PLAIN_TR_2026-10-03"
+VERSION = "LSA_V1_5_TARGET_GUARD_2026-10-03"
 OKX_BASE = "https://www.okx.com"
 FEE_BPS_PER_SIDE = float(os.getenv("LS_FEE_BPS_PER_SIDE", "5"))
 SLIPPAGE_BPS_PER_SIDE = float(os.getenv("LS_SLIPPAGE_BPS_PER_SIDE", "5"))
@@ -281,10 +281,12 @@ def build_setup_plan(direction, price, t5k, t15, chart):
         retest_low=trigger
         retest_high=trigger+pad
         invalid=max(levels["resistance"], trigger+0.9*a)
-        target1=levels["support2"]
-        if target1>=trigger:
-            target1=trigger-1.5*a
-        target2=min(target1-0.8*a, trigger-2.5*a)
+        # Reject meaningless targets that sit almost on the entry level.
+        min_t1_gap=max(1.0*a, trigger*0.004)
+        min_t2_gap=max(0.8*a, trigger*0.003)
+        structural_t1=levels["support2"]
+        target1=structural_t1 if structural_t1 <= trigger-min_t1_gap else trigger-min_t1_gap
+        target2=min(target1-min_t2_gap, trigger-2.5*a)
         candle="5dk"
         text=(
             f"{candle} mum {trigger:.10g} altında kapanırsa ve "
@@ -301,10 +303,12 @@ def build_setup_plan(direction, price, t5k, t15, chart):
     retest_low=trigger-pad
     retest_high=trigger
     invalid=min(levels["support"], trigger-0.9*a)
-    target1=levels["resistance2"]
-    if target1<=trigger:
-        target1=trigger+1.5*a
-    target2=max(target1+0.8*a, trigger+2.5*a)
+    # Reject meaningless targets that sit almost on the entry level.
+    min_t1_gap=max(1.0*a, trigger*0.004)
+    min_t2_gap=max(0.8*a, trigger*0.003)
+    structural_t1=levels["resistance2"]
+    target1=structural_t1 if structural_t1 >= trigger+min_t1_gap else trigger+min_t1_gap
+    target2=max(target1+min_t2_gap, trigger+2.5*a)
     candle="5dk"
     text=(
         f"{candle} mum {trigger:.10g} üstünde kapanırsa ve "
