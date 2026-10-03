@@ -57,7 +57,7 @@ def init_db():
         con.execute("""CREATE TABLE IF NOT EXISTS watch_state(
             symbol TEXT PRIMARY KEY,
             direction TEXT NOT NULL,
-            entry_level REAL NOT NULL,
+            trigger_level REAL NOT NULL,
             retest_low REAL,
             retest_high REAL,
             invalidation REAL,
@@ -72,6 +72,9 @@ def init_db():
             last_closed_5m REAL,
             last_update_utc TEXT NOT NULL
         )""")
+        cols={r[1] for r in con.execute("PRAGMA table_info(watch_state)")}
+        if "trigger_level" not in cols and "entry_level" in cols:
+            con.execute("ALTER TABLE watch_state RENAME COLUMN entry_level TO trigger_level")
         con.execute("""CREATE TABLE IF NOT EXISTS events(
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             event_time_utc TEXT NOT NULL,
@@ -81,8 +84,19 @@ def init_db():
             stage_to TEXT NOT NULL,
             price REAL,
             closed_5m REAL,
+            condition_time_utc TEXT,
+            telegram_sent_time_utc TEXT,
+            delay_seconds REAL,
             payload_json TEXT
         )""")
+        event_cols={r[1] for r in con.execute("PRAGMA table_info(events)")}
+        for name,typ in {
+            "condition_time_utc":"TEXT",
+            "telegram_sent_time_utc":"TEXT",
+            "delay_seconds":"REAL",
+        }.items():
+            if name not in event_cols:
+                con.execute(f"ALTER TABLE events ADD COLUMN {name} {typ}")
 
 def load_watchlist():
     if not os.path.exists(ANALYST_DB):
@@ -100,7 +114,7 @@ def load_watchlist():
             try:
                 p=json.loads(r["payload_json"] or "{}")
                 plan=p.get("setup_plan") or {}
-                if not plan.get("direction") or plan.get("entry_level") is None:
+                if not plan.get("direction") or plan.get("trigger_level") is None:
                     continue
                 # Watch only meaningful WAIT/LONG/SHORT candidates.
                 if r["status"] not in ("WAIT","LONG","SHORT"):
@@ -108,8 +122,8 @@ def load_watchlist():
                 out.append({
                     "symbol":r["symbol"],"direction":plan["direction"],
                     "trigger_level":float(plan["trigger_level"]),
-                    "retest_low":float(plan.get("retest_low") or plan["entry_level"]),
-                    "retest_high":float(plan.get("retest_high") or plan["entry_level"]),
+                    "retest_low":float(plan.get("retest_low") or plan["trigger_level"]),
+                    "retest_high":float(plan.get("retest_high") or plan["trigger_level"]),
                     "invalidation":float(plan.get("invalidation") or 0),
                     "target1":float(plan.get("target1") or 0),
                     "target2":float(plan.get("target2") or 0),
@@ -126,11 +140,11 @@ def sync_watchlist(items):
     with sqlite3.connect(LIVE_DB) as con:
         keep={x["symbol"] for x in items}
         for x in items:
-            old=con.execute("SELECT direction,entry_level FROM watch_state WHERE symbol=?",(x["symbol"],)).fetchone()
+            old=con.execute("SELECT direction,trigger_level FROM watch_state WHERE symbol=?",(x["symbol"],)).fetchone()
             reset = not old or old[0]!=x["direction"] or abs(float(old[1])-x["trigger_level"])>max(1e-12,x["trigger_level"]*0.001)
             if reset:
                 con.execute("""INSERT OR REPLACE INTO watch_state(
-                    symbol,direction,entry_level,retest_low,retest_high,invalidation,target1,target2,
+                    symbol,direction,trigger_level,retest_low,retest_high,invalidation,target1,target2,
                     analyst_scan_time,analyst_confidence,stage,close_confirmed_time,retest_seen,
                     last_price,last_closed_5m,last_update_utc
                 ) VALUES(?,?,?,?,?,?,?,?,?,?,'WATCH',NULL,0,NULL,NULL,?)""",
@@ -152,9 +166,12 @@ def market_snapshot(symbol):
     kl=spot_get("/api/v3/klines",{"symbol":symbol,"interval":"5m","limit":3})
     ticker=spot_get("/api/v3/ticker/price",{"symbol":symbol})
     price=float(ticker["price"])
-    # Binance last row is normally the currently forming candle; use previous row as closed.
-    closed=float(kl[-2][4]) if len(kl)>=2 else float(kl[-1][4])
-    return price,closed
+    # Binance last row is normally forming; previous row is the last completed 5m candle.
+    row=kl[-2] if len(kl)>=2 else kl[-1]
+    closed=float(row[4])
+    close_ms=int(row[6])
+    close_time=datetime.fromtimestamp(close_ms/1000.0,tz=timezone.utc).isoformat()
+    return price,closed,close_time
 
 def next_stage(row,price,closed):
     direction=row["direction"]
@@ -202,7 +219,7 @@ def message_for(row,stage,price,closed):
         return (f"🟠 {sym} — {d} SEVİYESİNE YAKLAŞIYOR\n"
                 f"Şu an fiyat: {fmtp(price)}\n"
                 f"Henüz giriş yok.\n"
-                f"{'LONG' if d=='LONG' else 'SHORT'} için beklenen giriş için beklenen seviye: {fmtp(trig)}\n"
+                f"{'LONG' if d=='LONG' else 'SHORT'} için giriş için beklediğimiz seviye: {fmtp(trig)}\n"
                 f"5 dakikalık mumun {'üstünde' if d=='LONG' else 'altında'} kapanmasını bekliyoruz.")
     if stage=="CLOSE_CONFIRMED":
         return (f"🟡 {sym} — İLK ŞART TAMAMLANDI\n"
@@ -235,12 +252,13 @@ def send_telegram(msg):
     configured=(os.getenv("TELEGRAM_CHAT_ID") or "").strip()
     if not token:
         print(msg)
-        return
+        return now_iso()
     chat=resolve_chat_id(token,configured,"binance_avci2.db","Long/Short Live Pool")
     r=requests.post(f"https://api.telegram.org/bot{token}/sendMessage",
                     json={"chat_id":chat,"text":msg[:TELEGRAM_LIMIT],"disable_web_page_preview":True},
                     timeout=10)
     r.raise_for_status()
+    return now_iso()
 
 def loop_once():
     with sqlite3.connect(LIVE_DB) as con:
@@ -248,29 +266,50 @@ def loop_once():
         rows=con.execute("SELECT * FROM watch_state ORDER BY analyst_confidence DESC").fetchall()
         for row in rows:
             try:
-                price,closed=market_snapshot(row["symbol"])
+                price,closed,closed_candle_time=market_snapshot(row["symbol"])
                 old=row["stage"]
                 new=next_stage(row,price,closed)
+                observed_time=now_iso()
                 if new!=old:
+                    # For a 5m close confirmation, the market condition time is the
+                    # completed candle close. For intrabar states, first observation
+                    # is the most honest timestamp available without websocket trades.
+                    condition_time = closed_candle_time if new=="CLOSE_CONFIRMED" else observed_time
                     msg=message_for(row,new,price,closed)
-                    con.execute("""INSERT INTO events(event_time_utc,symbol,direction,stage_from,stage_to,price,closed_5m,payload_json)
-                                   VALUES(?,?,?,?,?,?,?,?)""",
-                        (now_iso(),row["symbol"],row["direction"],old,new,price,closed,json.dumps(dict(row),ensure_ascii=False)))
+
                     con.execute("""UPDATE watch_state SET stage=?,last_price=?,last_closed_5m=?,last_update_utc=?,
                                    close_confirmed_time=CASE WHEN ?='CLOSE_CONFIRMED' THEN ? ELSE close_confirmed_time END,
                                    retest_seen=CASE WHEN ?='RETESTING' THEN 1 ELSE retest_seen END
                                    WHERE symbol=?""",
-                        (new,price,closed,now_iso(),new,now_iso(),new,row["symbol"]))
+                        (new,price,closed,observed_time,new,condition_time,new,row["symbol"]))
                     con.commit()
+
+                    sent_time=None
+                    delay=None
                     if msg:
                         print(msg)
-                        send_telegram(msg)
+                        sent_time=send_telegram(msg)
+                        try:
+                            delay=(datetime.fromisoformat(sent_time)-datetime.fromisoformat(condition_time)).total_seconds()
+                        except Exception:
+                            delay=None
+                        if delay is not None:
+                            print(f"ALERT_DELAY {row['symbol']} {new}: {delay:.1f}s")
+
+                    con.execute("""INSERT INTO events(
+                        event_time_utc,symbol,direction,stage_from,stage_to,price,closed_5m,
+                        condition_time_utc,telegram_sent_time_utc,delay_seconds,payload_json
+                    ) VALUES(?,?,?,?,?,?,?,?,?,?,?)""",
+                        (observed_time,row["symbol"],row["direction"],old,new,price,closed,
+                         condition_time,sent_time,delay,json.dumps(dict(row),ensure_ascii=False)))
+                    con.commit()
                 else:
                     con.execute("UPDATE watch_state SET last_price=?,last_closed_5m=?,last_update_utc=? WHERE symbol=?",
-                                (price,closed,now_iso(),row["symbol"]))
+                                (price,closed,observed_time,row["symbol"]))
                     con.commit()
             except Exception as exc:
                 print("live error",row["symbol"],type(exc).__name__,str(exc)[:120])
+
 
 def main():
     init_db()
