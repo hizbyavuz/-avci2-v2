@@ -20,7 +20,13 @@ from typing import Any
 
 import requests
 
-BASE = "https://fapi.binance.com"
+FUTURES_BASES = (
+    "https://fapi.binance.com",
+    "https://fapi1.binance.com",
+    "https://fapi2.binance.com",
+    "https://fapi3.binance.com",
+    "https://fapi4.binance.com",
+)
 DB = os.getenv("LS_DB", "long_short_analyst.db")
 MIN_24H_QUOTE_VOL = float(os.getenv("LS_MIN_24H_QUOTE_VOL", "25000000"))
 MAX_SYMBOLS = int(os.getenv("LS_MAX_SYMBOLS", "80"))
@@ -39,9 +45,18 @@ def now_iso() -> str:
 
 
 def fget(path: str, params: dict | None = None):
-    r = requests.get(BASE + path, params=params or {}, timeout=REQUEST_TIMEOUT)
-    r.raise_for_status()
-    return r.json()
+    last = None
+    for base in FUTURES_BASES:
+        try:
+            r = requests.get(
+                base + path, params=params or {}, timeout=REQUEST_TIMEOUT,
+                headers={"User-Agent": "long-short-analyst/1.1"},
+            )
+            r.raise_for_status()
+            return r.json()
+        except requests.RequestException as exc:
+            last = exc
+    raise last or RuntimeError("Binance Futures endpoint unavailable")
 
 
 def pct(a: float, b: float) -> float:
@@ -555,12 +570,31 @@ def build_message(ts, regime, results, errors):
     return "\n".join(lines)[:TELEGRAM_LIMIT]
 
 
+def resolve_telegram_chat(token, configured=""):
+    chat=(configured or "").strip()
+    if chat:
+        return chat
+    r=requests.get(f"https://api.telegram.org/bot{token}/getUpdates",timeout=REQUEST_TIMEOUT)
+    r.raise_for_status()
+    body=r.json()
+    ids=[]
+    for upd in body.get("result",[]):
+        msg=upd.get("message") or upd.get("edited_message") or {}
+        ch=msg.get("chat") or {}
+        if ch.get("type")=="private" and ch.get("id") is not None:
+            ids.append(str(ch["id"]))
+    if not ids:
+        raise RuntimeError("Telegram Chat ID bulunamadı; bota bir mesaj gönder")
+    return ids[-1]
+
+
 def send_telegram(msg):
     token=(os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
-    chat=(os.getenv("TELEGRAM_CHAT_ID") or "").strip()
-    if not token or not chat:
+    configured=(os.getenv("TELEGRAM_CHAT_ID") or "").strip()
+    if not token:
         print(msg)
         return
+    chat=resolve_telegram_chat(token,configured)
     r=requests.post(f"https://api.telegram.org/bot{token}/sendMessage",
         json={"chat_id":chat,"text":msg,"disable_web_page_preview":True},
         timeout=REQUEST_TIMEOUT)
