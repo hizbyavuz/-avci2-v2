@@ -1,8 +1,15 @@
 name: Long Short Analyst V1
 
-# PAUSED: automatic schedule disabled. Manual dispatch only.
+# Active paper-trade analyst. Never places orders.
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "long_short_analyst.py"
+      - ".github/workflows/long-short-analyst.yml"
+  schedule:
+    - cron: "*/15 * * * *"
 
 permissions:
   contents: read
