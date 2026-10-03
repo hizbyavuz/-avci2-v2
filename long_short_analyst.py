@@ -52,6 +52,28 @@ def now_iso() -> str:
 def fget(path: str, params: dict | None = None):
     global DATA_MODE
     last = None
+    spot_map = {
+        "/fapi/v1/klines": "/api/v3/klines",
+        "/fapi/v1/exchangeInfo": "/api/v3/exchangeInfo",
+        "/fapi/v1/ticker/24hr": "/api/v3/ticker/24hr",
+        "/fapi/v1/depth": "/api/v3/depth",
+    }
+
+    # Once the runner is confirmed geo-blocked from Binance Futures, do not
+    # waste time retrying five Futures hosts on every symbol.
+    if DATA_MODE=="BINANCE_SPOT_GRAPH_ONLY" and path in spot_map:
+        for base in SPOT_BASES:
+            try:
+                r=requests.get(
+                    base + spot_map[path], params=params or {}, timeout=REQUEST_TIMEOUT,
+                    headers={"User-Agent": "long-short-analyst/1.1"},
+                )
+                r.raise_for_status()
+                return r.json()
+            except (requests.RequestException, ValueError) as exc:
+                last=exc
+        raise last or RuntimeError("Binance Spot market data unavailable")
+
     for base in FUTURES_BASES:
         try:
             r = requests.get(
@@ -65,12 +87,6 @@ def fget(path: str, params: dict | None = None):
         except (requests.RequestException, ValueError) as exc:
             last = exc
 
-    spot_map = {
-        "/fapi/v1/klines": "/api/v3/klines",
-        "/fapi/v1/exchangeInfo": "/api/v3/exchangeInfo",
-        "/fapi/v1/ticker/24hr": "/api/v3/ticker/24hr",
-        "/fapi/v1/depth": "/api/v3/depth",
-    }
     spot_path = spot_map.get(path)
     if spot_path:
         for base in SPOT_BASES:
@@ -224,6 +240,8 @@ def chart_state(t1, t5, t15, t1h):
 
 
 def fetch_oi(symbol):
+    if DATA_MODE!="BINANCE_FUTURES":
+        return {"oi_change_1h":0.0,"oi_now":0.0}
     try:
         rows = fget("/futures/data/openInterestHist", {
             "symbol":symbol,"period":"5m","limit":13
@@ -237,6 +255,8 @@ def fetch_oi(symbol):
 
 
 def fetch_funding(symbol):
+    if DATA_MODE!="BINANCE_FUTURES":
+        return 0.0
     try:
         x=fget("/fapi/v1/premiumIndex",{"symbol":symbol})
         return float(x.get("lastFundingRate") or 0.0) * 100.0
@@ -245,6 +265,8 @@ def fetch_funding(symbol):
 
 
 def fetch_taker(symbol):
+    if DATA_MODE!="BINANCE_FUTURES":
+        return 1.0
     try:
         rows=fget("/futures/data/takerlongshortRatio",{
             "symbol":symbol,"period":"5m","limit":12
@@ -256,6 +278,8 @@ def fetch_taker(symbol):
 
 
 def fetch_long_short(symbol):
+    if DATA_MODE!="BINANCE_FUTURES":
+        return 1.0
     try:
         rows=fget("/futures/data/globalLongShortAccountRatio",{
             "symbol":symbol,"period":"5m","limit":12
