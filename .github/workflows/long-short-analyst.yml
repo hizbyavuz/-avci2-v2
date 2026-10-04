@@ -3,14 +3,6 @@ name: Long Short Analyst V1
 # Active paper-trade analyst. Never places orders.
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - "long_short_analyst.py"
-      - "long_short_live_pool.py"
-      - "long_short_reversal_live.py"
-      - ".github/workflows/long-short-analyst.yml"
-      - ".github/workflows/long-short-live-pool.yml"
 
 permissions:
   contents: read
