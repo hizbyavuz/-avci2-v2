@@ -336,7 +336,7 @@ def loop_once():
                         day_change=float(s.get("day_change_pct") or 0.0)
                         mclass=classify_move(r["symbol"],day_change)
                         if mclass!="FAST_QUIET":
-                            queued_msg=format_alert(r["symbol"],r["direction"],level,mclass,day_change)
+                            queued_msg=format_alert(r["symbol"],r["direction"],level,mclass,day_change,s["price"])
                             priority=4 if mclass=="FAST_FRESH" else 3 if mclass=="STABLE" else 2
                             queue_alert(r["symbol"],r["direction"],level,queued_msg,priority)
                     if m:
