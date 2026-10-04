@@ -19,6 +19,7 @@ from datetime import datetime, timezone
 
 import requests
 from binance_notify import resolve_chat_id
+from long_short_simple_notify import can_send, mark_sent, classify_move, format_alert
 
 ANALYST_DB=os.getenv("LS_DB","long_short_analyst.db")
 LIVE_DB=os.getenv("LS_LIVE_DB","long_short_live_pool.db")
@@ -247,6 +248,7 @@ def market_snapshot(symbol):
     kl5=spot_get("/api/v3/klines",{"symbol":symbol,"interval":"5m","limit":30})
     kl1=spot_get("/api/v3/klines",{"symbol":symbol,"interval":"1m","limit":30})
     ticker=spot_get("/api/v3/ticker/price",{"symbol":symbol})
+    stats=spot_get("/api/v3/ticker/24hr",{"symbol":symbol})
     price=float(ticker["price"])
     row=kl5[-2] if len(kl5)>=2 else kl5[-1]
     closed=float(row[4])
@@ -274,10 +276,13 @@ def market_snapshot(symbol):
     taker_share=taker_buy/qvol if qvol>0 else 0.5
     atr1=_true_range(kl1[-16:])
 
+    short_range_pct=((max(highs)-min(lows))/price*100.0) if highs and lows and price else 0.0
     early={
         "local_high":local_high,"local_low":local_low,
         "compression_pct":compression_pct,"ema7_slope_pct":ema7_slope,
         "vol_mult":vol_mult,"taker_buy_share":taker_share,"atr1":atr1,
+        "quote_volume_24h":float(stats.get("quoteVolume") or 0.0),
+        "short_range_pct":short_range_pct,
     }
     return price,closed,close_time,early
 
@@ -463,7 +468,13 @@ def loop_once():
                     elif old_early=="CHASE" and estate in ("NONE","PENDING"):
                         estate="CHASE"
                 if estate!=old_early:
-                    emsg=early_message(row,estate,price,emetrics)
+                    emsg=None
+                    if estate in ("PENDING","EARLY_LONG","EARLY_SHORT","CHASE"):
+                        level=float(row["trigger_level"])
+                        if can_send(row["symbol"],row["direction"],level):
+                            mclass=classify_move(emetrics.get("quote_volume_24h"),emetrics.get("short_range_pct"))
+                            emsg=format_alert(row["symbol"],row["direction"],level,mclass)
+                            mark_sent(row["symbol"],row["direction"],level)
                     first_signal=estate in ("EARLY_LONG","EARLY_SHORT") and old_early not in ("EARLY_LONG","EARLY_SHORT")
                     con.execute("""UPDATE watch_state SET early_state=?,
                         early_signal_price=CASE WHEN ? THEN ? ELSE early_signal_price END,
@@ -486,7 +497,7 @@ def loop_once():
                     # completed candle close. For intrabar states, first observation
                     # is the most honest timestamp available without websocket trades.
                     condition_time = closed_candle_time if new=="CLOSE_CONFIRMED" else observed_time
-                    msg=message_for(row,new,price,closed)
+                    msg=None
 
                     con.execute("""UPDATE watch_state SET stage=?,last_price=?,last_closed_5m=?,last_update_utc=?,
                                    close_confirmed_time=CASE WHEN ?='CLOSE_CONFIRMED' THEN ? ELSE close_confirmed_time END,
