@@ -73,6 +73,9 @@ def init_db():
             analyst_scan_time TEXT,
             analyst_confidence INTEGER,
             data_mode TEXT,
+            htf_direction TEXT,
+            htf_score INTEGER,
+            htf_reasons_json TEXT,
             stage TEXT NOT NULL DEFAULT 'WATCH',
             close_confirmed_time TEXT,
             retest_seen INTEGER NOT NULL DEFAULT 0,
@@ -96,6 +99,9 @@ def init_db():
             con.execute("ALTER TABLE watch_state RENAME COLUMN entry_level TO trigger_level")
         if "data_mode" not in cols:
             con.execute("ALTER TABLE watch_state ADD COLUMN data_mode TEXT")
+        for name,typ in [("htf_direction","TEXT"),("htf_score","INTEGER"),("htf_reasons_json","TEXT")]:
+            if name not in cols:
+                con.execute(f"ALTER TABLE watch_state ADD COLUMN {name} {typ}")
         for name,typ,default in [
             ("early_state","TEXT","'NONE'"),
             ("early_signal_price","REAL",None),("early_signal_time","TEXT",None),
@@ -146,7 +152,11 @@ def load_watchlist():
             try:
                 p=json.loads(r["payload_json"] or "{}")
                 plan=p.get("setup_plan") or {}
+                gate=p.get("htf_gate") or {}
                 if not plan.get("direction") or plan.get("trigger_level") is None:
+                    continue
+                # Early alerts are now allowed only when 1D/4H context agrees.
+                if not gate.get("qualified") or gate.get("direction")!=plan.get("direction"):
                     continue
                 # Watch only meaningful WAIT/LONG/SHORT candidates.
                 if r["status"] not in ("WAIT","LONG","SHORT"):
@@ -161,6 +171,9 @@ def load_watchlist():
                     "target2":float(plan.get("target2") or 0),
                     "confidence":int(r["confidence"] or 0),
                     "data_mode":str(p.get("data_mode") or "UNKNOWN"),
+                    "htf_direction":str(gate.get("direction") or "NONE"),
+                    "htf_score":int(gate.get("score") or 0),
+                    "htf_reasons":list(gate.get("reasons") or []),
                     "scan_time":scan["ts"],
                 })
                 if len(out)>=MAX_WATCH:
@@ -180,11 +193,12 @@ def sync_watchlist(items):
             if reset:
                 con.execute("""INSERT OR REPLACE INTO watch_state(
                     symbol,direction,trigger_level,retest_low,retest_high,invalidation,target1,target2,
-                    analyst_scan_time,analyst_confidence,data_mode,stage,close_confirmed_time,retest_seen,
-                    last_price,last_closed_5m,last_update_utc
-                ) VALUES(?,?,?,?,?,?,?,?,?,?,?,'WATCH',NULL,0,NULL,NULL,?)""",
+                    analyst_scan_time,analyst_confidence,data_mode,htf_direction,htf_score,htf_reasons_json,
+                    stage,close_confirmed_time,retest_seen,last_price,last_closed_5m,last_update_utc
+                ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,'WATCH',NULL,0,NULL,NULL,?)""",
                 (x["symbol"],x["direction"],x["trigger_level"],x["retest_low"],x["retest_high"],
-                 x["invalidation"],x["target1"],x["target2"],x["scan_time"],x["confidence"],x["data_mode"],now_iso()))
+                 x["invalidation"],x["target1"],x["target2"],x["scan_time"],x["confidence"],x["data_mode"],
+                 x["htf_direction"],x["htf_score"],json.dumps(x["htf_reasons"],ensure_ascii=False),now_iso()))
                 con.execute("""UPDATE watch_state SET early_state='NONE',early_signal_price=NULL,early_signal_time=NULL,
                     confirmed_signal_price=NULL,confirmed_signal_time=NULL,gain_before_confirmation=NULL,
                     time_early_to_confirmed_seconds=NULL,early_short_signal_price=NULL,
@@ -193,14 +207,16 @@ def sync_watchlist(items):
             else:
                 if active_stage in ("WATCH","APPROACHING"):
                     con.execute("""UPDATE watch_state SET retest_low=?,retest_high=?,invalidation=?,
-                        target1=?,target2=?,analyst_scan_time=?,analyst_confidence=?,data_mode=?,last_update_utc=?
-                        WHERE symbol=?""",
+                        target1=?,target2=?,analyst_scan_time=?,analyst_confidence=?,data_mode=?,
+                        htf_direction=?,htf_score=?,htf_reasons_json=?,last_update_utc=? WHERE symbol=?""",
                     (x["retest_low"],x["retest_high"],x["invalidation"],x["target1"],x["target2"],
-                     x["scan_time"],x["confidence"],x["data_mode"],now_iso(),x["symbol"]))
+                     x["scan_time"],x["confidence"],x["data_mode"],x["htf_direction"],x["htf_score"],
+                     json.dumps(x["htf_reasons"],ensure_ascii=False),now_iso(),x["symbol"]))
                 else:
-                    con.execute("""UPDATE watch_state SET analyst_scan_time=?,analyst_confidence=?,
-                        data_mode=?,last_update_utc=? WHERE symbol=?""",
-                    (x["scan_time"],x["confidence"],x["data_mode"],now_iso(),x["symbol"]))
+                    con.execute("""UPDATE watch_state SET analyst_scan_time=?,analyst_confidence=?,data_mode=?,
+                        htf_direction=?,htf_score=?,htf_reasons_json=?,last_update_utc=? WHERE symbol=?""",
+                    (x["scan_time"],x["confidence"],x["data_mode"],x["htf_direction"],x["htf_score"],
+                     json.dumps(x["htf_reasons"],ensure_ascii=False),now_iso(),x["symbol"]))
         if keep:
             q=",".join("?" for _ in keep)
             con.execute(f"DELETE FROM watch_state WHERE symbol NOT IN ({q})",tuple(keep))
@@ -272,6 +288,9 @@ def early_observation(row,price,early):
     t1=float(row["target1"] or 0)
     if not trig or not price:
         return "NONE",{}
+    htf_direction=(row["htf_direction"] or "NONE") if "htf_direction" in row.keys() else "NONE"
+    if htf_direction!=d:
+        return "NONE",{"htf_gate_ok":False,"htf_direction":htf_direction}
 
     dist_pct=(price/trig-1.0)*100.0
     compression_ok=float(early["compression_pct"])<=EARLY_MAX_COMPRESSION_PCT
@@ -301,6 +320,8 @@ def early_observation(row,price,early):
         "dist_trigger_pct":dist_pct,"compression_ok":compression_ok,
         "volume_ok":vol_ok,"directional_flow_ok":directional,
         "started":started,"extension_pct":extension,"room_pct":room,
+        "htf_gate_ok":True,"htf_direction":htf_direction,
+        "htf_score":int(row["htf_score"] or 0) if "htf_score" in row.keys() else 0,
         **early,
     }
     if chase and approach and started:
@@ -353,11 +374,13 @@ def early_message(row,estate,price,metrics):
     sym=row["symbol"]; d=row["direction"]
     if estate=="EARLY_LONG":
         return (f"🟢 ERKEN LONG | {sym}\n"
+                f"1D/4H zemin LONG ({int(row['htf_score'] or 0)}/11).\n"
                 f"Kırılım yeni başlıyor. Fiyat: {fmtp(price)}\n"
                 f"Direnç: {fmtp(row['trigger_level'])} | Hacim: {metrics.get('vol_mult',1):.2f}x\n"
                 f"⚠️ Gözlemsel sinyal; frozen ana giriş kuralını değiştirmez.")
     if estate=="EARLY_SHORT":
         return (f"🔻 ERKEN SHORT | {sym}\n"
+                f"1D/4H zemin SHORT ({int(row['htf_score'] or 0)}/11).\n"
                 f"Aşağı kırılım yeni başlıyor. Fiyat: {fmtp(price)}\n"
                 f"Destek: {fmtp(row['trigger_level'])} | Hacim: {metrics.get('vol_mult',1):.2f}x\n"
                 f"⚠️ Gözlemsel sinyal; frozen ana giriş kuralını değiştirmez.")
