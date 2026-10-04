@@ -42,6 +42,9 @@ VERSION = "LSA_V1_7_CONTINUATION_PLUS_REVERSAL_2026-10-04"
 PRESELECT_MAX = int(os.getenv("LS_PRESELECT_MAX", "12"))
 HTF_CACHE_TTL_1H = int(os.getenv("LS_HTF_CACHE_TTL_1H", "900"))
 HTF_CACHE_TTL_4H = int(os.getenv("LS_HTF_CACHE_TTL_4H", "3600"))
+HTF_CACHE_TTL_1D = int(os.getenv("LS_HTF_CACHE_TTL_1D", "7200"))
+HTF_NEAR_LEVEL_PCT = float(os.getenv("LS_HTF_NEAR_LEVEL_PCT", "0.80"))
+HTF_GATE_MIN_SCORE = int(os.getenv("LS_HTF_GATE_MIN_SCORE", "5"))
 OKX_BASE = "https://www.okx.com"
 FEE_BPS_PER_SIDE = float(os.getenv("LS_FEE_BPS_PER_SIDE", "5"))
 SLIPPAGE_BPS_PER_SIDE = float(os.getenv("LS_SLIPPAGE_BPS_PER_SIDE", "5"))
@@ -543,7 +546,7 @@ def universe():
 
 def fetch_htf_cached(symbol, interval, limit=220):
     """Persist 1h/4h candles across runs so slow higher-timeframe data is not refetched every 5m."""
-    ttl = HTF_CACHE_TTL_4H if interval=="4h" else HTF_CACHE_TTL_1H
+    ttl = HTF_CACHE_TTL_1D if interval=="1d" else (HTF_CACHE_TTL_4H if interval=="4h" else HTF_CACHE_TTL_1H)
     now_ts = time.time()
     try:
         with sqlite3.connect(DB) as con:
@@ -566,7 +569,7 @@ def fetch_htf_cached(symbol, interval, limit=220):
     return data
 
 
-def prefilter_symbol(symbol, day_change_pct):
+def prefilter_symbol(symbol, day_change_pct, quote_volume=0.0):
     """Cheap first pass: only 5m + 15m chart data. No OKX/derivatives/order book."""
     k5=fetch_klines(symbol,"5m",90)
     k15=fetch_klines(symbol,"15m",90)
@@ -581,8 +584,94 @@ def prefilter_symbol(symbol, day_change_pct):
     score += 4.0 if (t15["breakout20"] or t15["breakdown20"]) else 0.0
     score += 1.5 if t5["structure"] != 0 else 0.0
     return {
-        "symbol":symbol,"day_change":day_change_pct,"rank":score,
+        "symbol":symbol,"day_change":day_change_pct,"quote_volume":float(quote_volume or 0.0),"rank":score,
         "k5":k5,"t5":t5,"k15":k15,"t15":t15,
+    }
+
+
+def build_htf_gate(symbol, t4h):
+    """Observational 1D/4H context gate for the early-entry layer.
+
+    It does not alter the frozen Long/Short score or paper-trade rules. Its job is
+    only to decide whether a micro 1m/5m early trigger sits inside a meaningful
+    higher-timeframe breakout / near-breakout structure.
+    """
+    kd=fetch_htf_cached(symbol,"1d",220)
+    td=timeframe_features(kd)
+
+    near_high = 0.0 <= float(td["dist_high20_pct"]) <= HTF_NEAR_LEVEL_PCT
+    near_low = 0.0 <= float(td["dist_low20_pct"]) <= HTF_NEAR_LEVEL_PCT
+    daily_bull = td["price"] > td["ema20"] > td["ema50"]
+    daily_bear = td["price"] < td["ema20"] < td["ema50"]
+    h4_bull = t4h["price"] > t4h["ema20"] > t4h["ema50"]
+    h4_bear = t4h["price"] < t4h["ema20"] < t4h["ema50"]
+
+    long_score=0
+    short_score=0
+    reasons_long=[]
+    reasons_short=[]
+
+    if td["breakout20"]:
+        long_score+=3; reasons_long.append("1D son 20 gün tepesini kırıyor")
+    elif near_high:
+        long_score+=2; reasons_long.append("1D eski tepeye çok yakın")
+    if td["breakdown20"]:
+        short_score+=3; reasons_short.append("1D son 20 gün dibini kırıyor")
+    elif near_low:
+        short_score+=2; reasons_short.append("1D eski dibe çok yakın")
+
+    if daily_bull:
+        long_score+=2; reasons_long.append("1D trend yukarı")
+    if daily_bear:
+        short_score+=2; reasons_short.append("1D trend aşağı")
+    if td["structure"]>0:
+        long_score+=1
+    elif td["structure"]<0:
+        short_score+=1
+
+    if t4h["breakout20"]:
+        long_score+=2; reasons_long.append("4s yapı kırılımı")
+    if t4h["breakdown20"]:
+        short_score+=2; reasons_short.append("4s aşağı kırılım")
+    if h4_bull:
+        long_score+=2; reasons_long.append("4s trend yukarı")
+    if h4_bear:
+        short_score+=2; reasons_short.append("4s trend aşağı")
+
+    if td["vol_mult"]>=1.15:
+        if td["change_1"]>=0:
+            long_score+=1; reasons_long.append("1D hacim normalin üstünde")
+        else:
+            short_score+=1; reasons_short.append("1D hacim normalin üstünde")
+
+    # Do not call a higher-timeframe move "early" after a large daily / 4h extension.
+    long_extended = td["change_1"]>=6.0 or t4h["change_4"]>=5.0
+    short_extended = td["change_1"]<=-6.0 or t4h["change_4"]<=-5.0
+
+    direction="NONE"
+    score=0
+    reasons=[]
+    extended=False
+    if long_score>=HTF_GATE_MIN_SCORE and long_score>=short_score+2:
+        direction="LONG"; score=long_score; reasons=reasons_long; extended=long_extended
+    elif short_score>=HTF_GATE_MIN_SCORE and short_score>=long_score+2:
+        direction="SHORT"; score=short_score; reasons=reasons_short; extended=short_extended
+
+    return {
+        "qualified":bool(direction!="NONE" and not extended),
+        "direction":direction,
+        "score":score,
+        "long_score":long_score,
+        "short_score":short_score,
+        "extended":bool(extended),
+        "near_daily_high":bool(near_high),
+        "near_daily_low":bool(near_low),
+        "daily_breakout20":bool(td["breakout20"]),
+        "daily_breakdown20":bool(td["breakdown20"]),
+        "daily_change_pct":float(td["change_1"]),
+        "daily_volume_mult":float(td["vol_mult"]),
+        "reasons":reasons[:5],
+        "daily":td,
     }
 
 
@@ -625,6 +714,7 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
         t15=timeframe_features(fetch_klines(symbol,"15m",220))
     t1h=timeframe_features(fetch_htf_cached(symbol,"1h",220))
     t4h=timeframe_features(fetch_htf_cached(symbol,"4h",220))
+    htf_gate=build_htf_gate(symbol,t4h)
     oi=fetch_oi(symbol)
     funding=fetch_funding(symbol)
     taker=fetch_taker(symbol)
@@ -773,6 +863,7 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
     payload={
         "version":VERSION,"data_mode":DATA_MODE,"market_regime":market_regime,
         "day_change_pct":day_change_pct,"chart":chart,"setup_plan":setup_plan,"reversal_plan":reversal_plan,
+        "htf_gate":htf_gate,
         "t1":t1,"t5":t5,"t15":t15,"t1h":t1h,"t4h":t4h,
         "oi":oi,"funding_pct":funding,"taker_ratio":taker,
         "long_short_ratio":ls,"depth_imbalance":depth,
@@ -1129,15 +1220,34 @@ def main():
     # Stage 1: cheap broad scan. Keep Binance coverage wide without doing
     # expensive derivatives/HTF calls for every symbol.
     preselected=[]; errors=0
-    for symbol,_,_,day_change in uni:
+    for symbol,quote_volume,_,day_change in uni:
         try:
-            preselected.append(prefilter_symbol(symbol,day_change))
+            preselected.append(prefilter_symbol(symbol,day_change,quote_volume))
         except Exception as e:
             errors+=1
             print(f"prefilter {symbol}: {type(e).__name__}: {e}")
     preselected.sort(key=lambda x:x["rank"], reverse=True)
     save_reversal_candidates(ts,preselected)
-    shortlist=preselected[:max(1,min(PRESELECT_MAX,len(preselected)))]
+
+    # Mixed shortlist: keep fast movers, but reserve roughly half the deep-scan
+    # slots for the most liquid names. This prevents the motor from becoming a
+    # pure small/fast-coin scanner and gives 1D/4H structures on larger names room.
+    n=max(1,min(PRESELECT_MAX,len(preselected)))
+    momentum_n=max(1,(n+1)//2)
+    liquid_n=max(0,n-momentum_n)
+    shortlist=[]; seen=set()
+    for x in preselected[:momentum_n] + sorted(preselected,key=lambda z:z.get("quote_volume",0.0),reverse=True)[:max(liquid_n*3,liquid_n)]:
+        if x["symbol"] in seen:
+            continue
+        shortlist.append(x); seen.add(x["symbol"])
+        if len(shortlist)>=n:
+            break
+    if len(shortlist)<n:
+        for x in preselected:
+            if x["symbol"] not in seen:
+                shortlist.append(x); seen.add(x["symbol"])
+            if len(shortlist)>=n:
+                break
     print("FAST_PREFILTER",len(uni),"->",len(shortlist),
           ",".join(x["symbol"] for x in shortlist))
 
