@@ -59,7 +59,20 @@ jobs:
             test -f .live-state/long_short_live_pool.db && cp .live-state/long_short_live_pool.db .
           fi
 
-      - name: Run near-live watch pool
+      - name: Restore reversal state
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p .rev-state
+          run_id=$(gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts?name=long-short-reversal-state&per_page=100" \
+            --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | reverse | .[0].workflow_run.id // empty')
+          if test -n "$run_id"; then
+            gh run download "$run_id" --name long-short-reversal-state --dir .rev-state || true
+            test -f .rev-state/long_short_reversal_live.db && cp .rev-state/long_short_reversal_live.db .
+          fi
+
+      - name: Run continuation and reversal live pools in parallel
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -67,7 +80,18 @@ jobs:
           LS_LIVE_RUN_SECONDS: "250"
           LS_LIVE_MAX_WATCH: "12"
           LS_LIVE_APPROACH_PCT: "0.25"
-        run: python -u long_short_live_pool.py
+          LS_REVERSAL_MAX_WATCH: "12"
+          LS_REVERSAL_APPROACH_PCT: "0.35"
+        run: |
+          set -euo pipefail
+          python -u long_short_live_pool.py &
+          pid_cont=$!
+          python -u long_short_reversal_live.py &
+          pid_rev=$!
+          rc=0
+          wait "$pid_cont" || rc=$?
+          wait "$pid_rev" || rc=$?
+          exit "$rc"
 
       - name: Upload live-pool state
         if: always()
@@ -79,6 +103,16 @@ jobs:
           retention-days: 30
           compression-level: 6
 
+
+      - name: Upload reversal state
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: long-short-reversal-state
+          path: long_short_reversal_live.db
+          if-no-files-found: warn
+          retention-days: 30
+          compression-level: 6
 
       - name: Start next analyst cycle
         if: always()
