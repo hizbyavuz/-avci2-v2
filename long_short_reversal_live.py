@@ -77,6 +77,27 @@ def load_plans():
         return []
     with sqlite3.connect(ANALYST_DB) as con:
         con.row_factory=sqlite3.Row
+        # Preferred source: independent reversal discovery over the broad first-stage universe.
+        try:
+            row=con.execute("SELECT MAX(scan_time_utc) ts FROM reversal_candidates").fetchone()
+            if row and row["ts"]:
+                rows=con.execute("""SELECT * FROM reversal_candidates
+                                    WHERE scan_time_utc=? ORDER BY score DESC LIMIT ?""",
+                                 (row["ts"],MAX_WATCH)).fetchall()
+                return [{
+                    "symbol":r["symbol"],"direction":r["direction"],"score":int(r["score"] or 0),
+                    "data_mode":str(r["data_mode"] or "UNKNOWN"),
+                    "sweep_level":float(r["sweep_level"]),
+                    "micro_break_level":float(r["micro_break_level"]),
+                    "retest_low":float(r["retest_low"]),"retest_high":float(r["retest_high"]),
+                    "invalidation":float(r["invalidation"]),
+                    "target1":float(r["target1"] or 0),"target2":float(r["target2"] or 0),
+                    "scan_time":row["ts"],
+                } for r in rows]
+        except sqlite3.OperationalError:
+            pass
+
+        # Backward-compatible fallback for older analyst DBs.
         row=con.execute("SELECT MAX(scan_time_utc) ts FROM analyses").fetchone()
         if not row or not row["ts"]: return []
         rows=con.execute("""SELECT symbol,confidence,payload_json
@@ -112,9 +133,15 @@ def sync(items):
         for x in items:
             old=con.execute("""SELECT direction,sweep_level,micro_break_level,stage
                                FROM watch_state WHERE symbol=?""",(x["symbol"],)).fetchone()
+            active_stage = old[3] if old else None
+            level_changed=(old and (
+                abs(float(old[1])-x["sweep_level"])>max(1e-12,x["sweep_level"]*0.002)
+                or abs(float(old[2])-x["micro_break_level"])>max(1e-12,x["micro_break_level"]*0.002)
+            ))
+            # Once a reversal sequence has advanced beyond early watch, freeze its original
+            # levels so a fresh analyst scan cannot move the goalposts mid-setup.
             reset=(not old or old[0]!=x["direction"]
-                   or abs(float(old[1])-x["sweep_level"])>max(1e-12,x["sweep_level"]*0.002)
-                   or abs(float(old[2])-x["micro_break_level"])>max(1e-12,x["micro_break_level"]*0.002))
+                   or (active_stage in ("WATCH","APPROACHING") and level_changed))
             if reset:
                 con.execute("""INSERT OR REPLACE INTO watch_state(
                     symbol,direction,score,data_mode,sweep_level,micro_break_level,
@@ -125,11 +152,16 @@ def sync(items):
                  x["micro_break_level"],x["retest_low"],x["retest_high"],x["invalidation"],
                  x["target1"],x["target2"],x["scan_time"],now_iso()))
             else:
-                con.execute("""UPDATE watch_state SET score=?,data_mode=?,retest_low=?,retest_high=?,
-                    invalidation=?,target1=?,target2=?,analyst_scan_time=?,last_update_utc=?
-                    WHERE symbol=?""",
-                    (x["score"],x["data_mode"],x["retest_low"],x["retest_high"],
-                     x["invalidation"],x["target1"],x["target2"],x["scan_time"],now_iso(),x["symbol"]))
+                if active_stage in ("WATCH","APPROACHING"):
+                    con.execute("""UPDATE watch_state SET score=?,data_mode=?,retest_low=?,retest_high=?,
+                        invalidation=?,target1=?,target2=?,analyst_scan_time=?,last_update_utc=?
+                        WHERE symbol=?""",
+                        (x["score"],x["data_mode"],x["retest_low"],x["retest_high"],
+                         x["invalidation"],x["target1"],x["target2"],x["scan_time"],now_iso(),x["symbol"]))
+                else:
+                    con.execute("""UPDATE watch_state SET score=?,data_mode=?,analyst_scan_time=?,
+                        last_update_utc=? WHERE symbol=?""",
+                        (x["score"],x["data_mode"],x["scan_time"],now_iso(),x["symbol"]))
         if keep:
             q=",".join("?" for _ in keep)
             con.execute(f"DELETE FROM watch_state WHERE symbol NOT IN ({q})",tuple(keep))
