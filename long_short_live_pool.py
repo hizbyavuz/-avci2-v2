@@ -144,8 +144,10 @@ def sync_watchlist(items):
     with sqlite3.connect(LIVE_DB) as con:
         keep={x["symbol"] for x in items}
         for x in items:
-            old=con.execute("SELECT direction,trigger_level FROM watch_state WHERE symbol=?",(x["symbol"],)).fetchone()
-            reset = not old or old[0]!=x["direction"] or abs(float(old[1])-x["trigger_level"])>max(1e-12,x["trigger_level"]*0.001)
+            old=con.execute("SELECT direction,trigger_level,stage FROM watch_state WHERE symbol=?",(x["symbol"],)).fetchone()
+            active_stage=old[2] if old else None
+            level_changed=(old and abs(float(old[1])-x["trigger_level"])>max(1e-12,x["trigger_level"]*0.001))
+            reset = not old or old[0]!=x["direction"] or (active_stage in ("WATCH","APPROACHING") and level_changed)
             if reset:
                 con.execute("""INSERT OR REPLACE INTO watch_state(
                     symbol,direction,trigger_level,retest_low,retest_high,invalidation,target1,target2,
@@ -155,11 +157,16 @@ def sync_watchlist(items):
                 (x["symbol"],x["direction"],x["trigger_level"],x["retest_low"],x["retest_high"],
                  x["invalidation"],x["target1"],x["target2"],x["scan_time"],x["confidence"],x["data_mode"],now_iso()))
             else:
-                con.execute("""UPDATE watch_state SET retest_low=?,retest_high=?,invalidation=?,
-                    target1=?,target2=?,analyst_scan_time=?,analyst_confidence=?,data_mode=?,last_update_utc=?
-                    WHERE symbol=?""",
-                (x["retest_low"],x["retest_high"],x["invalidation"],x["target1"],x["target2"],
-                 x["scan_time"],x["confidence"],x["data_mode"],now_iso(),x["symbol"]))
+                if active_stage in ("WATCH","APPROACHING"):
+                    con.execute("""UPDATE watch_state SET retest_low=?,retest_high=?,invalidation=?,
+                        target1=?,target2=?,analyst_scan_time=?,analyst_confidence=?,data_mode=?,last_update_utc=?
+                        WHERE symbol=?""",
+                    (x["retest_low"],x["retest_high"],x["invalidation"],x["target1"],x["target2"],
+                     x["scan_time"],x["confidence"],x["data_mode"],now_iso(),x["symbol"]))
+                else:
+                    con.execute("""UPDATE watch_state SET analyst_scan_time=?,analyst_confidence=?,
+                        data_mode=?,last_update_utc=? WHERE symbol=?""",
+                    (x["scan_time"],x["confidence"],x["data_mode"],now_iso(),x["symbol"]))
         if keep:
             q=",".join("?" for _ in keep)
             con.execute(f"DELETE FROM watch_state WHERE symbol NOT IN ({q})",tuple(keep))
@@ -223,7 +230,8 @@ def message_for(row,stage,price,closed):
         return (f"➡️ DEVAM MOTORU | {sym} | {d}\n🟠 SEVİYEYE YAKLAŞIYOR\n"
                 f"Şu an fiyat: {fmtp(price)}\n"
                 f"Henüz giriş yok.\n"
-                f"{'LONG' if d=='LONG' else 'SHORT'} için giriş için beklediğimiz seviye: {fmtp(trig)}\n"
+                f"Kırılmasını beklediğimiz {'direnç' if d=='LONG' else 'destek'}: {fmtp(trig)}\n"
+                f"Bu doğrudan giriş fiyatı değildir.\n"
                 f"5 dakikalık mumun {'üstünde' if d=='LONG' else 'altında'} kapanmasını bekliyoruz.")
     if stage=="CLOSE_CONFIRMED":
         return (f"➡️ DEVAM MOTORU | {sym} | {d}\n🟡 İLK ŞART TAMAMLANDI\n"
