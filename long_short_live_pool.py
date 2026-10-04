@@ -23,8 +23,8 @@ from long_short_simple_notify import can_send, mark_sent, classify_move, format_
 
 ANALYST_DB=os.getenv("LS_DB","long_short_analyst.db")
 LIVE_DB=os.getenv("LS_LIVE_DB","long_short_live_pool.db")
-POLL_SECONDS=float(os.getenv("LS_LIVE_POLL_SECONDS","15"))
-RUN_SECONDS=int(os.getenv("LS_LIVE_RUN_SECONDS","250"))
+POLL_SECONDS=float(os.getenv("LS_LIVE_POLL_SECONDS","30"))
+RUN_SECONDS=int(os.getenv("LS_LIVE_RUN_SECONDS","3600"))
 MAX_WATCH=int(os.getenv("LS_LIVE_MAX_WATCH","12"))
 APPROACH_PCT=float(os.getenv("LS_LIVE_APPROACH_PCT","0.25"))
 # Observational early-entry layer. It never changes the frozen continuation rules.
