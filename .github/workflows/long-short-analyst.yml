@@ -10,7 +10,7 @@ permissions:
 
 concurrency:
   group: long-short-analyst-v1-fast
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   analyze:
