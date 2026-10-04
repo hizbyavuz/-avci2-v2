@@ -6,8 +6,9 @@ import os, sqlite3, time
 
 DB=os.getenv("LS_SIMPLE_NOTIFY_DB","long_short_simple_notify.db")
 COOLDOWN_SECONDS=int(os.getenv("LS_SIMPLE_NOTIFY_COOLDOWN","3600"))
+GLOBAL_GAP_SECONDS=int(os.getenv("LS_SIMPLE_NOTIFY_GLOBAL_GAP","1200"))
 CORE_STABLE_BASES={x.strip().upper() for x in os.getenv("LS_CORE_STABLE_BASES","BTC,ETH,BNB,SOL,XRP,LINK,ADA,AVAX,LTC,BCH").split(",") if x.strip()}
-FAST_FRESH_MIN_PCT=float(os.getenv("LS_FAST_FRESH_MIN_PCT","3.0"))
+FAST_FRESH_MIN_PCT=float(os.getenv("LS_FAST_FRESH_MIN_PCT","5.0"))
 FAST_EXTENDED_MIN_PCT=float(os.getenv("LS_FAST_EXTENDED_MIN_PCT","10.0"))
 
 def init_db():
@@ -21,6 +22,20 @@ def init_db():
             PRIMARY KEY(symbol,fingerprint)
         )""")
         con.execute("CREATE INDEX IF NOT EXISTS ix_simple_alert_symbol_time ON sent_alerts(symbol,sent_at_epoch)")
+        con.execute("""CREATE TABLE IF NOT EXISTS pending_alerts(
+            symbol TEXT PRIMARY KEY,
+            direction TEXT NOT NULL,
+            level REAL NOT NULL,
+            fingerprint TEXT NOT NULL,
+            message TEXT NOT NULL,
+            priority INTEGER NOT NULL DEFAULT 0,
+            queued_at_epoch REAL NOT NULL,
+            updated_at_epoch REAL NOT NULL
+        )""")
+        con.execute("""CREATE TABLE IF NOT EXISTS scheduler_state(
+            key TEXT PRIMARY KEY,
+            value REAL NOT NULL
+        )""")
 
 def fingerprint(symbol,direction,level):
     # 4 significant decimals is enough to prevent repeat spam while allowing a genuinely new setup later.
@@ -44,6 +59,59 @@ def mark_sent(symbol,direction,level):
     with sqlite3.connect(DB) as con:
         con.execute("INSERT OR REPLACE INTO sent_alerts(symbol,direction,level,fingerprint,sent_at_epoch) VALUES(?,?,?,?,?)",
                     (symbol,direction,float(level),fp,time.time()))
+
+def queue_alert(symbol,direction,level,message,priority=0):
+    """Queue at most one current alert per coin; shared across both live watchers."""
+    init_db()
+    if not can_send(symbol,direction,level):
+        return False
+    fp=fingerprint(symbol,direction,level)
+    now=time.time()
+    with sqlite3.connect(DB) as con:
+        con.execute("""INSERT INTO pending_alerts(
+            symbol,direction,level,fingerprint,message,priority,queued_at_epoch,updated_at_epoch
+        ) VALUES(?,?,?,?,?,?,?,?)
+        ON CONFLICT(symbol) DO UPDATE SET
+            direction=excluded.direction,level=excluded.level,fingerprint=excluded.fingerprint,
+            message=excluded.message,priority=MAX(pending_alerts.priority,excluded.priority),
+            updated_at_epoch=excluded.updated_at_epoch""",
+            (symbol,direction,float(level),fp,message,int(priority),now,now))
+    return True
+
+def claim_ready_alert():
+    """Atomically release at most one Telegram message every GLOBAL_GAP_SECONDS."""
+    init_db()
+    now=time.time()
+    con=sqlite3.connect(DB)
+    try:
+        con.execute("BEGIN IMMEDIATE")
+        row=con.execute("SELECT value FROM scheduler_state WHERE key='next_allowed_epoch'").fetchone()
+        if row and now<float(row[0]):
+            con.commit()
+            return None
+        item=con.execute("""SELECT symbol,direction,level,fingerprint,message
+                            FROM pending_alerts
+                            ORDER BY priority DESC,queued_at_epoch ASC LIMIT 1""").fetchone()
+        if not item:
+            con.commit()
+            return None
+        symbol,direction,level,fp,message=item
+        # Reserve the global slot before releasing the DB lock so two watcher
+        # processes cannot send at the same time.
+        con.execute("""INSERT INTO scheduler_state(key,value) VALUES('next_allowed_epoch',?)
+                       ON CONFLICT(key) DO UPDATE SET value=excluded.value""",
+                    (now+GLOBAL_GAP_SECONDS,))
+        con.execute("DELETE FROM pending_alerts WHERE symbol=?",(symbol,))
+        con.execute("""INSERT OR REPLACE INTO sent_alerts(
+            symbol,direction,level,fingerprint,sent_at_epoch
+        ) VALUES(?,?,?,?,?)""",(symbol,direction,float(level),fp,now))
+        con.commit()
+        return {"symbol":symbol,"message":message}
+    except Exception:
+        con.rollback()
+        raise
+    finally:
+        con.close()
 
 def classify_move(symbol, day_change_pct):
     """Fixed core/stable bucket + daily-move buckets for faster coins."""
