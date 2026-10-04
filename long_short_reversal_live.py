@@ -330,7 +330,7 @@ def loop_once():
                          s["closed1_close"],json.dumps(dict(r),ensure_ascii=False)))
                     con.commit()
                     m=None
-                    if new in ("APPROACHING","SWEEP_SEEN","FAILED_BREAK_CONFIRMED","STRUCTURE_BREAK","RETESTING","TRIGGERED"):
+                    if new in ("FAILED_BREAK_CONFIRMED","STRUCTURE_BREAK","RETESTING","TRIGGERED"):
                         level=float(r["micro_break_level"])
                         if can_send(r["symbol"],r["direction"],level):
                             mclass=classify_move(s.get("quote_volume_24h"),s.get("short_range_pct"))
