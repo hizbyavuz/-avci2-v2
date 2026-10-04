@@ -796,6 +796,22 @@ def init_db():
             scan_time_utc TEXT NOT NULL, version TEXT NOT NULL,
             btc_regime TEXT NOT NULL, universe_size INTEGER NOT NULL
         )""")
+        con.execute("""CREATE TABLE IF NOT EXISTS reversal_candidates(
+            scan_time_utc TEXT NOT NULL,
+            symbol TEXT NOT NULL,
+            direction TEXT NOT NULL,
+            score INTEGER NOT NULL,
+            data_mode TEXT NOT NULL,
+            sweep_level REAL NOT NULL,
+            micro_break_level REAL NOT NULL,
+            retest_low REAL NOT NULL,
+            retest_high REAL NOT NULL,
+            invalidation REAL NOT NULL,
+            target1 REAL,
+            target2 REAL,
+            payload_json TEXT,
+            PRIMARY KEY(scan_time_utc,symbol)
+        )""")
         con.execute("""CREATE TABLE IF NOT EXISTS analyses(
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             scan_time_utc TEXT NOT NULL, symbol TEXT NOT NULL,
@@ -831,6 +847,28 @@ def init_db():
             win_rate REAL, expectancy_r REAL, avg_net_return_pct REAL,
             max_drawdown_pct REAL, buckets_json TEXT
         )""")
+
+
+def save_reversal_candidates(ts, pres):
+    """Archive reversal discovery independently from continuation shortlist."""
+    with sqlite3.connect(DB) as con:
+        for pre in pres:
+            try:
+                price=pre["t5"]["price"]
+                plan=build_reversal_plan(price,pre["k5"],pre["t5"],pre["t15"],pre["day_change"])
+                if not plan:
+                    continue
+                con.execute("""INSERT OR REPLACE INTO reversal_candidates(
+                    scan_time_utc,symbol,direction,score,data_mode,sweep_level,
+                    micro_break_level,retest_low,retest_high,invalidation,target1,target2,payload_json
+                ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                (ts,pre["symbol"],plan["direction"],int(plan.get("score") or 0),DATA_MODE,
+                 float(plan["sweep_level"]),float(plan["micro_break_level"]),
+                 float(plan["retest_low"]),float(plan["retest_high"]),float(plan["invalidation"]),
+                 float(plan.get("target1") or 0),float(plan.get("target2") or 0),
+                 json.dumps(plan,ensure_ascii=False)))
+            except Exception as exc:
+                print("reversal archive error",pre.get("symbol"),type(exc).__name__,str(exc)[:120])
 
 
 def save_scan(ts, regime, n, results):
@@ -1097,6 +1135,7 @@ def main():
             errors+=1
             print(f"prefilter {symbol}: {type(e).__name__}: {e}")
     preselected.sort(key=lambda x:x["rank"], reverse=True)
+    save_reversal_candidates(ts,preselected)
     shortlist=preselected[:max(1,min(PRESELECT_MAX,len(preselected)))]
     print("FAST_PREFILTER",len(uni),"->",len(shortlist),
           ",".join(x["symbol"] for x in shortlist))
