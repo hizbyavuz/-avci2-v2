@@ -125,20 +125,28 @@ def classify_move(symbol, day_change_pct):
         return "FAST_FRESH"
     return "FAST_QUIET"
 
-def format_alert(symbol,direction,level,move_class,day_change_pct=0.0):
-    side="üstü" if direction=="LONG" else "altı"
+def format_alert(symbol,direction,level,move_class,day_change_pct=0.0,current_price=None):
+    """User-facing Telegram alert: direction first, then exact 5m close condition."""
+    level_text=f"{float(level):,.8g}"
+    price_text="-" if current_price is None else f"{float(current_price):,.8g}"
     if move_class=="STABLE":
-        arrow="🟦 GÜÇLÜ/STABİL"
-        info="Oturmuş ve likit coin; ana seviye kırılımı izleniyor."
+        tip="🟦 Güçlü/Stabil"
     elif move_class=="FAST_FRESH":
-        arrow="⚡ HIZLI/TAZE"
-        info=f"24s hareket %{float(day_change_pct or 0.0):+.1f}; hareket hızlanma bölgesinde."
+        tip="⚡ Hızlı/Taze"
     elif move_class=="FAST_EXTENDED":
-        arrow="🔥 HIZLI/UZAMIŞ"
-        info=f"24s hareket %{float(day_change_pct or 0.0):+.1f}; günlük hareket zaten büyük, kovalamaya dikkat."
+        tip="🔥 Hızlı/Uzamış"
     else:
-        arrow="⚪ HIZLI/SAKİN"
-        info=f"24s hareket %{float(day_change_pct or 0.0):+.1f}; henüz hızlı-hareket havuzuna girmedi."
-    return (f"{arrow} | {symbol}\n"
-            f"{float(level):,.8g} {side} mum kırarsa {direction} güçlenebilir.\n"
-            f"Bilgi: {info}")
+        tip="⚪ Hızlı/Sakin"
+
+    if direction=="LONG":
+        return (f"🟢 LONG İÇİN İZLE | {symbol}\n"
+                f"5 dk mum {level_text} üstünde kapanırsa LONG güçlenir.\n"
+                f"Şu an fiyat: {price_text}\n"
+                f"Beklenen: {level_text} üstü kapanış → ardından seviyeyi koruması.\n"
+                f"Tip: {tip}")
+
+    return (f"🔴 SHORT İÇİN İZLE | {symbol}\n"
+            f"5 dk mum {level_text} altında kapanırsa SHORT güçlenir.\n"
+            f"Şu an fiyat: {price_text}\n"
+            f"Beklenen: {level_text} altı kapanış → ardından seviyenin altında kalması.\n"
+            f"Tip: {tip}")
