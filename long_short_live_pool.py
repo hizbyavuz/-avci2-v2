@@ -195,7 +195,7 @@ def sync_watchlist(items):
                     symbol,direction,trigger_level,retest_low,retest_high,invalidation,target1,target2,
                     analyst_scan_time,analyst_confidence,data_mode,htf_direction,htf_score,htf_reasons_json,
                     stage,close_confirmed_time,retest_seen,last_price,last_closed_5m,last_update_utc
-                ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,'WATCH',NULL,0,NULL,NULL,?)""",
+                ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,'WATCH',NULL,0,NULL,NULL,?)""",
                 (x["symbol"],x["direction"],x["trigger_level"],x["retest_low"],x["retest_high"],
                  x["invalidation"],x["target1"],x["target2"],x["scan_time"],x["confidence"],x["data_mode"],
                  x["htf_direction"],x["htf_score"],json.dumps(x["htf_reasons"],ensure_ascii=False),now_iso()))
@@ -374,13 +374,13 @@ def early_message(row,estate,price,metrics):
     sym=row["symbol"]; d=row["direction"]
     if estate=="EARLY_LONG":
         return (f"🟢 ERKEN LONG | {sym}\n"
-                f"1D/4H zemin LONG ({int(row['htf_score'] or 0)}/10).\n"
+                f"1D/4H zemin LONG ({int(row['htf_score'] or 0)}/11).\n"
                 f"Kırılım yeni başlıyor. Fiyat: {fmtp(price)}\n"
                 f"Direnç: {fmtp(row['trigger_level'])} | Hacim: {metrics.get('vol_mult',1):.2f}x\n"
                 f"⚠️ Gözlemsel sinyal; frozen ana giriş kuralını değiştirmez.")
     if estate=="EARLY_SHORT":
         return (f"🔻 ERKEN SHORT | {sym}\n"
-                f"1D/4H zemin SHORT ({int(row['htf_score'] or 0)}/10).\n"
+                f"1D/4H zemin SHORT ({int(row['htf_score'] or 0)}/11).\n"
                 f"Aşağı kırılım yeni başlıyor. Fiyat: {fmtp(price)}\n"
                 f"Destek: {fmtp(row['trigger_level'])} | Hacim: {metrics.get('vol_mult',1):.2f}x\n"
                 f"⚠️ Gözlemsel sinyal; frozen ana giriş kuralını değiştirmez.")
