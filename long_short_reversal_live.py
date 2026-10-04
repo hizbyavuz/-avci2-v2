@@ -12,7 +12,7 @@ import json, os, sqlite3, time
 from datetime import datetime, timezone
 import requests
 from binance_notify import resolve_chat_id
-from long_short_simple_notify import can_send, mark_sent, classify_move, format_alert
+from long_short_simple_notify import classify_move, format_alert, queue_alert, claim_ready_alert
 
 ANALYST_DB=os.getenv("LS_ANALYST_DB","long_short_analyst.db")
 DB=os.getenv("LS_REVERSAL_DB","long_short_reversal_live.db")
@@ -188,6 +188,7 @@ def snapshot(symbol):
         "closed1_open":float(c1[1]),"closed1_high":float(c1[2]),"closed1_low":float(c1[3]),
         "closed1_close":float(c1[4]),
         "quote_volume_24h":float(stats.get("quoteVolume") or 0.0),
+        "day_change_pct":float(stats.get("priceChangePercent") or 0.0),
         "short_range_pct":short_range_pct,
         "closed5_time":datetime.fromtimestamp(int(c5[6])/1000,tz=timezone.utc).isoformat(),
         "closed1_time":datetime.fromtimestamp(int(c1[6])/1000,tz=timezone.utc).isoformat(),
@@ -332,10 +333,12 @@ def loop_once():
                     m=None
                     if new in ("APPROACHING","SWEEP_SEEN","FAILED_BREAK_CONFIRMED","STRUCTURE_BREAK","RETESTING","TRIGGERED"):
                         level=float(r["micro_break_level"])
-                        if can_send(r["symbol"],r["direction"],level):
-                            mclass=classify_move(s.get("quote_volume_24h"),s.get("short_range_pct"))
-                            m=format_alert(r["symbol"],r["direction"],level,mclass)
-                            mark_sent(r["symbol"],r["direction"],level)
+                        day_change=float(s.get("day_change_pct") or 0.0)
+                        mclass=classify_move(r["symbol"],day_change)
+                        if mclass!="FAST_QUIET":
+                            queued_msg=format_alert(r["symbol"],r["direction"],level,mclass,day_change)
+                            priority=4 if mclass=="FAST_FRESH" else 3 if mclass=="STABLE" else 2
+                            queue_alert(r["symbol"],r["direction"],level,queued_msg,priority)
                     if m:
                         print(m); send(m)
                 else:
@@ -345,6 +348,11 @@ def loop_once():
                     con.commit()
             except Exception as exc:
                 print("reversal live error",r["symbol"],type(exc).__name__,str(exc)[:160])
+
+    ready=claim_ready_alert()
+    if ready:
+        print(ready["message"])
+        send(ready["message"])
 
 def main():
     init_db()
