@@ -12,11 +12,12 @@ import json, os, sqlite3, time
 from datetime import datetime, timezone
 import requests
 from binance_notify import resolve_chat_id
+from long_short_simple_notify import can_send, mark_sent, classify_move, format_alert
 
 ANALYST_DB=os.getenv("LS_ANALYST_DB","long_short_analyst.db")
 DB=os.getenv("LS_REVERSAL_DB","long_short_reversal_live.db")
-POLL_SECONDS=float(os.getenv("LS_LIVE_POLL_SECONDS","15"))
-RUN_SECONDS=float(os.getenv("LS_LIVE_RUN_SECONDS","250"))
+POLL_SECONDS=float(os.getenv("LS_LIVE_POLL_SECONDS","30"))
+RUN_SECONDS=float(os.getenv("LS_LIVE_RUN_SECONDS","3600"))
 MAX_WATCH=int(os.getenv("LS_REVERSAL_MAX_WATCH","12"))
 APPROACH_PCT=float(os.getenv("LS_REVERSAL_APPROACH_PCT","0.35"))
 SPOT_BASE="https://data-api.binance.vision"
@@ -172,9 +173,13 @@ def snapshot(symbol):
     k5=get("/api/v3/klines",{"symbol":symbol,"interval":"5m","limit":4})
     k1=get("/api/v3/klines",{"symbol":symbol,"interval":"1m","limit":4})
     px=float(get("/api/v3/ticker/price",{"symbol":symbol})["price"])
+    stats=get("/api/v3/ticker/24hr",{"symbol":symbol})
     c5=k5[-2] if len(k5)>=2 else k5[-1]
     f5=k5[-1]
     c1=k1[-2] if len(k1)>=2 else k1[-1]
+    hi=max(float(x[2]) for x in k5)
+    lo=min(float(x[3]) for x in k5)
+    short_range_pct=((hi-lo)/px*100.0) if px else 0.0
     return {
         "price":px,
         "closed5_open":float(c5[1]),"closed5_high":float(c5[2]),"closed5_low":float(c5[3]),
@@ -182,6 +187,8 @@ def snapshot(symbol):
         "forming5_high":float(f5[2]),"forming5_low":float(f5[3]),
         "closed1_open":float(c1[1]),"closed1_high":float(c1[2]),"closed1_low":float(c1[3]),
         "closed1_close":float(c1[4]),
+        "quote_volume_24h":float(stats.get("quoteVolume") or 0.0),
+        "short_range_pct":short_range_pct,
         "closed5_time":datetime.fromtimestamp(int(c5[6])/1000,tz=timezone.utc).isoformat(),
         "closed1_time":datetime.fromtimestamp(int(c1[6])/1000,tz=timezone.utc).isoformat(),
     }
@@ -322,7 +329,13 @@ def loop_once():
                         (ts,r["symbol"],r["direction"],old,new,s["price"],s["closed5_close"],
                          s["closed1_close"],json.dumps(dict(r),ensure_ascii=False)))
                     con.commit()
-                    m=msg(r,new,s)
+                    m=None
+                    if new in ("APPROACHING","SWEEP_SEEN","FAILED_BREAK_CONFIRMED","STRUCTURE_BREAK","RETESTING","TRIGGERED"):
+                        level=float(r["micro_break_level"])
+                        if can_send(r["symbol"],r["direction"],level):
+                            mclass=classify_move(s.get("quote_volume_24h"),s.get("short_range_pct"))
+                            m=format_alert(r["symbol"],r["direction"],level,mclass)
+                            mark_sent(r["symbol"],r["direction"],level)
                     if m:
                         print(m); send(m)
                 else:
