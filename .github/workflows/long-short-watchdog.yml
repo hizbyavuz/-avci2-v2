@@ -23,7 +23,13 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          latest=$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/long-short-analyst.yml/runs?per_page=20"             --jq '[.workflow_runs[] | select(.status=="completed" and .conclusion=="success")] | sort_by(.updated_at) | reverse | .[0].updated_at // empty')
+          active=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs?per_page=50" --jq '[.workflow_runs[] | select((.name=="Long Short Analyst V1" or .name=="Long Short Live Pool") and (.status=="queued" or .status=="in_progress" or .status=="pending"))] | length')
+          if test "$active" -gt 0; then
+            echo "Long/Short chain already active; no restart."
+            exit 0
+          fi
+
+          latest=$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/long-short-analyst.yml/runs?per_page=20" --jq '[.workflow_runs[] | select(.status=="completed" and .conclusion=="success")] | sort_by(.updated_at) | reverse | .[0].updated_at // empty')
 
           now=$(date -u +%s)
           if test -z "$latest"; then
