@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 
 import requests
 from binance_notify import resolve_chat_id
-from long_short_simple_notify import can_send, mark_sent, classify_move, format_alert
+from long_short_simple_notify import classify_move, format_alert, queue_alert, claim_ready_alert
 
 ANALYST_DB=os.getenv("LS_DB","long_short_analyst.db")
 LIVE_DB=os.getenv("LS_LIVE_DB","long_short_live_pool.db")
@@ -282,6 +282,7 @@ def market_snapshot(symbol):
         "compression_pct":compression_pct,"ema7_slope_pct":ema7_slope,
         "vol_mult":vol_mult,"taker_buy_share":taker_share,"atr1":atr1,
         "quote_volume_24h":float(stats.get("quoteVolume") or 0.0),
+        "day_change_pct":float(stats.get("priceChangePercent") or 0.0),
         "short_range_pct":short_range_pct,
     }
     return price,closed,close_time,early
@@ -471,10 +472,12 @@ def loop_once():
                     emsg=None
                     if estate in ("PENDING","EARLY_LONG","EARLY_SHORT","CHASE"):
                         level=float(row["trigger_level"])
-                        if can_send(row["symbol"],row["direction"],level):
-                            mclass=classify_move(emetrics.get("quote_volume_24h"),emetrics.get("short_range_pct"))
-                            emsg=format_alert(row["symbol"],row["direction"],level,mclass)
-                            mark_sent(row["symbol"],row["direction"],level)
+                        day_change=float(emetrics.get("day_change_pct") or 0.0)
+                        mclass=classify_move(row["symbol"],day_change)
+                        if mclass!="FAST_QUIET":
+                            queued_msg=format_alert(row["symbol"],row["direction"],level,mclass,day_change)
+                            priority=4 if mclass=="FAST_FRESH" else 3 if mclass=="STABLE" else 2
+                            queue_alert(row["symbol"],row["direction"],level,queued_msg,priority)
                     first_signal=estate in ("EARLY_LONG","EARLY_SHORT") and old_early not in ("EARLY_LONG","EARLY_SHORT")
                     con.execute("""UPDATE watch_state SET early_state=?,
                         early_signal_price=CASE WHEN ? THEN ? ELSE early_signal_price END,
@@ -546,6 +549,11 @@ def loop_once():
                     con.commit()
             except Exception as exc:
                 print("live error",row["symbol"],type(exc).__name__,str(exc)[:120])
+
+    ready=claim_ready_alert()
+    if ready:
+        print(ready["message"])
+        send_telegram(ready["message"])
 
 
 def main():
