@@ -220,26 +220,26 @@ def message_for(row,stage,price,closed):
     trig=float(row["trigger_level"]); rl=float(row["retest_low"]); rh=float(row["retest_high"])
     inv=float(row["invalidation"] or 0); t1=float(row["target1"] or 0); t2=float(row["target2"] or 0)
     if stage=="APPROACHING":
-        return (f"🟠 {sym} — {d} SEVİYESİNE YAKLAŞIYOR\n"
+        return (f"➡️ DEVAM MOTORU | {sym} | {d}\n🟠 SEVİYEYE YAKLAŞIYOR\n"
                 f"Şu an fiyat: {fmtp(price)}\n"
                 f"Henüz giriş yok.\n"
                 f"{'LONG' if d=='LONG' else 'SHORT'} için giriş için beklediğimiz seviye: {fmtp(trig)}\n"
                 f"5 dakikalık mumun {'üstünde' if d=='LONG' else 'altında'} kapanmasını bekliyoruz.")
     if stage=="CLOSE_CONFIRMED":
-        return (f"🟡 {sym} — İLK ŞART TAMAMLANDI\n"
+        return (f"➡️ DEVAM MOTORU | {sym} | {d}\n🟡 İLK ŞART TAMAMLANDI\n"
                 f"5 dakikalık mum {fmtp(trig)} seviyesinin {'üstünde' if d=='LONG' else 'altında'} kapandı.\n"
                 f"Şimdi hemen girmek yerine geri dönüşü bekliyoruz.\n"
                 f"Fiyat {fmtp(rl)}–{fmtp(rh)} bölgesine geri gelip "
                 f"{'burada tutunursa LONG' if d=='LONG' else 'burayı aşamazsa SHORT'} fikri güçlenecek.")
     if stage=="RETESTING":
-        return (f"🟠 {sym} — GERİ DÖNÜŞ TESTİ YAPILIYOR\n"
+        return (f"➡️ DEVAM MOTORU | {sym} | {d}\n🟠 RETEST YAPILIYOR\n"
                 f"Fiyat kırdığı bölgeyi tekrar deniyor: {fmtp(rl)}–{fmtp(rh)}\n"
                 f"Henüz giriş teyidi yok.\n"
                 f"{'Bu bölgenin üstünde kalıp yeniden yukarı dönerse LONG' if d=='LONG' else 'Bu bölgeyi aşamayıp yeniden aşağı dönerse SHORT'} düşünülebilir.")
     if stage=="TRIGGERED":
         data_mode=(row["data_mode"] or "UNKNOWN") if "data_mode" in row.keys() else "UNKNOWN"
         if data_mode!="BINANCE_FUTURES":
-            return (f"{'🟢' if d=='LONG' else '🔴'} {sym} — GRAFİK {d} ŞARTLARI OLUŞTU\n"
+            return (f"➡️ DEVAM MOTORU | {sym} | {d}\n{'🟢' if d=='LONG' else '🔴'} GRAFİK DEVAM ŞARTLARI OLUŞTU\n"
                     f"⚠️ Binance Futures teyidi YOK; bu mesaj Spot grafik şartına dayanıyor.\n"
                     f"Fiyat: {fmtp(price)}\n"
                     f"1) Ana seviye kırıldı ve 5dk mum kapandı.\n"
@@ -248,7 +248,7 @@ def message_for(row,stage,price,closed):
                     f"Bu tam Futures teyidi değildir; işlem açmadan önce Perp grafiğini ayrıca kontrol et.\n"
                     f"❌ Grafik fikri bozulur: {fmtp(inv)} karşı tarafında 5dk kapanış.\n"
                     f"🎯 Grafik hedefleri: {fmtp(t1)} | {fmtp(t2)}")
-        return (f"{'🟢' if d=='LONG' else '🔴'} {sym} — {d} ŞARTLARI OLUŞTU\n"
+        return (f"➡️ DEVAM MOTORU | {sym} | {d}\n{'🟢' if d=='LONG' else '🔴'} DEVAM ŞARTLARI OLUŞTU\n"
                 f"Fiyat: {fmtp(price)}\n"
                 f"1) Ana seviye kırıldı ve 5dk mum kapandı.\n"
                 f"2) Fiyat kırdığı bölgeyi tekrar denedi.\n"
@@ -257,7 +257,7 @@ def message_for(row,stage,price,closed):
                 f"❌ Fikir bozulur: {fmtp(inv)} karşı tarafında 5dk kapanış.\n"
                 f"🎯 İlk hedef: {fmtp(t1)} | İkinci hedef: {fmtp(t2)}")
     if stage=="INVALIDATED":
-        return (f"⚪ {sym} — ESKİ {d} FİKRİ İPTAL\n"
+        return (f"➡️ DEVAM MOTORU | {sym} | {d}\n⚪ ESKİ DEVAM FİKRİ İPTAL\n"
                 f"Fiyat fikri bozan seviyenin karşı tarafında 5 dakikalık mum kapattı.\n"
                 f"Bu setup artık kullanılmamalı. Yeni tarama bekleniyor.")
     return None
