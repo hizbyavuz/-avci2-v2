@@ -362,7 +362,8 @@ def early_message(row,estate,price,metrics):
                 f"Destek: {fmtp(row['trigger_level'])} | Hacim: {metrics.get('vol_mult',1):.2f}x\n"
                 f"⚠️ Gözlemsel sinyal; frozen ana giriş kuralını değiştirmez.")
     if estate=="PENDING":
-        return None
+        return (f"🟡 TEYİT BEKLİYOR | {sym}\n"
+                f"Erken {d} görüldü; ana 5dk teyidi henüz tamamlanmadı. Fiyat: {fmtp(price)}")
     if estate=="CHASE":
         return (f"⚪ GEÇ/KOVALAMA | {sym}\n"
                 f"Hareket başladı ama erken giriş avantajı azaldı. Fiyat: {fmtp(price)}")
@@ -432,6 +433,12 @@ def loop_once():
                     broken=(row["direction"]=="LONG" and inv and price<inv) or (row["direction"]=="SHORT" and inv and price>inv)
                     if broken:
                         estate="BROKEN"
+                    elif old_early in ("EARLY_LONG","EARLY_SHORT") and estate=="NONE":
+                        estate="PENDING"
+                    elif old_early=="PENDING" and estate=="NONE":
+                        estate="PENDING"
+                    elif old_early=="CHASE" and estate in ("NONE","PENDING"):
+                        estate="CHASE"
                 if estate!=old_early:
                     emsg=early_message(row,estate,price,emetrics)
                     first_signal=estate in ("EARLY_LONG","EARLY_SHORT") and old_early not in ("EARLY_LONG","EARLY_SHORT")
