@@ -305,13 +305,15 @@ def early_observation(row,price,early):
     atr1=float(early["atr1"] or 0.0)
 
     if d=="LONG":
-        approach=(-EARLY_APPROACH_PCT)<=dist_pct
+        # Alert only while price is approaching the resistance from below / just touching it.
+        approach=(-EARLY_APPROACH_PCT)<=dist_pct<=0.05
         directional=(ema_slope>0 and taker>=EARLY_MIN_TAKER_SHARE)
         started=price>=trig*(1.0-0.0005)
         extension=max(0.0,dist_pct)
         room=((t1/price-1.0)*100.0) if t1>price else 0.0
     else:
-        approach=dist_pct<=EARLY_APPROACH_PCT
+        # Alert only while price is approaching the support from above / just touching it.
+        approach=-0.05<=dist_pct<=EARLY_APPROACH_PCT
         directional=(ema_slope<0 and taker<=(1.0-EARLY_MIN_TAKER_SHARE))
         started=price<=trig*(1.0+0.0005)
         extension=max(0.0,-dist_pct)
