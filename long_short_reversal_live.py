@@ -229,40 +229,66 @@ def next_stage(r,s):
     return stage
 
 def msg(r,stage,s):
-    sym=r["symbol"]; d=r["direction"]; sweep=float(r["sweep_level"])
-    micro=float(r["micro_break_level"]); rl=float(r["retest_low"]); rh=float(r["retest_high"])
+    sym=r["symbol"]; d=r["direction"]
+    sweep=float(r["sweep_level"]); micro=float(r["micro_break_level"])
+    rl=float(r["retest_low"]); rh=float(r["retest_high"])
     inv=float(r["invalidation"]); t1=float(r["target1"] or 0); t2=float(r["target2"] or 0)
-    head=f"🔁 DÖNÜŞ MOTORU | {sym} | {d}"
+    side_ball="🟢" if d=="LONG" else "🔴"
+    side_word=f"{side_ball} {d}"
+    coin=f"{side_ball} {sym}"
+
     if stage=="APPROACHING":
-        return (f"{head}\n🟡 Dönüş bölgesine yaklaşıyor. Henüz giriş YOK.\n"
-                f"İzlenen {'tepe' if d=='SHORT' else 'dip'}: {fmtp(sweep)}\n"
-                f"Önce bu seviyenin süpürülmesini, sonra geri alınmasını bekliyoruz.")
+        return (f"🔁 DÖNÜŞ MOTORU\n"
+                f"{coin} — {side_word} DÖNÜŞÜ İZLENİYOR\n"
+                f"🟡 ŞİMDİ GİRME\n"
+                f"Fiyat önemli dönüş bölgesine yaklaşıyor.\n"
+                f"İzlenen seviye: {fmtp(sweep)}\n"
+                f"Şart ilerlerse tekrar haber vereceğim.")
+
     if stage=="SWEEP_SEEN":
-        return (f"{head}\n🟠 LİKİDİTE SÜPÜRMESİ GÖRÜLDÜ\n"
-                f"{'Eski tepenin üstü görüldü.' if d=='SHORT' else 'Eski dibin altı görüldü.'}\n"
-                f"Henüz giriş YOK. 5dk mumun tekrar {'tepenin altına' if d=='SHORT' else 'dibin üstüne'} kapanması gerekiyor.")
+        return (f"🔁 DÖNÜŞ MOTORU\n"
+                f"{coin} — {side_word} DÖNÜŞÜ İZLENİYOR\n"
+                f"🟡 ŞİMDİ GİRME\n"
+                f"Fiyat dönüş işareti verdi ama henüz yeterli değil.\n"
+                f"5dk kapanış teyidi bekleniyor.")
+
     if stage=="FAILED_BREAK_CONFIRMED":
-        return (f"{head}\n🟠 SAHTE KIRILIM TEYİDİ\n"
-                f"5dk mum {fmtp(sweep)} seviyesini süpürüp geri kapandı.\n"
-                f"Şimdi mikro yapı seviyesi {fmtp(micro)} {'aşağı' if d=='SHORT' else 'yukarı'} kırılmadan giriş YOK.")
+        return (f"🔁 DÖNÜŞ MOTORU\n"
+                f"{coin} — {side_word} İÇİN İLK ŞART GELDİ\n"
+                f"🟠 HAZIRLAN, AMA HENÜZ GİRME\n"
+                f"Şimdi beklenen seviye: {fmtp(micro)}\n"
+                f"Bu seviye {'aşağı' if d=='SHORT' else 'yukarı'} kırılırsa dönüş ihtimali güçlenecek.")
+
     if stage=="STRUCTURE_BREAK":
-        return (f"{head}\n🟡 MİKRO YAPI KIRILDI\n"
-                f"İkinci şart tamam. Şimdi kırılan bölgeye retest bekleniyor: {fmtp(rl)}–{fmtp(rh)}\n"
-                f"Henüz giriş YOK.")
+        return (f"🔁 DÖNÜŞ MOTORU\n"
+                f"{coin} — {side_word} GÜÇLENİYOR\n"
+                f"🟠 HAZIRLAN\n"
+                f"İkinci şart da geldi.\n"
+                f"Şimdi fiyatın {fmtp(rl)}–{fmtp(rh)} bölgesine geri dönmesini bekliyoruz.\n"
+                f"Henüz giriş yok.")
+
     if stage=="RETESTING":
-        return (f"{head}\n🟠 RETEST YAPILIYOR\n"
-                f"Fiyat {fmtp(rl)}–{fmtp(rh)} bölgesini test ediyor.\n"
-                f"Son teyit: 1dk mumun yeniden {'aşağı' if d=='SHORT' else 'yukarı'} kapanması.")
+        return (f"🔁 DÖNÜŞ MOTORU\n"
+                f"{coin} — {side_word} İÇİN SON KONTROL\n"
+                f"🟠 HAZIRLAN\n"
+                f"Fiyat giriş öncesi kontrol bölgesinde: {fmtp(rl)}–{fmtp(rh)}\n"
+                f"Son teyit bekleniyor. Henüz giriş yok.")
+
     if stage=="TRIGGERED":
-        warn="" if r["data_mode"]=="BINANCE_FUTURES" else "\n⚠️ Grafik Spot verisine dayanıyor; Binance Futures akış teyidi yok."
-        return (f"{head}\n{'🔴' if d=='SHORT' else '🟢'} DÖNÜŞ ŞARTLARI TAMAMLANDI{warn}\n"
+        warn="" if r["data_mode"]=="BINANCE_FUTURES" else "\n⚠️ Binance Futures akış teyidi yok; grafik şartına dayanıyor."
+        return (f"🔁 DÖNÜŞ MOTORU\n"
+                f"{coin} — {side_word} ŞARTLARI TAMAM\n"
+                f"{side_ball} {d} DEĞERLENDİRİLEBİLİR{warn}\n"
                 f"Fiyat: {fmtp(s['price'])}\n"
-                f"✓ Likidite süpürmesi\n✓ 5dk sahte kırılım kapanışı\n✓ Mikro yapı kırılımı\n"
-                f"✓ Retest\n✓ 1dk yön teyidi\n"
-                f"❌ Fikir bozulur: {fmtp(inv)}\n🎯 Hedefler: {fmtp(t1)} | {fmtp(t2)}")
+                f"❌ Fikir bozulur: {fmtp(inv)}\n"
+                f"🎯 Hedef 1: {fmtp(t1)}\n"
+                f"🎯 Hedef 2: {fmtp(t2)}")
+
     if stage=="INVALIDATED":
-        return (f"{head}\n⚪ DÖNÜŞ FİKRİ İPTAL\n"
-                f"Fiyat {fmtp(inv)} yanlışlanma seviyesinin karşı tarafında 5dk kapandı.")
+        return (f"🔁 DÖNÜŞ MOTORU\n"
+                f"⚪ {sym} — ESKİ {side_word} FİKRİ İPTAL\n"
+                f"Bu dönüş setup'ı artık kullanılmamalı.")
+
     return None
 
 def send(text):
