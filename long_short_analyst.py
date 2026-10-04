@@ -38,7 +38,7 @@ MIN_24H_QUOTE_VOL = float(os.getenv("LS_MIN_24H_QUOTE_VOL", "25000000"))
 MAX_SYMBOLS = int(os.getenv("LS_MAX_SYMBOLS", "80"))
 REQUEST_TIMEOUT = 12
 TELEGRAM_LIMIT = 4096
-VERSION = "LSA_V1_6_FAST_TWO_STAGE_2026-10-04"
+VERSION = "LSA_V1_7_CONTINUATION_PLUS_REVERSAL_2026-10-04"
 PRESELECT_MAX = int(os.getenv("LS_PRESELECT_MAX", "12"))
 HTF_CACHE_TTL_1H = int(os.getenv("LS_HTF_CACHE_TTL_1H", "900"))
 HTF_CACHE_TTL_4H = int(os.getenv("LS_HTF_CACHE_TTL_4H", "3600"))
@@ -323,6 +323,71 @@ def build_setup_plan(direction, price, t5k, t15, chart):
         "invalidation":invalid,"target1":target1,"target2":target2,
         "triggered":bool(chart["long_trigger"] and price>trigger),
         "instruction":text,
+    }
+
+
+def build_reversal_plan(price, t5k, t5, t15, day_change_pct=0.0):
+    """
+    Separate reversal research engine. It does NOT predict the exact top/bottom.
+    It watches for: liquidity sweep -> failed breakout close -> micro structure break
+    -> retest -> 1m rejection. The live pool performs the sequential confirmation.
+    """
+    levels=swing_levels(t5k,48)
+    a=max(t15["atr"],price*0.002)
+    pad=max(0.18*a,price*0.0012)
+
+    # Extension is only a discovery filter, never an entry trigger.
+    short_ext=max(float(day_change_pct),0.0)*0.7 + max(t15["rsi"]-60.0,0.0)*0.45 + max(t15["change_4"],0.0)*1.2
+    long_ext=max(-float(day_change_pct),0.0)*0.7 + max(40.0-t15["rsi"],0.0)*0.45 + max(-t15["change_4"],0.0)*1.2
+
+    direction=None
+    if short_ext>=6.0 and short_ext>=long_ext:
+        direction="SHORT"
+    elif long_ext>=6.0 and long_ext>short_ext:
+        direction="LONG"
+    else:
+        return None
+
+    if direction=="SHORT":
+        sweep=float(levels["resistance"])
+        micro=float(levels["support"])
+        # A reversal short needs room between the swept high and the micro support.
+        if sweep<=price*0.998 or micro>=sweep:
+            return None
+        retest_low=micro
+        retest_high=micro+pad
+        invalid=sweep+max(0.35*a,sweep*0.0015)
+        t1=min(float(levels["support2"]), micro-max(0.8*a,micro*0.003))
+        t2=min(t1-max(0.7*a,micro*0.0025), micro-2.0*a)
+        score=min(99,int(round(short_ext*5.0)))
+        return {
+            "engine":"REVERSAL","direction":"SHORT","score":score,
+            "sweep_level":sweep,"failed_close_level":sweep,
+            "micro_break_level":micro,
+            "retest_low":retest_low,"retest_high":retest_high,
+            "invalidation":invalid,"target1":t1,"target2":t2,
+            "why":"Yükseliş uzamış; eski tepe süpürülüp geri alınamazsa dönüş aranacak.",
+            "entry_rule":"Tepe süpürmesi + 5dk tepe altı kapanış + mikro dip kırılımı + retest reddi + 1dk aşağı kapanış.",
+        }
+
+    sweep=float(levels["support"])
+    micro=float(levels["resistance"])
+    if sweep>=price*1.002 or micro<=sweep:
+        return None
+    retest_low=micro-pad
+    retest_high=micro
+    invalid=sweep-max(0.35*a,sweep*0.0015)
+    t1=max(float(levels["resistance2"]), micro+max(0.8*a,micro*0.003))
+    t2=max(t1+max(0.7*a,micro*0.0025), micro+2.0*a)
+    score=min(99,int(round(long_ext*5.0)))
+    return {
+        "engine":"REVERSAL","direction":"LONG","score":score,
+        "sweep_level":sweep,"failed_close_level":sweep,
+        "micro_break_level":micro,
+        "retest_low":retest_low,"retest_high":retest_high,
+        "invalidation":invalid,"target1":t1,"target2":t2,
+        "why":"Düşüş uzamış; eski dip süpürülüp geri alınırsa dönüş aranacak.",
+        "entry_rule":"Dip süpürmesi + 5dk dip üstü kapanış + mikro tepe kırılımı + retest tutuşu + 1dk yukarı kapanış.",
     }
 
 
@@ -703,9 +768,10 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
     confidence=min(99, max(0, int(best*0.75 + edge*0.25)))
     preferred_direction="LONG" if long>short else "SHORT"
     setup_plan=build_setup_plan(preferred_direction,price,k5,t15,chart)
+    reversal_plan=build_reversal_plan(price,k5,t5,t15,day_change_pct)
     payload={
         "version":VERSION,"data_mode":DATA_MODE,"market_regime":market_regime,
-        "day_change_pct":day_change_pct,"chart":chart,"setup_plan":setup_plan,
+        "day_change_pct":day_change_pct,"chart":chart,"setup_plan":setup_plan,"reversal_plan":reversal_plan,
         "t1":t1,"t5":t5,"t15":t15,"t1h":t1h,"t4h":t4h,
         "oi":oi,"funding_pct":funding,"taker_ratio":taker,
         "long_short_ratio":ls,"depth_imbalance":depth,
