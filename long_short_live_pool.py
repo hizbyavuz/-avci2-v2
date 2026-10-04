@@ -226,48 +226,48 @@ def message_for(row,stage,price,closed):
     sym=row["symbol"]; d=row["direction"]
     trig=float(row["trigger_level"]); rl=float(row["retest_low"]); rh=float(row["retest_high"])
     inv=float(row["invalidation"] or 0); t1=float(row["target1"] or 0); t2=float(row["target2"] or 0)
+    side_ball="🟢" if d=="LONG" else "🔴"
+    side_word=f"{side_ball} {d}"
+    coin=f"{side_ball} {sym}"
+
     if stage=="APPROACHING":
-        return (f"➡️ DEVAM MOTORU | {sym} | {d}\n🟠 SEVİYEYE YAKLAŞIYOR\n"
-                f"Şu an fiyat: {fmtp(price)}\n"
-                f"Henüz giriş yok.\n"
+        return (f"➡️ DEVAM MOTORU\n"
+                f"{coin} — {side_word} İZLENİYOR\n"
+                f"🟡 ŞİMDİ GİRME\n"
                 f"Kırılmasını beklediğimiz {'direnç' if d=='LONG' else 'destek'}: {fmtp(trig)}\n"
                 f"Bu doğrudan giriş fiyatı değildir.\n"
-                f"5 dakikalık mumun {'üstünde' if d=='LONG' else 'altında'} kapanmasını bekliyoruz.")
+                f"5dk mumun {'üstünde' if d=='LONG' else 'altında'} kapanmasını bekliyoruz.")
+
     if stage=="CLOSE_CONFIRMED":
-        return (f"➡️ DEVAM MOTORU | {sym} | {d}\n🟡 İLK ŞART TAMAMLANDI\n"
-                f"5 dakikalık mum {fmtp(trig)} seviyesinin {'üstünde' if d=='LONG' else 'altında'} kapandı.\n"
-                f"Şimdi hemen girmek yerine geri dönüşü bekliyoruz.\n"
-                f"Fiyat {fmtp(rl)}–{fmtp(rh)} bölgesine geri gelip "
-                f"{'burada tutunursa LONG' if d=='LONG' else 'burayı aşamazsa SHORT'} fikri güçlenecek.")
+        return (f"➡️ DEVAM MOTORU\n"
+                f"{coin} — {side_word} İÇİN İLK ŞART GELDİ\n"
+                f"🟠 HAZIRLAN, AMA HENÜZ GİRME\n"
+                f"5dk kapanış şartı tamamlandı.\n"
+                f"Şimdi fiyatın {fmtp(rl)}–{fmtp(rh)} bölgesine geri dönmesini bekliyoruz.")
+
     if stage=="RETESTING":
-        return (f"➡️ DEVAM MOTORU | {sym} | {d}\n🟠 RETEST YAPILIYOR\n"
-                f"Fiyat kırdığı bölgeyi tekrar deniyor: {fmtp(rl)}–{fmtp(rh)}\n"
-                f"Henüz giriş teyidi yok.\n"
-                f"{'Bu bölgenin üstünde kalıp yeniden yukarı dönerse LONG' if d=='LONG' else 'Bu bölgeyi aşamayıp yeniden aşağı dönerse SHORT'} düşünülebilir.")
+        return (f"➡️ DEVAM MOTORU\n"
+                f"{coin} — {side_word} İÇİN SON KONTROL\n"
+                f"🟠 HAZIRLAN\n"
+                f"Fiyat kontrol bölgesinde: {fmtp(rl)}–{fmtp(rh)}\n"
+                f"Henüz giriş yok. Son teyit bekleniyor.")
+
     if stage=="TRIGGERED":
         data_mode=(row["data_mode"] or "UNKNOWN") if "data_mode" in row.keys() else "UNKNOWN"
-        if data_mode!="BINANCE_FUTURES":
-            return (f"➡️ DEVAM MOTORU | {sym} | {d}\n{'🟢' if d=='LONG' else '🔴'} GRAFİK DEVAM ŞARTLARI OLUŞTU\n"
-                    f"⚠️ Binance Futures teyidi YOK; bu mesaj Spot grafik şartına dayanıyor.\n"
-                    f"Fiyat: {fmtp(price)}\n"
-                    f"1) Ana seviye kırıldı ve 5dk mum kapandı.\n"
-                    f"2) Fiyat kırdığı bölgeyi tekrar denedi.\n"
-                    f"3) Fiyat tekrar {('yukarı' if d=='LONG' else 'aşağı')} dönmeye başladı.\n\n"
-                    f"Bu tam Futures teyidi değildir; işlem açmadan önce Perp grafiğini ayrıca kontrol et.\n"
-                    f"❌ Grafik fikri bozulur: {fmtp(inv)} karşı tarafında 5dk kapanış.\n"
-                    f"🎯 Grafik hedefleri: {fmtp(t1)} | {fmtp(t2)}")
-        return (f"➡️ DEVAM MOTORU | {sym} | {d}\n{'🟢' if d=='LONG' else '🔴'} DEVAM ŞARTLARI OLUŞTU\n"
+        warn="" if data_mode=="BINANCE_FUTURES" else "\n⚠️ Binance Futures akış teyidi yok; grafik şartına dayanıyor."
+        return (f"➡️ DEVAM MOTORU\n"
+                f"{coin} — {side_word} ŞARTLARI TAMAM\n"
+                f"{side_ball} {d} DEĞERLENDİRİLEBİLİR{warn}\n"
                 f"Fiyat: {fmtp(price)}\n"
-                f"1) Ana seviye kırıldı ve 5dk mum kapandı.\n"
-                f"2) Fiyat kırdığı bölgeyi tekrar denedi.\n"
-                f"3) Fiyat tekrar {('yukarı' if d=='LONG' else 'aşağı')} dönmeye başladı.\n\n"
-                f"Bu yüzden {d} değerlendirilebilir. Karar yine sende.\n"
-                f"❌ Fikir bozulur: {fmtp(inv)} karşı tarafında 5dk kapanış.\n"
-                f"🎯 İlk hedef: {fmtp(t1)} | İkinci hedef: {fmtp(t2)}")
+                f"❌ Fikir bozulur: {fmtp(inv)}\n"
+                f"🎯 Hedef 1: {fmtp(t1)}\n"
+                f"🎯 Hedef 2: {fmtp(t2)}")
+
     if stage=="INVALIDATED":
-        return (f"➡️ DEVAM MOTORU | {sym} | {d}\n⚪ ESKİ DEVAM FİKRİ İPTAL\n"
-                f"Fiyat fikri bozan seviyenin karşı tarafında 5 dakikalık mum kapattı.\n"
-                f"Bu setup artık kullanılmamalı. Yeni tarama bekleniyor.")
+        return (f"➡️ DEVAM MOTORU\n"
+                f"⚪ {sym} — ESKİ {side_word} FİKRİ İPTAL\n"
+                f"Bu setup artık kullanılmamalı.")
+
     return None
 
 def send_telegram(msg):
