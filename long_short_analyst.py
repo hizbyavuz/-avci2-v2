@@ -47,6 +47,7 @@ FEE_BPS_PER_SIDE = float(os.getenv("LS_FEE_BPS_PER_SIDE", "5"))
 SLIPPAGE_BPS_PER_SIDE = float(os.getenv("LS_SLIPPAGE_BPS_PER_SIDE", "5"))
 SIGNAL_EXPIRY_MIN = int(os.getenv("LS_SIGNAL_EXPIRY_MIN", "180"))
 SIGNAL_COOLDOWN_MIN = int(os.getenv("LS_SIGNAL_COOLDOWN_MIN", "120"))
+TELEGRAM_SUMMARY = os.getenv("LS_TELEGRAM_SUMMARY", "0").strip().lower() in ("1","true","yes","on")
 
 EXCLUDED_BASES = {
     "USDC","FDUSD","TUSD","USDP","DAI","BUSD","EUR","TRY","BTCST",
@@ -1154,7 +1155,10 @@ def main():
     perf=performance_summary()
     msg=build_message(ts,regime,results,errors,perf)
     print(msg)
-    send_telegram(msg)
+    # Keep the full analyst summary in logs/DB, but silence Telegram by default.
+    # The live pool now owns state-change alerts (early/confirmed/chase/broken).
+    if TELEGRAM_SUMMARY:
+        send_telegram(msg)
     print(f"SCAN_RUNTIME_SECONDS {time.time()-started:.1f}")
 
 

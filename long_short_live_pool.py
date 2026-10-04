@@ -26,6 +26,13 @@ POLL_SECONDS=float(os.getenv("LS_LIVE_POLL_SECONDS","15"))
 RUN_SECONDS=int(os.getenv("LS_LIVE_RUN_SECONDS","250"))
 MAX_WATCH=int(os.getenv("LS_LIVE_MAX_WATCH","12"))
 APPROACH_PCT=float(os.getenv("LS_LIVE_APPROACH_PCT","0.25"))
+# Observational early-entry layer. It never changes the frozen continuation rules.
+EARLY_APPROACH_PCT=float(os.getenv("LS_EARLY_APPROACH_PCT","0.18"))
+EARLY_MAX_EXTENSION_PCT=float(os.getenv("LS_EARLY_MAX_EXTENSION_PCT","0.22"))
+EARLY_MIN_VOLUME_MULT=float(os.getenv("LS_EARLY_MIN_VOLUME_MULT","1.20"))
+EARLY_MIN_TAKER_SHARE=float(os.getenv("LS_EARLY_MIN_TAKER_SHARE","0.54"))
+EARLY_MAX_COMPRESSION_PCT=float(os.getenv("LS_EARLY_MAX_COMPRESSION_PCT","0.90"))
+EARLY_MIN_ROOM_PCT=float(os.getenv("LS_EARLY_MIN_ROOM_PCT","0.30"))
 TELEGRAM_LIMIT=4096
 
 SPOT_BASES=("https://data-api.binance.vision","https://api.binance.com")
@@ -71,6 +78,17 @@ def init_db():
             retest_seen INTEGER NOT NULL DEFAULT 0,
             last_price REAL,
             last_closed_5m REAL,
+            early_state TEXT NOT NULL DEFAULT 'NONE',
+            early_signal_price REAL,
+            early_signal_time TEXT,
+            confirmed_signal_price REAL,
+            confirmed_signal_time TEXT,
+            gain_before_confirmation REAL,
+            time_early_to_confirmed_seconds REAL,
+            early_short_signal_price REAL,
+            confirmed_short_signal_price REAL,
+            gain_before_short_confirmation REAL,
+            time_early_short_to_confirmed_seconds REAL,
             last_update_utc TEXT NOT NULL
         )""")
         cols={r[1] for r in con.execute("PRAGMA table_info(watch_state)")}
@@ -78,6 +96,17 @@ def init_db():
             con.execute("ALTER TABLE watch_state RENAME COLUMN entry_level TO trigger_level")
         if "data_mode" not in cols:
             con.execute("ALTER TABLE watch_state ADD COLUMN data_mode TEXT")
+        for name,typ,default in [
+            ("early_state","TEXT","'NONE'"),
+            ("early_signal_price","REAL",None),("early_signal_time","TEXT",None),
+            ("confirmed_signal_price","REAL",None),("confirmed_signal_time","TEXT",None),
+            ("gain_before_confirmation","REAL",None),("time_early_to_confirmed_seconds","REAL",None),
+            ("early_short_signal_price","REAL",None),("confirmed_short_signal_price","REAL",None),
+            ("gain_before_short_confirmation","REAL",None),("time_early_short_to_confirmed_seconds","REAL",None),
+        ]:
+            if name not in cols:
+                clause=f" DEFAULT {default}" if default is not None else ""
+                con.execute(f"ALTER TABLE watch_state ADD COLUMN {name} {typ}{clause}")
         con.execute("""CREATE TABLE IF NOT EXISTS events(
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             event_time_utc TEXT NOT NULL,
@@ -156,6 +185,11 @@ def sync_watchlist(items):
                 ) VALUES(?,?,?,?,?,?,?,?,?,?,?,'WATCH',NULL,0,NULL,NULL,?)""",
                 (x["symbol"],x["direction"],x["trigger_level"],x["retest_low"],x["retest_high"],
                  x["invalidation"],x["target1"],x["target2"],x["scan_time"],x["confidence"],x["data_mode"],now_iso()))
+                con.execute("""UPDATE watch_state SET early_state='NONE',early_signal_price=NULL,early_signal_time=NULL,
+                    confirmed_signal_price=NULL,confirmed_signal_time=NULL,gain_before_confirmation=NULL,
+                    time_early_to_confirmed_seconds=NULL,early_short_signal_price=NULL,
+                    confirmed_short_signal_price=NULL,gain_before_short_confirmation=NULL,
+                    time_early_short_to_confirmed_seconds=NULL WHERE symbol=?""",(x["symbol"],))
             else:
                 if active_stage in ("WATCH","APPROACHING"):
                     con.execute("""UPDATE watch_state SET retest_low=?,retest_high=?,invalidation=?,
@@ -173,16 +207,109 @@ def sync_watchlist(items):
         else:
             con.execute("DELETE FROM watch_state")
 
+def _ema(values,period=7):
+    if not values:
+        return 0.0
+    alpha=2.0/(period+1.0)
+    out=float(values[0])
+    for v in values[1:]:
+        out=alpha*float(v)+(1.0-alpha)*out
+    return out
+
+def _true_range(rows):
+    if len(rows)<2:
+        return 0.0
+    vals=[]
+    for prev,cur in zip(rows[:-1],rows[1:]):
+        ph=float(cur[2]); pl=float(cur[3]); pc=float(prev[4])
+        vals.append(max(ph-pl,abs(ph-pc),abs(pl-pc)))
+    return sum(vals[-14:])/max(1,len(vals[-14:]))
+
 def market_snapshot(symbol):
-    kl=spot_get("/api/v3/klines",{"symbol":symbol,"interval":"5m","limit":3})
+    # 1m data lets the observational layer see a breakout while it is forming.
+    # The frozen continuation engine still uses the last completed 5m close below.
+    kl5=spot_get("/api/v3/klines",{"symbol":symbol,"interval":"5m","limit":30})
+    kl1=spot_get("/api/v3/klines",{"symbol":symbol,"interval":"1m","limit":30})
     ticker=spot_get("/api/v3/ticker/price",{"symbol":symbol})
     price=float(ticker["price"])
-    # Binance last row is normally forming; previous row is the last completed 5m candle.
-    row=kl[-2] if len(kl)>=2 else kl[-1]
+    row=kl5[-2] if len(kl5)>=2 else kl5[-1]
     closed=float(row[4])
     close_ms=int(row[6])
     close_time=datetime.fromtimestamp(close_ms/1000.0,tz=timezone.utc).isoformat()
-    return price,closed,close_time
+
+    prev5=kl5[-7:-1] if len(kl5)>=7 else kl5[:-1]
+    highs=[float(x[2]) for x in prev5]
+    lows=[float(x[3]) for x in prev5]
+    local_high=max(highs) if highs else price
+    local_low=min(lows) if lows else price
+    compression_pct=((max(highs)-min(lows))/price*100.0) if highs and lows and price else 999.0
+
+    c1=[float(x[4]) for x in kl1]
+    ema7_now=_ema(c1[-12:],7)
+    ema7_prev=_ema(c1[-13:-1],7) if len(c1)>=13 else ema7_now
+    ema7_slope=(ema7_now-ema7_prev)/price*100.0 if price else 0.0
+
+    forming=kl1[-1]
+    qvol=float(forming[7] or 0)
+    base=[float(x[7] or 0) for x in kl1[-12:-2]]
+    vol_base=(sum(base)/len(base)) if base else 0.0
+    vol_mult=qvol/vol_base if vol_base>0 else 1.0
+    taker_buy=float(forming[10] or 0)
+    taker_share=taker_buy/qvol if qvol>0 else 0.5
+    atr1=_true_range(kl1[-16:])
+
+    early={
+        "local_high":local_high,"local_low":local_low,
+        "compression_pct":compression_pct,"ema7_slope_pct":ema7_slope,
+        "vol_mult":vol_mult,"taker_buy_share":taker_share,"atr1":atr1,
+    }
+    return price,closed,close_time,early
+
+def early_observation(row,price,early):
+    """Observational only: detects a breakout/breakdown beginning before 5m confirmation."""
+    d=row["direction"]
+    trig=float(row["trigger_level"])
+    t1=float(row["target1"] or 0)
+    if not trig or not price:
+        return "NONE",{}
+
+    dist_pct=(price/trig-1.0)*100.0
+    compression_ok=float(early["compression_pct"])<=EARLY_MAX_COMPRESSION_PCT
+    vol_ok=float(early["vol_mult"])>=EARLY_MIN_VOLUME_MULT
+    ema_slope=float(early["ema7_slope_pct"])
+    taker=float(early["taker_buy_share"])
+    atr1=float(early["atr1"] or 0.0)
+
+    if d=="LONG":
+        approach=(-EARLY_APPROACH_PCT)<=dist_pct
+        directional=(ema_slope>0 and taker>=EARLY_MIN_TAKER_SHARE)
+        started=price>=trig*(1.0-0.0005)
+        extension=max(0.0,dist_pct)
+        room=((t1/price-1.0)*100.0) if t1>price else 0.0
+    else:
+        approach=dist_pct<=EARLY_APPROACH_PCT
+        directional=(ema_slope<0 and taker<=(1.0-EARLY_MIN_TAKER_SHARE))
+        started=price<=trig*(1.0+0.0005)
+        extension=max(0.0,-dist_pct)
+        room=((price/t1-1.0)*100.0) if 0<t1<price else 0.0
+
+    # Anti-chase: do not call a move "early" after it has already stretched or
+    # when the first structural target is too close.
+    atr_extension=(extension/100.0*price/atr1) if atr1>0 else 0.0
+    chase=(extension>EARLY_MAX_EXTENSION_PCT or atr_extension>1.10 or room<EARLY_MIN_ROOM_PCT)
+    metrics={
+        "dist_trigger_pct":dist_pct,"compression_ok":compression_ok,
+        "volume_ok":vol_ok,"directional_flow_ok":directional,
+        "started":started,"extension_pct":extension,"room_pct":room,
+        **early,
+    }
+    if chase and approach and started:
+        return "CHASE",metrics
+    if compression_ok and approach and started and directional and vol_ok:
+        return ("EARLY_LONG" if d=="LONG" else "EARLY_SHORT"),metrics
+    if approach and (directional or vol_ok):
+        return "PENDING",metrics
+    return "NONE",metrics
 
 def next_stage(row,price,closed):
     direction=row["direction"]
@@ -222,6 +349,28 @@ def next_stage(row,price,closed):
         return "RETESTING"
     return stage
 
+def early_message(row,estate,price,metrics):
+    sym=row["symbol"]; d=row["direction"]
+    if estate=="EARLY_LONG":
+        return (f"🟢 ERKEN LONG | {sym}\n"
+                f"Kırılım yeni başlıyor. Fiyat: {fmtp(price)}\n"
+                f"Direnç: {fmtp(row['trigger_level'])} | Hacim: {metrics.get('vol_mult',1):.2f}x\n"
+                f"⚠️ Gözlemsel sinyal; frozen ana giriş kuralını değiştirmez.")
+    if estate=="EARLY_SHORT":
+        return (f"🔻 ERKEN SHORT | {sym}\n"
+                f"Aşağı kırılım yeni başlıyor. Fiyat: {fmtp(price)}\n"
+                f"Destek: {fmtp(row['trigger_level'])} | Hacim: {metrics.get('vol_mult',1):.2f}x\n"
+                f"⚠️ Gözlemsel sinyal; frozen ana giriş kuralını değiştirmez.")
+    if estate=="PENDING":
+        return (f"🟡 TEYİT BEKLİYOR | {sym}\n"
+                f"Erken {d} görüldü; ana 5dk teyidi henüz tamamlanmadı. Fiyat: {fmtp(price)}")
+    if estate=="CHASE":
+        return (f"⚪ GEÇ/KOVALAMA | {sym}\n"
+                f"Hareket başladı ama erken giriş avantajı azaldı. Fiyat: {fmtp(price)}")
+    if estate=="BROKEN":
+        return (f"🔴 BOZULDU | {sym}\nErken {d} gözlemi geçersizleşti.")
+    return None
+
 def message_for(row,stage,price,closed):
     sym=row["symbol"]; d=row["direction"]
     trig=float(row["trigger_level"]); rl=float(row["retest_low"]); rh=float(row["retest_high"])
@@ -230,27 +379,9 @@ def message_for(row,stage,price,closed):
     side_word=f"{side_ball} {d}"
     coin=f"{side_ball} {sym}"
 
-    if stage=="APPROACHING":
-        return (f"➡️ DEVAM MOTORU\n"
-                f"{coin} — {side_word} İZLENİYOR\n"
-                f"🟡 ŞİMDİ GİRME\n"
-                f"Kırılmasını beklediğimiz {'direnç' if d=='LONG' else 'destek'}: {fmtp(trig)}\n"
-                f"Bu doğrudan giriş fiyatı değildir.\n"
-                f"5dk mumun {'üstünde' if d=='LONG' else 'altında'} kapanmasını bekliyoruz.")
-
-    if stage=="CLOSE_CONFIRMED":
-        return (f"➡️ DEVAM MOTORU\n"
-                f"{coin} — {side_word} İÇİN İLK ŞART GELDİ\n"
-                f"🟠 HAZIRLAN, AMA HENÜZ GİRME\n"
-                f"5dk kapanış şartı tamamlandı.\n"
-                f"Şimdi fiyatın {fmtp(rl)}–{fmtp(rh)} bölgesine geri dönmesini bekliyoruz.")
-
-    if stage=="RETESTING":
-        return (f"➡️ DEVAM MOTORU\n"
-                f"{coin} — {side_word} İÇİN SON KONTROL\n"
-                f"🟠 HAZIRLAN\n"
-                f"Fiyat kontrol bölgesinde: {fmtp(rl)}–{fmtp(rh)}\n"
-                f"Henüz giriş yok. Son teyit bekleniyor.")
+    if stage in ("APPROACHING","CLOSE_CONFIRMED","RETESTING"):
+        # Passive states stay in SQLite; Telegram is reserved for actionable state changes.
+        return None
 
     if stage=="TRIGGERED":
         data_mode=(row["data_mode"] or "UNKNOWN") if "data_mode" in row.keys() else "UNKNOWN"
@@ -289,10 +420,44 @@ def loop_once():
         rows=con.execute("SELECT * FROM watch_state ORDER BY analyst_confidence DESC").fetchall()
         for row in rows:
             try:
-                price,closed,closed_candle_time=market_snapshot(row["symbol"])
+                price,closed,closed_candle_time,early=market_snapshot(row["symbol"])
                 old=row["stage"]
                 new=next_stage(row,price,closed)
                 observed_time=now_iso()
+
+                # Separate observational early layer: never mutates frozen continuation stage.
+                old_early=(row["early_state"] or "NONE") if "early_state" in row.keys() else "NONE"
+                estate,emetrics=early_observation(row,price,early)
+                inv=float(row["invalidation"] or 0)
+                if old_early in ("EARLY_LONG","EARLY_SHORT","PENDING","CHASE"):
+                    broken=(row["direction"]=="LONG" and inv and price<inv) or (row["direction"]=="SHORT" and inv and price>inv)
+                    if broken:
+                        estate="BROKEN"
+                    elif old_early in ("EARLY_LONG","EARLY_SHORT") and estate=="NONE":
+                        estate="PENDING"
+                    elif old_early=="PENDING" and estate=="NONE":
+                        estate="PENDING"
+                    elif old_early=="CHASE" and estate in ("NONE","PENDING"):
+                        estate="CHASE"
+                if estate!=old_early:
+                    emsg=early_message(row,estate,price,emetrics)
+                    first_signal=estate in ("EARLY_LONG","EARLY_SHORT") and old_early not in ("EARLY_LONG","EARLY_SHORT")
+                    con.execute("""UPDATE watch_state SET early_state=?,
+                        early_signal_price=CASE WHEN ? THEN ? ELSE early_signal_price END,
+                        early_signal_time=CASE WHEN ? THEN ? ELSE early_signal_time END,
+                        early_short_signal_price=CASE WHEN ? AND direction='SHORT' THEN ? ELSE early_short_signal_price END,
+                        last_price=?,last_closed_5m=?,last_update_utc=? WHERE symbol=?""",
+                        (estate,1 if first_signal else 0,price,1 if first_signal else 0,observed_time,
+                         1 if first_signal else 0,price,price,closed,observed_time,row["symbol"]))
+                    con.commit()
+                    if emsg:
+                        print(emsg); send_telegram(emsg)
+                    con.execute("""INSERT INTO events(event_time_utc,symbol,direction,stage_from,stage_to,
+                        price,closed_5m,condition_time_utc,payload_json) VALUES(?,?,?,?,?,?,?,?,?)""",
+                        (observed_time,row["symbol"],row["direction"],"EARLY:"+old_early,"EARLY:"+estate,
+                         price,closed,observed_time,json.dumps(emetrics,ensure_ascii=False)))
+                    con.commit()
+
                 if new!=old:
                     # For a 5m close confirmation, the market condition time is the
                     # completed candle close. For intrabar states, first observation
@@ -305,6 +470,21 @@ def loop_once():
                                    retest_seen=CASE WHEN ?='RETESTING' THEN 1 ELSE retest_seen END
                                    WHERE symbol=?""",
                         (new,price,closed,observed_time,new,condition_time,new,row["symbol"]))
+                    if new=="TRIGGERED":
+                        fresh=con.execute("SELECT early_signal_price,early_signal_time,direction FROM watch_state WHERE symbol=?",(row["symbol"],)).fetchone()
+                        if fresh and fresh[0] is not None:
+                            ep=float(fresh[0]); et=fresh[1]
+                            gain=((price/ep-1.0)*100.0) if fresh[2]=="LONG" else ((ep/price-1.0)*100.0)
+                            try:
+                                dt=(datetime.fromisoformat(observed_time)-datetime.fromisoformat(et)).total_seconds() if et else None
+                            except Exception:
+                                dt=None
+                            con.execute("""UPDATE watch_state SET confirmed_signal_price=?,confirmed_signal_time=?,
+                                gain_before_confirmation=?,time_early_to_confirmed_seconds=?,
+                                confirmed_short_signal_price=CASE WHEN direction='SHORT' THEN ? ELSE confirmed_short_signal_price END,
+                                gain_before_short_confirmation=CASE WHEN direction='SHORT' THEN ? ELSE gain_before_short_confirmation END,
+                                time_early_short_to_confirmed_seconds=CASE WHEN direction='SHORT' THEN ? ELSE time_early_short_to_confirmed_seconds END
+                                WHERE symbol=?""",(price,observed_time,gain,dt,price,gain,dt,row["symbol"]))
                     con.commit()
 
                     sent_time=None
