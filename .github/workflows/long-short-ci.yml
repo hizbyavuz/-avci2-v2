@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "long_short_*.py"
+      - "test_long_short_*.py"
       - ".github/workflows/long-short-*.yml"
   workflow_dispatch:
 
