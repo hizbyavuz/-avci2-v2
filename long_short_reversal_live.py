@@ -12,7 +12,7 @@ import json, math, os, sqlite3, time
 from datetime import datetime, timezone
 import requests
 from binance_notify import resolve_chat_id
-from long_short_simple_notify import classify_move, format_alert, queue_alert, claim_ready_alert
+from long_short_simple_notify import classify_move, format_alert, queue_alert, claim_ready_alert, ack_claimed_alert, retry_claimed_alert
 
 ANALYST_DB=os.getenv("LS_ANALYST_DB","long_short_analyst.db")
 DB=os.getenv("LS_REVERSAL_DB","long_short_reversal_live.db")
@@ -357,7 +357,13 @@ def loop_once():
         ready=claim_ready_alert()
         if ready:
             print(ready["message"])
-            send(ready["message"])
+            try:
+                send(ready["message"])
+            except Exception as exc:
+                retry_claimed_alert(ready)
+                print("telegram send failed; requeued",type(exc).__name__,str(exc)[:160])
+            else:
+                ack_claimed_alert(ready)
 
 def main():
     init_db()
