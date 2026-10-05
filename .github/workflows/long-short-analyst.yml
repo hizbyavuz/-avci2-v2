@@ -87,4 +87,4 @@ jobs:
         if: success()
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh workflow run long-short-live-pool.yml --ref main
+        run: gh workflow run long-short-live-pool.yml --repo "$GITHUB_REPOSITORY" --ref main
