@@ -628,7 +628,7 @@ def loop_once():
                         day_change=float(emetrics.get("day_change_pct") or 0.0)
                         mclass=classify_move(row["symbol"],day_change)
                         if mclass!="FAST_QUIET":
-                            queued_msg=format_alert(row["symbol"],row["direction"],level,mclass,day_change,price)
+                            queued_msg=format_alert(row["symbol"],row["direction"],level,mclass,day_change,price,\n                                                    row["invalidation"],row["target1"],row["target2"])
                             priority=4 if mclass=="FAST_FRESH" else 3 if mclass=="STABLE" else 2
                             queue_alert(row["symbol"],row["direction"],level,queued_msg,priority)
                     first_signal=estate in ("EARLY_LONG","EARLY_SHORT") and old_early not in ("EARLY_LONG","EARLY_SHORT")
