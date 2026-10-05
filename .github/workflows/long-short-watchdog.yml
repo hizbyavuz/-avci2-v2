@@ -34,7 +34,7 @@ jobs:
           now=$(date -u +%s)
           if test -z "$latest"; then
             echo "No successful analyst run found; restarting."
-            gh workflow run long-short-analyst.yml --ref main
+            gh workflow run long-short-analyst.yml --repo "$GITHUB_REPOSITORY" --ref main
             exit 0
           fi
 
@@ -44,7 +44,7 @@ jobs:
 
           if test "$age" -gt 600; then
             echo "Analyst stale for >10m; restarting."
-            gh workflow run long-short-analyst.yml --ref main
+            gh workflow run long-short-analyst.yml --repo "$GITHUB_REPOSITORY" --ref main
           else
             echo "Analyst fresh; no action."
           fi
