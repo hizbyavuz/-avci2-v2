@@ -148,6 +148,7 @@ def bybit_derivatives(symbol: str) -> dict[str, Any]:
         "provider": "BYBIT_LINEAR",
         "symbol": symbol,
         "observed_at_utc": _now_iso(),
+        "source_age_seconds": None,
         "oi_change_1h": None,
         "oi_now": None,
         "funding_pct": None,
@@ -184,6 +185,10 @@ def bybit_derivatives(symbol: str) -> dict[str, Any]:
         )
         rows = list(x["result"].get("list") or [])
         rows.sort(key=lambda r: int(r.get("timestamp") or 0))
+        if rows:
+            latest_ms=int(rows[-1].get("timestamp") or 0)
+            if latest_ms>0:
+                out["source_age_seconds"]=max(0.0,time.time()-latest_ms/1000.0)
         vals = [_fv(r.get("openInterest")) for r in rows]
         vals = [v for v in vals if v is not None]
         if vals:
@@ -258,6 +263,7 @@ def okx_derivatives(symbol: str) -> dict[str, Any]:
         "symbol": symbol,
         "inst_id": inst,
         "observed_at_utc": _now_iso(),
+        "source_age_seconds": None,
         "oi_change_1h": None,
         "oi_now": None,
         "funding_pct": None,
@@ -348,6 +354,7 @@ def gate_derivatives(symbol: str) -> dict[str, Any]:
         "symbol": symbol,
         "contract": contract,
         "observed_at_utc": _now_iso(),
+        "source_age_seconds": None,
         "oi_change_1h": None,
         "oi_now": None,
         "funding_pct": None,
@@ -370,6 +377,11 @@ def gate_derivatives(symbol: str) -> dict[str, Any]:
         rows.sort(key=lambda r: int(r.get("time") or 0))
         if rows:
             latest = rows[-1]
+            latest_ts=int(latest.get("time") or 0)
+            if latest_ts>0:
+                if latest_ts>10_000_000_000:
+                    latest_ts=latest_ts/1000.0
+                out["source_age_seconds"]=max(0.0,time.time()-float(latest_ts))
             oi_vals = [_fv(r.get("open_interest_usd")) for r in rows]
             if not any(v is not None and v > 0 for v in oi_vals):
                 oi_vals = [_fv(r.get("open_interest")) for r in rows]
@@ -447,7 +459,15 @@ def _finish(out: dict[str, Any]) -> dict[str, Any]:
     out["critical_fields"] = list(critical)
     out["available_critical"] = available
     out["coverage"] = coverage
-    out["quality"] = "FULL" if available == len(critical) else ("PARTIAL" if available >= 2 else "UNAVAILABLE")
+    age=out.get("source_age_seconds")
+    stale=age is not None and float(age)>900.0
+    out["stale"]=bool(stale)
+    if available == len(critical) and not stale:
+        out["quality"]="FULL"
+    elif available >= 2:
+        out["quality"]="STALE" if stale else "PARTIAL"
+    else:
+        out["quality"]="UNAVAILABLE"
     return out
 
 
@@ -511,6 +531,7 @@ def multi_venue_derivatives(symbol: str) -> dict[str, Any]:
             "selected_provider": chosen.get("provider"),
             "symbol": symbol,
             "observed_at_utc": _now_iso(),
+            "source_age_seconds":chosen.get("source_age_seconds"),
             "field_source": dict(chosen.get("field_source") or {}),
             "errors": [e for src in sources.values() for e in (src.get("errors") or [])],
             "sources": sources,
