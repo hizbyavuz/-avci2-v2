@@ -25,6 +25,7 @@ LIVE_DB = os.getenv("LS_LIVE_DB", "long_short_live_pool.db")
 REVERSAL_DB = os.getenv("LS_REVERSAL_DB", "long_short_reversal_live.db")
 RESEARCH_DB = os.getenv("LS_RESEARCH_DB", "long_short_research.db")
 REPORT_PATH = os.getenv("LS_RESEARCH_REPORT", "long_short_research_report.json")
+LIVE_CONFIG_PATH = os.getenv("LS_FROZEN_CONFIG_PATH", "LONG_SHORT_V1_9_FROZEN_CONFIG.json")
 
 PROTOCOL_VERSION = "LS_V1_9_STAT_PROTOCOL_2026_10_05"
 PRIMARY_STAGE = "TRIGGERED"
@@ -62,6 +63,14 @@ def parse_dt(x: str | None) -> datetime | None:
 def mean(xs):
     vals = [float(x) for x in xs if x is not None and math.isfinite(float(x))]
     return statistics.fmean(vals) if vals else None
+
+
+def file_sha256(path: str) -> str:
+    h=hashlib.sha256()
+    with open(path,"rb") as fh:
+        for chunk in iter(lambda: fh.read(1024*1024),b""):
+            h.update(chunk)
+    return h.hexdigest()
 
 
 def ceil_minute(dt: datetime) -> datetime:
@@ -350,7 +359,8 @@ def init_db(con: sqlite3.Connection):
         "primary_stage": PRIMARY_STAGE,
         "primary_horizon_min": PRIMARY_HORIZON_MIN,
         "primary_cohort": PRIMARY_COHORT,
-        "live_config_manifest": "LONG_SHORT_V1_9_FROZEN_CONFIG.json",
+        "live_config_manifest": LIVE_CONFIG_PATH,
+        "live_config_hash": file_sha256(LIVE_CONFIG_PATH),
         "human_delay_seconds": HUMAN_DELAY_SECONDS,
         "fee_bps_per_side": FEE_BPS_PER_SIDE,
         "min_slippage_bps_per_side": MIN_SLIPPAGE_BPS_PER_SIDE,
@@ -654,7 +664,17 @@ def primary_report(rcon: sqlite3.Connection):
             "delta_r": bootstrap_episode_ci([x for x in sub if x.get("delta_r") is not None], "delta_r"),
         }
 
-    confirmatory_rows=[r for r in rows if r["data_cohort"]==PRIMARY_COHORT]
+    current_live_hash=file_sha256(LIVE_CONFIG_PATH)
+    confirmatory_rows=[
+        r for r in rows
+        if r["data_cohort"]==PRIMARY_COHORT
+        and str(r.get("model_config_hash") or "")==current_live_hash
+    ]
+    prefreeze_or_other_config=[
+        r for r in rows
+        if r["data_cohort"]==PRIMARY_COHORT
+        and str(r.get("model_config_hash") or "")!=current_live_hash
+    ]
     confirmatory_control=[r for r in confirmatory_rows if r.get("delta_r") is not None]
     confirmatory_net=bootstrap_episode_ci(confirmatory_rows,"r_multiple")
     confirmatory_delta=bootstrap_episode_ci(confirmatory_control,"delta_r")
@@ -689,8 +709,10 @@ def primary_report(rcon: sqlite3.Connection):
         "primary_stage": PRIMARY_STAGE,
         "primary_horizon_min": PRIMARY_HORIZON_MIN,
         "primary_cohort": PRIMARY_COHORT,
+        "live_config_hash": current_live_hash,
         "status": status,
         "confirmatory_events": len(confirmatory_rows),
+        "excluded_native_events_wrong_or_missing_config_hash": len(prefreeze_or_other_config),
         "confirmatory_events_with_matched_control": len(confirmatory_control),
         "independent_episodes": episodes,
         "minimum_episodes": MIN_PRIMARY_EPISODES,
