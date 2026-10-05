@@ -106,6 +106,10 @@ jobs:
           wait "$pid_rev" || rc=$?
           exit "$rc"
 
+      - name: Update live-stage validation
+        if: always()
+        run: python -u long_short_live_validation.py
+
       - name: Upload live-pool state
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
