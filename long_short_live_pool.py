@@ -40,6 +40,8 @@ EARLY_MIN_ROOM_PCT=float(os.getenv("LS_EARLY_MIN_ROOM_PCT","0.30"))
 TELEGRAM_LIMIT=4096
 
 SPOT_BASES=("https://data-api.binance.vision","https://api.binance.com")
+FUTURES_DEPTH_URL="https://fapi.binance.com/fapi/v1/depth"
+EXECUTION_PROXY_NOTIONAL=float(os.getenv("LS_PAPER_NOTIONAL_USDT","250"))
 
 def now_iso():
     return datetime.now(timezone.utc).isoformat()
@@ -55,6 +57,66 @@ def spot_get(path,params=None):
         except Exception as exc:
             last=exc
     raise last or RuntimeError("Binance Spot unavailable")
+
+def _book_vwap_quote(levels,quote_notional):
+    remain=float(quote_notional)
+    base_qty=0.0
+    spent=0.0
+    for p,q in levels:
+        px=float(p); qty=float(q)
+        level_quote=px*qty
+        take=min(remain,level_quote)
+        if take<=0:
+            continue
+        base_qty += take/px
+        spent += take
+        remain -= take
+        if remain<=1e-9:
+            break
+    if remain>max(0.01,float(quote_notional)*0.001) or base_qty<=0:
+        return None
+    return spent/base_qty
+
+
+def trigger_execution_proxy(symbol):
+    """Capture one execution-cost snapshot after a TRIGGERED alert is sent."""
+    source="BINANCE_FUTURES_BOOK"
+    try:
+        r=requests.get(
+            FUTURES_DEPTH_URL,
+            params={"symbol":symbol,"limit":100},
+            timeout=5,
+            headers={"User-Agent":"long-short-live-pool/1.0"},
+        )
+        r.raise_for_status()
+        book=r.json()
+    except Exception:
+        source="BINANCE_SPOT_BOOK_PROXY"
+        book=spot_get("/api/v3/depth",{"symbol":symbol,"limit":100})
+
+    bids=book.get("bids",[]) or []
+    asks=book.get("asks",[]) or []
+    if not bids or not asks:
+        return {"source":source,"observed_at_utc":now_iso(),"available":False}
+    best_bid=float(bids[0][0]); best_ask=float(asks[0][0])
+    mid=(best_bid+best_ask)/2.0 if best_bid and best_ask else 0.0
+    spread_bps=((best_ask-best_bid)/mid*10000.0) if mid else None
+    buy=_book_vwap_quote(asks,EXECUTION_PROXY_NOTIONAL)
+    sell=_book_vwap_quote(bids,EXECUTION_PROXY_NOTIONAL)
+    return {
+        "source":source,
+        "observed_at_utc":now_iso(),
+        "available":True,
+        "notional_usdt":EXECUTION_PROXY_NOTIONAL,
+        "mid":mid,
+        "spread_bps":spread_bps,
+        "costs":{
+            str(int(EXECUTION_PROXY_NOTIONAL)):{
+                "buy_bps":((buy/mid-1.0)*10000.0) if buy is not None and mid else None,
+                "sell_bps":((1.0-sell/mid)*10000.0) if sell is not None and mid else None,
+            }
+        },
+    }
 
 def fmtp(x):
     if x is None: return "-"
@@ -590,6 +652,7 @@ def loop_once():
 
                     sent_time=None
                     delay=None
+                    event_payload=dict(row)
                     if msg:
                         print(msg)
                         sent_time=send_telegram(msg)
@@ -599,13 +662,18 @@ def loop_once():
                             delay=None
                         if delay is not None:
                             print(f"ALERT_DELAY {row['symbol']} {new}: {delay:.1f}s")
+                    if new=="TRIGGERED":
+                        try:
+                            event_payload["_trigger_execution_proxy"]=trigger_execution_proxy(row["symbol"])
+                        except Exception as exc:
+                            event_payload["_trigger_execution_proxy_error"]=type(exc).__name__+":"+str(exc)[:120]
 
                     con.execute("""INSERT INTO events(
                         event_time_utc,symbol,direction,stage_from,stage_to,price,closed_5m,
                         condition_time_utc,telegram_sent_time_utc,delay_seconds,payload_json
                     ) VALUES(?,?,?,?,?,?,?,?,?,?,?)""",
                         (observed_time,row["symbol"],row["direction"],old,new,price,closed,
-                         condition_time,sent_time,delay,json.dumps(dict(row),ensure_ascii=False)))
+                         condition_time,sent_time,delay,json.dumps(event_payload,ensure_ascii=False)))
                     con.commit()
                 else:
                     con.execute("UPDATE watch_state SET last_price=?,last_closed_5m=?,last_update_utc=? WHERE symbol=?",
