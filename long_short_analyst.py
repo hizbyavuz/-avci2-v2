@@ -981,6 +981,79 @@ def init_db():
             win_rate REAL, expectancy_r REAL, avg_net_return_pct REAL,
             max_drawdown_pct REAL, buckets_json TEXT
         )""")
+        con.execute("""CREATE TABLE IF NOT EXISTS universe_observations(
+            scan_time_utc TEXT NOT NULL,
+            symbol TEXT NOT NULL,
+            quote_volume REAL,
+            day_change_pct REAL,
+            prefilter_rank REAL,
+            shortlisted INTEGER NOT NULL,
+            direction_hint TEXT NOT NULL,
+            reference_price REAL NOT NULL,
+            risk_pct REAL NOT NULL,
+            t5_structure INTEGER,
+            t15_structure INTEGER,
+            t15_change_4 REAL,
+            t15_vol_mult REAL,
+            t15_atr_pct REAL,
+            breakout20 INTEGER,
+            breakdown20 INTEGER,
+            payload_json TEXT,
+            PRIMARY KEY(scan_time_utc,symbol)
+        )""")
+        con.execute("""CREATE TABLE IF NOT EXISTS data_health(
+            scan_time_utc TEXT NOT NULL,
+            symbol TEXT NOT NULL,
+            data_mode TEXT,
+            derivatives_source TEXT,
+            derivatives_quality TEXT,
+            derivatives_coverage REAL,
+            missing_json TEXT,
+            errors_json TEXT,
+            PRIMARY KEY(scan_time_utc,symbol)
+        )""")
+
+
+def save_universe_observations(ts, preselected, shortlist):
+    """Archive every prefilter observation, including candidates we do not deep-scan.
+
+    This is research-only. It gives the validation layer same-scan controls and
+    prevents selection/survivorship bias from disappearing from the database.
+    """
+    selected={x["symbol"] for x in shortlist}
+    with sqlite3.connect(DB) as con:
+        for x in preselected:
+            try:
+                t5=x["t5"]; t15=x["t15"]
+                if t15["breakout20"] or t15["structure"]>0:
+                    direction="LONG"
+                elif t15["breakdown20"] or t15["structure"]<0:
+                    direction="SHORT"
+                else:
+                    direction="LONG" if float(t15["change_4"])>=0 else "SHORT"
+                ref=float(t5["price"])
+                risk_pct=max(0.20, (1.35*float(t15["atr"])/ref*100.0) if ref else 0.20)
+                payload={
+                    "research_only":True,
+                    "source":"PREFILTER_SHADOW",
+                    "t5":t5,
+                    "t15":t15,
+                }
+                con.execute("""INSERT OR REPLACE INTO universe_observations(
+                    scan_time_utc,symbol,quote_volume,day_change_pct,prefilter_rank,
+                    shortlisted,direction_hint,reference_price,risk_pct,
+                    t5_structure,t15_structure,t15_change_4,t15_vol_mult,t15_atr_pct,
+                    breakout20,breakdown20,payload_json
+                ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                (ts,x["symbol"],float(x.get("quote_volume") or 0.0),
+                 float(x.get("day_change") or 0.0),float(x.get("rank") or 0.0),
+                 1 if x["symbol"] in selected else 0,direction,ref,risk_pct,
+                 int(t5["structure"]),int(t15["structure"]),float(t15["change_4"]),
+                 float(t15["vol_mult"]),float(t15["atr_pct"]),
+                 1 if t15["breakout20"] else 0,1 if t15["breakdown20"] else 0,
+                 json.dumps(payload,ensure_ascii=False,separators=(",",":"))))
+            except Exception as exc:
+                print("universe archive error",x.get("symbol"),type(exc).__name__,str(exc)[:120])
 
 
 def save_reversal_candidates(ts, pres):
@@ -1019,6 +1092,19 @@ def save_scan(ts, regime, n, results):
              json.dumps(a.reasons,ensure_ascii=False),
              json.dumps(a.risks,ensure_ascii=False),
              json.dumps(a.payload,ensure_ascii=False)))
+            p=a.payload or {}
+            mv=p.get("multi_venue_derivatives") or {}
+            critical=list(mv.get("critical_fields") or [])
+            missing=[k for k in critical if mv.get(k) is None]
+            errors=list(mv.get("errors") or [])
+            con.execute("""INSERT OR REPLACE INTO data_health(
+                scan_time_utc,symbol,data_mode,derivatives_source,
+                derivatives_quality,derivatives_coverage,missing_json,errors_json
+            ) VALUES(?,?,?,?,?,?,?,?)""",
+            (ts,a.symbol,p.get("data_mode"),p.get("derivatives_source"),
+             p.get("derivatives_quality"),p.get("derivatives_coverage"),
+             json.dumps(missing,ensure_ascii=False),
+             json.dumps(errors,ensure_ascii=False)))
             if a.status in ("LONG","SHORT") and a.stop and a.tp1 and a.tp2:
                 exists=con.execute("""SELECT 1 FROM paper_setups
                     WHERE symbol=? AND direction=? AND (
@@ -1292,6 +1378,7 @@ def main():
                 break
     print("FAST_PREFILTER",len(uni),"->",len(shortlist),
           ",".join(x["symbol"] for x in shortlist))
+    save_universe_observations(ts,preselected,shortlist)
 
     # Stage 2: full deterministic model only on the strongest shortlist.
     results=[]
