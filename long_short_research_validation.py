@@ -29,6 +29,7 @@ REPORT_PATH = os.getenv("LS_RESEARCH_REPORT", "long_short_research_report.json")
 PROTOCOL_VERSION = "LS_V1_9_STAT_PROTOCOL_2026_10_05"
 PRIMARY_STAGE = "TRIGGERED"
 PRIMARY_HORIZON_MIN = 60
+PRIMARY_COHORT = "BINANCE_FUTURES_NATIVE"
 HUMAN_DELAY_SECONDS = int(os.getenv("LS_RESEARCH_HUMAN_DELAY_SECONDS", "30"))
 FEE_BPS_PER_SIDE = float(os.getenv("LS_FEE_BPS_PER_SIDE", "5"))
 MIN_SLIPPAGE_BPS_PER_SIDE = float(os.getenv("LS_RESEARCH_MIN_SLIPPAGE_BPS", "10"))
@@ -282,6 +283,7 @@ def init_db(con: sqlite3.Connection):
         "protocol_version": PROTOCOL_VERSION,
         "primary_stage": PRIMARY_STAGE,
         "primary_horizon_min": PRIMARY_HORIZON_MIN,
+        "primary_cohort": PRIMARY_COHORT,
         "human_delay_seconds": HUMAN_DELAY_SECONDS,
         "fee_bps_per_side": FEE_BPS_PER_SIDE,
         "min_slippage_bps_per_side": MIN_SLIPPAGE_BPS_PER_SIDE,
@@ -294,9 +296,13 @@ def init_db(con: sqlite3.Connection):
     ).hexdigest()
     frozen["research_config_hash"] = config_hash
     for k, v in frozen.items():
+        encoded=json.dumps(v, ensure_ascii=False)
+        old=con.execute("SELECT value FROM protocol_meta WHERE key=?",(k,)).fetchone()
+        if old and old[0] != encoded:
+            raise RuntimeError(f"FROZEN_PROTOCOL_MISMATCH {k}: stored={old[0]} current={encoded}")
         con.execute(
             "INSERT OR IGNORE INTO protocol_meta(key,value) VALUES(?,?)",
-            (k, json.dumps(v, ensure_ascii=False)),
+            (k, encoded),
         )
     return frozen
 
@@ -471,7 +477,7 @@ def evaluate_score_calibration(rcon: sqlite3.Connection, acon: sqlite3.Connectio
     rows = acon.execute(
         """SELECT scan_time_utc,symbol,status,long_score,short_score,price,stop,payload_json
            FROM analyses
-           WHERE status IN ('LONG','SHORT')
+           WHERE MAX(COALESCE(long_score,0),COALESCE(short_score,0)) >= 55
            ORDER BY scan_time_utc,symbol"""
     ).fetchall()
     inserted = 0
@@ -502,17 +508,20 @@ def evaluate_score_calibration(rcon: sqlite3.Connection, acon: sqlite3.Connectio
             risk_pct = abs(raw_entry - inv) / raw_entry * 100.0 if raw_entry and inv else 0.0
             if risk_pct <= 0:
                 continue
-            result = cost_adjusted_result(row["status"], path, risk_pct, p)
-            score = max(int(row["long_score"] or 0), int(row["short_score"] or 0))
+            long_score=int(row["long_score"] or 0)
+            short_score=int(row["short_score"] or 0)
+            direction="LONG" if long_score>short_score else "SHORT"
+            result = cost_adjusted_result(direction, path, risk_pct, p)
+            score = max(long_score, short_score)
             rcon.execute(
                 """INSERT INTO score_calibration(
                     scan_time_utc,symbol,direction,score,data_cohort,execution_time_utc,
                     net_return_pct,r_multiple,episode_id,evaluated_at_utc
                 ) VALUES(?,?,?,?,?,?,?,?,?,?)""",
                 (
-                    row["scan_time_utc"], row["symbol"], row["status"], score,
+                    row["scan_time_utc"], row["symbol"], direction, score,
                     cohort_from_payload(p), iso(execution_time), result["net_return_pct"],
-                    result["r_multiple"], episode_id(st, row["status"]), iso(now_utc()),
+                    result["r_multiple"], episode_id(st, direction), iso(now_utc()),
                 ),
             )
             inserted += 1
@@ -565,13 +574,18 @@ def primary_report(rcon: sqlite3.Connection):
             "delta_r": bootstrap_episode_ci([x for x in sub if x.get("delta_r") is not None], "delta_r"),
         }
 
-    episodes = int(overall_delta["episodes"])
-    ci_low = overall_delta["ci95"][0]
+    confirmatory_rows=[r for r in rows if r["data_cohort"]==PRIMARY_COHORT]
+    confirmatory_control=[r for r in confirmatory_rows if r.get("delta_r") is not None]
+    confirmatory_net=bootstrap_episode_ci(confirmatory_rows,"r_multiple")
+    confirmatory_delta=bootstrap_episode_ci(confirmatory_control,"delta_r")
+
+    episodes = int(confirmatory_delta["episodes"])
+    ci_low = confirmatory_delta["ci95"][0]
     status = "INSUFFICIENT_EVIDENCE"
     if episodes >= MIN_PRIMARY_EPISODES:
         if (
-            overall_net["mean"] is not None and overall_net["mean"] > 0
-            and overall_delta["mean"] is not None and overall_delta["mean"] > 0
+            confirmatory_net["mean"] is not None and confirmatory_net["mean"] > 0
+            and confirmatory_delta["mean"] is not None and confirmatory_delta["mean"] > 0
             and ci_low is not None and ci_low > 0
         ):
             status = "PRIMARY_PASS"
@@ -594,14 +608,21 @@ def primary_report(rcon: sqlite3.Connection):
         "protocol_version": PROTOCOL_VERSION,
         "primary_stage": PRIMARY_STAGE,
         "primary_horizon_min": PRIMARY_HORIZON_MIN,
+        "primary_cohort": PRIMARY_COHORT,
         "status": status,
-        "events_evaluated": len(rows),
-        "events_with_matched_control": len(with_control),
+        "confirmatory_events": len(confirmatory_rows),
+        "confirmatory_events_with_matched_control": len(confirmatory_control),
         "independent_episodes": episodes,
         "minimum_episodes": MIN_PRIMARY_EPISODES,
         "preferred_episodes": PREFERRED_PRIMARY_EPISODES,
-        "net_r": overall_net,
-        "matched_control_delta_r": overall_delta,
+        "confirmatory_net_r": confirmatory_net,
+        "confirmatory_matched_control_delta_r": confirmatory_delta,
+        "descriptive_all_cohorts": {
+            "events_evaluated": len(rows),
+            "events_with_matched_control": len(with_control),
+            "net_r": overall_net,
+            "matched_control_delta_r": overall_delta,
+        },
         "cohorts": cohorts,
         "telegram_delivery": {
             "triggered_events_total": delivery_total,
@@ -634,14 +655,28 @@ def calibration_report(rcon: sqlite3.Connection):
     if len(valid) == 3:
         monotonic = ordered_means[0] <= ordered_means[1] <= ordered_means[2]
     cohort_counts = {}
+    cohort_buckets = {}
     for r in rows:
         cohort_counts[r["data_cohort"]] = cohort_counts.get(r["data_cohort"], 0) + 1
+    for cohort in sorted(cohort_counts):
+        crows=[r for r in rows if r["data_cohort"]==cohort]
+        cb={}
+        for lo,hi,label in defs:
+            sub=[r for r in crows if lo<=int(r["score"])<=hi]
+            ci=bootstrap_episode_ci(sub,"r_multiple")
+            win=mean([1.0 if float(r["r_multiple"])>0 else 0.0 for r in sub if r["r_multiple"] is not None])
+            cb[label]={
+                "events":len(sub),"episodes":ci["episodes"],"mean_r":ci["mean"],
+                "ci95":ci["ci95"],"win_rate":(100.0*win) if win is not None else None,
+            }
+        cohort_buckets[cohort]=cb
     return {
         "exploratory": True,
         "horizon_min": PRIMARY_HORIZON_MIN,
-        "buckets": buckets,
-        "monotonic_point_estimate": monotonic,
+        "mixed_cohort_buckets_descriptive_only": buckets,
+        "mixed_cohort_monotonic_point_estimate_descriptive_only": monotonic,
         "cohort_counts": cohort_counts,
+        "cohort_buckets": cohort_buckets,
     }
 
 
@@ -694,7 +729,7 @@ def main():
         rcon.close()
 
     p = report["primary"]
-    d = p["matched_control_delta_r"]
+    d = p["confirmatory_matched_control_delta_r"]
     print(
         "PRIMARY",
         p["status"],
