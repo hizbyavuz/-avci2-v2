@@ -24,6 +24,7 @@ from long_short_simple_notify import classify_move, format_alert, queue_alert, c
 
 ANALYST_DB=os.getenv("LS_DB","long_short_analyst.db")
 LIVE_DB=os.getenv("LS_LIVE_DB","long_short_live_pool.db")
+NOTIFY_DB=os.getenv("LS_SIMPLE_NOTIFY_DB","long_short_simple_notify.db")
 POLL_SECONDS=float(os.getenv("LS_LIVE_POLL_SECONDS","30"))
 RUN_SECONDS=int(os.getenv("LS_LIVE_RUN_SECONDS","3600"))
 ALIGN_TO_5M=os.getenv("LS_ALIGN_TO_5M","1").strip().lower() in ("1","true","yes","on")
@@ -555,7 +556,7 @@ def send_telegram(msg):
     last=None
     for attempt in range(3):
         try:
-            chat=resolve_chat_id(token,configured,"long_short_simple_notify.db","Long/Short Live Pool")
+            chat=resolve_chat_id(token,configured,NOTIFY_DB,"Long/Short Live Pool")
             r=requests.post(f"https://api.telegram.org/bot{token}/sendMessage",
                             json={"chat_id":chat,"text":msg[:TELEGRAM_LIMIT],"disable_web_page_preview":True},
                             timeout=10)
@@ -722,7 +723,7 @@ def main():
     configured=(os.getenv("TELEGRAM_CHAT_ID") or "").strip()
     if token:
         try:
-            resolve_chat_id(token,configured,"long_short_simple_notify.db","Long/Short Live Pool")
+            resolve_chat_id(token,configured,NOTIFY_DB,"Long/Short Live Pool")
         except Exception as exc:
             print("Telegram chat cache prime failed",type(exc).__name__,str(exc)[:160])
     items=load_watchlist()
