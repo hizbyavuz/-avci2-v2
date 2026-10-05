@@ -506,12 +506,62 @@ def fetch_long_short(symbol):
         return 1.0
 
 
+def _book_vwap(rows, quote_notional, side):
+    remain=float(quote_notional)
+    base_qty=0.0
+    spent=0.0
+    for p,q in rows:
+        px=float(p); qty=float(q)
+        level_quote=px*qty
+        take_quote=min(remain,level_quote)
+        if take_quote<=0:
+            continue
+        base_qty += take_quote/px
+        spent += take_quote
+        remain -= take_quote
+        if remain<=1e-9:
+            break
+    if remain>max(0.01,quote_notional*0.001) or base_qty<=0:
+        return None
+    return spent/base_qty
+
+
+def fetch_depth_metrics(symbol):
+    """Order-book imbalance plus executable-cost proxy from Binance's visible book.
+
+    On geo-blocked runners this is Binance Spot, so the source is labelled as a
+    proxy rather than pretending it is the Futures execution book.
+    """
+    d=fget("/fapi/v1/depth",{"symbol":symbol,"limit":100})
+    bids=d.get("bids",[]) or []
+    asks=d.get("asks",[]) or []
+    bid_notional=sum(float(p)*float(q) for p,q in bids[:20])
+    ask_notional=sum(float(p)*float(q) for p,q in asks[:20])
+    total=bid_notional+ask_notional
+    imbalance=0.0 if total<=0 else (bid_notional-ask_notional)/total
+    best_bid=float(bids[0][0]) if bids else 0.0
+    best_ask=float(asks[0][0]) if asks else 0.0
+    mid=(best_bid+best_ask)/2.0 if best_bid and best_ask else 0.0
+    spread_bps=((best_ask-best_bid)/mid*10000.0) if mid else None
+    sizes=(100.0,PAPER_NOTIONAL_USDT,500.0)
+    costs={}
+    for n in sizes:
+        buy=_book_vwap(asks,n,"BUY")
+        sell=_book_vwap(bids,n,"SELL")
+        costs[str(int(n))]={
+            "buy_bps":((buy/mid-1.0)*10000.0) if buy is not None and mid else None,
+            "sell_bps":((1.0-sell/mid)*10000.0) if sell is not None and mid else None,
+        }
+    return {
+        "source":"BINANCE_FUTURES_BOOK" if DATA_MODE=="BINANCE_FUTURES" else "BINANCE_SPOT_BOOK_PROXY",
+        "imbalance":imbalance,
+        "spread_bps":spread_bps,
+        "costs":costs,
+    }
+
+
 def fetch_depth_imbalance(symbol):
-    d=fget("/fapi/v1/depth",{"symbol":symbol,"limit":50})
-    bids=sum(float(p)*float(q) for p,q in d.get("bids",[])[:20])
-    asks=sum(float(p)*float(q) for p,q in d.get("asks",[])[:20])
-    total=bids+asks
-    return 0.0 if total<=0 else (bids-asks)/total
+    return float(fetch_depth_metrics(symbol)["imbalance"])
 
 
 def universe():
@@ -736,7 +786,8 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
     funding=fetch_funding(symbol)
     taker=fetch_taker(symbol)
     ls=fetch_long_short(symbol)
-    depth=fetch_depth_imbalance(symbol)
+    depth_metrics=fetch_depth_metrics(symbol)
+    depth=float(depth_metrics["imbalance"])
     chart=chart_state(t1,t5,t15,t1h)
 
     # Data-integrity rule: never let missing Binance Futures fields silently turn
@@ -921,6 +972,7 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
         "t1":t1,"t5":t5,"t15":t15,"t1h":t1h,"t4h":t4h,
         "oi":oi,"funding_pct":funding,"taker_ratio":taker,
         "long_short_ratio":ls,"depth_imbalance":depth,
+        "execution_proxy":depth_metrics,
         "derivatives_source":deriv_source,"cross_venue":cross,
         "multi_venue_derivatives":multi_deriv,
         "derivatives_ready":bool(deriv_ready),
@@ -1136,13 +1188,17 @@ def save_scan(ts, regime, n, results):
                     from datetime import timedelta
                     exp=(datetime.fromisoformat(ts)+timedelta(minutes=SIGNAL_EXPIRY_MIN)).isoformat()
                     score=max(a.long_score,a.short_score)
+                    exec_proxy=(a.payload or {}).get("execution_proxy") or {}
+                    paper_cost=((exec_proxy.get("costs") or {}).get(str(int(PAPER_NOTIONAL_USDT))) or {})
+                    side_cost=paper_cost.get("buy_bps" if a.status=="LONG" else "sell_bps")
+                    dynamic_slip=max(SLIPPAGE_BPS_PER_SIDE,float(side_cost or 0.0))
                     con.execute("""INSERT INTO paper_setups(
                         symbol,direction,signal_time_utc,signal_price,signal_score,
                         stop,tp1,tp2,status,expires_at_utc,fee_bps_per_side,
                         slippage_bps_per_side,funding_pct_at_signal,deriv_source
                     ) VALUES(?,?,?,?,?,?,?,?,'OPEN',?,?,?,?,?)""",
                     (a.symbol,a.status,ts,a.price,score,a.stop,a.tp1,a.tp2,exp,
-                     FEE_BPS_PER_SIDE,SLIPPAGE_BPS_PER_SIDE,
+                     FEE_BPS_PER_SIDE,dynamic_slip,
                      a.payload.get("derivatives_funding_pct"),
                      a.payload.get("derivatives_source")))
 
