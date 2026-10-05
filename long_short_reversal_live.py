@@ -22,6 +22,7 @@ MAX_WATCH=int(os.getenv("LS_REVERSAL_MAX_WATCH","12"))
 APPROACH_PCT=float(os.getenv("LS_REVERSAL_APPROACH_PCT","0.35"))
 SPOT_BASE="https://data-api.binance.vision"
 TELEGRAM_LIMIT=4096
+REVERSAL_TELEGRAM=os.getenv("LS_REVERSAL_TELEGRAM","0").strip().lower() in ("1","true","yes","on")
 
 def now_iso():
     return datetime.now(timezone.utc).isoformat()
@@ -330,8 +331,11 @@ def loop_once():
                         (ts,r["symbol"],r["direction"],old,new,s["price"],s["closed5_close"],
                          s["closed1_close"],json.dumps(dict(r),ensure_ascii=False)))
                     con.commit()
-                    m=None
-                    if new in ("APPROACHING","SWEEP_SEEN","FAILED_BREAK_CONFIRMED","STRUCTURE_BREAK","RETESTING","TRIGGERED"):
+                    # Reversal remains observational until its own forward
+                    # validation proves positive expectancy. It may record every
+                    # state transition, but it does not compete with the validated
+                    # continuation watcher for Telegram by default.
+                    if REVERSAL_TELEGRAM and new in ("APPROACHING","SWEEP_SEEN","FAILED_BREAK_CONFIRMED","STRUCTURE_BREAK","RETESTING","TRIGGERED"):
                         level=float(r["micro_break_level"])
                         day_change=float(s.get("day_change_pct") or 0.0)
                         mclass=classify_move(r["symbol"],day_change)
@@ -339,8 +343,6 @@ def loop_once():
                             queued_msg=format_alert(r["symbol"],r["direction"],level,mclass,day_change,s["price"])
                             priority=4 if mclass=="FAST_FRESH" else 3 if mclass=="STABLE" else 2
                             queue_alert(r["symbol"],r["direction"],level,queued_msg,priority)
-                    if m:
-                        print(m); send(m)
                 else:
                     con.execute("""UPDATE watch_state SET last_price=?,last_closed_5m=?,
                         last_closed_1m=?,last_update_utc=? WHERE symbol=?""",
@@ -349,10 +351,11 @@ def loop_once():
             except Exception as exc:
                 print("reversal live error",r["symbol"],type(exc).__name__,str(exc)[:160])
 
-    ready=claim_ready_alert()
-    if ready:
-        print(ready["message"])
-        send(ready["message"])
+    if REVERSAL_TELEGRAM:
+        ready=claim_ready_alert()
+        if ready:
+            print(ready["message"])
+            send(ready["message"])
 
 def main():
     init_db()
