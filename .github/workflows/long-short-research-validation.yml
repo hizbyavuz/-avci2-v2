@@ -8,6 +8,7 @@ on:
       - "long_short_research_validation.py"
       - "test_long_short_research_validation.py"
       - "LONG_SHORT_VALIDATION_PROTOCOL_V1_9.md"
+      - "LONG_SHORT_V1_9_FROZEN_CONFIG.json"
       - ".github/workflows/long-short-research-validation.yml"
   schedule:
     - cron: "17 * * * *"
