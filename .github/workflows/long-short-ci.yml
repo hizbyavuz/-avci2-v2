@@ -1,0 +1,69 @@
+name: Long Short CI
+
+on:
+  pull_request:
+    paths:
+      - "long_short_*.py"
+      - ".github/workflows/long-short-*.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+
+      - name: Setup Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        run: pip install requests==2.32.5
+
+      - name: Compile Long/Short modules
+        run: |
+          python -m py_compile             long_short_data_router.py             long_short_analyst.py             long_short_live_pool.py             long_short_reversal_live.py             long_short_simple_notify.py             long_short_validation.py \
+            long_short_live_validation.py
+
+      - name: Run Long/Short unit tests
+        run: python -m unittest -v test_long_short_data_router.py
+
+      - name: Live public derivatives smoke test
+        run: |
+          python - <<'PY'
+          import json
+          import time
+          from long_short_data_router import gate_derivatives, multi_venue_derivatives
+
+          last = None
+          for attempt in range(3):
+              x = multi_venue_derivatives("BTCUSDT")
+              print(json.dumps({
+                  "quality": x.get("quality"),
+                  "coverage": x.get("coverage"),
+                  "field_source": x.get("field_source"),
+                  "errors": x.get("errors"),
+              }, ensure_ascii=False))
+              if x.get("quality") == "FULL":
+                  break
+              last = x
+              time.sleep(2)
+          else:
+              raise SystemExit("Critical derivatives bundle is not FULL: " + repr(last))
+
+          gate = gate_derivatives("BTCUSDT")
+          print("GATE", json.dumps({
+              "quality": gate.get("quality"),
+              "coverage": gate.get("coverage"),
+              "field_source": gate.get("field_source"),
+              "errors": gate.get("errors"),
+          }, ensure_ascii=False))
+          if gate.get("quality") != "FULL":
+              raise SystemExit("Gate fallback smoke test is not FULL: " + repr(gate))
+          PY

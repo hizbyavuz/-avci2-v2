@@ -59,6 +59,19 @@ jobs:
             test -f .live-state/long_short_live_pool.db && cp .live-state/long_short_live_pool.db .
           fi
 
+      - name: Restore shared Telegram anti-spam state
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p .notify-state
+          run_id=$(gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts?name=long-short-simple-notify-state&per_page=100" \
+            --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | reverse | .[0].workflow_run.id // empty')
+          if test -n "$run_id"; then
+            gh run download "$run_id" --name long-short-simple-notify-state --dir .notify-state || true
+            test -f .notify-state/long_short_simple_notify.db && cp .notify-state/long_short_simple_notify.db .
+          fi
+
       - name: Restore reversal state
         continue-on-error: true
         env:
@@ -93,6 +106,10 @@ jobs:
           wait "$pid_rev" || rc=$?
           exit "$rc"
 
+      - name: Update live-stage validation
+        if: always()
+        run: python -u long_short_live_validation.py
+
       - name: Upload live-pool state
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -110,6 +127,16 @@ jobs:
         with:
           name: long-short-reversal-state
           path: long_short_reversal_live.db
+          if-no-files-found: warn
+          retention-days: 30
+          compression-level: 6
+
+      - name: Upload shared Telegram anti-spam state
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: long-short-simple-notify-state
+          path: long_short_simple_notify.db
           if-no-files-found: warn
           retention-days: 30
           compression-level: 6

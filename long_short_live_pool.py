@@ -154,6 +154,11 @@ def load_watchlist():
                 p=json.loads(r["payload_json"] or "{}")
                 plan=p.get("setup_plan") or {}
                 gate=p.get("htf_gate") or {}
+                # Fail closed for Telegram/actionable watching: no alert is
+                # allowed unless every critical derivatives field was present
+                # in the analyst snapshot (native Binance or full multi-venue).
+                if not bool(p.get("derivatives_ready")):
+                    continue
                 if not plan.get("direction") or plan.get("trigger_level") is None:
                     continue
                 # Early alerts are now allowed only when 1D/4H context agrees.
@@ -171,7 +176,7 @@ def load_watchlist():
                     "target1":float(plan.get("target1") or 0),
                     "target2":float(plan.get("target2") or 0),
                     "confidence":int(r["confidence"] or 0),
-                    "data_mode":str(p.get("data_mode") or "UNKNOWN"),
+                    "data_mode":str(p.get("derivatives_source") or p.get("data_mode") or "UNKNOWN"),
                     "htf_direction":str(gate.get("direction") or "NONE"),
                     "htf_score":int(gate.get("score") or 0),
                     "htf_reasons":list(gate.get("reasons") or []),
@@ -408,13 +413,27 @@ def message_for(row,stage,price,closed):
     side_word=f"{side_ball} {d}"
     coin=f"{side_ball} {sym}"
 
-    if stage in ("APPROACHING","CLOSE_CONFIRMED","RETESTING"):
-        # Passive states stay in SQLite; Telegram is reserved for actionable state changes.
+    if stage=="APPROACHING":
+        # Approach alerts are handled by the shared anti-spam queue.
+        return None
+
+    if stage=="CLOSE_CONFIRMED":
+        relation="üstünde" if d=="LONG" else "altında"
+        next_step="seviyeyi koruması / retestten güç alması" if d=="LONG" else "seviyenin altında kalması / retestten reddedilmesi"
+        return (f"{side_ball} {d} TEYİT GELDİ | {sym}\n"
+                f"5 dk mum {fmtp(trig)} {relation} kapandı.\n"
+                f"Kapanış: {fmtp(closed)} | Şu an: {fmtp(price)}\n"
+                f"Şimdi beklenen: {next_step}.\n"
+                f"❌ Fikir bozulur: {fmtp(inv)}")
+
+    if stage=="RETESTING":
+        # Retest itself is recorded but not messaged; the next actionable state
+        # is TRIGGERED or INVALIDATED.
         return None
 
     if stage=="TRIGGERED":
         data_mode=(row["data_mode"] or "UNKNOWN") if "data_mode" in row.keys() else "UNKNOWN"
-        warn="" if data_mode=="BINANCE_FUTURES" else "\n⚠️ Binance Futures akış teyidi yok; grafik şartına dayanıyor."
+        warn="" if data_mode=="BINANCE_FUTURES" else "\nℹ️ Binance native Futures akışı yok; spot grafik + çoklu-venue türev teyidi kullanılıyor."
         return (f"➡️ DEVAM MOTORU\n"
                 f"{coin} — {side_word} ŞARTLARI TAMAM\n"
                 f"{side_ball} {d} DEĞERLENDİRİLEBİLİR{warn}\n"
@@ -492,7 +511,17 @@ def loop_once():
                     con.execute("""INSERT INTO events(event_time_utc,symbol,direction,stage_from,stage_to,
                         price,closed_5m,condition_time_utc,payload_json) VALUES(?,?,?,?,?,?,?,?,?)""",
                         (observed_time,row["symbol"],row["direction"],"EARLY:"+old_early,"EARLY:"+estate,
-                         price,closed,observed_time,json.dumps(emetrics,ensure_ascii=False)))
+                         price,closed,observed_time,json.dumps({
+                             **emetrics,
+                             "_setup":{
+                                 "trigger_level":float(row["trigger_level"]),
+                                 "invalidation":float(row["invalidation"] or 0.0),
+                                 "target1":float(row["target1"] or 0.0),
+                                 "target2":float(row["target2"] or 0.0),
+                                 "analyst_confidence":int(row["analyst_confidence"] or 0),
+                                 "data_mode":str(row["data_mode"] or "UNKNOWN"),
+                             },
+                         },ensure_ascii=False)))
                     con.commit()
 
                 if new!=old:
@@ -500,7 +529,7 @@ def loop_once():
                     # completed candle close. For intrabar states, first observation
                     # is the most honest timestamp available without websocket trades.
                     condition_time = closed_candle_time if new=="CLOSE_CONFIRMED" else observed_time
-                    msg=None
+                    msg=message_for(row,new,price,closed)
 
                     con.execute("""UPDATE watch_state SET stage=?,last_price=?,last_closed_5m=?,last_update_utc=?,
                                    close_confirmed_time=CASE WHEN ?='CLOSE_CONFIRMED' THEN ? ELSE close_confirmed_time END,

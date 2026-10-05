@@ -3,6 +3,16 @@ name: Long Short Analyst V1
 # Active paper-trade analyst. Never places orders.
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "long_short_analyst.py"
+      - "long_short_data_router.py"
+      - "long_short_validation.py"
+      - "long_short_live_pool.py"
+      - "long_short_simple_notify.py"
+      - ".github/workflows/long-short-analyst.yml"
+      - ".github/workflows/long-short-live-pool.yml"
 
 permissions:
   contents: read
@@ -53,6 +63,9 @@ jobs:
           LS_MAX_SYMBOLS: "30"
           LS_MIN_24H_QUOTE_VOL: "25000000"
         run: python -u long_short_analyst.py
+
+      - name: Update fixed-horizon validation
+        run: python -u long_short_validation.py
 
       - name: Shadow-sync analyst DB to Turso
         continue-on-error: true
