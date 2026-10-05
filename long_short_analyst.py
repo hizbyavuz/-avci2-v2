@@ -20,6 +20,7 @@ from typing import Any
 
 import requests
 from binance_notify import resolve_chat_id
+from long_short_data_router import multi_venue_derivatives
 
 FUTURES_BASES = (
     "https://fapi.binance.com",
@@ -38,7 +39,7 @@ MIN_24H_QUOTE_VOL = float(os.getenv("LS_MIN_24H_QUOTE_VOL", "25000000"))
 MAX_SYMBOLS = int(os.getenv("LS_MAX_SYMBOLS", "80"))
 REQUEST_TIMEOUT = 12
 TELEGRAM_LIMIT = 4096
-VERSION = "LSA_V1_7_CONTINUATION_PLUS_REVERSAL_2026-10-04"
+VERSION = "LSA_V1_8_MULTI_VENUE_DATA_INTEGRITY_2026-10-05"
 PRESELECT_MAX = int(os.getenv("LS_PRESELECT_MAX", "12"))
 HTF_CACHE_TTL_1H = int(os.getenv("LS_HTF_CACHE_TTL_1H", "900"))
 HTF_CACHE_TTL_4H = int(os.getenv("LS_HTF_CACHE_TTL_4H", "3600"))
@@ -721,7 +722,27 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
     ls=fetch_long_short(symbol)
     depth=fetch_depth_imbalance(symbol)
     chart=chart_state(t1,t5,t15,t1h)
-    cross=okx_derivatives(symbol) if DATA_MODE!="BINANCE_FUTURES" else None
+
+    # Data-integrity rule: never let missing Binance Futures fields silently turn
+    # into neutral 0/1 values. When Binance Futures is geo-blocked, require a
+    # complete five-field public derivatives bundle before derivatives scoring
+    # or entry eligibility is enabled.
+    multi_deriv=None
+    cross=None
+    deriv_ready=(DATA_MODE=="BINANCE_FUTURES")
+    if DATA_MODE!="BINANCE_FUTURES":
+        multi_deriv=multi_venue_derivatives(symbol)
+        cross=(multi_deriv.get("sources") or {}).get("okx")
+        if multi_deriv.get("quality")=="FULL":
+            oi={
+                "oi_change_1h":float(multi_deriv["oi_change_1h"]),
+                "oi_now":float(multi_deriv.get("oi_now") or 0.0),
+            }
+            funding=float(multi_deriv["funding_pct"])
+            taker=float(multi_deriv["taker_ratio"])
+            ls=float(multi_deriv["long_short_ratio"])
+            depth=float(multi_deriv["depth_imbalance"])
+            deriv_ready=True
 
     long=short=0
     reasons=[]; risks=[]
@@ -760,48 +781,63 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
     if t15["rsi"]<=24:
         short-=6; risks.append("15dk RSI aşırı düşük; short kovalamak riskli")
 
-    # Derivatives.
+    # Derivatives. Native Binance Futures is preferred. If it is blocked,
+    # a complete Bybit/OKX public bundle is allowed, with provenance preserved.
     price1h=t1h["change_1"]
-    oic=oi["oi_change_1h"]
-    deriv_source="BINANCE_FUTURES"
-    deriv_funding=funding
-    deriv_basis=None
-    if DATA_MODE!="BINANCE_FUTURES" and cross and cross.get("status")=="OK":
-        deriv_source="CROSS_VENUE_OKX"
-        deriv_funding=cross.get("funding_pct") or 0.0
-        deriv_basis=cross.get("basis_pct")
-        # Cross-venue context is observational only. It can add reasons/risk,
-        # but cannot unlock a trade while Binance Futures feed is unavailable.
-        if deriv_funding>=0.05:
-            risks.append(f"OKX funding yüksek pozitif %{deriv_funding:.3f}; long kalabalık olabilir")
-        elif deriv_funding<=-0.05:
-            risks.append(f"OKX funding yüksek negatif %{deriv_funding:.3f}; short kalabalık olabilir")
-        if deriv_basis is not None and abs(deriv_basis)>=0.15:
-            risks.append(f"OKX basis %{deriv_basis:+.2f}; spot-perp ayrışması yüksek")
-    if price1h>0 and oic>1.5:
-        long+=8; reasons.append(f"Fiyat↑ + OI↑ ({oic:+.1f}%): yeni kaldıraçlı talep")
-    elif price1h<0 and oic>1.5:
-        short+=8; reasons.append(f"Fiyat↓ + OI↑ ({oic:+.1f}%): yeni short baskısı")
-    elif price1h>0 and oic<-1.5:
-        long+=3; risks.append("Fiyat↑ + OI↓: short squeeze olabilir; devam teyidi zayıf")
-    elif price1h<0 and oic<-1.5:
-        short+=3; risks.append("Fiyat↓ + OI↓: long tasfiyesi olabilir; devam teyidi zayıf")
+    deriv_source="BINANCE_FUTURES" if DATA_MODE=="BINANCE_FUTURES" else (
+        "MULTI_VENUE_PUBLIC" if deriv_ready else "DERIVATIVES_INCOMPLETE"
+    )
+    deriv_funding=funding if deriv_ready else None
+    deriv_basis=(multi_deriv or {}).get("basis_pct") if DATA_MODE!="BINANCE_FUTURES" else None
 
-    if taker>=1.08: long+=7; reasons.append(f"Taker alım üstün ({taker:.2f}x)")
-    elif taker<=0.92: short+=7; reasons.append(f"Taker satış üstün ({taker:.2f}x)")
+    if DATA_MODE!="BINANCE_FUTURES":
+        coverage=float((multi_deriv or {}).get("coverage") or 0.0)
+        quality=str((multi_deriv or {}).get("quality") or "UNAVAILABLE")
+        if deriv_ready:
+            reasons.append(f"Çoklu türev veri tam: Bybit/OKX %{coverage*100:.0f}")
+        else:
+            missing=[
+                k for k in ((multi_deriv or {}).get("critical_fields") or [])
+                if (multi_deriv or {}).get(k) is None
+            ]
+            risks.append(
+                "Türev veri eksik; sinyal kilitli"
+                + (": " + ",".join(missing) if missing else "")
+            )
 
-    if depth>=0.08: long+=5; reasons.append(f"Order-book bid üstün ({depth:+.2f})")
-    elif depth<=-0.08: short+=5; reasons.append(f"Order-book ask üstün ({depth:+.2f})")
+    if deriv_ready:
+        oic=oi["oi_change_1h"]
+        if price1h>0 and oic>1.5:
+            long+=8; reasons.append(f"Fiyat↑ + OI↑ ({oic:+.1f}%): yeni kaldıraçlı talep")
+        elif price1h<0 and oic>1.5:
+            short+=8; reasons.append(f"Fiyat↓ + OI↑ ({oic:+.1f}%): yeni short baskısı")
+        elif price1h>0 and oic<-1.5:
+            long+=3; risks.append("Fiyat↑ + OI↓: short squeeze olabilir; devam teyidi zayıf")
+        elif price1h<0 and oic<-1.5:
+            short+=3; risks.append("Fiyat↓ + OI↓: long tasfiyesi olabilir; devam teyidi zayıf")
 
-    # Crowding / funding used contrarian as a risk modifier, not standalone signal.
-    if funding>=0.05:
-        long-=4; short+=2; risks.append(f"Funding yüksek pozitif %{funding:.3f}; long kalabalık olabilir")
-    elif funding<=-0.05:
-        short-=4; long+=2; risks.append(f"Funding yüksek negatif %{funding:.3f}; short kalabalık olabilir")
-    if ls>=2.0:
-        long-=3; risks.append(f"Long/short oranı {ls:.2f}; long tarafı kalabalık")
-    elif ls<=0.5:
-        short-=3; risks.append(f"Long/short oranı {ls:.2f}; short tarafı kalabalık")
+        if taker>=1.08:
+            long+=7; reasons.append(f"Taker alım üstün ({taker:.2f}x)")
+        elif taker<=0.92:
+            short+=7; reasons.append(f"Taker satış üstün ({taker:.2f}x)")
+
+        if depth>=0.08:
+            long+=5; reasons.append(f"Perp order-book bid üstün ({depth:+.2f})")
+        elif depth<=-0.08:
+            short+=5; reasons.append(f"Perp order-book ask üstün ({depth:+.2f})")
+
+        # Crowding/funding is a modifier, never a standalone direction signal.
+        if funding>=0.05:
+            long-=4; short+=2; risks.append(f"Funding yüksek pozitif %{funding:.3f}; long kalabalık olabilir")
+        elif funding<=-0.05:
+            short-=4; long+=2; risks.append(f"Funding yüksek negatif %{funding:.3f}; short kalabalık olabilir")
+        if ls>=2.0:
+            long-=3; risks.append(f"Long/short oranı {ls:.2f}; long tarafı kalabalık")
+        elif ls<=0.5:
+            short-=3; risks.append(f"Long/short oranı {ls:.2f}; short tarafı kalabalık")
+
+        if DATA_MODE!="BINANCE_FUTURES" and deriv_basis is not None and abs(deriv_basis)>=0.15:
+            risks.append(f"Çapraz-venue basis %{deriv_basis:+.2f}; spot-perp ayrışması yüksek")
 
     if market_regime=="UP": long+=4; short-=2
     elif market_regime=="DOWN": short+=4; long-=2
@@ -845,9 +881,11 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
         risk=abs(price-stop)
         rr1=abs(tp1-price)/risk if risk else None
 
-    # Futures-data safety gate: chart-only fallback can watch, never issue entry.
-    if DATA_MODE!="BINANCE_FUTURES" and status in ("LONG","SHORT"):
-        risks.append("Binance Futures türev verisi erişilemiyor; grafik izleniyor ama giriş sinyali kilitli")
+    # Data-health safety gate: chart-only or partial derivatives data can watch,
+    # but only native Binance Futures or a complete multi-venue bundle can issue
+    # an entry-qualified paper signal.
+    if not deriv_ready and status in ("LONG","SHORT"):
+        risks.append("Türev veri paketi tam değil; giriş sinyali kilitli")
         status="WAIT"
 
     # Volatility risk gate.
@@ -868,6 +906,10 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
         "oi":oi,"funding_pct":funding,"taker_ratio":taker,
         "long_short_ratio":ls,"depth_imbalance":depth,
         "derivatives_source":deriv_source,"cross_venue":cross,
+        "multi_venue_derivatives":multi_deriv,
+        "derivatives_ready":bool(deriv_ready),
+        "derivatives_coverage":1.0 if DATA_MODE=="BINANCE_FUTURES" else float((multi_deriv or {}).get("coverage") or 0.0),
+        "derivatives_quality":"NATIVE" if DATA_MODE=="BINANCE_FUTURES" else str((multi_deriv or {}).get("quality") or "UNAVAILABLE"),
         "derivatives_funding_pct":deriv_funding,"derivatives_basis_pct":deriv_basis,
     }
     return Analysis(symbol,status,long,short,confidence,price,entry_low,entry_high,
