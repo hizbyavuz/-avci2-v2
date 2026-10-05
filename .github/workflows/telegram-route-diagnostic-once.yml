@@ -1,0 +1,47 @@
+name: Telegram Route Diagnostic Once
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/telegram-route-diagnostic-once.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Inspect bot and latest private update
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+        run: |
+          python - <<'PY'
+          import json, os, urllib.request, datetime
+          token=(os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
+          def call(method):
+              with urllib.request.urlopen(f"https://api.telegram.org/bot{token}/{method}", timeout=20) as r:
+                  return json.load(r)
+          me=call("getMe").get("result") or {}
+          print("BOT_USERNAME="+str(me.get("username") or ""))
+          print("BOT_FIRST_NAME="+str(me.get("first_name") or ""))
+          updates=call("getUpdates").get("result") or []
+          priv=[]
+          for u in updates:
+              m=u.get("message") or u.get("edited_message") or {}
+              c=m.get("chat") or {}
+              if c.get("type")=="private" and c.get("id") is not None:
+                  priv.append((u.get("update_id"),m,c))
+          print("PRIVATE_UPDATE_COUNT="+str(len(priv)))
+          if priv:
+              uid,m,c=priv[-1]
+              print("LATEST_UPDATE_ID="+str(uid))
+              print("LATEST_CHAT_FIRST_NAME="+str(c.get("first_name") or ""))
+              print("LATEST_CHAT_USERNAME="+str(c.get("username") or ""))
+              print("LATEST_MESSAGE_TEXT="+repr((m.get("text") or "")[:80]))
+              ts=m.get("date")
+              if ts:
+                  print("LATEST_MESSAGE_UTC="+datetime.datetime.fromtimestamp(ts,datetime.timezone.utc).isoformat())
+          PY
