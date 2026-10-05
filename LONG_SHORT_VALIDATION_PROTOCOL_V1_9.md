@@ -137,3 +137,10 @@ Every report must include:
 - evidence status.
 
 No threshold optimization is allowed inside this frozen V1.9 cohort.
+
+
+## 13. Config-hash isolation
+
+Every post-freeze analyst event is stamped with the SHA-256 hash of `LONG_SHORT_V1_9_FROZEN_CONFIG.json`.
+
+Confirmatory evidence must match the currently frozen live-config hash. Native-Futures events with a missing or different config hash are retained for audit/history but excluded from the confirmatory sample. A config change therefore cannot silently inherit V1.9 evidence.
