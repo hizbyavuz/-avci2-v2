@@ -100,8 +100,10 @@ class RouterTests(unittest.TestCase):
             x=r.multi_venue_derivatives("BTCUSDT")
         self.assertEqual(x["long_short_ratio"],1.1)
         self.assertEqual(x["field_source"]["long_short_ratio"],"OKX_SWAP")
-        self.assertEqual(x["quality"],"FULL")
+        self.assertEqual(x["quality"],"PARTIAL")
         self.assertEqual(x["coverage"],1.0)
+        self.assertFalse(x["source_consistent"])
+        self.assertTrue(x["diagnostic_full"])
 
 
 if __name__=="__main__":
