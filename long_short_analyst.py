@@ -813,15 +813,19 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
 
     long=short=0
     reasons=[]; risks=[]
+    components={}
 
     # Higher timeframe trend: max 28 points each side.
+    _l0,_s0=long,short
     for tf,name,w in ((t4h,"4s",12),(t1h,"1s",10),(t15,"15dk",6)):
         if tf["price"]>tf["ema20"]>tf["ema50"]:
             long += w; reasons.append(f"{name} trend yukarı")
         elif tf["price"]<tf["ema20"]<tf["ema50"]:
             short += w; reasons.append(f"{name} trend aşağı")
+    components["trend"]={"long":long-_l0,"short":short-_s0}
 
-    # Structure / breakout: max 18.
+    # Structure / breakout + micro chart state.
+    _l0,_s0=long,short
     if t15["structure"]>0: long+=7
     if t15["structure"]<0: short+=7
     if t1h["structure"]>0: long+=6
@@ -839,14 +843,17 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
         long-=5; risks.append("Grafik yukarı aşırı uzamış; long kovalamak yerine pullback/retest bekle")
     if chart["overextended_down"]:
         short-=5; risks.append("Grafik aşağı aşırı uzamış; short kovalamak yerine tepki/retest bekle")
+    components["structure_chart"]={"long":long-_l0,"short":short-_s0}
 
     # Momentum / RSI: avoid chasing extremes.
+    _l0,_s0=long,short
     if 52 <= t15["rsi"] <= 68 and t5["rsi"]>=50: long+=8
     if 32 <= t15["rsi"] <= 48 and t5["rsi"]<=50: short+=8
     if t15["rsi"]>=76:
         long-=6; risks.append("15dk RSI aşırı yüksek; long kovalamak riskli")
     if t15["rsi"]<=24:
         short-=6; risks.append("15dk RSI aşırı düşük; short kovalamak riskli")
+    components["momentum"]={"long":long-_l0,"short":short-_s0}
 
     # Derivatives. Native Binance Futures is preferred. If it is blocked,
     # a complete Bybit/OKX public bundle is allowed, with provenance preserved.
@@ -872,6 +879,7 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
                 + (": " + ",".join(missing) if missing else "")
             )
 
+    _l0,_s0=long,short
     if deriv_ready:
         oic=oi["oi_change_1h"]
         if price1h>0 and oic>1.5:
@@ -905,18 +913,24 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
 
         if DATA_MODE!="BINANCE_FUTURES" and deriv_basis is not None and abs(deriv_basis)>=0.15:
             risks.append(f"Çapraz-venue basis %{deriv_basis:+.2f}; spot-perp ayrışması yüksek")
+    components["derivatives"]={"long":long-_l0,"short":short-_s0}
 
+    _l0,_s0=long,short
     if market_regime=="UP": long+=4; short-=2
     elif market_regime=="DOWN": short+=4; long-=2
+    components["btc_regime"]={"long":long-_l0,"short":short-_s0}
 
     # Multi-timeframe veto: do not fight both 4h and 1h trend.
+    _l0,_s0=long,short
     htf_bull = t4h["price"]>t4h["ema20"]>t4h["ema50"] and t1h["price"]>t1h["ema20"]>t1h["ema50"]
     htf_bear = t4h["price"]<t4h["ema20"]<t4h["ema50"] and t1h["price"]<t1h["ema20"]<t1h["ema50"]
     if htf_bull:
         short=max(0,short-12); risks.append("4s+1s ana trend yukarı; karşı-trend SHORT ağır cezalı")
     elif htf_bear:
         long=max(0,long-12); risks.append("4s+1s ana trend aşağı; karşı-trend LONG ağır cezalı")
+    components["htf_veto"]={"long":long-_l0,"short":short-_s0}
 
+    raw_long=float(long); raw_short=float(short)
     long=max(0,min(100,int(round(long))))
     short=max(0,min(100,int(round(short))))
     edge=abs(long-short)
@@ -932,6 +946,29 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
         status="WAIT"
     else:
         status="NO_TRADE"
+
+    # Research-only counterfactuals. These do NOT change the live decision.
+    # They allow forward tests to answer whether each layer adds edge or only
+    # delays/filters good moves.
+    def _decision_from_scores(ll,ss):
+        ll=max(0,min(100,int(round(ll))))
+        ss=max(0,min(100,int(round(ss))))
+        ee=abs(ll-ss); bb=max(ll,ss)
+        if bb<55 or ee<12:
+            return "WAIT"
+        dd="LONG" if ll>ss else "SHORT"
+        trig=chart["long_trigger"] if dd=="LONG" else chart["short_trigger"]
+        return dd if trig else "WAIT"
+
+    ablations={}
+    for cname,delta in components.items():
+        ll=raw_long-float(delta.get("long",0.0))
+        ss=raw_short-float(delta.get("short",0.0))
+        ablations[cname]={
+            "long_score":max(0,min(100,int(round(ll)))),
+            "short_score":max(0,min(100,int(round(ss)))),
+            "decision":_decision_from_scores(ll,ss),
+        }
 
     price=t5["price"]
     a=max(t15["atr"], price*0.002)
@@ -973,6 +1010,9 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
         "oi":oi,"funding_pct":funding,"taker_ratio":taker,
         "long_short_ratio":ls,"depth_imbalance":depth,
         "execution_proxy":depth_metrics,
+        "score_components":components,
+        "ablations":ablations,
+        "raw_scores":{"long":raw_long,"short":raw_short},
         "derivatives_source":deriv_source,"cross_venue":cross,
         "multi_venue_derivatives":multi_deriv,
         "derivatives_ready":bool(deriv_ready),
