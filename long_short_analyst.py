@@ -1046,7 +1046,10 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
         "derivatives_selected_provider":None if DATA_MODE=="BINANCE_FUTURES" else (multi_deriv or {}).get("selected_provider"),
         "derivatives_source_age_seconds":None if DATA_MODE=="BINANCE_FUTURES" else (multi_deriv or {}).get("source_age_seconds"),
         "spot_vs_selected_mark_basis_pct":None if DATA_MODE=="BINANCE_FUTURES" else (multi_deriv or {}).get("spot_vs_selected_mark_basis_pct"),
-        "derivatives_funding_pct":deriv_funding,"derivatives_basis_pct":deriv_basis,
+        "derivatives_funding_pct":deriv_funding,
+        "next_funding_time_ms":None if DATA_MODE=="BINANCE_FUTURES" else (multi_deriv or {}).get("next_funding_time_ms"),
+        "funding_interval_hours":None if DATA_MODE=="BINANCE_FUTURES" else (multi_deriv or {}).get("funding_interval_hours"),
+        "derivatives_basis_pct":deriv_basis,
     }
     return Analysis(symbol,status,long,short,confidence,price,entry_low,entry_high,
                     stop,tp1,tp2,rr1,reasons[:8],risks[:6],payload)
@@ -1100,6 +1103,7 @@ def init_db():
             gross_return_pct REAL, net_return_pct REAL, r_multiple REAL,
             fee_bps_per_side REAL, slippage_bps_per_side REAL,
             funding_pct_at_signal REAL, deriv_source TEXT,
+            next_funding_time_ms REAL, funding_interval_hours REAL,
             episode_id TEXT, btc_regime TEXT, paper_notional_usdt REAL
         )""")
         cols={r[1] for r in con.execute("PRAGMA table_info(paper_setups)")}
@@ -1107,6 +1111,7 @@ def init_db():
             "signal_score":"INTEGER","expires_at_utc":"TEXT","gross_return_pct":"REAL",
             "net_return_pct":"REAL","r_multiple":"REAL","fee_bps_per_side":"REAL",
             "slippage_bps_per_side":"REAL","funding_pct_at_signal":"REAL","deriv_source":"TEXT",
+            "next_funding_time_ms":"REAL","funding_interval_hours":"REAL",
             "episode_id":"TEXT","btc_regime":"TEXT","paper_notional_usdt":"REAL",
         }
         for name,typ in additions.items():
@@ -1266,12 +1271,15 @@ def save_scan(ts, regime, n, results):
                         symbol,direction,signal_time_utc,signal_price,signal_score,
                         stop,tp1,tp2,status,expires_at_utc,fee_bps_per_side,
                         slippage_bps_per_side,funding_pct_at_signal,deriv_source,
+                        next_funding_time_ms,funding_interval_hours,
                         episode_id,btc_regime,paper_notional_usdt
-                    ) VALUES(?,?,?,?,?,?,?,?,'OPEN',?,?,?,?,?,?,?,?)""",
+                    ) VALUES(?,?,?,?,?,?,?,?,'OPEN',?,?,?,?,?,?,?,?,?,?)""",
                     (a.symbol,a.status,ts,a.price,score,a.stop,a.tp1,a.tp2,exp,
                      FEE_BPS_PER_SIDE,dynamic_slip,
                      a.payload.get("derivatives_funding_pct"),
                      a.payload.get("derivatives_source"),
+                     a.payload.get("next_funding_time_ms"),
+                     a.payload.get("funding_interval_hours"),
                      market_episode_id(ts,a.status,regime),regime,PAPER_NOTIONAL_USDT))
 
 
@@ -1280,12 +1288,14 @@ def update_paper():
         rows=con.execute("""SELECT id,symbol,direction,signal_time_utc,signal_price,
                             signal_score,stop,tp1,tp2,expires_at_utc,
                             fee_bps_per_side,slippage_bps_per_side,
-                            funding_pct_at_signal,deriv_source
+                            funding_pct_at_signal,deriv_source,
+                            next_funding_time_ms,funding_interval_hours
                             FROM paper_setups WHERE status='OPEN'""").fetchall()
         now=now_iso()
         for row in rows:
             (rid,symbol,direction,signal_time,entry,score,stop,tp1,tp2,expires,
-             fee_bps,slip_bps,funding_at_signal,deriv_source)=row
+             fee_bps,slip_bps,funding_at_signal,deriv_source,
+             next_funding_ms,funding_interval_hours)=row
             try:
                 if expires and now >= expires:
                     last=fetch_klines(symbol,"5m",2)["close"][-1]
@@ -1311,13 +1321,20 @@ def update_paper():
                 if direction=="SHORT":
                     gross=-gross
                 trading_cost_pct=2.0*((fee_bps or FEE_BPS_PER_SIDE)+(slip_bps or SLIPPAGE_BPS_PER_SIDE))/100.0
-                # Funding is charged only when native Binance funding is known.
+                # Apply funding only if the position actually crossed the next
+                # known settlement timestamp. Positive funding: longs pay,
+                # shorts receive. Negative funding is the mirror image.
                 funding_cost=0.0
-                if deriv_source=="BINANCE_FUTURES" and funding_at_signal is not None:
-                    if direction=="LONG":
-                        funding_cost=max(0.0,float(funding_at_signal))
-                    else:
-                        funding_cost=max(0.0,-float(funding_at_signal))
+                if funding_at_signal is not None and next_funding_ms:
+                    try:
+                        sig_ms=datetime.fromisoformat(signal_time).timestamp()*1000.0
+                        close_ms=datetime.fromisoformat(now_iso()).timestamp()*1000.0
+                        nf=float(next_funding_ms)
+                        if sig_ms < nf <= close_ms:
+                            rate=float(funding_at_signal)
+                            funding_cost=rate if direction=="LONG" else -rate
+                    except Exception:
+                        funding_cost=0.0
                 net=gross-trading_cost_pct-funding_cost
                 risk_pct=abs((entry-stop)/entry)*100.0 if entry else 0.0
                 rmult=(net/risk_pct) if risk_pct>0 else None
