@@ -568,6 +568,34 @@ def send_telegram(msg):
                 time.sleep(2.0*(attempt+1))
     raise last or RuntimeError("Telegram send failed")
 
+def send_recovery_notice_once():
+    """Send one recovery confirmation after the repaired runtime actually starts.
+
+    Stored in the shared Telegram DB so short-lived GitHub runners do not repeat
+    the notice on every 5-minute handoff. If delivery fails, the marker is not
+    written and the next live cycle can retry.
+    """
+    key="long_short_recovery_notice_2026_10_06"
+    try:
+        with sqlite3.connect(NOTIFY_DB,timeout=10) as con:
+            con.execute("""CREATE TABLE IF NOT EXISTS runtime_settings(
+                key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at TEXT NOT NULL)""")
+            row=con.execute("SELECT value FROM runtime_settings WHERE key=?",(key,)).fetchone()
+            if row:
+                return False
+        sent_at=send_telegram(
+            "🟢 LONG/SHORT MOTOR AKTİF\\n"
+            "Otomatik tarama yeniden başladı. Uygun LONG/SHORT koşulu oluşursa buradan mesaj gelecek."
+        )
+        with sqlite3.connect(NOTIFY_DB,timeout=10) as con:
+            con.execute("""INSERT OR REPLACE INTO runtime_settings(key,value,updated_at)
+                           VALUES(?,?,?)""",(key,str(sent_at or now_iso()),now_iso()))
+        print("Recovery Telegram notice sent",flush=True)
+        return True
+    except Exception as exc:
+        print("Recovery Telegram notice failed",type(exc).__name__,str(exc)[:200],flush=True)
+        return False
+
 def loop_once():
     with sqlite3.connect(LIVE_DB) as con:
         con.row_factory=sqlite3.Row
