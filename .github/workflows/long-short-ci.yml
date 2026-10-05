@@ -32,3 +32,27 @@ jobs:
 
       - name: Run Long/Short unit tests
         run: python -m unittest -v test_long_short_data_router.py
+
+      - name: Live public derivatives smoke test
+        run: |
+          python - <<'PY'
+          import json
+          import time
+          from long_short_data_router import multi_venue_derivatives
+
+          last = None
+          for attempt in range(3):
+              x = multi_venue_derivatives("BTCUSDT")
+              print(json.dumps({
+                  "quality": x.get("quality"),
+                  "coverage": x.get("coverage"),
+                  "field_source": x.get("field_source"),
+                  "errors": x.get("errors"),
+              }, ensure_ascii=False))
+              if x.get("quality") == "FULL":
+                  break
+              last = x
+              time.sleep(2)
+          else:
+              raise SystemExit("Critical derivatives bundle is not FULL: " + repr(last))
+          PY
