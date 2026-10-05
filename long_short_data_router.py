@@ -331,7 +331,7 @@ def _finish(out: dict[str, Any]) -> dict[str, Any]:
     out["critical_fields"] = list(critical)
     out["available_critical"] = available
     out["coverage"] = coverage
-    out["quality"] = "FULL" if available >= 4 else ("PARTIAL" if available >= 2 else "UNAVAILABLE")
+    out["quality"] = "FULL" if available == len(critical) else ("PARTIAL" if available >= 2 else "UNAVAILABLE")
     return out
 
 
@@ -426,7 +426,7 @@ def multi_venue_derivatives(symbol: str) -> dict[str, Any]:
     fused["critical_fields"] = list(critical)
     fused["available_critical"] = available
     fused["coverage"] = available / float(len(critical))
-    fused["quality"] = "FULL" if available >= 4 else ("PARTIAL" if available >= 2 else "UNAVAILABLE")
+    fused["quality"] = "FULL" if available == len(critical) else ("PARTIAL" if available >= 2 else "UNAVAILABLE")
     return fused
 
 
