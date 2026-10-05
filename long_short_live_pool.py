@@ -196,6 +196,8 @@ def init_db():
             closed_5m REAL,
             condition_time_utc TEXT,
             telegram_sent_time_utc TEXT,
+            telegram_status TEXT,
+            telegram_error TEXT,
             delay_seconds REAL,
             payload_json TEXT
         )""")
@@ -203,6 +205,8 @@ def init_db():
         for name,typ in {
             "condition_time_utc":"TEXT",
             "telegram_sent_time_utc":"TEXT",
+            "telegram_status":"TEXT",
+            "telegram_error":"TEXT",
             "delay_seconds":"REAL",
         }.items():
             if name not in event_cols:
@@ -548,12 +552,20 @@ def send_telegram(msg):
     if not token:
         print(msg)
         return now_iso()
-    chat=resolve_chat_id(token,configured,"long_short_simple_notify.db","Long/Short Live Pool")
-    r=requests.post(f"https://api.telegram.org/bot{token}/sendMessage",
-                    json={"chat_id":chat,"text":msg[:TELEGRAM_LIMIT],"disable_web_page_preview":True},
-                    timeout=10)
-    r.raise_for_status()
-    return now_iso()
+    last=None
+    for attempt in range(3):
+        try:
+            chat=resolve_chat_id(token,configured,"long_short_simple_notify.db","Long/Short Live Pool")
+            r=requests.post(f"https://api.telegram.org/bot{token}/sendMessage",
+                            json={"chat_id":chat,"text":msg[:TELEGRAM_LIMIT],"disable_web_page_preview":True},
+                            timeout=10)
+            r.raise_for_status()
+            return now_iso()
+        except Exception as exc:
+            last=exc
+            if attempt<2:
+                time.sleep(2.0*(attempt+1))
+    raise last or RuntimeError("Telegram send failed")
 
 def loop_once():
     with sqlite3.connect(LIVE_DB) as con:
@@ -652,16 +664,25 @@ def loop_once():
 
                     sent_time=None
                     delay=None
+                    telegram_status="NOT_APPLICABLE" if not msg else "PENDING"
+                    telegram_error=None
                     event_payload=dict(row)
                     if msg:
                         print(msg)
-                        sent_time=send_telegram(msg)
                         try:
-                            delay=(datetime.fromisoformat(sent_time)-datetime.fromisoformat(condition_time)).total_seconds()
-                        except Exception:
-                            delay=None
-                        if delay is not None:
-                            print(f"ALERT_DELAY {row['symbol']} {new}: {delay:.1f}s")
+                            sent_time=send_telegram(msg)
+                            telegram_status="SENT"
+                        except Exception as exc:
+                            telegram_status="FAILED"
+                            telegram_error=type(exc).__name__+":"+str(exc)[:180]
+                            print("telegram direct send failed",row["symbol"],new,telegram_error)
+                        if sent_time:
+                            try:
+                                delay=(datetime.fromisoformat(sent_time)-datetime.fromisoformat(condition_time)).total_seconds()
+                            except Exception:
+                                delay=None
+                            if delay is not None:
+                                print(f"ALERT_DELAY {row['symbol']} {new}: {delay:.1f}s")
                     if new=="TRIGGERED":
                         try:
                             event_payload["_trigger_execution_proxy"]=trigger_execution_proxy(row["symbol"])
@@ -670,10 +691,11 @@ def loop_once():
 
                     con.execute("""INSERT INTO events(
                         event_time_utc,symbol,direction,stage_from,stage_to,price,closed_5m,
-                        condition_time_utc,telegram_sent_time_utc,delay_seconds,payload_json
-                    ) VALUES(?,?,?,?,?,?,?,?,?,?,?)""",
+                        condition_time_utc,telegram_sent_time_utc,telegram_status,telegram_error,delay_seconds,payload_json
+                    ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                         (observed_time,row["symbol"],row["direction"],old,new,price,closed,
-                         condition_time,sent_time,delay,json.dumps(event_payload,ensure_ascii=False)))
+                         condition_time,sent_time,telegram_status,telegram_error,delay,
+                         json.dumps(event_payload,ensure_ascii=False)))
                     con.commit()
                 else:
                     con.execute("UPDATE watch_state SET last_price=?,last_closed_5m=?,last_update_utc=? WHERE symbol=?",
