@@ -45,6 +45,7 @@ PRESELECT_MAX = int(os.getenv("LS_PRESELECT_MAX", "12"))
 PREFILTER_WORKERS = int(os.getenv("LS_PREFILTER_WORKERS", "6"))
 DEEP_WORKERS = int(os.getenv("LS_DEEP_WORKERS", "6"))
 PAPER_NOTIONAL_USDT = float(os.getenv("LS_PAPER_NOTIONAL_USDT", "250"))
+MAX_CROSS_VENUE_BASIS_PCT = float(os.getenv("LS_MAX_CROSS_VENUE_BASIS_PCT", "0.35"))
 HTF_CACHE_TTL_1H = int(os.getenv("LS_HTF_CACHE_TTL_1H", "900"))
 HTF_CACHE_TTL_4H = int(os.getenv("LS_HTF_CACHE_TTL_4H", "3600"))
 HTF_CACHE_TTL_1D = int(os.getenv("LS_HTF_CACHE_TTL_1D", "7200"))
@@ -823,6 +824,14 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
             ls=float(multi_deriv["long_short_ratio"])
             depth=float(multi_deriv["depth_imbalance"])
             deriv_ready=True
+            mark=multi_deriv.get("mark_price")
+            spot_px=float(t5["price"] or 0.0)
+            if mark is not None and spot_px>0:
+                spot_mark_basis=100.0*(float(mark)/spot_px-1.0)
+                multi_deriv["spot_vs_selected_mark_basis_pct"]=spot_mark_basis
+                if abs(spot_mark_basis)>MAX_CROSS_VENUE_BASIS_PCT:
+                    deriv_ready=False
+                    multi_deriv["quality"]="BASIS_MISMATCH"
 
     long=short=0
     reasons=[]; risks=[]
@@ -881,7 +890,10 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
         coverage=float((multi_deriv or {}).get("coverage") or 0.0)
         quality=str((multi_deriv or {}).get("quality") or "UNAVAILABLE")
         if deriv_ready:
-            reasons.append(f"Çoklu türev veri tam: Bybit/OKX %{coverage*100:.0f}")
+            provider=(multi_deriv or {}).get("selected_provider") or "MULTI_VENUE"
+            age=(multi_deriv or {}).get("source_age_seconds")
+            age_txt=f", yaş {float(age):.0f}s" if age is not None else ""
+            reasons.append(f"Türev veri tam: {provider} %{coverage*100:.0f}{age_txt}")
         else:
             missing=[
                 k for k in ((multi_deriv or {}).get("critical_fields") or [])
@@ -1031,6 +1043,9 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
         "derivatives_ready":bool(deriv_ready),
         "derivatives_coverage":1.0 if DATA_MODE=="BINANCE_FUTURES" else float((multi_deriv or {}).get("coverage") or 0.0),
         "derivatives_quality":"NATIVE" if DATA_MODE=="BINANCE_FUTURES" else str((multi_deriv or {}).get("quality") or "UNAVAILABLE"),
+        "derivatives_selected_provider":None if DATA_MODE=="BINANCE_FUTURES" else (multi_deriv or {}).get("selected_provider"),
+        "derivatives_source_age_seconds":None if DATA_MODE=="BINANCE_FUTURES" else (multi_deriv or {}).get("source_age_seconds"),
+        "spot_vs_selected_mark_basis_pct":None if DATA_MODE=="BINANCE_FUTURES" else (multi_deriv or {}).get("spot_vs_selected_mark_basis_pct"),
         "derivatives_funding_pct":deriv_funding,"derivatives_basis_pct":deriv_basis,
     }
     return Analysis(symbol,status,long,short,confidence,price,entry_low,entry_high,
