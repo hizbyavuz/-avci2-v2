@@ -6,13 +6,7 @@ on:
   push:
     branches: [main]
     paths:
-      - "long_short_analyst.py"
-      - "long_short_data_router.py"
-      - "long_short_validation.py"
-      - "long_short_live_pool.py"
-      - "long_short_simple_notify.py"
       - ".github/workflows/long-short-analyst.yml"
-      - ".github/workflows/long-short-live-pool.yml"
 
 permissions:
   contents: read
@@ -24,7 +18,7 @@ concurrency:
 
 jobs:
   analyze:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
       - name: Checkout
