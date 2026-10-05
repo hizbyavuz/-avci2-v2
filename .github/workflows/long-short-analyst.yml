@@ -1,6 +1,5 @@
 name: Long Short Analyst V1
-# restart-stamp: 2026-10-06-telegram-recovery\n
-# Active paper-trade analyst. Never places orders.
+# restart-stamp: 2026-10-06-telegram-recovery-final\n# Active paper-trade analyst. Never places orders.
 on:
   workflow_dispatch:
   push:
