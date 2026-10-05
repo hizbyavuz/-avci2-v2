@@ -418,7 +418,10 @@ def evaluate_primary(rcon: sqlite3.Connection, acon: sqlite3.Connection, lcon: s
         ctx = analyst_context(acon, scan_time, row["symbol"])
         cohort = str(payload.get("data_cohort") or ctx.get("cohort") or "UNKNOWN")
         provider = str(payload.get("derivatives_provider") or ctx.get("provider") or "")
-        model_payload = ctx.get("payload") or {}
+        model_payload = dict(ctx.get("payload") or {})
+        trigger_proxy=payload.get("_trigger_execution_proxy")
+        if isinstance(trigger_proxy,dict) and trigger_proxy.get("available"):
+            model_payload["execution_proxy"]=trigger_proxy
         invalidation = float(payload.get("invalidation") or ctx.get("invalidation") or 0.0)
 
         try:
