@@ -38,6 +38,11 @@ jobs:
       - name: Install
         run: pip install requests==2.32.5 pyturso==0.7.2
 
+      - name: Compile frozen Long Short core
+        run: |
+          python -m py_compile long_short_analyst.py long_short_live_pool.py long_short_simple_notify.py
+          python -m json.tool LONG_SHORT_V1_9_FROZEN_CONFIG.json >/dev/null
+
       - name: Restore latest analyst state
         continue-on-error: true
         env:
