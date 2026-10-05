@@ -1,0 +1,16 @@
+.git
+.github
+__pycache__
+*.pyc
+*.pyo
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+*.log
+.long-short-state
+.research-state
+.live-state
+.lsa-state
+.rev-state
+.notify-state
