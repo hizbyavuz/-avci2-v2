@@ -35,6 +35,9 @@ jobs:
       - name: Install
         run: pip install requests==2.32.5 pyturso==0.7.2
 
+      - name: Test research validator
+        run: python -m unittest -v test_long_short_research_validation.py
+
       - name: Restore latest analyst state
         env:
           GH_TOKEN: ${{ github.token }}
@@ -92,6 +95,13 @@ jobs:
           LS_RESEARCH_PREFERRED_PRIMARY_EPISODES: "200"
           LS_RESEARCH_BOOTSTRAP_DRAWS: "4000"
         run: python -u long_short_research_validation.py
+
+      - name: Optional Turso analyst backup
+        continue-on-error: true
+        env:
+          TURSO_LS_DATABASE_URL: ${{ secrets.TURSO_LS_DATABASE_URL }}
+          TURSO_LS_AUTH_TOKEN: ${{ secrets.TURSO_LS_AUTH_TOKEN }}
+        run: python turso_state_sync.py push long_short_analyst.db TURSO_LS_DATABASE_URL TURSO_LS_AUTH_TOKEN
 
       - name: Optional Turso research backup
         continue-on-error: true
