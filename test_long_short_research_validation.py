@@ -55,6 +55,29 @@ class ResearchValidationTests(unittest.TestCase):
         self.assertGreaterEqual(long["entry_slippage_bps"],r.MIN_SLIPPAGE_BPS_PER_SIDE)
         self.assertGreaterEqual(long["exit_slippage_bps"],r.MIN_SLIPPAGE_BPS_PER_SIDE)
 
+    def test_same_minute_barrier_is_stop_first(self):
+        path={"bar_path":[{"high":102.0,"low":98.0,"close":101.0,"close_time_ms":123}]}
+        out=r.barrier_outcome("LONG",path,99.0,101.0,102.0)
+        self.assertEqual(out["outcome"],"STOP")
+        out=r.barrier_outcome("SHORT",path,101.0,99.0,98.0)
+        self.assertEqual(out["outcome"],"STOP")
+
+    def test_funding_is_applied_only_when_settlement_is_crossed(self):
+        start=datetime(2026,10,5,10,0,tzinfo=timezone.utc)
+        path={
+            "entry_time":start,
+            "exit_time":start.replace(hour=11),
+            "entry_open":100.0,"entry_high":100.2,"entry_low":99.8,"entry_close":100.0,
+            "exit_open":100.0,"exit_high":100.2,"exit_low":99.8,"exit_close":100.0,
+        }
+        payload={
+            "derivatives_funding_pct":0.05,
+            "next_funding_time_ms":int(start.replace(minute=30).timestamp()*1000),
+        }
+        paid=r.cost_adjusted_result("LONG",path,1.0,payload)
+        nofund=r.cost_adjusted_result("LONG",path,1.0,{})
+        self.assertLess(paid["net_return_pct"],nofund["net_return_pct"])
+
     def test_protocol_meta_refuses_mutation(self):
         con=sqlite3.connect(":memory:")
         frozen=r.init_db(con)
