@@ -79,7 +79,11 @@ def queue_alert(symbol,direction,level,message,priority=0):
     return True
 
 def claim_ready_alert():
-    """Atomically release at most one Telegram message every GLOBAL_GAP_SECONDS."""
+    """Atomically claim at most one Telegram message every GLOBAL_GAP_SECONDS.
+
+    The alert is NOT marked sent here. Call ack_claimed_alert() only after
+    Telegram accepts the message. If delivery fails, call retry_claimed_alert().
+    """
     init_db()
     now=time.time()
     con=sqlite3.connect(DB)
@@ -89,29 +93,53 @@ def claim_ready_alert():
         if row and now<float(row[0]):
             con.commit()
             return None
-        item=con.execute("""SELECT symbol,direction,level,fingerprint,message
+        item=con.execute("""SELECT symbol,direction,level,fingerprint,message,priority
                             FROM pending_alerts
                             ORDER BY priority DESC,queued_at_epoch ASC LIMIT 1""").fetchone()
         if not item:
             con.commit()
             return None
-        symbol,direction,level,fp,message=item
-        # Reserve the global slot before releasing the DB lock so two watcher
-        # processes cannot send at the same time.
+        symbol,direction,level,fp,message,priority=item
+        # Reserve the global slot and remove this item from the queue so the two
+        # parallel watchers cannot claim the same alert.
         con.execute("""INSERT INTO scheduler_state(key,value) VALUES('next_allowed_epoch',?)
                        ON CONFLICT(key) DO UPDATE SET value=excluded.value""",
                     (now+GLOBAL_GAP_SECONDS,))
         con.execute("DELETE FROM pending_alerts WHERE symbol=?",(symbol,))
-        con.execute("""INSERT OR REPLACE INTO sent_alerts(
-            symbol,direction,level,fingerprint,sent_at_epoch
-        ) VALUES(?,?,?,?,?)""",(symbol,direction,float(level),fp,now))
         con.commit()
-        return {"symbol":symbol,"message":message}
+        return {
+            "symbol":symbol,"direction":direction,"level":float(level),
+            "fingerprint":fp,"message":message,"priority":int(priority),
+        }
     except Exception:
         con.rollback()
         raise
     finally:
         con.close()
+
+
+def ack_claimed_alert(item):
+    """Mark a claimed alert sent only after Telegram delivery succeeds."""
+    mark_sent(item["symbol"],item["direction"],item["level"])
+
+
+def retry_claimed_alert(item,retry_after_seconds=60):
+    """Put a failed Telegram delivery back into the queue for a near-term retry."""
+    init_db()
+    now=time.time()
+    with sqlite3.connect(DB) as con:
+        con.execute("""INSERT INTO pending_alerts(
+            symbol,direction,level,fingerprint,message,priority,queued_at_epoch,updated_at_epoch
+        ) VALUES(?,?,?,?,?,?,?,?)
+        ON CONFLICT(symbol) DO UPDATE SET
+            direction=excluded.direction,level=excluded.level,fingerprint=excluded.fingerprint,
+            message=excluded.message,priority=MAX(pending_alerts.priority,excluded.priority),
+            updated_at_epoch=excluded.updated_at_epoch""",
+            (item["symbol"],item["direction"],float(item["level"]),item["fingerprint"],
+             item["message"],int(item.get("priority",0)),now,now))
+        con.execute("""INSERT INTO scheduler_state(key,value) VALUES('next_allowed_epoch',?)
+                       ON CONFLICT(key) DO UPDATE SET value=excluded.value""",
+                    (now+max(15,int(retry_after_seconds)),))
 
 def classify_move(symbol, day_change_pct):
     """Fixed core/stable bucket + daily-move buckets for faster coins."""
