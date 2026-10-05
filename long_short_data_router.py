@@ -152,6 +152,8 @@ def bybit_derivatives(symbol: str) -> dict[str, Any]:
         "oi_change_1h": None,
         "oi_now": None,
         "funding_pct": None,
+        "next_funding_time_ms": None,
+        "funding_interval_hours": None,
         "taker_ratio": None,
         "long_short_ratio": None,
         "depth_imbalance": None,
@@ -172,6 +174,14 @@ def bybit_derivatives(symbol: str) -> dict[str, Any]:
         if fr is not None:
             out["funding_pct"] = fr * 100.0
             out["field_source"]["funding_pct"] = "BYBIT_LINEAR"
+        nft=row.get("nextFundingTime")
+        try:
+            out["next_funding_time_ms"]=int(nft) if nft is not None else None
+        except (TypeError,ValueError):
+            pass
+        fih=_fv(row.get("fundingIntervalHour"))
+        if fih is not None and fih>0:
+            out["funding_interval_hours"]=fih
         if out["mark_price"] is not None and out["index_price"] not in (None, 0.0):
             out["basis_pct"] = 100.0 * (out["mark_price"] / out["index_price"] - 1.0)
             out["field_source"]["basis_pct"] = "BYBIT_LINEAR"
@@ -267,6 +277,8 @@ def okx_derivatives(symbol: str) -> dict[str, Any]:
         "oi_change_1h": None,
         "oi_now": None,
         "funding_pct": None,
+        "next_funding_time_ms": None,
+        "funding_interval_hours": None,
         "taker_ratio": None,
         "long_short_ratio": None,
         "depth_imbalance": None,
@@ -358,6 +370,8 @@ def gate_derivatives(symbol: str) -> dict[str, Any]:
         "oi_change_1h": None,
         "oi_now": None,
         "funding_pct": None,
+        "next_funding_time_ms": None,
+        "funding_interval_hours": None,
         "taker_ratio": None,
         "long_short_ratio": None,
         "depth_imbalance": None,
@@ -421,6 +435,16 @@ def gate_derivatives(symbol: str) -> dict[str, Any]:
         if fr is not None:
             out["funding_pct"] = fr * 100.0
             out["field_source"]["funding_pct"] = "GATE_FUTURES"
+        nxt=c.get("funding_next_apply")
+        try:
+            if nxt is not None:
+                nv=int(float(nxt))
+                out["next_funding_time_ms"]=nv if nv>10_000_000_000 else nv*1000
+        except (TypeError,ValueError):
+            pass
+        fi=_fv(c.get("funding_interval"))
+        if fi is not None and fi>0:
+            out["funding_interval_hours"]=fi/3600.0
         out["mark_price"] = _fv(c.get("mark_price"))
         out["index_price"] = _fv(c.get("index_price"))
         if out["mark_price"] is not None and out["index_price"] not in (None, 0.0):
@@ -450,6 +474,8 @@ def _finish(out: dict[str, Any]) -> dict[str, Any]:
     critical = (
         "oi_change_1h",
         "funding_pct",
+        "next_funding_time_ms",
+        "funding_interval_hours",
         "taker_ratio",
         "long_short_ratio",
         "depth_imbalance",
