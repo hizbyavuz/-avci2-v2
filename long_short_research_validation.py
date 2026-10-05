@@ -138,9 +138,11 @@ def minute_path(symbol: str, execution_time: datetime, horizon_min: int = 60):
     if not rows or len(rows) < max(2, horizon_min - 3):
         return None
     first = rows[0]
-    last = rows[min(horizon_min - 1, len(rows) - 1)]
+    used = rows[:min(horizon_min, len(rows))]
+    last = used[-1]
     return {
         "entry_time": datetime.fromtimestamp(int(first[0]) / 1000.0, tz=timezone.utc),
+        "exit_time": datetime.fromtimestamp(int(last[6]) / 1000.0, tz=timezone.utc),
         "entry_open": float(first[1]),
         "entry_high": float(first[2]),
         "entry_low": float(first[3]),
@@ -149,7 +151,14 @@ def minute_path(symbol: str, execution_time: datetime, horizon_min: int = 60):
         "exit_high": float(last[2]),
         "exit_low": float(last[3]),
         "exit_close": float(last[4]),
-        "bars": min(horizon_min, len(rows)),
+        "bars": len(used),
+        "bar_path": [
+            {
+                "open_time_ms": int(r[0]), "open": float(r[1]), "high": float(r[2]),
+                "low": float(r[3]), "close": float(r[4]), "close_time_ms": int(r[6]),
+            }
+            for r in used
+        ],
     }
 
 
@@ -210,14 +219,56 @@ def cost_adjusted_result(direction: str, path: dict, risk_pct: float, payload: d
         entry = raw_entry * (1.0 - (FEE_BPS_PER_SIDE + entry_slip) / 10000.0)
         exit_px = raw_exit * (1.0 + (FEE_BPS_PER_SIDE + exit_slip) / 10000.0)
         net_pct = (entry / exit_px - 1.0) * 100.0 if exit_px else 0.0
+
+    funding_cost_pct = 0.0
+    try:
+        funding = payload.get("derivatives_funding_pct")
+        nxt = payload.get("next_funding_time_ms")
+        if funding is not None and nxt and path.get("entry_time") and path.get("exit_time"):
+            nf = float(nxt)
+            st = path["entry_time"].timestamp() * 1000.0
+            en = path["exit_time"].timestamp() * 1000.0
+            if st < nf <= en:
+                rate = float(funding)
+                funding_cost_pct = rate if direction == "LONG" else -rate
+                net_pct -= funding_cost_pct
+    except Exception:
+        funding_cost_pct = 0.0
+
     return {
         "entry_price": entry,
         "exit_price": exit_px,
         "entry_slippage_bps": entry_slip,
         "exit_slippage_bps": exit_slip,
+        "funding_cost_pct": funding_cost_pct,
         "net_return_pct": net_pct,
         "r_multiple": net_pct / risk_pct if risk_pct and risk_pct > 0 else None,
     }
+
+
+def barrier_outcome(direction: str, path: dict, stop: float, target1: float, target2: float):
+    """Resolve path on 1m bars; if stop and target are touched in one bar, stop wins."""
+    bars = path.get("bar_path") or []
+    if not bars or not stop:
+        return None
+    for b in bars:
+        hi=float(b["high"]); lo=float(b["low"])
+        if direction=="LONG":
+            if lo<=stop:
+                return {"outcome":"STOP","price":float(stop),"time_ms":int(b["close_time_ms"])}
+            if target2 and hi>=target2:
+                return {"outcome":"TP2","price":float(target2),"time_ms":int(b["close_time_ms"])}
+            if target1 and hi>=target1:
+                return {"outcome":"TP1","price":float(target1),"time_ms":int(b["close_time_ms"])}
+        else:
+            if hi>=stop:
+                return {"outcome":"STOP","price":float(stop),"time_ms":int(b["close_time_ms"])}
+            if target2 and lo<=target2:
+                return {"outcome":"TP2","price":float(target2),"time_ms":int(b["close_time_ms"])}
+            if target1 and lo<=target1:
+                return {"outcome":"TP1","price":float(target1),"time_ms":int(b["close_time_ms"])}
+    last=bars[-1]
+    return {"outcome":"TIMEOUT","price":float(last["close"]),"time_ms":int(last["close_time_ms"])}
 
 
 def init_db(con: sqlite3.Connection):
@@ -248,8 +299,21 @@ def init_db(con: sqlite3.Connection):
         delta_r REAL,
         control_symbols_json TEXT,
         episode_id TEXT NOT NULL,
+        funding_cost_pct REAL,
+        barrier_outcome TEXT,
+        barrier_exit_price REAL,
+        barrier_time_ms INTEGER,
         evaluated_at_utc TEXT NOT NULL
     )""")
+    pcols={r[1] for r in con.execute("PRAGMA table_info(primary_events)")}
+    for name,typ in {
+        "funding_cost_pct":"REAL",
+        "barrier_outcome":"TEXT",
+        "barrier_exit_price":"REAL",
+        "barrier_time_ms":"INTEGER",
+    }.items():
+        if name not in pcols:
+            con.execute(f"ALTER TABLE primary_events ADD COLUMN {name} {typ}")
     con.execute("""CREATE TABLE IF NOT EXISTS score_calibration(
         scan_time_utc TEXT NOT NULL,
         symbol TEXT NOT NULL,
@@ -330,6 +394,8 @@ def analyst_context(acon: sqlite3.Connection, scan_time: str | None, symbol: str
         "price": float(row["price"] or 0.0),
         "stop": float(row["stop"] or 0.0),
         "invalidation": float(plan.get("invalidation") or 0.0),
+        "target1": float(plan.get("target1") or 0.0),
+        "target2": float(plan.get("target2") or 0.0),
         "payload": p,
         "cohort": cohort_from_payload(p),
         "provider": str(p.get("derivatives_selected_provider") or ""),
@@ -433,6 +499,9 @@ def evaluate_primary(rcon: sqlite3.Connection, acon: sqlite3.Connection, lcon: s
             if risk_pct <= 0:
                 continue
             model = cost_adjusted_result(row["direction"], path, risk_pct, model_payload)
+            target1=float(payload.get("target1") or ctx.get("target1") or 0.0)
+            target2=float(payload.get("target2") or ctx.get("target2") or 0.0)
+            barrier=barrier_outcome(row["direction"],path,invalidation,target1,target2)
 
             target = target_observation(acon, scan_time, row["symbol"]) if scan_time else None
             controls = matched_controls(acon, scan_time, row["symbol"], row["direction"], target) if scan_time else []
@@ -456,8 +525,10 @@ def evaluate_primary(rcon: sqlite3.Connection, acon: sqlite3.Connection, lcon: s
                     execution_time_utc,analyst_scan_time,data_cohort,derivatives_provider,
                     model_version,score,entry_price,exit_price,risk_pct,
                     entry_slippage_bps,exit_slippage_bps,net_return_pct,r_multiple,
-                    matched_control_r,delta_r,control_symbols_json,episode_id,evaluated_at_utc
-                ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                    matched_control_r,delta_r,control_symbols_json,episode_id,
+                    funding_cost_pct,barrier_outcome,barrier_exit_price,barrier_time_ms,
+                    evaluated_at_utc
+                ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (
                     row["id"], row["symbol"], row["direction"], iso(condition_time), iso(telegram_time),
                     iso(execution_time), scan_time or None, cohort, provider,
@@ -465,7 +536,9 @@ def evaluate_primary(rcon: sqlite3.Connection, acon: sqlite3.Connection, lcon: s
                     risk_pct, model["entry_slippage_bps"], model["exit_slippage_bps"],
                     model["net_return_pct"], model["r_multiple"], control_r, delta,
                     json.dumps([x["symbol"] for x in control_results], ensure_ascii=False),
-                    eid, iso(now_utc()),
+                    eid, model.get("funding_cost_pct"),
+                    (barrier or {}).get("outcome"),(barrier or {}).get("price"),(barrier or {}).get("time_ms"),
+                    iso(now_utc()),
                 ),
             )
             inserted += 1
@@ -736,7 +809,7 @@ def main():
     print(
         "PRIMARY",
         p["status"],
-        "events=", p["events_evaluated"],
+        "events=", p["confirmatory_events"],
         "episodes=", p["independent_episodes"],
         "deltaR=", d["mean"],
         "CI95=", d["ci95"],
