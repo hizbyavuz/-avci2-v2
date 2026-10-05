@@ -27,6 +27,10 @@ BYBIT_BASES = (
 OKX_BASES = (
     "https://www.okx.com",
 )
+GATE_BASES = (
+    "https://api.gateio.ws/api/v4",
+    "https://fx-api.gateio.ws/api/v4",
+)
 
 
 def _now_iso() -> str:
@@ -103,6 +107,23 @@ def _okx(path: str, params: dict | None = None) -> list[dict]:
         except Exception as exc:
             last = exc
     raise last or RuntimeError("OKX unavailable")
+
+
+def _gate(path: str, params: dict | None = None):
+    last = None
+    for base in GATE_BASES:
+        try:
+            r = requests.get(
+                base + path,
+                params=params or {},
+                timeout=REQUEST_TIMEOUT,
+                headers={"User-Agent": "lsa-multi-venue-router/2.0", "Accept": "application/json"},
+            )
+            r.raise_for_status()
+            return r.json()
+        except Exception as exc:
+            last = exc
+    raise last or RuntimeError("Gate unavailable")
 
 
 def _depth_imbalance(bids, asks, levels=20):
@@ -318,6 +339,101 @@ def okx_derivatives(symbol: str) -> dict[str, Any]:
     return _finish(out)
 
 
+def gate_derivatives(symbol: str) -> dict[str, Any]:
+    """Full public USDT-perpetual fallback from Gate contract statistics."""
+    base = symbol[:-4] if symbol.endswith("USDT") else symbol
+    contract = f"{base}_USDT"
+    out: dict[str, Any] = {
+        "provider": "GATE_FUTURES",
+        "symbol": symbol,
+        "contract": contract,
+        "observed_at_utc": _now_iso(),
+        "oi_change_1h": None,
+        "oi_now": None,
+        "funding_pct": None,
+        "taker_ratio": None,
+        "long_short_ratio": None,
+        "depth_imbalance": None,
+        "mark_price": None,
+        "index_price": None,
+        "basis_pct": None,
+        "field_source": {},
+        "errors": [],
+    }
+
+    try:
+        rows = _gate(
+            "/futures/usdt/contract_stats",
+            {"contract": contract, "interval": "5m", "limit": 13},
+        )
+        rows = list(rows or [])
+        rows.sort(key=lambda r: int(r.get("time") or 0))
+        if rows:
+            latest = rows[-1]
+            oi_vals = [_fv(r.get("open_interest_usd")) for r in rows]
+            if not any(v is not None and v > 0 for v in oi_vals):
+                oi_vals = [_fv(r.get("open_interest")) for r in rows]
+            oi_vals = [v for v in oi_vals if v is not None and v > 0]
+            if oi_vals:
+                out["oi_now"] = oi_vals[-1]
+                out["field_source"]["oi_now"] = "GATE_FUTURES"
+            if len(oi_vals) >= 2:
+                out["oi_change_1h"] = _pct(oi_vals[0], oi_vals[-1])
+                out["field_source"]["oi_change_1h"] = "GATE_FUTURES"
+
+            taker = _fv(latest.get("lsr_taker"))
+            if taker is None:
+                long_taker = _fv(latest.get("long_taker_size"))
+                short_taker = _fv(latest.get("short_taker_size"))
+                if long_taker is not None and short_taker not in (None, 0.0):
+                    taker = long_taker / short_taker
+            if taker is not None and taker > 0:
+                out["taker_ratio"] = taker
+                out["field_source"]["taker_ratio"] = "GATE_FUTURES"
+
+            lsr = _fv(latest.get("lsr_account"))
+            if lsr is None:
+                long_users = _fv(latest.get("long_users"))
+                short_users = _fv(latest.get("short_users"))
+                if long_users is not None and short_users not in (None, 0.0):
+                    lsr = long_users / short_users
+            if lsr is not None and lsr > 0:
+                out["long_short_ratio"] = lsr
+                out["field_source"]["long_short_ratio"] = "GATE_FUTURES"
+    except Exception as exc:
+        out["errors"].append("gate_stats:" + type(exc).__name__ + ":" + str(exc)[:100])
+
+    try:
+        c = _gate(f"/futures/usdt/contracts/{contract}")
+        fr = _fv(c.get("funding_rate"))
+        if fr is not None:
+            out["funding_pct"] = fr * 100.0
+            out["field_source"]["funding_pct"] = "GATE_FUTURES"
+        out["mark_price"] = _fv(c.get("mark_price"))
+        out["index_price"] = _fv(c.get("index_price"))
+        if out["mark_price"] is not None and out["index_price"] not in (None, 0.0):
+            out["basis_pct"] = 100.0 * (out["mark_price"] / out["index_price"] - 1.0)
+            out["field_source"]["basis_pct"] = "GATE_FUTURES"
+    except Exception as exc:
+        out["errors"].append("gate_contract:" + type(exc).__name__ + ":" + str(exc)[:100])
+
+    try:
+        book = _gate(
+            "/futures/usdt/order_book",
+            {"contract": contract, "limit": 50, "with_id": "true"},
+        )
+        bids = [[r.get("p"), r.get("s")] for r in (book.get("bids") or [])]
+        asks = [[r.get("p"), r.get("s")] for r in (book.get("asks") or [])]
+        imb = _depth_imbalance(bids, asks, levels=20)
+        if imb is not None:
+            out["depth_imbalance"] = imb
+            out["field_source"]["depth_imbalance"] = "GATE_FUTURES"
+    except Exception as exc:
+        out["errors"].append("gate_book:" + type(exc).__name__ + ":" + str(exc)[:100])
+
+    return _finish(out)
+
+
 def _finish(out: dict[str, Any]) -> dict[str, Any]:
     critical = (
         "oi_change_1h",
@@ -338,10 +454,10 @@ def _finish(out: dict[str, Any]) -> dict[str, Any]:
 def multi_venue_derivatives(symbol: str) -> dict[str, Any]:
     """Fuse Bybit + OKX without hiding provenance.
 
-    Bybit is the primary public fallback because it exposes all five critical
-    derivatives fields used by this motor. OKX is a corroborating/field-level
-    fallback. A field is never replaced with a neutral 0/1 just because the
-    exchange call failed.
+    Bybit is the primary public fallback. Gate is the second full public
+    fallback because contract_stats exposes OI history, taker and account ratios.
+    OKX remains a corroborating/field-level fallback. A field is never replaced
+    with a neutral 0/1 just because an exchange call failed.
     """
     try:
         by = bybit_derivatives(symbol)
@@ -383,6 +499,26 @@ def multi_venue_derivatives(symbol: str) -> dict[str, Any]:
             "errors": ["okx_bundle:" + type(exc).__name__ + ":" + str(exc)[:100]],
         })
 
+    try:
+        gate = gate_derivatives(symbol)
+    except Exception as exc:
+        gate = _finish({
+            "provider": "GATE_FUTURES",
+            "symbol": symbol,
+            "observed_at_utc": _now_iso(),
+            "oi_change_1h": None,
+            "oi_now": None,
+            "funding_pct": None,
+            "taker_ratio": None,
+            "long_short_ratio": None,
+            "depth_imbalance": None,
+            "mark_price": None,
+            "index_price": None,
+            "basis_pct": None,
+            "field_source": {},
+            "errors": ["gate_bundle:" + type(exc).__name__ + ":" + str(exc)[:100]],
+        })
+
     fields = (
         "oi_change_1h",
         "oi_now",
@@ -399,8 +535,8 @@ def multi_venue_derivatives(symbol: str) -> dict[str, Any]:
         "symbol": symbol,
         "observed_at_utc": _now_iso(),
         "field_source": {},
-        "errors": list(by.get("errors") or []) + list(ok.get("errors") or []),
-        "sources": {"bybit": by, "okx": ok},
+        "errors": list(by.get("errors") or []) + list(ok.get("errors") or []) + list(gate.get("errors") or []),
+        "sources": {"bybit": by, "okx": ok, "gate": gate},
     }
 
     # Prefer Bybit for semantically complete derivatives features; use OKX only
@@ -408,6 +544,9 @@ def multi_venue_derivatives(symbol: str) -> dict[str, Any]:
     for key in fields:
         val = by.get(key)
         source = (by.get("field_source") or {}).get(key)
+        if val is None:
+            val = gate.get(key)
+            source = (gate.get("field_source") or {}).get(key)
         if val is None:
             val = ok.get(key)
             source = (ok.get("field_source") or {}).get(key)
