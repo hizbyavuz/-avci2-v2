@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import unittest
+import time
 from unittest.mock import patch
 
 import long_short_data_router as r
@@ -13,7 +14,8 @@ class RouterTests(unittest.TestCase):
                     "markPrice":"100.1","indexPrice":"100.0","fundingRate":"0.0001"
                 }]}, "server_time_ms": 1}
             if path.endswith("/open-interest"):
-                rows=[{"openInterest":str(100+i),"timestamp":str(1000+i)} for i in range(13)]
+                now=int(time.time()*1000)
+                rows=[{"openInterest":str(100+i),"timestamp":str(now-(12-i)*300000)} for i in range(13)]
                 return {"result":{"list":rows}, "server_time_ms": 1}
             if path.endswith("/account-ratio"):
                 return {"result":{"list":[{"buyRatio":"0.55","sellRatio":"0.45","timestamp":"1"}]}, "server_time_ms": 1}
@@ -42,7 +44,7 @@ class RouterTests(unittest.TestCase):
                 rows=[]
                 for i in range(13):
                     rows.append({
-                        "time":str(1000+i),
+                        "time":str(int(time.time())-(12-i)*300),
                         "open_interest_usd":str(100000+i*1000),
                         "lsr_taker":"1.25",
                         "lsr_account":"1.10",

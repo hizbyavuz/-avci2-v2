@@ -107,6 +107,12 @@ def random_direction(scan_time: str, symbol: str) -> str:
     return "LONG" if (h[0] & 1) == 0 else "SHORT"
 
 
+def episode_id(scan_time: str, direction: str, regime: str | None) -> str:
+    dt=parse_iso(scan_time)
+    bucket=int(dt.timestamp()//1800)
+    return f"{bucket}|{regime or 'UNKNOWN'}|{direction}"
+
+
 def init_db(con: sqlite3.Connection):
     con.execute(
         """CREATE TABLE IF NOT EXISTS universe_observations(
@@ -154,11 +160,27 @@ def init_db(con: sqlite3.Connection):
             random_direction TEXT,
             random_net_return_pct REAL,
             random_r_multiple REAL,
+            model_direction TEXT,
+            model_net_return_pct REAL,
+            model_r_multiple REAL,
+            breakout_direction TEXT,
+            breakout_net_return_pct REAL,
+            breakout_r_multiple REAL,
+            ablation_r_json TEXT,
+            episode_id TEXT,
             bars INTEGER,
             evaluated_at_utc TEXT NOT NULL,
             PRIMARY KEY(scan_time_utc,symbol,horizon_min)
         )"""
     )
+    cols={r[1] for r in con.execute("PRAGMA table_info(forward_validation)")}
+    for name,typ in {
+        "model_direction":"TEXT","model_net_return_pct":"REAL","model_r_multiple":"REAL",
+        "breakout_direction":"TEXT","breakout_net_return_pct":"REAL","breakout_r_multiple":"REAL",
+        "ablation_r_json":"TEXT","episode_id":"TEXT",
+    }.items():
+        if name not in cols:
+            con.execute(f"ALTER TABLE forward_validation ADD COLUMN {name} {typ}")
     con.execute(
         """CREATE TABLE IF NOT EXISTS validation_reports(
             report_time_utc TEXT PRIMARY KEY,
@@ -196,6 +218,9 @@ def lookup_analysis(con: sqlite3.Connection, scan_time: str, symbol: str):
         "long_score": row[1],
         "short_score": row[2],
         "breakout_only": bool(plan.get("triggered")),
+        "setup_direction": plan.get("direction"),
+        "ablations": payload.get("ablations") or {},
+        "market_regime": payload.get("market_regime"),
     }
 
 
@@ -234,6 +259,32 @@ def evaluate_due(con: sqlite3.Connection):
                 model_status = analysis["status"] if analysis else None
                 model_eligible = int(bool(analysis and model_status in ("LONG", "SHORT")))
                 breakout_only = int(bool(analysis and analysis["breakout_only"]))
+                model_direction=model_status if model_eligible else None
+                model_net=model_r=None
+                if model_direction:
+                    _,model_net,model_r,*_=directional_metrics(
+                        model_direction,float(entry),float(risk_pct),path
+                    )
+                breakout_direction=(analysis.get("setup_direction") if analysis and breakout_only else None)
+                breakout_net=breakout_r=None
+                if breakout_direction in ("LONG","SHORT"):
+                    _,breakout_net,breakout_r,*_=directional_metrics(
+                        breakout_direction,float(entry),float(risk_pct),path
+                    )
+                ablation_rs={}
+                if analysis:
+                    for name,meta in (analysis.get("ablations") or {}).items():
+                        decision=(meta or {}).get("decision")
+                        if decision in ("LONG","SHORT"):
+                            _,an,ar,*_=directional_metrics(
+                                decision,float(entry),float(risk_pct),path
+                            )
+                            ablation_rs[name]={"direction":decision,"net_return_pct":an,"r_multiple":ar}
+                eid=episode_id(
+                    scan_time,
+                    model_direction or direction,
+                    analysis.get("market_regime") if analysis else None,
+                )
                 group = "SHORTLIST" if shortlisted else "CONTROL_NOT_SHORTLISTED"
                 con.execute(
                     """INSERT INTO forward_validation(
@@ -242,16 +293,21 @@ def evaluate_due(con: sqlite3.Connection):
                         model_short_score,model_eligible,breakout_only_eligible,
                         gross_return_pct,net_return_pct,r_multiple,mfe_pct,mae_pct,
                         mfe_r,mae_r,random_direction,random_net_return_pct,
-                        random_r_multiple,bars,evaluated_at_utc
-                    ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                        random_r_multiple,model_direction,model_net_return_pct,
+                        model_r_multiple,breakout_direction,breakout_net_return_pct,
+                        breakout_r_multiple,ablation_r_json,episode_id,bars,evaluated_at_utc
+                    ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                     (
                         scan_time, symbol, horizon, group, direction, float(entry),
                         float(risk_pct), model_status,
                         analysis["long_score"] if analysis else None,
                         analysis["short_score"] if analysis else None,
                         model_eligible, breakout_only, gross, net, r, mfe, mae,
-                        mfe_r, mae_r, rd, random_net, random_r, int(path["bars"]),
-                        now_utc().isoformat(),
+                        mfe_r, mae_r, rd, random_net, random_r,
+                        model_direction,model_net,model_r,
+                        breakout_direction,breakout_net,breakout_r,
+                        json.dumps(ablation_rs,ensure_ascii=False,separators=(",",":")),
+                        eid,int(path["bars"]),now_utc().isoformat(),
                     ),
                 )
                 inserted += 1
@@ -270,20 +326,42 @@ def report(con: sqlite3.Connection):
     for horizon in HORIZONS:
         rows = con.execute(
             """SELECT group_name,model_eligible,breakout_only_eligible,
-                      r_multiple,random_r_multiple
+                      r_multiple,random_r_multiple,model_r_multiple,
+                      breakout_r_multiple,ablation_r_json,episode_id
                FROM forward_validation WHERE horizon_min=?""",
             (horizon,),
         ).fetchall()
-        model = [r[3] for r in rows if r[1] and r[3] is not None]
-        breakout = [r[3] for r in rows if r[2] and r[3] is not None]
+        model = [r[5] for r in rows if r[1] and r[5] is not None]
+        breakout = [r[6] for r in rows if r[2] and r[6] is not None]
         control = [r[3] for r in rows if r[0] == "CONTROL_NOT_SHORTLISTED" and r[3] is not None]
         randoms = [r[4] for r in rows if r[4] is not None]
+        episode_model={}
+        for row in rows:
+            if row[1] and row[5] is not None:
+                episode_model.setdefault(row[8] or "UNASSIGNED",[]).append(float(row[5]))
+        episode_means=[_mean(v) for v in episode_model.values() if v]
+        ablations={}
+        for row in rows:
+            try:
+                obj=json.loads(row[7] or "{}")
+            except Exception:
+                obj={}
+            for name,meta in obj.items():
+                rv=(meta or {}).get("r_multiple")
+                if rv is not None:
+                    ablations.setdefault(name,[]).append(float(rv))
         payload = {
             "horizon_min": horizon,
-            "model": {"n": len(model), "expectancy_r": _mean(model)},
+            "model": {
+                "n": len(model),
+                "effective_episodes":len(episode_model),
+                "expectancy_r": _mean(model),
+                "episode_expectancy_r":_mean(episode_means),
+            },
             "breakout_only": {"n": len(breakout), "expectancy_r": _mean(breakout)},
             "control_not_shortlisted": {"n": len(control), "expectancy_r": _mean(control)},
             "random_direction": {"n": len(randoms), "expectancy_r": _mean(randoms)},
+            "ablations":{k:{"n":len(v),"expectancy_r":_mean(v)} for k,v in ablations.items()},
         }
         con.execute(
             """INSERT OR REPLACE INTO validation_reports(

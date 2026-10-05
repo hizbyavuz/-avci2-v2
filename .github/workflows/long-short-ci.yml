@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "long_short_*.py"
+      - "test_long_short_*.py"
       - ".github/workflows/long-short-*.yml"
   workflow_dispatch:
 
@@ -32,7 +33,7 @@ jobs:
             long_short_live_validation.py
 
       - name: Run Long/Short unit tests
-        run: python -m unittest -v test_long_short_data_router.py
+        run: python -m unittest -v test_long_short_data_router.py test_long_short_core.py
 
       - name: Live public derivatives smoke test
         run: |

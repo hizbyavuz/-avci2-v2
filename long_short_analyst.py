@@ -14,6 +14,7 @@ import os
 import sqlite3
 import statistics
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
@@ -39,8 +40,12 @@ MIN_24H_QUOTE_VOL = float(os.getenv("LS_MIN_24H_QUOTE_VOL", "25000000"))
 MAX_SYMBOLS = int(os.getenv("LS_MAX_SYMBOLS", "80"))
 REQUEST_TIMEOUT = 12
 TELEGRAM_LIMIT = 4096
-VERSION = "LSA_V1_8_MULTI_VENUE_DATA_INTEGRITY_2026-10-05"
+VERSION = "LSA_V1_9_CLOSED_CANDLE_PARALLEL_VALIDATION_2026-10-05"
 PRESELECT_MAX = int(os.getenv("LS_PRESELECT_MAX", "12"))
+PREFILTER_WORKERS = int(os.getenv("LS_PREFILTER_WORKERS", "6"))
+DEEP_WORKERS = int(os.getenv("LS_DEEP_WORKERS", "6"))
+PAPER_NOTIONAL_USDT = float(os.getenv("LS_PAPER_NOTIONAL_USDT", "250"))
+MAX_CROSS_VENUE_BASIS_PCT = float(os.getenv("LS_MAX_CROSS_VENUE_BASIS_PCT", "0.35"))
 HTF_CACHE_TTL_1H = int(os.getenv("LS_HTF_CACHE_TTL_1H", "900"))
 HTF_CACHE_TTL_4H = int(os.getenv("LS_HTF_CACHE_TTL_4H", "3600"))
 HTF_CACHE_TTL_1D = int(os.getenv("LS_HTF_CACHE_TTL_1D", "7200"))
@@ -61,6 +66,19 @@ EXCLUDED_MARKERS = ("UP","DOWN","BULL","BEAR")
 
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def market_episode_id(ts: str, direction: str, regime: str) -> str:
+    """Group correlated signals from the same market wave.
+
+    This is evaluation metadata only: multiple altcoin LONGs in the same
+    half-hour/BTC regime are not counted as independent evidence.
+    """
+    dt=datetime.fromisoformat(ts)
+    if dt.tzinfo is None:
+        dt=dt.replace(tzinfo=timezone.utc)
+    bucket=int(dt.timestamp()//1800)
+    return f"{bucket}|{regime}|{direction}"
 
 
 def fget(path: str, params: dict | None = None):
@@ -216,9 +234,21 @@ def parse_klines(rows):
 
 
 def fetch_klines(symbol, interval, limit=220):
-    return parse_klines(fget("/fapi/v1/klines", {
+    """Return CLOSED candles only.
+
+    Binance REST includes the currently-forming candle as the last row. Using it
+    in EMA/RSI/structure creates look-ahead-ish intrabar drift and breaks the
+    documented "5m candle close" semantics. The live watcher has its own explicit
+    forming-candle path; the analyst never uses an unfinished bar.
+    """
+    rows=fget("/fapi/v1/klines", {
         "symbol": symbol, "interval": interval, "limit": limit
-    }))
+    })
+    now_ms=int(time.time()*1000)
+    closed=[r for r in rows if int(r[6]) <= now_ms-250]
+    if len(closed)<20:
+        raise RuntimeError(f"{symbol} {interval}: not enough closed candles ({len(closed)})")
+    return parse_klines(closed)
 
 
 def timeframe_features(k):
@@ -490,12 +520,62 @@ def fetch_long_short(symbol):
         return 1.0
 
 
+def _book_vwap(rows, quote_notional, side):
+    remain=float(quote_notional)
+    base_qty=0.0
+    spent=0.0
+    for p,q in rows:
+        px=float(p); qty=float(q)
+        level_quote=px*qty
+        take_quote=min(remain,level_quote)
+        if take_quote<=0:
+            continue
+        base_qty += take_quote/px
+        spent += take_quote
+        remain -= take_quote
+        if remain<=1e-9:
+            break
+    if remain>max(0.01,quote_notional*0.001) or base_qty<=0:
+        return None
+    return spent/base_qty
+
+
+def fetch_depth_metrics(symbol):
+    """Order-book imbalance plus executable-cost proxy from Binance's visible book.
+
+    On geo-blocked runners this is Binance Spot, so the source is labelled as a
+    proxy rather than pretending it is the Futures execution book.
+    """
+    d=fget("/fapi/v1/depth",{"symbol":symbol,"limit":100})
+    bids=d.get("bids",[]) or []
+    asks=d.get("asks",[]) or []
+    bid_notional=sum(float(p)*float(q) for p,q in bids[:20])
+    ask_notional=sum(float(p)*float(q) for p,q in asks[:20])
+    total=bid_notional+ask_notional
+    imbalance=0.0 if total<=0 else (bid_notional-ask_notional)/total
+    best_bid=float(bids[0][0]) if bids else 0.0
+    best_ask=float(asks[0][0]) if asks else 0.0
+    mid=(best_bid+best_ask)/2.0 if best_bid and best_ask else 0.0
+    spread_bps=((best_ask-best_bid)/mid*10000.0) if mid else None
+    sizes=(100.0,PAPER_NOTIONAL_USDT,500.0)
+    costs={}
+    for n in sizes:
+        buy=_book_vwap(asks,n,"BUY")
+        sell=_book_vwap(bids,n,"SELL")
+        costs[str(int(n))]={
+            "buy_bps":((buy/mid-1.0)*10000.0) if buy is not None and mid else None,
+            "sell_bps":((1.0-sell/mid)*10000.0) if sell is not None and mid else None,
+        }
+    return {
+        "source":"BINANCE_FUTURES_BOOK" if DATA_MODE=="BINANCE_FUTURES" else "BINANCE_SPOT_BOOK_PROXY",
+        "imbalance":imbalance,
+        "spread_bps":spread_bps,
+        "costs":costs,
+    }
+
+
 def fetch_depth_imbalance(symbol):
-    d=fget("/fapi/v1/depth",{"symbol":symbol,"limit":50})
-    bids=sum(float(p)*float(q) for p,q in d.get("bids",[])[:20])
-    asks=sum(float(p)*float(q) for p,q in d.get("asks",[])[:20])
-    total=bids+asks
-    return 0.0 if total<=0 else (bids-asks)/total
+    return float(fetch_depth_metrics(symbol)["imbalance"])
 
 
 def universe():
@@ -720,7 +800,8 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
     funding=fetch_funding(symbol)
     taker=fetch_taker(symbol)
     ls=fetch_long_short(symbol)
-    depth=fetch_depth_imbalance(symbol)
+    depth_metrics=fetch_depth_metrics(symbol)
+    depth=float(depth_metrics["imbalance"])
     chart=chart_state(t1,t5,t15,t1h)
 
     # Data-integrity rule: never let missing Binance Futures fields silently turn
@@ -743,18 +824,30 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
             ls=float(multi_deriv["long_short_ratio"])
             depth=float(multi_deriv["depth_imbalance"])
             deriv_ready=True
+            mark=multi_deriv.get("mark_price")
+            spot_px=float(t5["price"] or 0.0)
+            if mark is not None and spot_px>0:
+                spot_mark_basis=100.0*(float(mark)/spot_px-1.0)
+                multi_deriv["spot_vs_selected_mark_basis_pct"]=spot_mark_basis
+                if abs(spot_mark_basis)>MAX_CROSS_VENUE_BASIS_PCT:
+                    deriv_ready=False
+                    multi_deriv["quality"]="BASIS_MISMATCH"
 
     long=short=0
     reasons=[]; risks=[]
+    components={}
 
     # Higher timeframe trend: max 28 points each side.
+    _l0,_s0=long,short
     for tf,name,w in ((t4h,"4s",12),(t1h,"1s",10),(t15,"15dk",6)):
         if tf["price"]>tf["ema20"]>tf["ema50"]:
             long += w; reasons.append(f"{name} trend yukarı")
         elif tf["price"]<tf["ema20"]<tf["ema50"]:
             short += w; reasons.append(f"{name} trend aşağı")
+    components["trend"]={"long":long-_l0,"short":short-_s0}
 
-    # Structure / breakout: max 18.
+    # Structure / breakout + micro chart state.
+    _l0,_s0=long,short
     if t15["structure"]>0: long+=7
     if t15["structure"]<0: short+=7
     if t1h["structure"]>0: long+=6
@@ -772,14 +865,17 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
         long-=5; risks.append("Grafik yukarı aşırı uzamış; long kovalamak yerine pullback/retest bekle")
     if chart["overextended_down"]:
         short-=5; risks.append("Grafik aşağı aşırı uzamış; short kovalamak yerine tepki/retest bekle")
+    components["structure_chart"]={"long":long-_l0,"short":short-_s0}
 
     # Momentum / RSI: avoid chasing extremes.
+    _l0,_s0=long,short
     if 52 <= t15["rsi"] <= 68 and t5["rsi"]>=50: long+=8
     if 32 <= t15["rsi"] <= 48 and t5["rsi"]<=50: short+=8
     if t15["rsi"]>=76:
         long-=6; risks.append("15dk RSI aşırı yüksek; long kovalamak riskli")
     if t15["rsi"]<=24:
         short-=6; risks.append("15dk RSI aşırı düşük; short kovalamak riskli")
+    components["momentum"]={"long":long-_l0,"short":short-_s0}
 
     # Derivatives. Native Binance Futures is preferred. If it is blocked,
     # a complete Bybit/OKX public bundle is allowed, with provenance preserved.
@@ -794,7 +890,10 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
         coverage=float((multi_deriv or {}).get("coverage") or 0.0)
         quality=str((multi_deriv or {}).get("quality") or "UNAVAILABLE")
         if deriv_ready:
-            reasons.append(f"Çoklu türev veri tam: Bybit/OKX %{coverage*100:.0f}")
+            provider=(multi_deriv or {}).get("selected_provider") or "MULTI_VENUE"
+            age=(multi_deriv or {}).get("source_age_seconds")
+            age_txt=f", yaş {float(age):.0f}s" if age is not None else ""
+            reasons.append(f"Türev veri tam: {provider} %{coverage*100:.0f}{age_txt}")
         else:
             missing=[
                 k for k in ((multi_deriv or {}).get("critical_fields") or [])
@@ -805,6 +904,7 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
                 + (": " + ",".join(missing) if missing else "")
             )
 
+    _l0,_s0=long,short
     if deriv_ready:
         oic=oi["oi_change_1h"]
         if price1h>0 and oic>1.5:
@@ -838,18 +938,24 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
 
         if DATA_MODE!="BINANCE_FUTURES" and deriv_basis is not None and abs(deriv_basis)>=0.15:
             risks.append(f"Çapraz-venue basis %{deriv_basis:+.2f}; spot-perp ayrışması yüksek")
+    components["derivatives"]={"long":long-_l0,"short":short-_s0}
 
+    _l0,_s0=long,short
     if market_regime=="UP": long+=4; short-=2
     elif market_regime=="DOWN": short+=4; long-=2
+    components["btc_regime"]={"long":long-_l0,"short":short-_s0}
 
     # Multi-timeframe veto: do not fight both 4h and 1h trend.
+    _l0,_s0=long,short
     htf_bull = t4h["price"]>t4h["ema20"]>t4h["ema50"] and t1h["price"]>t1h["ema20"]>t1h["ema50"]
     htf_bear = t4h["price"]<t4h["ema20"]<t4h["ema50"] and t1h["price"]<t1h["ema20"]<t1h["ema50"]
     if htf_bull:
         short=max(0,short-12); risks.append("4s+1s ana trend yukarı; karşı-trend SHORT ağır cezalı")
     elif htf_bear:
         long=max(0,long-12); risks.append("4s+1s ana trend aşağı; karşı-trend LONG ağır cezalı")
+    components["htf_veto"]={"long":long-_l0,"short":short-_s0}
 
+    raw_long=float(long); raw_short=float(short)
     long=max(0,min(100,int(round(long))))
     short=max(0,min(100,int(round(short))))
     edge=abs(long-short)
@@ -865,6 +971,29 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
         status="WAIT"
     else:
         status="NO_TRADE"
+
+    # Research-only counterfactuals. These do NOT change the live decision.
+    # They allow forward tests to answer whether each layer adds edge or only
+    # delays/filters good moves.
+    def _decision_from_scores(ll,ss):
+        ll=max(0,min(100,int(round(ll))))
+        ss=max(0,min(100,int(round(ss))))
+        ee=abs(ll-ss); bb=max(ll,ss)
+        if bb<55 or ee<12:
+            return "WAIT"
+        dd="LONG" if ll>ss else "SHORT"
+        trig=chart["long_trigger"] if dd=="LONG" else chart["short_trigger"]
+        return dd if trig else "WAIT"
+
+    ablations={}
+    for cname,delta in components.items():
+        ll=raw_long-float(delta.get("long",0.0))
+        ss=raw_short-float(delta.get("short",0.0))
+        ablations[cname]={
+            "long_score":max(0,min(100,int(round(ll)))),
+            "short_score":max(0,min(100,int(round(ss)))),
+            "decision":_decision_from_scores(ll,ss),
+        }
 
     price=t5["price"]
     a=max(t15["atr"], price*0.002)
@@ -905,12 +1034,22 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
         "t1":t1,"t5":t5,"t15":t15,"t1h":t1h,"t4h":t4h,
         "oi":oi,"funding_pct":funding,"taker_ratio":taker,
         "long_short_ratio":ls,"depth_imbalance":depth,
+        "execution_proxy":depth_metrics,
+        "score_components":components,
+        "ablations":ablations,
+        "raw_scores":{"long":raw_long,"short":raw_short},
         "derivatives_source":deriv_source,"cross_venue":cross,
         "multi_venue_derivatives":multi_deriv,
         "derivatives_ready":bool(deriv_ready),
         "derivatives_coverage":1.0 if DATA_MODE=="BINANCE_FUTURES" else float((multi_deriv or {}).get("coverage") or 0.0),
         "derivatives_quality":"NATIVE" if DATA_MODE=="BINANCE_FUTURES" else str((multi_deriv or {}).get("quality") or "UNAVAILABLE"),
-        "derivatives_funding_pct":deriv_funding,"derivatives_basis_pct":deriv_basis,
+        "derivatives_selected_provider":None if DATA_MODE=="BINANCE_FUTURES" else (multi_deriv or {}).get("selected_provider"),
+        "derivatives_source_age_seconds":None if DATA_MODE=="BINANCE_FUTURES" else (multi_deriv or {}).get("source_age_seconds"),
+        "spot_vs_selected_mark_basis_pct":None if DATA_MODE=="BINANCE_FUTURES" else (multi_deriv or {}).get("spot_vs_selected_mark_basis_pct"),
+        "derivatives_funding_pct":deriv_funding,
+        "next_funding_time_ms":None if DATA_MODE=="BINANCE_FUTURES" else (multi_deriv or {}).get("next_funding_time_ms"),
+        "funding_interval_hours":None if DATA_MODE=="BINANCE_FUTURES" else (multi_deriv or {}).get("funding_interval_hours"),
+        "derivatives_basis_pct":deriv_basis,
     }
     return Analysis(symbol,status,long,short,confidence,price,entry_low,entry_high,
                     stop,tp1,tp2,rr1,reasons[:8],risks[:6],payload)
@@ -963,13 +1102,17 @@ def init_db():
             expires_at_utc TEXT, closed_time_utc TEXT, outcome TEXT, close_price REAL,
             gross_return_pct REAL, net_return_pct REAL, r_multiple REAL,
             fee_bps_per_side REAL, slippage_bps_per_side REAL,
-            funding_pct_at_signal REAL, deriv_source TEXT
+            funding_pct_at_signal REAL, deriv_source TEXT,
+            next_funding_time_ms REAL, funding_interval_hours REAL,
+            episode_id TEXT, btc_regime TEXT, paper_notional_usdt REAL
         )""")
         cols={r[1] for r in con.execute("PRAGMA table_info(paper_setups)")}
         additions={
             "signal_score":"INTEGER","expires_at_utc":"TEXT","gross_return_pct":"REAL",
             "net_return_pct":"REAL","r_multiple":"REAL","fee_bps_per_side":"REAL",
             "slippage_bps_per_side":"REAL","funding_pct_at_signal":"REAL","deriv_source":"TEXT",
+            "next_funding_time_ms":"REAL","funding_interval_hours":"REAL",
+            "episode_id":"TEXT","btc_regime":"TEXT","paper_notional_usdt":"REAL",
         }
         for name,typ in additions.items():
             if name not in cols:
@@ -1120,15 +1263,24 @@ def save_scan(ts, regime, n, results):
                     from datetime import timedelta
                     exp=(datetime.fromisoformat(ts)+timedelta(minutes=SIGNAL_EXPIRY_MIN)).isoformat()
                     score=max(a.long_score,a.short_score)
+                    exec_proxy=(a.payload or {}).get("execution_proxy") or {}
+                    paper_cost=((exec_proxy.get("costs") or {}).get(str(int(PAPER_NOTIONAL_USDT))) or {})
+                    side_cost=paper_cost.get("buy_bps" if a.status=="LONG" else "sell_bps")
+                    dynamic_slip=max(SLIPPAGE_BPS_PER_SIDE,float(side_cost or 0.0))
                     con.execute("""INSERT INTO paper_setups(
                         symbol,direction,signal_time_utc,signal_price,signal_score,
                         stop,tp1,tp2,status,expires_at_utc,fee_bps_per_side,
-                        slippage_bps_per_side,funding_pct_at_signal,deriv_source
-                    ) VALUES(?,?,?,?,?,?,?,?,'OPEN',?,?,?,?,?)""",
+                        slippage_bps_per_side,funding_pct_at_signal,deriv_source,
+                        next_funding_time_ms,funding_interval_hours,
+                        episode_id,btc_regime,paper_notional_usdt
+                    ) VALUES(?,?,?,?,?,?,?,?,'OPEN',?,?,?,?,?,?,?,?,?,?)""",
                     (a.symbol,a.status,ts,a.price,score,a.stop,a.tp1,a.tp2,exp,
-                     FEE_BPS_PER_SIDE,SLIPPAGE_BPS_PER_SIDE,
+                     FEE_BPS_PER_SIDE,dynamic_slip,
                      a.payload.get("derivatives_funding_pct"),
-                     a.payload.get("derivatives_source")))
+                     a.payload.get("derivatives_source"),
+                     a.payload.get("next_funding_time_ms"),
+                     a.payload.get("funding_interval_hours"),
+                     market_episode_id(ts,a.status,regime),regime,PAPER_NOTIONAL_USDT))
 
 
 def update_paper():
@@ -1136,12 +1288,14 @@ def update_paper():
         rows=con.execute("""SELECT id,symbol,direction,signal_time_utc,signal_price,
                             signal_score,stop,tp1,tp2,expires_at_utc,
                             fee_bps_per_side,slippage_bps_per_side,
-                            funding_pct_at_signal,deriv_source
+                            funding_pct_at_signal,deriv_source,
+                            next_funding_time_ms,funding_interval_hours
                             FROM paper_setups WHERE status='OPEN'""").fetchall()
         now=now_iso()
         for row in rows:
             (rid,symbol,direction,signal_time,entry,score,stop,tp1,tp2,expires,
-             fee_bps,slip_bps,funding_at_signal,deriv_source)=row
+             fee_bps,slip_bps,funding_at_signal,deriv_source,
+             next_funding_ms,funding_interval_hours)=row
             try:
                 if expires and now >= expires:
                     last=fetch_klines(symbol,"5m",2)["close"][-1]
@@ -1167,13 +1321,20 @@ def update_paper():
                 if direction=="SHORT":
                     gross=-gross
                 trading_cost_pct=2.0*((fee_bps or FEE_BPS_PER_SIDE)+(slip_bps or SLIPPAGE_BPS_PER_SIDE))/100.0
-                # Funding is charged only when native Binance funding is known.
+                # Apply funding only if the position actually crossed the next
+                # known settlement timestamp. Positive funding: longs pay,
+                # shorts receive. Negative funding is the mirror image.
                 funding_cost=0.0
-                if deriv_source=="BINANCE_FUTURES" and funding_at_signal is not None:
-                    if direction=="LONG":
-                        funding_cost=max(0.0,float(funding_at_signal))
-                    else:
-                        funding_cost=max(0.0,-float(funding_at_signal))
+                if funding_at_signal is not None and next_funding_ms:
+                    try:
+                        sig_ms=datetime.fromisoformat(signal_time).timestamp()*1000.0
+                        close_ms=datetime.fromisoformat(now_iso()).timestamp()*1000.0
+                        nf=float(next_funding_ms)
+                        if sig_ms < nf <= close_ms:
+                            rate=float(funding_at_signal)
+                            funding_cost=rate if direction=="LONG" else -rate
+                    except Exception:
+                        funding_cost=0.0
                 net=gross-trading_cost_pct-funding_cost
                 risk_pct=abs((entry-stop)/entry)*100.0 if entry else 0.0
                 rmult=(net/risk_pct) if risk_pct>0 else None
@@ -1187,7 +1348,7 @@ def update_paper():
 
 def performance_summary():
     with sqlite3.connect(DB) as con:
-        rows=con.execute("""SELECT signal_score,outcome,net_return_pct,r_multiple
+        rows=con.execute("""SELECT signal_score,outcome,net_return_pct,r_multiple,episode_id
                             FROM paper_setups
                             WHERE status='CLOSED' AND net_return_pct IS NOT NULL
                             ORDER BY closed_time_utc,id""").fetchall()
@@ -1213,10 +1374,18 @@ def performance_summary():
                     "avg_net_pct":mean(vals),
                     "expectancy_r":mean(rvals) if rvals else None,
                 }
+        episode_map={}
+        for r in rows:
+            eid=r[4] or "UNASSIGNED"
+            if r[3] is not None:
+                episode_map.setdefault(eid,[]).append(float(r[3]))
+        episode_means=[mean(v) for v in episode_map.values() if v]
         summary={
             "closed":len(rows),
+            "effective_episodes":len(episode_map),
             "win_rate":100.0*wins/len(rows),
             "expectancy_r":mean(rs) if rs else 0.0,
+            "episode_expectancy_r":mean(episode_means) if episode_means else 0.0,
             "avg_net_pct":mean(net),
             "max_drawdown_pct":max_dd,
             "buckets":buckets,
@@ -1228,9 +1397,10 @@ def performance_summary():
             (now_iso(),summary["closed"],summary["win_rate"],summary["expectancy_r"],
              summary["avg_net_pct"],summary["max_drawdown_pct"],
              json.dumps(buckets,ensure_ascii=False)))
-        summary["text"]=(f"Paper: {summary['closed']} kapanış | Win %{summary['win_rate']:.1f} | "
-                         f"Exp {summary['expectancy_r']:+.2f}R | Net ort %{summary['avg_net_pct']:+.2f} | "
-                         f"Max DD %{summary['max_drawdown_pct']:.2f}")
+        summary["text"]=(f"Paper: {summary['closed']} kapanış / {summary['effective_episodes']} bağımsız piyasa dalgası | "
+                         f"Win %{summary['win_rate']:.1f} | Exp {summary['expectancy_r']:+.2f}R | "
+                         f"Dalga-başına Exp {summary['episode_expectancy_r']:+.2f}R | "
+                         f"Net ort %{summary['avg_net_pct']:+.2f} | Max DD %{summary['max_drawdown_pct']:.2f}")
         return summary
 
 
@@ -1384,12 +1554,20 @@ def main():
     # Stage 1: cheap broad scan. Keep Binance coverage wide without doing
     # expensive derivatives/HTF calls for every symbol.
     preselected=[]; errors=0
-    for symbol,quote_volume,_,day_change in uni:
-        try:
-            preselected.append(prefilter_symbol(symbol,day_change,quote_volume))
-        except Exception as e:
-            errors+=1
-            print(f"prefilter {symbol}: {type(e).__name__}: {e}")
+    if uni:
+        workers=max(1,min(PREFILTER_WORKERS,len(uni)))
+        with ThreadPoolExecutor(max_workers=workers,thread_name_prefix="ls-prefilter") as pool:
+            futs={
+                pool.submit(prefilter_symbol,symbol,day_change,quote_volume):symbol
+                for symbol,quote_volume,_,day_change in uni
+            }
+            for fut in as_completed(futs):
+                symbol=futs[fut]
+                try:
+                    preselected.append(fut.result())
+                except Exception as e:
+                    errors+=1
+                    print(f"prefilter {symbol}: {type(e).__name__}: {e}")
     preselected.sort(key=lambda x:x["rank"], reverse=True)
     save_reversal_candidates(ts,preselected)
 
@@ -1418,13 +1596,22 @@ def main():
 
     # Stage 2: full deterministic model only on the strongest shortlist.
     results=[]
-    for pre in shortlist:
-        symbol=pre["symbol"]
-        try:
-            results.append(score_symbol(symbol,regime,pre["day_change"],pre=pre))
-        except Exception as e:
-            errors+=1
-            print(f"deep {symbol}: {type(e).__name__}: {e}")
+    if shortlist:
+        workers=max(1,min(DEEP_WORKERS,len(shortlist)))
+        with ThreadPoolExecutor(max_workers=workers,thread_name_prefix="ls-deep") as pool:
+            futs={
+                pool.submit(score_symbol,pre["symbol"],regime,pre["day_change"],pre):pre["symbol"]
+                for pre in shortlist
+            }
+            for fut in as_completed(futs):
+                symbol=futs[fut]
+                try:
+                    results.append(fut.result())
+                except Exception as e:
+                    errors+=1
+                    print(f"deep {symbol}: {type(e).__name__}: {e}")
+        order={x["symbol"]:i for i,x in enumerate(shortlist)}
+        results.sort(key=lambda x:order.get(x.symbol,9999))
 
     save_scan(ts,regime,len(uni),results)
     send_health_once(results)
