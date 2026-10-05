@@ -82,6 +82,7 @@ class ResearchValidationTests(unittest.TestCase):
         con=sqlite3.connect(":memory:")
         frozen=r.init_db(con)
         self.assertEqual(frozen["primary_cohort"],"BINANCE_FUTURES_NATIVE")
+        self.assertEqual(frozen["live_config_hash"],r.file_sha256(r.LIVE_CONFIG_PATH))
         con.execute("UPDATE protocol_meta SET value='999' WHERE key='primary_horizon_min'")
         with self.assertRaises(RuntimeError):
             r.init_db(con)
