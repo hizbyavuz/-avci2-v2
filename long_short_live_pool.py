@@ -458,7 +458,7 @@ def send_telegram(msg):
     if not token:
         print(msg)
         return now_iso()
-    chat=resolve_chat_id(token,configured,"binance_avci2.db","Long/Short Live Pool")
+    chat=resolve_chat_id(token,configured,"long_short_simple_notify.db","Long/Short Live Pool")
     r=requests.post(f"https://api.telegram.org/bot{token}/sendMessage",
                     json={"chat_id":chat,"text":msg[:TELEGRAM_LIMIT],"disable_web_page_preview":True},
                     timeout=10)
@@ -590,6 +590,13 @@ def loop_once():
 
 def main():
     init_db()
+    token=(os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
+    configured=(os.getenv("TELEGRAM_CHAT_ID") or "").strip()
+    if token:
+        try:
+            resolve_chat_id(token,configured,"long_short_simple_notify.db","Long/Short Live Pool")
+        except Exception as exc:
+            print("Telegram chat cache prime failed",type(exc).__name__,str(exc)[:160])
     items=load_watchlist()
     sync_watchlist(items)
     now=time.time()
