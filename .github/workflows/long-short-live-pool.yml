@@ -90,7 +90,9 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           LS_LIVE_POLL_SECONDS: "15"
-          LS_LIVE_RUN_SECONDS: "250"
+          LS_LIVE_RUN_SECONDS: "330"
+          LS_ALIGN_TO_5M: "1"
+          LS_ALIGN_GRACE_SECONDS: "4"
           LS_LIVE_MAX_WATCH: "12"
           LS_LIVE_APPROACH_PCT: "0.25"
           LS_REVERSAL_MAX_WATCH: "12"
@@ -146,5 +148,5 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          sleep 10
+          sleep 3
           gh workflow run long-short-analyst.yml --ref main
