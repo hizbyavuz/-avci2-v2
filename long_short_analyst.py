@@ -981,6 +981,11 @@ def init_db():
             win_rate REAL, expectancy_r REAL, avg_net_return_pct REAL,
             max_drawdown_pct REAL, buckets_json TEXT
         )""")
+        con.execute("""CREATE TABLE IF NOT EXISTS system_notices(
+            notice_key TEXT PRIMARY KEY,
+            sent_at_utc TEXT NOT NULL,
+            payload_json TEXT
+        )""")
         con.execute("""CREATE TABLE IF NOT EXISTS universe_observations(
             scan_time_utc TEXT NOT NULL,
             symbol TEXT NOT NULL,
@@ -1324,6 +1329,37 @@ def resolve_telegram_chat(token, configured=""):
     )
 
 
+def send_health_once(results):
+    """Send one deployment/data-health card per version after a real successful scan."""
+    token=(os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
+    if not token or not results:
+        return
+    notice_key=f"DEPLOY_HEALTH|{VERSION}"
+    with sqlite3.connect(DB) as con:
+        if con.execute("SELECT 1 FROM system_notices WHERE notice_key=?",(notice_key,)).fetchone():
+            return
+
+    ready=sum(1 for a in results if bool((a.payload or {}).get("derivatives_ready")))
+    native=sum(1 for a in results if (a.payload or {}).get("derivatives_source")=="BINANCE_FUTURES")
+    multi=sum(1 for a in results if (a.payload or {}).get("derivatives_source")=="MULTI_VENUE_PUBLIC")
+    if ready<=0:
+        return
+
+    msg=(
+        f"✅ LONG / SHORT MOTORU AKTİF | V1.8\n"
+        f"Veri sağlığı: {ready}/{len(results)} derin tarama coininde kritik türev paketi TAM.\n"
+        f"Kaynak: Binance Futures {native} | Çoklu-venue {multi}.\n"
+        f"OI + Funding + Taker + Long/Short + Order-book eksikse sinyal artık kilitleniyor.\n"
+        f"📊 15dk / 1s / 4s sonuç ölçümü açık.\n"
+        f"🤖 Otomatik emir KAPALI — Telegram analiz/uyarı modu."
+    )
+    send_telegram(msg)
+    with sqlite3.connect(DB) as con:
+        con.execute("INSERT OR REPLACE INTO system_notices(notice_key,sent_at_utc,payload_json) VALUES(?,?,?)",
+                    (notice_key,now_iso(),json.dumps({"ready":ready,"total":len(results),"native":native,"multi":multi})))
+        con.commit()
+
+
 def send_telegram(msg):
     token=(os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
     configured=(os.getenv("TELEGRAM_CHAT_ID") or "").strip()
@@ -1391,6 +1427,7 @@ def main():
             print(f"deep {symbol}: {type(e).__name__}: {e}")
 
     save_scan(ts,regime,len(uni),results)
+    send_health_once(results)
     perf=performance_summary()
     msg=build_message(ts,regime,results,errors,perf)
     print(msg)
