@@ -1522,12 +1522,20 @@ def main():
     # Stage 1: cheap broad scan. Keep Binance coverage wide without doing
     # expensive derivatives/HTF calls for every symbol.
     preselected=[]; errors=0
-    for symbol,quote_volume,_,day_change in uni:
-        try:
-            preselected.append(prefilter_symbol(symbol,day_change,quote_volume))
-        except Exception as e:
-            errors+=1
-            print(f"prefilter {symbol}: {type(e).__name__}: {e}")
+    if uni:
+        workers=max(1,min(PREFILTER_WORKERS,len(uni)))
+        with ThreadPoolExecutor(max_workers=workers,thread_name_prefix="ls-prefilter") as pool:
+            futs={
+                pool.submit(prefilter_symbol,symbol,day_change,quote_volume):symbol
+                for symbol,quote_volume,_,day_change in uni
+            }
+            for fut in as_completed(futs):
+                symbol=futs[fut]
+                try:
+                    preselected.append(fut.result())
+                except Exception as e:
+                    errors+=1
+                    print(f"prefilter {symbol}: {type(e).__name__}: {e}")
     preselected.sort(key=lambda x:x["rank"], reverse=True)
     save_reversal_candidates(ts,preselected)
 
@@ -1556,13 +1564,22 @@ def main():
 
     # Stage 2: full deterministic model only on the strongest shortlist.
     results=[]
-    for pre in shortlist:
-        symbol=pre["symbol"]
-        try:
-            results.append(score_symbol(symbol,regime,pre["day_change"],pre=pre))
-        except Exception as e:
-            errors+=1
-            print(f"deep {symbol}: {type(e).__name__}: {e}")
+    if shortlist:
+        workers=max(1,min(DEEP_WORKERS,len(shortlist)))
+        with ThreadPoolExecutor(max_workers=workers,thread_name_prefix="ls-deep") as pool:
+            futs={
+                pool.submit(score_symbol,pre["symbol"],regime,pre["day_change"],pre):pre["symbol"]
+                for pre in shortlist
+            }
+            for fut in as_completed(futs):
+                symbol=futs[fut]
+                try:
+                    results.append(fut.result())
+                except Exception as e:
+                    errors+=1
+                    print(f"deep {symbol}: {type(e).__name__}: {e}")
+        order={x["symbol"]:i for i,x in enumerate(shortlist)}
+        results.sort(key=lambda x:order.get(x.symbol,9999))
 
     save_scan(ts,regime,len(uni),results)
     send_health_once(results)
