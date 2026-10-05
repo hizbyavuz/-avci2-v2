@@ -307,7 +307,7 @@ def send(text):
     configured=(os.getenv("TELEGRAM_CHAT_ID") or "").strip()
     if not token:
         print(text); return
-    chat=resolve_chat_id(token,configured,"binance_avci2.db","Long/Short Reversal")
+    chat=resolve_chat_id(token,configured,"long_short_simple_notify.db","Long/Short Reversal")
     r=requests.post(f"https://api.telegram.org/bot{token}/sendMessage",
                     json={"chat_id":chat,"text":text[:TELEGRAM_LIMIT],"disable_web_page_preview":True},
                     timeout=10)
