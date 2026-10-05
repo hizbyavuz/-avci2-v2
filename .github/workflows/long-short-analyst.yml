@@ -81,12 +81,3 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: gh workflow run long-short-live-pool.yml --repo "$GITHUB_REPOSITORY" --ref main
 
-      - name: Update fixed-horizon validation
-        run: python -u long_short_validation.py
-
-      - name: Shadow-sync analyst DB to Turso
-        continue-on-error: true
-        env:
-          TURSO_LS_DATABASE_URL: ${{ secrets.TURSO_LS_DATABASE_URL }}
-          TURSO_LS_AUTH_TOKEN: ${{ secrets.TURSO_LS_AUTH_TOKEN }}
-        run: python turso_state_sync.py push long_short_analyst.db TURSO_LS_DATABASE_URL TURSO_LS_AUTH_TOKEN
