@@ -9,6 +9,7 @@ Binance Futures Long/Short Analyst v1
 from __future__ import annotations
 
 import json
+import hashlib
 import math
 import os
 import sqlite3
@@ -62,6 +63,15 @@ EXCLUDED_BASES = {
     "USDC","FDUSD","TUSD","USDP","DAI","BUSD","EUR","TRY","BTCST",
 }
 EXCLUDED_MARKERS = ("UP","DOWN","BULL","BEAR")
+FROZEN_CONFIG_PATH = os.getenv("LS_FROZEN_CONFIG_PATH", "LONG_SHORT_V1_9_FROZEN_CONFIG.json")
+
+
+def frozen_config_hash():
+    with open(FROZEN_CONFIG_PATH, "rb") as fh:
+        return hashlib.sha256(fh.read()).hexdigest()
+
+
+FROZEN_CONFIG_HASH = frozen_config_hash()
 
 
 def now_iso() -> str:
@@ -1028,7 +1038,7 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
     setup_plan=build_setup_plan(preferred_direction,price,k5,t15,chart)
     reversal_plan=build_reversal_plan(price,k5,t5,t15,day_change_pct)
     payload={
-        "version":VERSION,"data_mode":DATA_MODE,"market_regime":market_regime,
+        "version":VERSION,"frozen_config_hash":FROZEN_CONFIG_HASH,"data_mode":DATA_MODE,"market_regime":market_regime,
         "day_change_pct":day_change_pct,"chart":chart,"setup_plan":setup_plan,"reversal_plan":reversal_plan,
         "htf_gate":htf_gate,
         "t1":t1,"t5":t5,"t15":t15,"t1h":t1h,"t4h":t4h,
