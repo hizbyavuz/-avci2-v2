@@ -287,6 +287,7 @@ def init_db(con: sqlite3.Connection):
         data_cohort TEXT NOT NULL,
         derivatives_provider TEXT,
         model_version TEXT,
+        model_config_hash TEXT,
         score INTEGER,
         entry_price REAL,
         exit_price REAL,
@@ -307,6 +308,7 @@ def init_db(con: sqlite3.Connection):
     )""")
     pcols={r[1] for r in con.execute("PRAGMA table_info(primary_events)")}
     for name,typ in {
+        "model_config_hash":"TEXT",
         "funding_cost_pct":"REAL",
         "barrier_outcome":"TEXT",
         "barrier_exit_price":"REAL",
@@ -348,6 +350,7 @@ def init_db(con: sqlite3.Connection):
         "primary_stage": PRIMARY_STAGE,
         "primary_horizon_min": PRIMARY_HORIZON_MIN,
         "primary_cohort": PRIMARY_COHORT,
+        "live_config_manifest": "LONG_SHORT_V1_9_FROZEN_CONFIG.json",
         "human_delay_seconds": HUMAN_DELAY_SECONDS,
         "fee_bps_per_side": FEE_BPS_PER_SIDE,
         "min_slippage_bps_per_side": MIN_SLIPPAGE_BPS_PER_SIDE,
@@ -400,6 +403,7 @@ def analyst_context(acon: sqlite3.Connection, scan_time: str | None, symbol: str
         "cohort": cohort_from_payload(p),
         "provider": str(p.get("derivatives_selected_provider") or ""),
         "version": str(p.get("version") or ""),
+        "frozen_config_hash": str(p.get("frozen_config_hash") or ""),
     }
 
 
@@ -523,16 +527,16 @@ def evaluate_primary(rcon: sqlite3.Connection, acon: sqlite3.Connection, lcon: s
                 """INSERT INTO primary_events(
                     source_event_id,symbol,direction,signal_time_utc,telegram_time_utc,
                     execution_time_utc,analyst_scan_time,data_cohort,derivatives_provider,
-                    model_version,score,entry_price,exit_price,risk_pct,
+                    model_version,model_config_hash,score,entry_price,exit_price,risk_pct,
                     entry_slippage_bps,exit_slippage_bps,net_return_pct,r_multiple,
                     matched_control_r,delta_r,control_symbols_json,episode_id,
                     funding_cost_pct,barrier_outcome,barrier_exit_price,barrier_time_ms,
                     evaluated_at_utc
-                ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (
                     row["id"], row["symbol"], row["direction"], iso(condition_time), iso(telegram_time),
                     iso(execution_time), scan_time or None, cohort, provider,
-                    ctx.get("version"), ctx.get("score"), model["entry_price"], model["exit_price"],
+                    ctx.get("version"), ctx.get("frozen_config_hash"), ctx.get("score"), model["entry_price"], model["exit_price"],
                     risk_pct, model["entry_slippage_bps"], model["exit_slippage_bps"],
                     model["net_return_pct"], model["r_multiple"], control_r, delta,
                     json.dumps([x["symbol"] for x in control_results], ensure_ascii=False),
