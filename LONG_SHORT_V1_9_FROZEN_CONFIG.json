@@ -1,0 +1,128 @@
+{
+  "model_version": "LSA_V1_9_CLOSED_CANDLE_PARALLEL_VALIDATION_2026-10-05",
+  "status": "FROZEN",
+  "effective_date": "2026-10-05",
+  "universe": {
+    "active_max_symbols": 30,
+    "min_24h_quote_volume_usdt": 25000000,
+    "deep_preselect_max": 12,
+    "selection": "absolute_24h_movers_then_volume_leaders"
+  },
+  "decision": {
+    "actionable_best_score_min": 55,
+    "actionable_edge_min": 12,
+    "wait_best_score_min": 42,
+    "volatility_gate_t15_atr_pct": 4
+  },
+  "trend_weights": {
+    "4h": 12,
+    "1h": 10,
+    "15m": 6
+  },
+  "structure_weights": {
+    "15m_structure": 7,
+    "1h_structure": 6,
+    "15m_breakout_with_volume": 5,
+    "micro_trigger": 10,
+    "overextension_penalty": -5
+  },
+  "momentum": {
+    "long_rsi15_range": [
+      52,
+      68
+    ],
+    "long_rsi5_min": 50,
+    "short_rsi15_range": [
+      32,
+      48
+    ],
+    "short_rsi5_max": 50,
+    "momentum_weight": 8,
+    "rsi_high_penalty_threshold": 76,
+    "rsi_low_penalty_threshold": 24,
+    "extreme_rsi_penalty": -6
+  },
+  "derivatives": {
+    "oi_change_threshold_pct": 1.5,
+    "oi_trend_weight": 8,
+    "oi_squeeze_weight": 3,
+    "taker_long_threshold": 1.08,
+    "taker_short_threshold": 0.92,
+    "taker_weight": 7,
+    "depth_long_threshold": 0.08,
+    "depth_short_threshold": -0.08,
+    "depth_weight": 5,
+    "funding_high_pct": 0.05,
+    "funding_low_pct": -0.05,
+    "funding_crowded_penalty": -4,
+    "funding_opposite_bonus": 2,
+    "long_short_high": 2,
+    "long_short_low": 0.5,
+    "crowding_penalty": -3,
+    "max_cross_venue_basis_pct": 0.35,
+    "critical_fields": [
+      "oi_change_1h",
+      "funding_pct",
+      "taker_ratio",
+      "long_short_ratio",
+      "depth_imbalance"
+    ]
+  },
+  "btc_regime": {
+    "aligned_bonus": 4,
+    "opposite_penalty": -2
+  },
+  "htf_veto": {
+    "4h_1h_countertrend_penalty": -12
+  },
+  "setup": {
+    "atr_floor_pct": 0.2,
+    "paper_entry_long_atr": [
+      -0.25,
+      0.1
+    ],
+    "paper_entry_short_atr": [
+      -0.1,
+      0.25
+    ],
+    "paper_stop_atr": 1.35,
+    "paper_tp1_atr": 2,
+    "paper_tp2_atr": 3.2
+  },
+  "htf_early_gate": {
+    "near_level_pct": 0.8,
+    "min_score": 5,
+    "direction_margin": 2,
+    "daily_extension_pct": 6,
+    "4h_extension_pct": 5
+  },
+  "early_observational": {
+    "approach_pct": 0.18,
+    "max_extension_pct": 0.22,
+    "min_volume_mult": 1.2,
+    "min_taker_buy_share": 0.54,
+    "max_compression_pct": 0.9,
+    "min_room_pct": 0.3,
+    "max_atr_extension": 1.1
+  },
+  "live": {
+    "poll_seconds": 15,
+    "run_seconds": 330,
+    "max_watch": 12,
+    "approach_pct": 0.25,
+    "align_to_5m": true,
+    "align_grace_seconds": 4
+  },
+  "telegram": {
+    "same_symbol_cooldown_seconds": 3600,
+    "global_gap_seconds": 1200
+  },
+  "paper": {
+    "notional_usdt": 250,
+    "signal_expiry_minutes": 180,
+    "same_direction_cooldown_minutes": 120,
+    "fee_bps_per_side": 5,
+    "legacy_min_slippage_bps_per_side": 5,
+    "same_bar_ambiguity": "STOP_FIRST"
+  }
+}
