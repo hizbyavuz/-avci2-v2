@@ -31,7 +31,7 @@ jobs:
 
       - name: Compile Long Short research path
         run: |
-          python -m py_compile long_short_live_pool.py long_short_research_validation.py long_short_simple_notify.py
+          python -m py_compile long_short_live_pool.py long_short_research_validation.py long_short_v2_shadow.py long_short_simple_notify.py
 
       - name: Test research validator
         run: python -m unittest -v test_long_short_research_validation.py
@@ -83,6 +83,9 @@ jobs:
             gh run download "$run_id" --name long-short-research-state --dir .research-state || true
             test -f .research-state/long_short_research.db && cp .research-state/long_short_research.db .
           fi
+
+      - name: Run V2 shadow overlay
+        run: python -u long_short_v2_shadow.py
 
       - name: Run frozen statistical protocol
         env:
