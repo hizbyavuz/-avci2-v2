@@ -149,4 +149,4 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           sleep 3
-          gh workflow run long-short-analyst.yml --ref main
+          gh workflow run long-short-analyst.yml --repo "$GITHUB_REPOSITORY" --ref main
