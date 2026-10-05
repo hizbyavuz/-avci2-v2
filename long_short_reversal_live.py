@@ -16,6 +16,7 @@ from long_short_simple_notify import classify_move, format_alert, queue_alert, c
 
 ANALYST_DB=os.getenv("LS_ANALYST_DB","long_short_analyst.db")
 DB=os.getenv("LS_REVERSAL_DB","long_short_reversal_live.db")
+NOTIFY_DB=os.getenv("LS_SIMPLE_NOTIFY_DB","long_short_simple_notify.db")
 POLL_SECONDS=float(os.getenv("LS_LIVE_POLL_SECONDS","30"))
 RUN_SECONDS=float(os.getenv("LS_LIVE_RUN_SECONDS","3600"))
 ALIGN_TO_5M=os.getenv("LS_ALIGN_TO_5M","1").strip().lower() in ("1","true","yes","on")
@@ -307,7 +308,7 @@ def send(text):
     configured=(os.getenv("TELEGRAM_CHAT_ID") or "").strip()
     if not token:
         print(text); return
-    chat=resolve_chat_id(token,configured,"long_short_simple_notify.db","Long/Short Reversal")
+    chat=resolve_chat_id(token,configured,NOTIFY_DB,"Long/Short Reversal")
     r=requests.post(f"https://api.telegram.org/bot{token}/sendMessage",
                     json={"chat_id":chat,"text":text[:TELEGRAM_LIMIT],"disable_web_page_preview":True},
                     timeout=10)
