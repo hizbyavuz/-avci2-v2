@@ -153,10 +153,14 @@ def classify_move(symbol, day_change_pct):
         return "FAST_FRESH"
     return "FAST_QUIET"
 
-def format_alert(symbol,direction,level,move_class,day_change_pct=0.0,current_price=None):
-    """User-facing Telegram alert: direction first, then exact 5m close condition."""
+def format_alert(symbol,direction,level,move_class,day_change_pct=0.0,current_price=None,
+                 stop_level=None,target1=None,target2=None):
+    """Compact Telegram watch alert with trigger, invalidation and targets."""
     level_text=f"{float(level):,.8g}"
     price_text="-" if current_price is None else f"{float(current_price):,.8g}"
+    stop_text=None if stop_level in (None,0,"") else f"{float(stop_level):,.8g}"
+    t1_text=None if target1 in (None,0,"") else f"{float(target1):,.8g}"
+    t2_text=None if target2 in (None,0,"") else f"{float(target2):,.8g}"
     if move_class=="STABLE":
         tip="🟦 Güçlü/Stabil"
     elif move_class=="FAST_FRESH":
@@ -166,15 +170,25 @@ def format_alert(symbol,direction,level,move_class,day_change_pct=0.0,current_pr
     else:
         tip="⚪ Hızlı/Sakin"
 
+    risk_lines=""
+    if stop_text:
+        risk_lines += f"❌ Fikir bozulur / Stop: {stop_text}\n"
+    if t1_text:
+        risk_lines += f"🎯 Hedef 1: {t1_text}\n"
+    if t2_text:
+        risk_lines += f"🎯 Hedef 2: {t2_text}\n"
+
     if direction=="LONG":
         return (f"🟢 LONG İÇİN İZLE | {symbol}\n"
                 f"5 dk mum {level_text} üstünde kapanırsa LONG güçlenir.\n"
                 f"Şu an fiyat: {price_text}\n"
                 f"Beklenen: {level_text} üstü kapanış → ardından seviyeyi koruması.\n"
+                f"{risk_lines}"
                 f"Tip: {tip}")
 
     return (f"🔴 SHORT İÇİN İZLE | {symbol}\n"
             f"5 dk mum {level_text} altında kapanırsa SHORT güçlenir.\n"
             f"Şu an fiyat: {price_text}\n"
             f"Beklenen: {level_text} altı kapanış → ardından seviyenin altında kalması.\n"
+            f"{risk_lines}"
             f"Tip: {tip}")
