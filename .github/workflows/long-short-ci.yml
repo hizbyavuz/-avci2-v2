@@ -38,7 +38,7 @@ jobs:
           python - <<'PY'
           import json
           import time
-          from long_short_data_router import multi_venue_derivatives
+          from long_short_data_router import gate_derivatives, multi_venue_derivatives
 
           last = None
           for attempt in range(3):
@@ -55,4 +55,14 @@ jobs:
               time.sleep(2)
           else:
               raise SystemExit("Critical derivatives bundle is not FULL: " + repr(last))
+
+          gate = gate_derivatives("BTCUSDT")
+          print("GATE", json.dumps({
+              "quality": gate.get("quality"),
+              "coverage": gate.get("coverage"),
+              "field_source": gate.get("field_source"),
+              "errors": gate.get("errors"),
+          }, ensure_ascii=False))
+          if gate.get("quality") != "FULL":
+              raise SystemExit("Gate fallback smoke test is not FULL: " + repr(gate))
           PY
