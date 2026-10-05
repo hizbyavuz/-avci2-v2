@@ -77,6 +77,9 @@ def init_db():
             analyst_scan_time TEXT,
             analyst_confidence INTEGER,
             data_mode TEXT,
+            data_cohort TEXT,
+            derivatives_provider TEXT,
+            derivatives_quality TEXT,
             htf_direction TEXT,
             htf_score INTEGER,
             htf_reasons_json TEXT,
@@ -103,7 +106,10 @@ def init_db():
             con.execute("ALTER TABLE watch_state RENAME COLUMN entry_level TO trigger_level")
         if "data_mode" not in cols:
             con.execute("ALTER TABLE watch_state ADD COLUMN data_mode TEXT")
-        for name,typ in [("htf_direction","TEXT"),("htf_score","INTEGER"),("htf_reasons_json","TEXT")]:
+        for name,typ in [
+            ("data_cohort","TEXT"),("derivatives_provider","TEXT"),("derivatives_quality","TEXT"),
+            ("htf_direction","TEXT"),("htf_score","INTEGER"),("htf_reasons_json","TEXT")
+        ]:
             if name not in cols:
                 con.execute(f"ALTER TABLE watch_state ADD COLUMN {name} {typ}")
         for name,typ,default in [
@@ -170,6 +176,19 @@ def load_watchlist():
                 # Watch only meaningful WAIT/LONG/SHORT candidates.
                 if r["status"] not in ("WAIT","LONG","SHORT"):
                     continue
+                deriv_source=str(p.get("derivatives_source") or p.get("data_mode") or "UNKNOWN")
+                provider=str(p.get("derivatives_selected_provider") or "")
+                quality=str(p.get("derivatives_quality") or "UNKNOWN")
+                if deriv_source=="BINANCE_FUTURES":
+                    cohort="BINANCE_FUTURES_NATIVE"
+                elif provider=="BYBIT_LINEAR":
+                    cohort="SPOT_PLUS_BYBIT"
+                elif provider=="GATE_FUTURES":
+                    cohort="SPOT_PLUS_GATE"
+                elif deriv_source=="MULTI_VENUE_PUBLIC":
+                    cohort="SPOT_PLUS_OTHER_OR_PARTIAL"
+                else:
+                    cohort="UNKNOWN"
                 out.append({
                     "symbol":r["symbol"],"direction":plan["direction"],
                     "trigger_level":float(plan["trigger_level"]),
@@ -179,7 +198,10 @@ def load_watchlist():
                     "target1":float(plan.get("target1") or 0),
                     "target2":float(plan.get("target2") or 0),
                     "confidence":int(r["confidence"] or 0),
-                    "data_mode":str(p.get("derivatives_source") or p.get("data_mode") or "UNKNOWN"),
+                    "data_mode":deriv_source,
+                    "data_cohort":cohort,
+                    "derivatives_provider":provider,
+                    "derivatives_quality":quality,
                     "htf_direction":str(gate.get("direction") or "NONE"),
                     "htf_score":int(gate.get("score") or 0),
                     "htf_reasons":list(gate.get("reasons") or []),
@@ -202,11 +224,13 @@ def sync_watchlist(items):
             if reset:
                 con.execute("""INSERT OR REPLACE INTO watch_state(
                     symbol,direction,trigger_level,retest_low,retest_high,invalidation,target1,target2,
-                    analyst_scan_time,analyst_confidence,data_mode,htf_direction,htf_score,htf_reasons_json,
+                    analyst_scan_time,analyst_confidence,data_mode,data_cohort,derivatives_provider,derivatives_quality,
+                    htf_direction,htf_score,htf_reasons_json,
                     stage,close_confirmed_time,retest_seen,last_price,last_closed_5m,last_update_utc
-                ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,'WATCH',NULL,0,NULL,NULL,?)""",
+                ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'WATCH',NULL,0,NULL,NULL,?)""",
                 (x["symbol"],x["direction"],x["trigger_level"],x["retest_low"],x["retest_high"],
                  x["invalidation"],x["target1"],x["target2"],x["scan_time"],x["confidence"],x["data_mode"],
+                 x["data_cohort"],x["derivatives_provider"],x["derivatives_quality"],
                  x["htf_direction"],x["htf_score"],json.dumps(x["htf_reasons"],ensure_ascii=False),now_iso()))
                 con.execute("""UPDATE watch_state SET early_state='NONE',early_signal_price=NULL,early_signal_time=NULL,
                     confirmed_signal_price=NULL,confirmed_signal_time=NULL,gain_before_confirmation=NULL,
@@ -217,14 +241,18 @@ def sync_watchlist(items):
                 if active_stage in ("WATCH","APPROACHING"):
                     con.execute("""UPDATE watch_state SET retest_low=?,retest_high=?,invalidation=?,
                         target1=?,target2=?,analyst_scan_time=?,analyst_confidence=?,data_mode=?,
+                        data_cohort=?,derivatives_provider=?,derivatives_quality=?,
                         htf_direction=?,htf_score=?,htf_reasons_json=?,last_update_utc=? WHERE symbol=?""",
                     (x["retest_low"],x["retest_high"],x["invalidation"],x["target1"],x["target2"],
-                     x["scan_time"],x["confidence"],x["data_mode"],x["htf_direction"],x["htf_score"],
+                     x["scan_time"],x["confidence"],x["data_mode"],x["data_cohort"],x["derivatives_provider"],
+                     x["derivatives_quality"],x["htf_direction"],x["htf_score"],
                      json.dumps(x["htf_reasons"],ensure_ascii=False),now_iso(),x["symbol"]))
                 else:
                     con.execute("""UPDATE watch_state SET analyst_scan_time=?,analyst_confidence=?,data_mode=?,
+                        data_cohort=?,derivatives_provider=?,derivatives_quality=?,
                         htf_direction=?,htf_score=?,htf_reasons_json=?,last_update_utc=? WHERE symbol=?""",
-                    (x["scan_time"],x["confidence"],x["data_mode"],x["htf_direction"],x["htf_score"],
+                    (x["scan_time"],x["confidence"],x["data_mode"],x["data_cohort"],x["derivatives_provider"],
+                     x["derivatives_quality"],x["htf_direction"],x["htf_score"],
                      json.dumps(x["htf_reasons"],ensure_ascii=False),now_iso(),x["symbol"]))
         if keep:
             q=",".join("?" for _ in keep)
@@ -523,6 +551,10 @@ def loop_once():
                                  "target2":float(row["target2"] or 0.0),
                                  "analyst_confidence":int(row["analyst_confidence"] or 0),
                                  "data_mode":str(row["data_mode"] or "UNKNOWN"),
+                                 "data_cohort":str(row["data_cohort"] or "UNKNOWN") if "data_cohort" in row.keys() else "UNKNOWN",
+                                 "derivatives_provider":str(row["derivatives_provider"] or "") if "derivatives_provider" in row.keys() else "",
+                                 "derivatives_quality":str(row["derivatives_quality"] or "") if "derivatives_quality" in row.keys() else "",
+                                 "analyst_scan_time":str(row["analyst_scan_time"] or ""),
                              },
                          },ensure_ascii=False)))
                     con.commit()
