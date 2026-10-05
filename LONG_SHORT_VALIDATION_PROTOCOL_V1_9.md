@@ -54,6 +54,8 @@ Costs:
 
 This execution model is observational only. It does not change Telegram messages or live signal states.
 
+CLOSE_CONFIRMED / retest ideas are not assumed filled merely because price touched a retest zone. Until an explicit fill model is frozen, they remain exploratory. The confirmatory primary endpoint uses TRIGGERED and a delayed market-execution proxy, avoiding optimistic "touched = filled" accounting.
+
 ## 5. Matched controls
 
 For each primary TRIGGERED event, controls are selected from the same analyst scan:
