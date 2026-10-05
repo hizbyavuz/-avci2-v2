@@ -452,72 +452,39 @@ def _finish(out: dict[str, Any]) -> dict[str, Any]:
 
 
 def multi_venue_derivatives(symbol: str) -> dict[str, Any]:
-    """Fuse Bybit + OKX without hiding provenance.
+    """Return a complete single-venue derivatives bundle or fail closed.
 
-    Bybit is the primary public fallback. Gate is the second full public
-    fallback because contract_stats exposes OI history, taker and account ratios.
-    OKX remains a corroborating/field-level fallback. A field is never replaced
-    with a neutral 0/1 just because an exchange call failed.
+    Priority:
+      1) Bybit linear perpetuals
+      2) Gate USDT perpetuals
+      3) OKX only as diagnostic field-level corroboration
+
+    Actionable quality is FULL only when one venue alone supplies every critical
+    field. We never manufacture a trading-ready bundle by mixing OI from one
+    venue with crowding/order-flow from another venue.
     """
+    def empty(provider: str, err: Exception) -> dict[str, Any]:
+        return _finish({
+            "provider": provider,
+            "symbol": symbol,
+            "observed_at_utc": _now_iso(),
+            "oi_change_1h": None,
+            "oi_now": None,
+            "funding_pct": None,
+            "taker_ratio": None,
+            "long_short_ratio": None,
+            "depth_imbalance": None,
+            "mark_price": None,
+            "index_price": None,
+            "basis_pct": None,
+            "field_source": {},
+            "errors": [provider.lower() + "_bundle:" + type(err).__name__ + ":" + str(err)[:100]],
+        })
+
     try:
         by = bybit_derivatives(symbol)
     except Exception as exc:
-        by = _finish({
-            "provider": "BYBIT_LINEAR",
-            "symbol": symbol,
-            "observed_at_utc": _now_iso(),
-            "oi_change_1h": None,
-            "oi_now": None,
-            "funding_pct": None,
-            "taker_ratio": None,
-            "long_short_ratio": None,
-            "depth_imbalance": None,
-            "mark_price": None,
-            "index_price": None,
-            "basis_pct": None,
-            "field_source": {},
-            "errors": ["bybit_bundle:" + type(exc).__name__ + ":" + str(exc)[:100]],
-        })
-
-    try:
-        ok = okx_derivatives(symbol)
-    except Exception as exc:
-        ok = _finish({
-            "provider": "OKX_SWAP",
-            "symbol": symbol,
-            "observed_at_utc": _now_iso(),
-            "oi_change_1h": None,
-            "oi_now": None,
-            "funding_pct": None,
-            "taker_ratio": None,
-            "long_short_ratio": None,
-            "depth_imbalance": None,
-            "mark_price": None,
-            "index_price": None,
-            "basis_pct": None,
-            "field_source": {},
-            "errors": ["okx_bundle:" + type(exc).__name__ + ":" + str(exc)[:100]],
-        })
-
-    try:
-        gate = gate_derivatives(symbol)
-    except Exception as exc:
-        gate = _finish({
-            "provider": "GATE_FUTURES",
-            "symbol": symbol,
-            "observed_at_utc": _now_iso(),
-            "oi_change_1h": None,
-            "oi_now": None,
-            "funding_pct": None,
-            "taker_ratio": None,
-            "long_short_ratio": None,
-            "depth_imbalance": None,
-            "mark_price": None,
-            "index_price": None,
-            "basis_pct": None,
-            "field_source": {},
-            "errors": ["gate_bundle:" + type(exc).__name__ + ":" + str(exc)[:100]],
-        })
+        by = empty("BYBIT_LINEAR", exc)
 
     fields = (
         "oi_change_1h",
@@ -530,30 +497,6 @@ def multi_venue_derivatives(symbol: str) -> dict[str, Any]:
         "index_price",
         "basis_pct",
     )
-    fused: dict[str, Any] = {
-        "provider": "MULTI_VENUE_PUBLIC",
-        "symbol": symbol,
-        "observed_at_utc": _now_iso(),
-        "field_source": {},
-        "errors": list(by.get("errors") or []) + list(ok.get("errors") or []) + list(gate.get("errors") or []),
-        "sources": {"bybit": by, "okx": ok, "gate": gate},
-    }
-
-    # Prefer Bybit for semantically complete derivatives features; use OKX only
-    # when the equivalent field is unavailable.
-    for key in fields:
-        val = by.get(key)
-        source = (by.get("field_source") or {}).get(key)
-        if val is None:
-            val = gate.get(key)
-            source = (gate.get("field_source") or {}).get(key)
-        if val is None:
-            val = ok.get(key)
-            source = (ok.get("field_source") or {}).get(key)
-        fused[key] = val
-        if val is not None and source:
-            fused["field_source"][key] = source
-
     critical = (
         "oi_change_1h",
         "funding_pct",
@@ -561,12 +504,77 @@ def multi_venue_derivatives(symbol: str) -> dict[str, Any]:
         "long_short_ratio",
         "depth_imbalance",
     )
-    available = sum(fused.get(k) is not None for k in critical)
-    fused["critical_fields"] = list(critical)
-    fused["available_critical"] = available
-    fused["coverage"] = available / float(len(critical))
-    fused["quality"] = "FULL" if available == len(critical) else ("PARTIAL" if available >= 2 else "UNAVAILABLE")
-    return fused
+
+    def selected_bundle(chosen: dict[str, Any], sources: dict[str, Any]) -> dict[str, Any]:
+        out: dict[str, Any] = {
+            "provider": "MULTI_VENUE_PUBLIC",
+            "selected_provider": chosen.get("provider"),
+            "symbol": symbol,
+            "observed_at_utc": _now_iso(),
+            "field_source": dict(chosen.get("field_source") or {}),
+            "errors": [e for src in sources.values() for e in (src.get("errors") or [])],
+            "sources": sources,
+        }
+        for key in fields:
+            out[key] = chosen.get(key)
+        out["critical_fields"] = list(critical)
+        out["available_critical"] = len(critical)
+        out["coverage"] = 1.0
+        out["quality"] = "FULL"
+        out["source_consistent"] = True
+        return out
+
+    # Short-circuit on a complete primary source. This is both faster and more
+    # semantically coherent than unconditional three-venue mixing.
+    if by.get("quality") == "FULL":
+        return selected_bundle(by, {"bybit": by})
+
+    try:
+        gate = gate_derivatives(symbol)
+    except Exception as exc:
+        gate = empty("GATE_FUTURES", exc)
+
+    if gate.get("quality") == "FULL":
+        return selected_bundle(gate, {"bybit": by, "gate": gate})
+
+    try:
+        ok = okx_derivatives(symbol)
+    except Exception as exc:
+        ok = empty("OKX_SWAP", exc)
+
+    # Diagnostic fusion only. This may show that all five facts exist somewhere,
+    # but it is deliberately never marked FULL because the semantics are
+    # cross-venue. The analyst therefore cannot issue an actionable alert from it.
+    sources = {"bybit": by, "gate": gate, "okx": ok}
+    out: dict[str, Any] = {
+        "provider": "MULTI_VENUE_PUBLIC",
+        "selected_provider": None,
+        "symbol": symbol,
+        "observed_at_utc": _now_iso(),
+        "field_source": {},
+        "errors": [e for src in sources.values() for e in (src.get("errors") or [])],
+        "sources": sources,
+        "source_consistent": False,
+    }
+    for key in fields:
+        val = None
+        src_name = None
+        for src in (by, gate, ok):
+            if src.get(key) is not None:
+                val = src.get(key)
+                src_name = (src.get("field_source") or {}).get(key) or src.get("provider")
+                break
+        out[key] = val
+        if val is not None and src_name:
+            out["field_source"][key] = src_name
+
+    available = sum(out.get(k) is not None for k in critical)
+    out["critical_fields"] = list(critical)
+    out["available_critical"] = available
+    out["coverage"] = available / float(len(critical))
+    out["diagnostic_full"] = available == len(critical)
+    out["quality"] = "PARTIAL" if available >= 2 else "UNAVAILABLE"
+    return out
 
 
 if __name__ == "__main__":
