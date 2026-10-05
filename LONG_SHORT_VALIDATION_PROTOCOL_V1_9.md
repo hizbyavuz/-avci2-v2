@@ -21,6 +21,7 @@ Primary comparison: matched CONTROL_NOT_SHORTLISTED delta R
 Primary confirmatory data cohort: BINANCE_FUTURES_NATIVE  
 Primary independence unit: 2-hour market episode cluster + direction  
 Primary confidence interval: deterministic episode-cluster bootstrap, 95% CI
+Primary actionable cohort: Telegram delivery timestamp must exist. Model events that were not delivered are retained as operational/research observations but cannot prove user-executable edge.
 
 Everything else is exploratory and must not be used to declare V1.9 successful.
 
