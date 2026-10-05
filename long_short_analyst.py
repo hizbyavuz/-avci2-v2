@@ -14,6 +14,7 @@ import os
 import sqlite3
 import statistics
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
@@ -39,8 +40,11 @@ MIN_24H_QUOTE_VOL = float(os.getenv("LS_MIN_24H_QUOTE_VOL", "25000000"))
 MAX_SYMBOLS = int(os.getenv("LS_MAX_SYMBOLS", "80"))
 REQUEST_TIMEOUT = 12
 TELEGRAM_LIMIT = 4096
-VERSION = "LSA_V1_8_MULTI_VENUE_DATA_INTEGRITY_2026-10-05"
+VERSION = "LSA_V1_9_CLOSED_CANDLE_PARALLEL_VALIDATION_2026-10-05"
 PRESELECT_MAX = int(os.getenv("LS_PRESELECT_MAX", "12"))
+PREFILTER_WORKERS = int(os.getenv("LS_PREFILTER_WORKERS", "6"))
+DEEP_WORKERS = int(os.getenv("LS_DEEP_WORKERS", "6"))
+PAPER_NOTIONAL_USDT = float(os.getenv("LS_PAPER_NOTIONAL_USDT", "250"))
 HTF_CACHE_TTL_1H = int(os.getenv("LS_HTF_CACHE_TTL_1H", "900"))
 HTF_CACHE_TTL_4H = int(os.getenv("LS_HTF_CACHE_TTL_4H", "3600"))
 HTF_CACHE_TTL_1D = int(os.getenv("LS_HTF_CACHE_TTL_1D", "7200"))
@@ -216,9 +220,21 @@ def parse_klines(rows):
 
 
 def fetch_klines(symbol, interval, limit=220):
-    return parse_klines(fget("/fapi/v1/klines", {
+    """Return CLOSED candles only.
+
+    Binance REST includes the currently-forming candle as the last row. Using it
+    in EMA/RSI/structure creates look-ahead-ish intrabar drift and breaks the
+    documented "5m candle close" semantics. The live watcher has its own explicit
+    forming-candle path; the analyst never uses an unfinished bar.
+    """
+    rows=fget("/fapi/v1/klines", {
         "symbol": symbol, "interval": interval, "limit": limit
-    }))
+    })
+    now_ms=int(time.time()*1000)
+    closed=[r for r in rows if int(r[6]) <= now_ms-250]
+    if len(closed)<20:
+        raise RuntimeError(f"{symbol} {interval}: not enough closed candles ({len(closed)})")
+    return parse_klines(closed)
 
 
 def timeframe_features(k):
