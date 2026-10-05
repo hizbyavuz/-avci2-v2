@@ -12,6 +12,7 @@ Separate from Avci/Gate/Long-Short analyst scoring.
 from __future__ import annotations
 
 import json
+import math
 import os
 import sqlite3
 import time
@@ -25,6 +26,8 @@ ANALYST_DB=os.getenv("LS_DB","long_short_analyst.db")
 LIVE_DB=os.getenv("LS_LIVE_DB","long_short_live_pool.db")
 POLL_SECONDS=float(os.getenv("LS_LIVE_POLL_SECONDS","30"))
 RUN_SECONDS=int(os.getenv("LS_LIVE_RUN_SECONDS","3600"))
+ALIGN_TO_5M=os.getenv("LS_ALIGN_TO_5M","1").strip().lower() in ("1","true","yes","on")
+ALIGN_GRACE_SECONDS=float(os.getenv("LS_ALIGN_GRACE_SECONDS","4"))
 MAX_WATCH=int(os.getenv("LS_LIVE_MAX_WATCH","12"))
 APPROACH_PCT=float(os.getenv("LS_LIVE_APPROACH_PCT","0.25"))
 # Observational early-entry layer. It never changes the frozen continuation rules.
@@ -589,8 +592,14 @@ def main():
     init_db()
     items=load_watchlist()
     sync_watchlist(items)
-    print(f"Live pool started: {len(items)} symbols, poll={POLL_SECONDS}s, run={RUN_SECONDS}s")
-    end=time.time()+RUN_SECONDS
+    now=time.time()
+    hard_end=now+RUN_SECONDS
+    if ALIGN_TO_5M:
+        next_boundary=(math.floor(now/300.0)+1.0)*300.0+ALIGN_GRACE_SECONDS
+        end=min(hard_end,next_boundary)
+    else:
+        end=hard_end
+    print(f"Live pool started: {len(items)} symbols, poll={POLL_SECONDS}s, until={datetime.fromtimestamp(end,tz=timezone.utc).isoformat()}")
     while time.time()<end:
         loop_once()
         time.sleep(POLL_SECONDS)
