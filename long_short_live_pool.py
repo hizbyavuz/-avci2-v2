@@ -408,13 +408,27 @@ def message_for(row,stage,price,closed):
     side_word=f"{side_ball} {d}"
     coin=f"{side_ball} {sym}"
 
-    if stage in ("APPROACHING","CLOSE_CONFIRMED","RETESTING"):
-        # Passive states stay in SQLite; Telegram is reserved for actionable state changes.
+    if stage=="APPROACHING":
+        # Approach alerts are handled by the shared anti-spam queue.
+        return None
+
+    if stage=="CLOSE_CONFIRMED":
+        relation="üstünde" if d=="LONG" else "altında"
+        next_step="seviyeyi koruması / retestten güç alması" if d=="LONG" else "seviyenin altında kalması / retestten reddedilmesi"
+        return (f"{side_ball} {d} TEYİT GELDİ | {sym}\n"
+                f"5 dk mum {fmtp(trig)} {relation} kapandı.\n"
+                f"Kapanış: {fmtp(closed)} | Şu an: {fmtp(price)}\n"
+                f"Şimdi beklenen: {next_step}.\n"
+                f"❌ Fikir bozulur: {fmtp(inv)}")
+
+    if stage=="RETESTING":
+        # Retest itself is recorded but not messaged; the next actionable state
+        # is TRIGGERED or INVALIDATED.
         return None
 
     if stage=="TRIGGERED":
         data_mode=(row["data_mode"] or "UNKNOWN") if "data_mode" in row.keys() else "UNKNOWN"
-        warn="" if data_mode=="BINANCE_FUTURES" else "\n⚠️ Binance Futures akış teyidi yok; grafik şartına dayanıyor."
+        warn="" if data_mode=="BINANCE_FUTURES" else "\nℹ️ Binance native Futures akışı yok; spot grafik + çoklu-venue türev teyidi kullanılıyor."
         return (f"➡️ DEVAM MOTORU\n"
                 f"{coin} — {side_word} ŞARTLARI TAMAM\n"
                 f"{side_ball} {d} DEĞERLENDİRİLEBİLİR{warn}\n"
@@ -500,7 +514,7 @@ def loop_once():
                     # completed candle close. For intrabar states, first observation
                     # is the most honest timestamp available without websocket trades.
                     condition_time = closed_candle_time if new=="CLOSE_CONFIRMED" else observed_time
-                    msg=None
+                    msg=message_for(row,new,price,closed)
 
                     con.execute("""UPDATE watch_state SET stage=?,last_price=?,last_closed_5m=?,last_update_utc=?,
                                    close_confirmed_time=CASE WHEN ?='CLOSE_CONFIRMED' THEN ? ELSE close_confirmed_time END,
