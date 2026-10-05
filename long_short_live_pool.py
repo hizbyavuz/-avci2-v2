@@ -756,6 +756,8 @@ def main():
             print("Telegram chat cache prime failed",type(exc).__name__,str(exc)[:160])
     items=load_watchlist()
     sync_watchlist(items)
+    if token:
+        send_recovery_notice_once()
     now=time.time()
     hard_end=now+RUN_SECONDS
     if ALIGN_TO_5M:
