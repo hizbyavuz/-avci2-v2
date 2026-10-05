@@ -1,0 +1,113 @@
+name: Long Short Research Validation
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "long_short_research_validation.py"
+      - "LONG_SHORT_VALIDATION_PROTOCOL_V1_9.md"
+      - ".github/workflows/long-short-research-validation.yml"
+  schedule:
+    - cron: "17 * * * *"
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: long-short-research-validation
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+
+      - name: Setup Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        run: pip install requests==2.32.5 pyturso==0.7.2
+
+      - name: Restore latest analyst state
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p .research-source/analyst
+          run_id=$(gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts?name=long-short-analyst-state&per_page=100" \
+            --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | reverse | .[0].workflow_run.id // empty')
+          test -n "$run_id"
+          gh run download "$run_id" --name long-short-analyst-state --dir .research-source/analyst
+          cp .research-source/analyst/long_short_analyst.db .
+
+      - name: Restore latest live state
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p .research-source/live
+          run_id=$(gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts?name=long-short-live-pool-state&per_page=100" \
+            --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | reverse | .[0].workflow_run.id // empty')
+          test -n "$run_id"
+          gh run download "$run_id" --name long-short-live-pool-state --dir .research-source/live
+          cp .research-source/live/long_short_live_pool.db .
+
+      - name: Restore reversal state
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p .research-source/reversal
+          run_id=$(gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts?name=long-short-reversal-state&per_page=100" \
+            --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | reverse | .[0].workflow_run.id // empty')
+          if test -n "$run_id"; then
+            gh run download "$run_id" --name long-short-reversal-state --dir .research-source/reversal || true
+            test -f .research-source/reversal/long_short_reversal_live.db && cp .research-source/reversal/long_short_reversal_live.db .
+          fi
+
+      - name: Restore research state
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p .research-state
+          run_id=$(gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts?name=long-short-research-state&per_page=100" \
+            --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | reverse | .[0].workflow_run.id // empty')
+          if test -n "$run_id"; then
+            gh run download "$run_id" --name long-short-research-state --dir .research-state || true
+            test -f .research-state/long_short_research.db && cp .research-state/long_short_research.db .
+          fi
+
+      - name: Run frozen statistical protocol
+        env:
+          LS_RESEARCH_HUMAN_DELAY_SECONDS: "30"
+          LS_RESEARCH_MIN_SLIPPAGE_BPS: "10"
+          LS_RESEARCH_EPISODE_SECONDS: "7200"
+          LS_RESEARCH_MIN_PRIMARY_EPISODES: "100"
+          LS_RESEARCH_PREFERRED_PRIMARY_EPISODES: "200"
+          LS_RESEARCH_BOOTSTRAP_DRAWS: "4000"
+        run: python -u long_short_research_validation.py
+
+      - name: Optional Turso research backup
+        continue-on-error: true
+        env:
+          TURSO_LS_RESEARCH_DATABASE_URL: ${{ secrets.TURSO_LS_RESEARCH_DATABASE_URL }}
+          TURSO_LS_RESEARCH_AUTH_TOKEN: ${{ secrets.TURSO_LS_RESEARCH_AUTH_TOKEN }}
+        run: python turso_state_sync.py push long_short_research.db TURSO_LS_RESEARCH_DATABASE_URL TURSO_LS_RESEARCH_AUTH_TOKEN
+
+      - name: Upload research state
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: long-short-research-state
+          path: |
+            long_short_research.db
+            long_short_research_report.json
+            LONG_SHORT_VALIDATION_PROTOCOL_V1_9.md
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 6
