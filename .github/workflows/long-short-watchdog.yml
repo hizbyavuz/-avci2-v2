@@ -9,10 +9,8 @@ permissions:
   contents: read
   actions: write
 
-concurrency:
-  group: long-short-watchdog
-  cancel-in-progress: true
-
+# Do not cancel a queued watchdog with the next scheduled watchdog.
+# The heal step is idempotent and exits when Analyst/Live Pool is already active.
 jobs:
   heal:
     runs-on: ubuntu-latest
