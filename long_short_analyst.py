@@ -67,6 +67,19 @@ def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def market_episode_id(ts: str, direction: str, regime: str) -> str:
+    """Group correlated signals from the same market wave.
+
+    This is evaluation metadata only: multiple altcoin LONGs in the same
+    half-hour/BTC regime are not counted as independent evidence.
+    """
+    dt=datetime.fromisoformat(ts)
+    if dt.tzinfo is None:
+        dt=dt.replace(tzinfo=timezone.utc)
+    bucket=int(dt.timestamp()//1800)
+    return f"{bucket}|{regime}|{direction}"
+
+
 def fget(path: str, params: dict | None = None):
     global DATA_MODE
     last = None
@@ -1071,13 +1084,15 @@ def init_db():
             expires_at_utc TEXT, closed_time_utc TEXT, outcome TEXT, close_price REAL,
             gross_return_pct REAL, net_return_pct REAL, r_multiple REAL,
             fee_bps_per_side REAL, slippage_bps_per_side REAL,
-            funding_pct_at_signal REAL, deriv_source TEXT
+            funding_pct_at_signal REAL, deriv_source TEXT,
+            episode_id TEXT, btc_regime TEXT, paper_notional_usdt REAL
         )""")
         cols={r[1] for r in con.execute("PRAGMA table_info(paper_setups)")}
         additions={
             "signal_score":"INTEGER","expires_at_utc":"TEXT","gross_return_pct":"REAL",
             "net_return_pct":"REAL","r_multiple":"REAL","fee_bps_per_side":"REAL",
             "slippage_bps_per_side":"REAL","funding_pct_at_signal":"REAL","deriv_source":"TEXT",
+            "episode_id":"TEXT","btc_regime":"TEXT","paper_notional_usdt":"REAL",
         }
         for name,typ in additions.items():
             if name not in cols:
@@ -1235,12 +1250,14 @@ def save_scan(ts, regime, n, results):
                     con.execute("""INSERT INTO paper_setups(
                         symbol,direction,signal_time_utc,signal_price,signal_score,
                         stop,tp1,tp2,status,expires_at_utc,fee_bps_per_side,
-                        slippage_bps_per_side,funding_pct_at_signal,deriv_source
-                    ) VALUES(?,?,?,?,?,?,?,?,'OPEN',?,?,?,?,?)""",
+                        slippage_bps_per_side,funding_pct_at_signal,deriv_source,
+                        episode_id,btc_regime,paper_notional_usdt
+                    ) VALUES(?,?,?,?,?,?,?,?,'OPEN',?,?,?,?,?,?,?,?)""",
                     (a.symbol,a.status,ts,a.price,score,a.stop,a.tp1,a.tp2,exp,
                      FEE_BPS_PER_SIDE,dynamic_slip,
                      a.payload.get("derivatives_funding_pct"),
-                     a.payload.get("derivatives_source")))
+                     a.payload.get("derivatives_source"),
+                     market_episode_id(ts,a.status,regime),regime,PAPER_NOTIONAL_USDT))
 
 
 def update_paper():
@@ -1299,7 +1316,7 @@ def update_paper():
 
 def performance_summary():
     with sqlite3.connect(DB) as con:
-        rows=con.execute("""SELECT signal_score,outcome,net_return_pct,r_multiple
+        rows=con.execute("""SELECT signal_score,outcome,net_return_pct,r_multiple,episode_id
                             FROM paper_setups
                             WHERE status='CLOSED' AND net_return_pct IS NOT NULL
                             ORDER BY closed_time_utc,id""").fetchall()
@@ -1325,10 +1342,18 @@ def performance_summary():
                     "avg_net_pct":mean(vals),
                     "expectancy_r":mean(rvals) if rvals else None,
                 }
+        episode_map={}
+        for r in rows:
+            eid=r[4] or "UNASSIGNED"
+            if r[3] is not None:
+                episode_map.setdefault(eid,[]).append(float(r[3]))
+        episode_means=[mean(v) for v in episode_map.values() if v]
         summary={
             "closed":len(rows),
+            "effective_episodes":len(episode_map),
             "win_rate":100.0*wins/len(rows),
             "expectancy_r":mean(rs) if rs else 0.0,
+            "episode_expectancy_r":mean(episode_means) if episode_means else 0.0,
             "avg_net_pct":mean(net),
             "max_drawdown_pct":max_dd,
             "buckets":buckets,
@@ -1340,9 +1365,10 @@ def performance_summary():
             (now_iso(),summary["closed"],summary["win_rate"],summary["expectancy_r"],
              summary["avg_net_pct"],summary["max_drawdown_pct"],
              json.dumps(buckets,ensure_ascii=False)))
-        summary["text"]=(f"Paper: {summary['closed']} kapanış | Win %{summary['win_rate']:.1f} | "
-                         f"Exp {summary['expectancy_r']:+.2f}R | Net ort %{summary['avg_net_pct']:+.2f} | "
-                         f"Max DD %{summary['max_drawdown_pct']:.2f}")
+        summary["text"]=(f"Paper: {summary['closed']} kapanış / {summary['effective_episodes']} bağımsız piyasa dalgası | "
+                         f"Win %{summary['win_rate']:.1f} | Exp {summary['expectancy_r']:+.2f}R | "
+                         f"Dalga-başına Exp {summary['episode_expectancy_r']:+.2f}R | "
+                         f"Net ort %{summary['avg_net_pct']:+.2f} | Max DD %{summary['max_drawdown_pct']:.2f}")
         return summary
 
 
