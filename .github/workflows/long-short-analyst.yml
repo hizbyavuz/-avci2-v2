@@ -1,4 +1,5 @@
 name: Long Short Analyst V1
+# restart-stamp: 2026-10-05-v2-shadow-ready
 
 # Active paper-trade analyst. Never places orders.
 on:
