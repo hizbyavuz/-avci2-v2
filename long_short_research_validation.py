@@ -782,21 +782,77 @@ def calibration_report(rcon: sqlite3.Connection):
     }
 
 
+
+def v2_shadow_report(rcon: sqlite3.Connection):
+    """Exploratory comparison of the simpler V2 gate overlay using existing 60m outcomes."""
+    exists=rcon.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='v2_shadow_decisions'"
+    ).fetchone()
+    if not exists:
+        return {"exploratory":True,"status":"NO_V2_DATA"}
+
+    rcon.row_factory=sqlite3.Row
+    rows=[dict(r) for r in rcon.execute(
+        """SELECT v.scan_time_utc,v.symbol,v.status,v.direction,v.data_cohort,
+                  c.r_multiple,c.net_return_pct,c.episode_id
+           FROM v2_shadow_decisions v
+           LEFT JOIN score_calibration c
+             ON c.scan_time_utc=v.scan_time_utc AND c.symbol=v.symbol
+           ORDER BY v.scan_time_utc,v.symbol"""
+    ).fetchall()]
+
+    out={}
+    for status in ("QUALIFIED","NEAR_MISS","REJECT"):
+        sub=[r for r in rows if r["status"]==status and r.get("r_multiple") is not None]
+        ci=bootstrap_episode_ci(sub,"r_multiple")
+        win=mean([1.0 if float(r["r_multiple"])>0 else 0.0 for r in sub])
+        out[status]={
+            "evaluated_events":len(sub),
+            "episodes":ci["episodes"],
+            "mean_r":ci["mean"],
+            "ci95":ci["ci95"],
+            "win_rate":(100.0*win) if win is not None else None,
+        }
+
+    by_cohort={}
+    for cohort in sorted({str(r.get("data_cohort") or "UNKNOWN") for r in rows}):
+        sub=[r for r in rows if str(r.get("data_cohort") or "UNKNOWN")==cohort and r["status"]=="QUALIFIED" and r.get("r_multiple") is not None]
+        ci=bootstrap_episode_ci(sub,"r_multiple")
+        by_cohort[cohort]={
+            "qualified_events":len(sub),
+            "episodes":ci["episodes"],
+            "mean_r":ci["mean"],
+            "ci95":ci["ci95"],
+        }
+
+    return {
+        "exploratory":True,
+        "version":"LS_V2_SHADOW_GATE_BASED_2026-10-05",
+        "horizon_min":PRIMARY_HORIZON_MIN,
+        "status_buckets":out,
+        "qualified_by_cohort":by_cohort,
+        "promotion_rule":"Do not change live V1.9. V2 requires out-of-sample evidence before promotion.",
+    }
+
+
 def write_reports(rcon: sqlite3.Connection, frozen: dict, run_stats: dict):
     primary = primary_report(rcon)
     calibration = calibration_report(rcon)
+    v2 = v2_shadow_report(rcon)
     report = {
         "generated_at_utc": iso(now_utc()),
         "frozen_protocol": frozen,
         "run_stats": run_stats,
         "primary": primary,
         "score_calibration": calibration,
+        "v2_shadow": v2,
         "warning": "Exploratory outputs cannot replace the frozen primary metric.",
     }
     report_time = report["generated_at_utc"]
     for typ, key, payload in (
         ("PRIMARY", "TRIGGERED_60M_MATCHED_CONTROL", primary),
         ("EXPLORATORY", "SCORE_CALIBRATION_60M", calibration),
+        ("EXPLORATORY", "V2_SHADOW_60M", v2),
     ):
         rcon.execute(
             "INSERT INTO research_reports(report_time_utc,report_type,report_key,payload_json) VALUES(?,?,?,?)",
