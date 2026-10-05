@@ -20,7 +20,7 @@ from datetime import datetime, timezone
 
 import requests
 from binance_notify import resolve_chat_id
-from long_short_simple_notify import classify_move, format_alert, queue_alert, claim_ready_alert
+from long_short_simple_notify import classify_move, format_alert, queue_alert, claim_ready_alert, ack_claimed_alert, retry_claimed_alert
 
 ANALYST_DB=os.getenv("LS_DB","long_short_analyst.db")
 LIVE_DB=os.getenv("LS_LIVE_DB","long_short_live_pool.db")
@@ -585,7 +585,13 @@ def loop_once():
     ready=claim_ready_alert()
     if ready:
         print(ready["message"])
-        send_telegram(ready["message"])
+        try:
+            send_telegram(ready["message"])
+        except Exception as exc:
+            retry_claimed_alert(ready)
+            print("telegram send failed; requeued",type(exc).__name__,str(exc)[:160])
+        else:
+            ack_claimed_alert(ready)
 
 
 def main():
