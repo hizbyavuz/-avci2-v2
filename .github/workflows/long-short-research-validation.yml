@@ -6,6 +6,7 @@ on:
     branches: [main]
     paths:
       - "long_short_research_validation.py"
+      - "test_long_short_research_validation.py"
       - "LONG_SHORT_VALIDATION_PROTOCOL_V1_9.md"
       - ".github/workflows/long-short-research-validation.yml"
   schedule:
