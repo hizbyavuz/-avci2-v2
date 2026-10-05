@@ -1,0 +1,33 @@
+name: Telegram Smoke Test Once
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/telegram-smoke-test-once.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+      - name: Setup Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: pip install requests==2.32.5
+      - name: Send one-time Telegram health check
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          python - <<'PY'
+          from long_short_live_pool import send_telegram
+          send_telegram("✅ LONG/SHORT MOTOR TEST\nTelegram bağlantısı çalışıyor. Canlı tarama yeniden aktif.")
+          PY
