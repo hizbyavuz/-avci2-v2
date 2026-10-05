@@ -18,6 +18,7 @@ Primary stage: TRIGGERED
 Primary horizon: 60 minutes  
 Primary outcome: net R multiple  
 Primary comparison: matched CONTROL_NOT_SHORTLISTED delta R  
+Primary confirmatory data cohort: BINANCE_FUTURES_NATIVE  
 Primary independence unit: 2-hour market episode cluster + direction  
 Primary confidence interval: deterministic episode-cluster bootstrap, 95% CI
 
@@ -73,7 +74,7 @@ Required cohorts:
 - SPOT_PLUS_OTHER_OR_PARTIAL
 - UNKNOWN
 
-The primary report must show cohort counts and expectancy separately. Mixed-cohort headline results are descriptive only.
+The primary report must show cohort counts and expectancy separately. Mixed-cohort headline results are descriptive only. The confirmatory PASS/NOT_CONFIRMED decision uses BINANCE_FUTURES_NATIVE only. Fallback cohorts remain exploratory unless a future protocol preregisters a separate primary test.
 
 ## 7. Episode definition
 
