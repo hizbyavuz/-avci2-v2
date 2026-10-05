@@ -511,7 +511,17 @@ def loop_once():
                     con.execute("""INSERT INTO events(event_time_utc,symbol,direction,stage_from,stage_to,
                         price,closed_5m,condition_time_utc,payload_json) VALUES(?,?,?,?,?,?,?,?,?)""",
                         (observed_time,row["symbol"],row["direction"],"EARLY:"+old_early,"EARLY:"+estate,
-                         price,closed,observed_time,json.dumps(emetrics,ensure_ascii=False)))
+                         price,closed,observed_time,json.dumps({
+                             **emetrics,
+                             "_setup":{
+                                 "trigger_level":float(row["trigger_level"]),
+                                 "invalidation":float(row["invalidation"] or 0.0),
+                                 "target1":float(row["target1"] or 0.0),
+                                 "target2":float(row["target2"] or 0.0),
+                                 "analyst_confidence":int(row["analyst_confidence"] or 0),
+                                 "data_mode":str(row["data_mode"] or "UNKNOWN"),
+                             },
+                         },ensure_ascii=False)))
                     con.commit()
 
                 if new!=old:
