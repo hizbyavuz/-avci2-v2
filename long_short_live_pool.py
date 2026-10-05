@@ -154,6 +154,11 @@ def load_watchlist():
                 p=json.loads(r["payload_json"] or "{}")
                 plan=p.get("setup_plan") or {}
                 gate=p.get("htf_gate") or {}
+                # Fail closed for Telegram/actionable watching: no alert is
+                # allowed unless every critical derivatives field was present
+                # in the analyst snapshot (native Binance or full multi-venue).
+                if not bool(p.get("derivatives_ready")):
+                    continue
                 if not plan.get("direction") or plan.get("trigger_level") is None:
                     continue
                 # Early alerts are now allowed only when 1D/4H context agrees.
@@ -171,7 +176,7 @@ def load_watchlist():
                     "target1":float(plan.get("target1") or 0),
                     "target2":float(plan.get("target2") or 0),
                     "confidence":int(r["confidence"] or 0),
-                    "data_mode":str(p.get("data_mode") or "UNKNOWN"),
+                    "data_mode":str(p.get("derivatives_source") or p.get("data_mode") or "UNKNOWN"),
                     "htf_direction":str(gate.get("direction") or "NONE"),
                     "htf_score":int(gate.get("score") or 0),
                     "htf_reasons":list(gate.get("reasons") or []),
