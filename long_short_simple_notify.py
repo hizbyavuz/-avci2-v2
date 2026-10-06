@@ -184,11 +184,11 @@ def format_alert(symbol,direction,level,move_class,day_change_pct=0.0,current_pr
 
     risk_lines=""
     if stop_text:
-        risk_lines += f"❌ Fikir bozulur / Stop: {stop_text}\n"
+        risk_lines += f"🛡️ SL: {stop_text}\n"
     if t1_text:
-        risk_lines += f"🎯 Hedef 1: {t1_text}\n"
+        risk_lines += f"🎯 TP1: {t1_text}\n"
     if t2_text:
-        risk_lines += f"🎯 Hedef 2: {t2_text}\n"
+        risk_lines += f"🎯 TP2: {t2_text}\n"
 
     if direction=="LONG":
         return (f"🟢 LONG İÇİN İZLE | {symbol}\n"
