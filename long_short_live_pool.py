@@ -313,23 +313,76 @@ def load_watchlist():
                 else:
                     cohort="UNKNOWN"
 
-                # Treat support/resistance as a band. LONG must clear the upper
-                # edge of the resistance zone; SHORT must clear the lower edge
-                # of the support zone. The retest then uses that same band.
+                # Treat support/resistance as a band, but NEVER replace the
+                # analyst's raw breakout level with an easier level inside a nearby
+                # zone. That previously created inverted retest ranges and, worse,
+                # stops only a few basis points from the live trigger.
                 zone=structure_gate.get("trigger_zone") or {}
                 raw_trigger=float(plan["trigger_level"])
                 zone_low=float(zone.get("low") or raw_trigger)
                 zone_high=float(zone.get("high") or raw_trigger)
+                invalidation=float(plan.get("invalidation") or 0.0)
+                target1=float(plan.get("target1") or 0.0)
+                target2=float(plan.get("target2") or 0.0)
+
                 if plan["direction"]=="LONG":
-                    live_trigger=zone_high
-                    live_retest_low=max(float(plan.get("retest_low") or raw_trigger),zone_low)
+                    # Must clear BOTH the raw resistance and the upper edge of the
+                    # nearby resistance zone.
+                    live_trigger=max(raw_trigger,zone_high)
+                    live_retest_low=min(
+                        live_trigger,
+                        max(float(plan.get("retest_low") or raw_trigger),zone_low),
+                    )
                     live_retest_high=live_trigger
+                    level_order_ok=bool(
+                        invalidation>0 and target1>0 and
+                        invalidation < live_trigger < target1
+                    )
+                    risk_pct=((live_trigger-invalidation)/live_trigger*100.0) if level_order_ok else 0.0
+                    reward_pct=((target1/live_trigger-1.0)*100.0) if level_order_ok else 0.0
                 else:
-                    live_trigger=zone_low
+                    # Must break BOTH the raw support and the lower edge of the
+                    # nearby support zone.
+                    live_trigger=min(raw_trigger,zone_low)
                     live_retest_low=live_trigger
-                    live_retest_high=min(float(plan.get("retest_high") or raw_trigger),zone_high)
+                    live_retest_high=max(
+                        live_trigger,
+                        min(float(plan.get("retest_high") or raw_trigger),zone_high),
+                    )
+                    level_order_ok=bool(
+                        invalidation>0 and target1>0 and
+                        target1 < live_trigger < invalidation
+                    )
+                    risk_pct=((invalidation-live_trigger)/live_trigger*100.0) if level_order_ok else 0.0
+                    reward_pct=((live_trigger/target1-1.0)*100.0) if level_order_ok else 0.0
+
+                # Re-check the exact levels that Telegram will show. The analyst
+                # structure gate was calculated from raw_trigger; if the zone edge
+                # shifts the final trigger, its old R calculation is no longer enough.
+                min_cost_pct=float(structure_gate.get("minimum_round_trip_cost_pct") or 0.30)
+                thresholds=structure_gate.get("thresholds") or {}
+                min_net_r=float(thresholds.get("min_net_t1_r") or 1.0)
+                required_room_pct=float(structure_gate.get("required_room_pct") or 0.0)
+                effective_net_r=((reward_pct-min_cost_pct)/risk_pct) if risk_pct>0 else None
+                effective_levels_ok=bool(
+                    level_order_ok
+                    and reward_pct>=required_room_pct
+                    and effective_net_r is not None
+                    and effective_net_r>=min_net_r
+                    and live_retest_low<=live_retest_high
+                )
+
+                # Radar-only entries are observational. Real WAIT/LONG/SHORT items
+                # fail closed if the user-facing trigger/SL/TP geometry is not sane.
+                if not radar_only and not effective_levels_ok:
+                    continue
 
                 stored_gate=dict(structure_gate)
+                stored_gate["_effective_trigger_level"]=live_trigger
+                stored_gate["_effective_risk_pct"]=risk_pct
+                stored_gate["_effective_reward_pct"]=reward_pct
+                stored_gate["_effective_net_t1_r"]=effective_net_r
+                stored_gate["_effective_levels_ok"]=effective_levels_ok
                 stored_gate["_radar_only"]=bool(radar_only)
                 stored_gate["_analyst_status"]=analyst_status
                 stored_gate["_day_change_pct"]=day_change_pct
@@ -341,9 +394,9 @@ def load_watchlist():
                     "trigger_level":live_trigger,
                     "retest_low":live_retest_low,
                     "retest_high":live_retest_high,
-                    "invalidation":float(plan.get("invalidation") or 0),
-                    "target1":float(plan.get("target1") or 0),
-                    "target2":float(plan.get("target2") or 0),
+                    "invalidation":invalidation,
+                    "target1":target1,
+                    "target2":target2,
                     "confidence":int(r["confidence"] or 0),
                     "day_change_pct":day_change_pct,
                     "radar_only":bool(radar_only),
