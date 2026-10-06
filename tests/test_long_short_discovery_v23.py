@@ -104,10 +104,12 @@ class DiscoveryV23Tests(unittest.TestCase):
         old_mode = analyst.DATA_MODE
         old_max = analyst.MAX_SYMBOLS
         old_min = analyst.MIN_24H_QUOTE_VOL
+        old_discovery_min = analyst.DISCOVERY_MIN_24H_QUOTE_VOL
         try:
             analyst.DATA_MODE = "BINANCE_SPOT_GRAPH_ONLY"
             analyst.MAX_SYMBOLS = 80
             analyst.MIN_24H_QUOTE_VOL = 25_000_000
+            analyst.DISCOVERY_MIN_24H_QUOTE_VOL = 8_000_000
 
             def fake_fget(path, params=None):
                 analyst.DATA_MODE = "BINANCE_SPOT_GRAPH_ONLY"
@@ -147,13 +149,15 @@ class DiscoveryV23Tests(unittest.TestCase):
             self.assertEqual(got["RLCUSDT"][1], 1_200_000_000.0)
             self.assertEqual(got["RLCUSDT"][3], 50.0)
             self.assertIn("CROSSUSDT", got)
-            self.assertNotIn("RANDOMUSDT", got)
+            self.assertIn("RANDOMUSDT", got)
+            self.assertTrue(analyst.DISCOVERY_META["RANDOMUSDT"]["external_only_unverified"])
         finally:
             analyst.fget = old_fget
             analyst.multi_venue_perp_universe = old_perps
             analyst.DATA_MODE = old_mode
             analyst.MAX_SYMBOLS = old_max
             analyst.MIN_24H_QUOTE_VOL = old_min
+            analyst.DISCOVERY_MIN_24H_QUOTE_VOL = old_discovery_min
 
 
     def test_radar_only_mover_cannot_become_confirmed_signal(self):
