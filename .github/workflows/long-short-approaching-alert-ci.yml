@@ -1,0 +1,33 @@
+name: Long Short APPROACHING Alert CI
+
+on:
+  push:
+    branches:
+      - "ls-v2-1-approaching-alert-fix-20261006"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: long-short-approaching-alert-ci
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.12"
+      - run: pip install requests==2.32.5 pyturso==0.7.2
+      - name: Compile and tests
+        run: |
+          python -m py_compile long_short_live_pool.py long_short_simple_notify.py long_short_outcome_tracker_v21.py
+          python tests/test_long_short_structure_gate_v2.py
+          python tests/test_long_short_outcome_v21.py
+          python tests/test_long_short_v21_integration.py
+          python tests/test_watch_alert_tracking_v21.py
+          python tests/test_approaching_alert_v21.py
