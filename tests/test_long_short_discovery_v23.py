@@ -1,5 +1,7 @@
 import json
+import sqlite3
 import sys
+import tempfile
 import time
 import unittest
 from pathlib import Path
@@ -189,6 +191,69 @@ class DiscoveryV23Tests(unittest.TestCase):
             structure_quality={"qualified":True},
         )
         self.assertEqual(state,"APPROACHING")
+
+
+    def test_depth_falls_back_to_cached_external_perp_bundle(self):
+        old_fget=analyst.fget
+        old_cache=analyst.MULTI_DERIV_CACHE
+        try:
+            analyst.fget=lambda *a, **k: (_ for _ in ()).throw(RuntimeError("spot depth unavailable"))
+            analyst.MULTI_DERIV_CACHE={
+                "FUTURESONLYUSDT":{
+                    "depth_imbalance":0.23,
+                    "selected_provider":"GATE_FUTURES",
+                }
+            }
+            out=analyst.fetch_depth_metrics("FUTURESONLYUSDT")
+            self.assertAlmostEqual(out["imbalance"],0.23)
+            self.assertIn("EXTERNAL_PERP_DEPTH",out["source"])
+            self.assertIsNone(out["spread_bps"])
+        finally:
+            analyst.fget=old_fget
+            analyst.MULTI_DERIV_CACHE=old_cache
+
+    def test_incomplete_derivatives_can_enter_radar_but_not_actionable_watch(self):
+        old_db=live.ANALYST_DB
+        try:
+            with tempfile.NamedTemporaryFile(suffix=".db") as tmp:
+                live.ANALYST_DB=tmp.name
+                with sqlite3.connect(tmp.name) as con:
+                    con.execute("""CREATE TABLE analyses(
+                        scan_time_utc TEXT,symbol TEXT,status TEXT,long_score INTEGER,
+                        short_score INTEGER,confidence INTEGER,price REAL,payload_json TEXT
+                    )""")
+                    base_payload={
+                        "derivatives_ready":False,
+                        "derivatives_source":"DERIVATIVES_INCOMPLETE",
+                        "derivatives_quality":"PARTIAL",
+                        "day_change_pct":18.0,
+                        "setup_plan":{
+                            "direction":"LONG","trigger_level":100.0,
+                            "retest_low":99.5,"retest_high":100.0,
+                            "invalidation":98.0,"target1":103.0,"target2":105.0,
+                        },
+                        "htf_gate":{"direction":"NONE","score":0,"reasons":[]},
+                        "structure_gate":{
+                            "version":live.STRUCTURE_GATE_VERSION,
+                            "direction":"LONG",
+                            "qualified_precheck":False,
+                            "trigger_zone":{"low":99.8,"high":100.2,"center":100.0},
+                        },
+                    }
+                    con.execute("INSERT INTO analyses VALUES(?,?,?,?,?,?,?,?)",
+                                ("2026-10-06T00:00:00+00:00","RADARUSDT","NO_TRADE",30,0,25,99.7,
+                                 json.dumps(base_payload)))
+                    p2=dict(base_payload)
+                    p2["day_change_pct"]=1.0
+                    con.execute("INSERT INTO analyses VALUES(?,?,?,?,?,?,?,?)",
+                                ("2026-10-06T00:00:00+00:00","WAITUSDT","WAIT",55,20,50,99.7,
+                                 json.dumps(p2)))
+                items=live.load_watchlist()
+                self.assertEqual([x["symbol"] for x in items],["RADARUSDT"])
+                self.assertTrue(items[0]["radar_only"])
+                self.assertFalse(items[0]["structure_gate"]["_derivatives_ready"])
+        finally:
+            live.ANALYST_DB=old_db
 
 
 if __name__ == "__main__":
