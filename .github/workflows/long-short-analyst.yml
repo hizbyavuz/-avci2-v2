@@ -1,5 +1,5 @@
 name: Long Short Analyst V1
-# restart-stamp: 2026-10-06-structure-v2-final
+# restart-stamp: 2026-10-06-structure-v2-chain-lock
 # Active paper-trade analyst. Never places orders.
 on:
   workflow_dispatch:
@@ -85,5 +85,11 @@ jobs:
         if: success()
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh workflow run long-short-live-pool.yml --repo "$GITHUB_REPOSITORY" --ref main
+        run: |
+          active=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs?per_page=50" --jq '[.workflow_runs[] | select(.name=="Long Short Live Pool" and (.status=="queued" or .status=="in_progress" or .status=="pending"))] | length')
+          if test "$active" -gt 0; then
+            echo "Live Pool already active; skip duplicate dispatch."
+            exit 0
+          fi
+          gh workflow run long-short-live-pool.yml --repo "$GITHUB_REPOSITORY" --ref main
 
