@@ -1,8 +1,10 @@
+import json
 import time
 import unittest
 
 import long_short_analyst as analyst
 import long_short_data_router as router
+import long_short_live_pool as live
 
 
 class DiscoveryV23Tests(unittest.TestCase):
@@ -148,6 +150,37 @@ class DiscoveryV23Tests(unittest.TestCase):
             analyst.DATA_MODE = old_mode
             analyst.MAX_SYMBOLS = old_max
             analyst.MIN_24H_QUOTE_VOL = old_min
+
+
+    def test_radar_only_mover_cannot_become_confirmed_signal(self):
+        class Row(dict):
+            def keys(self):
+                return super().keys()
+
+        row=Row({
+            "direction":"LONG",
+            "trigger_level":100.0,
+            "retest_low":99.5,
+            "retest_high":100.0,
+            "invalidation":98.0,
+            "stage":"WATCH",
+            "structure_gate_json":json.dumps({"_radar_only":True}),
+        })
+        state=live.next_stage(
+            row,
+            price=100.5,
+            closed=100.4,
+            structure_quality={"qualified":True},
+        )
+        self.assertEqual(state,"WATCH")
+
+        state=live.next_stage(
+            row,
+            price=100.1,
+            closed=100.4,
+            structure_quality={"qualified":True},
+        )
+        self.assertEqual(state,"APPROACHING")
 
 
 if __name__ == "__main__":
