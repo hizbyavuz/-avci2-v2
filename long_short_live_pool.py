@@ -21,7 +21,7 @@ from datetime import datetime, timezone
 import requests
 from binance_notify import resolve_chat_id
 from long_short_simple_notify import classify_move, format_alert, queue_alert, claim_ready_alert, ack_claimed_alert, retry_claimed_alert
-from long_short_data_router import multi_venue_perp_klines, multi_venue_perp_universe
+from long_short_data_router import multi_venue_perp_klines, multi_venue_perp_universe, multi_venue_perp_depth
 
 ANALYST_DB=os.getenv("LS_DB","long_short_analyst.db")
 LIVE_DB=os.getenv("LS_LIVE_DB","long_short_live_pool.db")
@@ -90,6 +90,7 @@ def _book_vwap_quote(levels,quote_notional):
 def trigger_execution_proxy(symbol):
     """Capture one execution-cost snapshot after a TRIGGERED alert is sent."""
     source="BINANCE_FUTURES_BOOK"
+    external_proxy=False
     try:
         r=requests.get(
             FUTURES_DEPTH_URL,
@@ -100,8 +101,13 @@ def trigger_execution_proxy(symbol):
         r.raise_for_status()
         book=r.json()
     except Exception:
-        source="BINANCE_SPOT_BOOK_PROXY"
-        book=spot_get("/api/v3/depth",{"symbol":symbol,"limit":100})
+        try:
+            source="BINANCE_SPOT_BOOK_PROXY"
+            book=spot_get("/api/v3/depth",{"symbol":symbol,"limit":100})
+        except Exception:
+            book=multi_venue_perp_depth(symbol,100)
+            source=str(book.get("source") or "EXTERNAL_PERP_BOOK_PROXY")
+            external_proxy=True
 
     bids=book.get("bids",[]) or []
     asks=book.get("asks",[]) or []
@@ -110,10 +116,13 @@ def trigger_execution_proxy(symbol):
     best_bid=float(bids[0][0]); best_ask=float(asks[0][0])
     mid=(best_bid+best_ask)/2.0 if best_bid and best_ask else 0.0
     spread_bps=((best_ask-best_bid)/mid*10000.0) if mid else None
-    buy=_book_vwap_quote(asks,EXECUTION_PROXY_NOTIONAL)
-    sell=_book_vwap_quote(bids,EXECUTION_PROXY_NOTIONAL)
+    # External contract-size units are not guaranteed to equal Binance base
+    # quantity. Never fabricate a same-venue executable VWAP from that proxy.
+    buy=None if external_proxy else _book_vwap_quote(asks,EXECUTION_PROXY_NOTIONAL)
+    sell=None if external_proxy else _book_vwap_quote(bids,EXECUTION_PROXY_NOTIONAL)
     return {
         "source":source,
+        "external_proxy":bool(external_proxy),
         "observed_at_utc":now_iso(),
         "available":True,
         "notional_usdt":EXECUTION_PROXY_NOTIONAL,
@@ -263,10 +272,16 @@ def load_watchlist():
                 plan=p.get("setup_plan") or {}
                 gate=p.get("htf_gate") or {}
                 structure_gate=p.get("structure_gate") or {}
-                # Fail closed for Telegram/actionable watching: no alert is
-                # allowed unless every critical derivatives field was present
-                # in the analyst snapshot (native Binance or full multi-venue).
-                if not bool(p.get("derivatives_ready")):
+                analyst_status=str(r["status"] or "")
+                day_change_pct=float(p.get("day_change_pct") or 0.0)
+                radar_only=bool(
+                    analyst_status=="NO_TRADE"
+                    and abs(day_change_pct)>=RADAR_MIN_DAY_MOVE_PCT
+                )
+                # Fail closed for real WAIT/LONG/SHORT setups. Radar-only is
+                # observational and may remain visible with partial derivatives;
+                # _row_is_radar() prevents it from ever becoming confirmed/triggered.
+                if not bool(p.get("derivatives_ready")) and not radar_only:
                     continue
                 if not plan.get("direction") or plan.get("trigger_level") is None:
                     continue
@@ -290,12 +305,6 @@ def load_watchlist():
                 # still NO_TRADE may enter a separate radar-only pool; radar can
                 # never advance to CLOSE_CONFIRMED/TRIGGERED until a later analyst
                 # scan upgrades the frozen status.
-                analyst_status=str(r["status"] or "")
-                day_change_pct=float(p.get("day_change_pct") or 0.0)
-                radar_only=bool(
-                    analyst_status=="NO_TRADE"
-                    and abs(day_change_pct)>=RADAR_MIN_DAY_MOVE_PCT
-                )
                 if analyst_status not in ("WAIT","LONG","SHORT") and not radar_only:
                     continue
                 deriv_source=str(p.get("derivatives_source") or p.get("data_mode") or "UNKNOWN")
@@ -758,9 +767,12 @@ def queue_approaching_alert(row,price,structure_quality=None):
         except Exception:
             gate={}
         day_change=float(gate.get("_day_change_pct") or 0.0)
+        quality=(str(row["derivatives_quality"] or "UNKNOWN")
+                 if "derivatives_quality" in row.keys() else "UNKNOWN")
         msg=(f"🟡 OYNAK RADAR | {sym}\n"
              f"24s hareket: %{day_change:+.1f} | Yön eğilimi: {side_ball} {d}\n"
              f"5 dk izleme seviyesi: {fmtp(level)} | Şu an: {fmtp(price)}\n"
+             f"Türev veri kalitesi: {quality}\n"
              "Durum: Ana skor barajı henüz geçilmedi; bu bir işlem teyidi değildir.\n"
              "Güvenlik filtresi ve normal LONG/SHORT teyidi aynen korunuyor.")
         payload={
