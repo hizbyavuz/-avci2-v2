@@ -673,6 +673,51 @@ def early_message(row,estate,price,metrics):
         return (f"🔴 BOZULDU | {sym}\nErken {d} gözlemi geçersizleşti.")
     return None
 
+def queue_approaching_alert(row,price,structure_quality=None):
+    """Queue one non-actionable watch message when price first approaches the trigger.
+
+    This fixes the gap where APPROACHING was stored in DB but never surfaced to
+    Telegram. Confirmation rules remain unchanged.
+    """
+    sym=str(row["symbol"]); d=str(row["direction"])
+    level=float(row["trigger_level"])
+    inv=float(row["invalidation"] or 0.0)
+    t1=float(row["target1"] or 0.0)
+    t2=float(row["target2"] or 0.0)
+    side_ball="🟢" if d=="LONG" else "🔴"
+    relation="üstünde" if d=="LONG" else "altında"
+    expectation=(f"{fmtp(level)} üstü kapanış → ardından seviyeyi koruması."
+                 if d=="LONG" else
+                 f"{fmtp(level)} altı kapanış → ardından seviyenin altında kalması.")
+    sq=structure_quality or {}
+    full_gate=bool(sq.get("qualified"))
+    status_line=("Yapı + hacim + fake-breakout kapısı geçti."
+                 if full_gate else
+                 "Henüz işlem teyidi değil; yapı/alan/R ve kapanış teyidi bekleniyor.")
+    msg=(f"{side_ball} {d} İÇİN İZLE | {sym}\n"
+         f"5 dk mum {fmtp(level)} {relation} kapanırsa {d} güçlenir.\n"
+         f"Şu an fiyat: {fmtp(price)}\n"
+         f"Beklenen: {expectation}\n"
+         f"Durum: 🟡 {status_line}")
+    payload={
+        "stage":"WATCH_ALERT",
+        "early_state":"APPROACHING",
+        "price":float(price),
+        "trigger_level":level,
+        "invalidation":inv,
+        "target1":t1,
+        "target2":t2,
+        "data_cohort":str(row["data_cohort"] or "UNKNOWN") if "data_cohort" in row.keys() else "UNKNOWN",
+        "structure_gate_version":str(row["structure_gate_version"] or "") if "structure_gate_version" in row.keys() else "",
+        "analyst_scan_time":str(row["analyst_scan_time"] or ""),
+        "analyst_confidence":int(row["analyst_confidence"] or 0),
+        "source":"APPROACHING_STAGE",
+        "structure_qualified":full_gate,
+    }
+    priority=3 if int(row["analyst_confidence"] or 0)>=55 else 2
+    return queue_alert(sym,d,level,msg,priority,payload=payload)
+
+
 def message_for(row,stage,price,closed):
     sym=row["symbol"]; d=row["direction"]
     trig=float(row["trigger_level"]); rl=float(row["retest_low"]); rh=float(row["retest_high"])
@@ -894,6 +939,12 @@ def loop_once():
                     con.commit()
 
                 if new!=old:
+                    # APPROACHING is a user-facing watch state. Previously it was
+                    # stored in DB but never queued to Telegram.
+                    if new=="APPROACHING":
+                        queued=queue_approaching_alert(row,price,structure_quality)
+                        if queued:
+                            print(f"WATCH_ALERT_QUEUED {row['symbol']} {row['direction']} {float(row['trigger_level'])}",flush=True)
                     # For a 5m close confirmation, the market condition time is the
                     # completed candle close. For intrabar states, first observation
                     # is the most honest timestamp available without websocket trades.
