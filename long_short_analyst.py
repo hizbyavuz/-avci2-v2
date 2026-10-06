@@ -58,6 +58,12 @@ SLIPPAGE_BPS_PER_SIDE = float(os.getenv("LS_SLIPPAGE_BPS_PER_SIDE", "5"))
 SIGNAL_EXPIRY_MIN = int(os.getenv("LS_SIGNAL_EXPIRY_MIN", "180"))
 SIGNAL_COOLDOWN_MIN = int(os.getenv("LS_SIGNAL_COOLDOWN_MIN", "120"))
 TELEGRAM_SUMMARY = os.getenv("LS_TELEGRAM_SUMMARY", "0").strip().lower() in ("1","true","yes","on")
+STRUCTURE_GATE_VERSION = "LS_STRUCTURE_GATE_V2_2026-10-06"
+STRUCTURE_MIN_ROOM_PCT = float(os.getenv("LS_STRUCTURE_MIN_ROOM_PCT", "0.35"))
+STRUCTURE_MIN_VOLUME_MULT = float(os.getenv("LS_STRUCTURE_MIN_VOLUME_MULT", "1.10"))
+STRUCTURE_MIN_BODY_RATIO = float(os.getenv("LS_STRUCTURE_MIN_BODY_RATIO", "0.45"))
+STRUCTURE_MAX_REJECTION_WICK = float(os.getenv("LS_STRUCTURE_MAX_REJECTION_WICK", "0.35"))
+STRUCTURE_LEVEL_NEAR_PCT = float(os.getenv("LS_STRUCTURE_LEVEL_NEAR_PCT", "0.80"))
 
 EXCLUDED_BASES = {
     "USDC","FDUSD","TUSD","USDP","DAI","BUSD","EUR","TRY","BTCST",
@@ -317,6 +323,165 @@ def swing_levels(k, lookback=48):
     return {
         "support":support,"support2":support2,
         "resistance":resistance,"resistance2":resistance2,
+    }
+
+
+def _pivot_levels(k, lookback=120):
+    """Closed-candle local pivot highs/lows used to build support/resistance zones."""
+    highs=k["high"][-lookback:]
+    lows=k["low"][-lookback:]
+    out_hi=[]; out_lo=[]
+    for i in range(2,len(highs)-2):
+        if highs[i]>=highs[i-1] and highs[i]>=highs[i-2] and highs[i]>=highs[i+1] and highs[i]>=highs[i+2]:
+            out_hi.append(float(highs[i]))
+        if lows[i]<=lows[i-1] and lows[i]<=lows[i-2] and lows[i]<=lows[i+1] and lows[i]<=lows[i+2]:
+            out_lo.append(float(lows[i]))
+    return out_hi,out_lo
+
+
+def _cluster_levels(levels, tolerance):
+    if not levels:
+        return []
+    clusters=[]
+    for level in sorted(float(x) for x in levels):
+        placed=False
+        for cluster in clusters:
+            center=sum(cluster)/len(cluster)
+            if abs(level-center)<=tolerance:
+                cluster.append(level); placed=True; break
+        if not placed:
+            clusters.append([level])
+    return [
+        {"center":sum(xs)/len(xs),"low":min(xs)-tolerance*0.5,
+         "high":max(xs)+tolerance*0.5,"touches":len(xs)}
+        for xs in clusters
+    ]
+
+
+def _timeframe_zones(k, label, weight, price):
+    a=max(atr(k["raw"],14),price*0.001)
+    tolerance=max(price*0.0012,a*0.30)
+    piv_hi,piv_lo=_pivot_levels(k)
+    zones=[]
+    for side,levels in (("RESISTANCE",piv_hi),("SUPPORT",piv_lo)):
+        for z in _cluster_levels(levels,tolerance):
+            z.update({
+                "side":side,"timeframe":label,"weight":float(weight),
+                "strength":float(z["touches"])*float(weight),
+                "tolerance":tolerance,
+            })
+            zones.append(z)
+    return zones
+
+
+def _closed_candle_alignment(k, direction, trigger=None):
+    o=float(k["open"][-1]); h=float(k["high"][-1]); l=float(k["low"][-1]); c=float(k["close"][-1])
+    rng=max(h-l,1e-12)
+    body=abs(c-o)
+    body_ratio=body/rng
+    close_location=(c-l)/rng
+    volumes=[float(x) for x in k["volume"]]
+    base=mean(volumes[-21:-1]) if len(volumes)>=21 else mean(volumes[:-1])
+    vol_mult=(volumes[-1]/base) if base>0 else 1.0
+    if direction=="LONG":
+        direction_ok=c>o
+        close_location_ok=close_location>=0.65
+        rejection_wick=(h-max(o,c))/rng
+        fake_breakout=bool(trigger is not None and h>float(trigger) and c<=float(trigger))
+    else:
+        direction_ok=c<o
+        close_location_ok=close_location<=0.35
+        rejection_wick=(min(o,c)-l)/rng
+        fake_breakout=bool(trigger is not None and l<float(trigger) and c>=float(trigger))
+    return {
+        "open":o,"high":h,"low":l,"close":c,
+        "volume_mult":vol_mult,"body_ratio":body_ratio,
+        "close_location":close_location,"rejection_wick_ratio":rejection_wick,
+        "direction_ok":bool(direction_ok),
+        "volume_ok":bool(vol_mult>=STRUCTURE_MIN_VOLUME_MULT),
+        "body_ok":bool(body_ratio>=STRUCTURE_MIN_BODY_RATIO),
+        "close_location_ok":bool(close_location_ok),
+        "rejection_wick_ok":bool(rejection_wick<=STRUCTURE_MAX_REJECTION_WICK),
+        "fake_breakout":fake_breakout,
+    }
+
+
+def build_structure_gate(direction, price, setup_plan, k5, k15, k30, k1h):
+    """V2 live-alert structure layer. Does not alter frozen V1.9 scores or paper labels."""
+    trigger=float(setup_plan["trigger_level"])
+    zones=[]
+    for k,label,weight in ((k5,"5m",0.75),(k15,"15m",1.0),(k30,"30m",1.35),(k1h,"1h",1.75)):
+        zones.extend(_timeframe_zones(k,label,weight,price))
+
+    desired="RESISTANCE" if direction=="LONG" else "SUPPORT"
+    near_limit=max(trigger*STRUCTURE_LEVEL_NEAR_PCT/100.0,price*0.0015)
+    near=[z for z in zones if z["side"]==desired and abs(float(z["center"])-trigger)<=near_limit]
+    trigger_zone=max(near,key=lambda z:(z["strength"],-abs(z["center"]-trigger))) if near else None
+
+    if trigger_zone:
+        confluence_tfs={
+            z["timeframe"] for z in zones
+            if z["side"]==desired and abs(float(z["center"])-float(trigger_zone["center"]))<=max(float(z["tolerance"]),float(trigger_zone["tolerance"]))
+        }
+        confluence=len(confluence_tfs)
+        level_strength=float(trigger_zone["strength"])
+        touches=int(trigger_zone["touches"])
+        level_ok=bool(touches>=2 or confluence>=2 or level_strength>=2.0)
+    else:
+        confluence=0; level_strength=0.0; touches=0; level_ok=False
+
+    if direction=="LONG":
+        opposing=[z for z in zones if z["side"]=="RESISTANCE" and float(z["low"])>max(price,trigger)*(1.0003)]
+        opposing.sort(key=lambda z:float(z["low"]))
+        next_zone=opposing[0] if opposing else None
+        zone_room=((float(next_zone["low"])/price-1.0)*100.0) if next_zone else None
+        target=float(setup_plan.get("target1") or 0.0)
+        target_room=((target/price-1.0)*100.0) if target>price else 0.0
+    else:
+        opposing=[z for z in zones if z["side"]=="SUPPORT" and float(z["high"])<min(price,trigger)*(0.9997)]
+        opposing.sort(key=lambda z:float(z["high"]),reverse=True)
+        next_zone=opposing[0] if opposing else None
+        zone_room=((price/float(next_zone["high"])-1.0)*100.0) if next_zone else None
+        target=float(setup_plan.get("target1") or 0.0)
+        target_room=((price/target-1.0)*100.0) if 0<target<price else 0.0
+
+    room_candidates=[x for x in (zone_room,target_room) if x is not None and x>=0]
+    room_pct=min(room_candidates) if room_candidates else 0.0
+    room_ok=bool(room_pct>=STRUCTURE_MIN_ROOM_PCT)
+    candle=_closed_candle_alignment(k5,direction,trigger)
+
+    reasons=[]
+    if level_ok:
+        reasons.append(f"{desired.lower()} bölgesi tekrar/confluence ile doğrulandı")
+    else:
+        reasons.append("tetik seviyesi yeterli tekrar/confluence göstermiyor")
+    if room_ok:
+        reasons.append(f"sonraki engele alan var (%{room_pct:.2f})")
+    else:
+        reasons.append(f"sonraki destek/direnç çok yakın (%{room_pct:.2f})")
+
+    return {
+        "version":STRUCTURE_GATE_VERSION,
+        "qualified_precheck":bool(level_ok and room_ok),
+        "direction":direction,
+        "trigger_level":trigger,
+        "level_ok":level_ok,
+        "level_touches":touches,
+        "level_strength":level_strength,
+        "timeframe_confluence":confluence,
+        "room_ok":room_ok,
+        "room_pct":room_pct,
+        "trigger_zone":trigger_zone,
+        "next_opposing_zone":next_zone,
+        "last_closed_5m_alignment":candle,
+        "thresholds":{
+            "level_near_pct":STRUCTURE_LEVEL_NEAR_PCT,
+            "min_room_pct":STRUCTURE_MIN_ROOM_PCT,
+            "min_volume_mult":STRUCTURE_MIN_VOLUME_MULT,
+            "min_body_ratio":STRUCTURE_MIN_BODY_RATIO,
+            "max_rejection_wick_ratio":STRUCTURE_MAX_REJECTION_WICK,
+        },
+        "reasons":reasons,
     }
 
 
@@ -798,13 +963,17 @@ class Analysis:
 def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
     t1=timeframe_features(fetch_klines(symbol,"1m",120))
     if pre:
-        k5=pre["k5"]; t5=pre["t5"]; t15=pre["t15"]
+        k5=pre["k5"]; t5=pre["t5"]; k15=pre["k15"]; t15=pre["t15"]
     else:
         k5=fetch_klines(symbol,"5m",220)
         t5=timeframe_features(k5)
-        t15=timeframe_features(fetch_klines(symbol,"15m",220))
-    t1h=timeframe_features(fetch_htf_cached(symbol,"1h",220))
-    t4h=timeframe_features(fetch_htf_cached(symbol,"4h",220))
+        k15=fetch_klines(symbol,"15m",220)
+        t15=timeframe_features(k15)
+    k30=fetch_klines(symbol,"30m",160)
+    k1h=fetch_htf_cached(symbol,"1h",220)
+    k4h=fetch_htf_cached(symbol,"4h",220)
+    t1h=timeframe_features(k1h)
+    t4h=timeframe_features(k4h)
     htf_gate=build_htf_gate(symbol,t4h)
     oi=fetch_oi(symbol)
     funding=fetch_funding(symbol)
@@ -1036,11 +1205,13 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
     confidence=min(99, max(0, int(best*0.75 + edge*0.25)))
     preferred_direction="LONG" if long>short else "SHORT"
     setup_plan=build_setup_plan(preferred_direction,price,k5,t15,chart)
+    structure_gate=build_structure_gate(preferred_direction,price,setup_plan,k5,k15,k30,k1h)
     reversal_plan=build_reversal_plan(price,k5,t5,t15,day_change_pct)
     payload={
         "version":VERSION,"frozen_config_hash":FROZEN_CONFIG_HASH,"data_mode":DATA_MODE,"market_regime":market_regime,
         "day_change_pct":day_change_pct,"chart":chart,"setup_plan":setup_plan,"reversal_plan":reversal_plan,
-        "htf_gate":htf_gate,
+        "htf_gate":htf_gate,"structure_gate":structure_gate,
+        "live_alert_version":STRUCTURE_GATE_VERSION,
         "t1":t1,"t5":t5,"t15":t15,"t1h":t1h,"t4h":t4h,
         "oi":oi,"funding_pct":funding,"taker_ratio":taker,
         "long_short_ratio":ls,"depth_imbalance":depth,
