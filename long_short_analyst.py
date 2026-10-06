@@ -22,7 +22,7 @@ from typing import Any
 
 import requests
 from binance_notify import resolve_chat_id
-from long_short_data_router import multi_venue_derivatives, multi_venue_perp_universe, multi_venue_perp_klines
+from long_short_data_router import multi_venue_derivatives, multi_venue_perp_universe, multi_venue_perp_klines, multi_venue_perp_depth
 
 FUTURES_BASES = (
     "https://fapi.binance.com",
@@ -784,12 +784,23 @@ def _book_vwap(rows, quote_notional, side):
 
 
 def fetch_depth_metrics(symbol):
-    """Order-book imbalance plus executable-cost proxy from Binance's visible book.
+    """Order-book imbalance plus an explicitly-labelled execution proxy.
 
-    On geo-blocked runners this is Binance Spot, so the source is labelled as a
-    proxy rather than pretending it is the Futures execution book.
+    Native Binance Futures is preferred. On geo-blocked runners fget() uses
+    Binance Spot. Futures-only symbols may not exist on Spot, so discovery/radar
+    falls back to a public Bybit/Gate/OKX perp book instead of crashing the deep
+    scan. The external source is never labelled as Binance.
     """
-    d=fget("/fapi/v1/depth",{"symbol":symbol,"limit":100})
+    source=None
+    external_proxy=False
+    try:
+        d=fget("/fapi/v1/depth",{"symbol":symbol,"limit":100})
+        source="BINANCE_FUTURES_BOOK" if DATA_MODE=="BINANCE_FUTURES" else "BINANCE_SPOT_BOOK_PROXY"
+    except Exception:
+        d=multi_venue_perp_depth(symbol,100)
+        source=str(d.get("source") or "EXTERNAL_PERP_BOOK_PROXY")
+        external_proxy=True
+
     bids=d.get("bids",[]) or []
     asks=d.get("asks",[]) or []
     bid_notional=sum(float(p)*float(q) for p,q in bids[:20])
@@ -803,14 +814,21 @@ def fetch_depth_metrics(symbol):
     sizes=(100.0,PAPER_NOTIONAL_USDT,500.0)
     costs={}
     for n in sizes:
-        buy=_book_vwap(asks,n,"BUY")
-        sell=_book_vwap(bids,n,"SELL")
+        # Contract-size semantics differ across external venues. Do not pretend
+        # cross-venue book sizes are Binance-executable USDT depth. For radar
+        # fallbacks keep spread/imbalance but leave VWAP costs unavailable.
+        if external_proxy:
+            buy=sell=None
+        else:
+            buy=_book_vwap(asks,n,"BUY")
+            sell=_book_vwap(bids,n,"SELL")
         costs[str(int(n))]={
             "buy_bps":((buy/mid-1.0)*10000.0) if buy is not None and mid else None,
             "sell_bps":((1.0-sell/mid)*10000.0) if sell is not None and mid else None,
         }
     return {
-        "source":"BINANCE_FUTURES_BOOK" if DATA_MODE=="BINANCE_FUTURES" else "BINANCE_SPOT_BOOK_PROXY",
+        "source":source,
+        "external_proxy":bool(external_proxy),
         "imbalance":imbalance,
         "spread_bps":spread_bps,
         "costs":costs,
