@@ -1,5 +1,9 @@
 import json
+import sys
 import unittest
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from long_short_live_pool import live_structure_confirmation, STRUCTURE_GATE_VERSION
 
