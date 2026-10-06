@@ -38,7 +38,7 @@ EARLY_MIN_VOLUME_MULT=float(os.getenv("LS_EARLY_MIN_VOLUME_MULT","1.20"))
 EARLY_MIN_TAKER_SHARE=float(os.getenv("LS_EARLY_MIN_TAKER_SHARE","0.54"))
 EARLY_MAX_COMPRESSION_PCT=float(os.getenv("LS_EARLY_MAX_COMPRESSION_PCT","0.90"))
 EARLY_MIN_ROOM_PCT=float(os.getenv("LS_EARLY_MIN_ROOM_PCT","0.30"))
-STRUCTURE_GATE_VERSION="LS_STRUCTURE_GATE_V2_2026-10-06"
+STRUCTURE_GATE_VERSION="LS_STRUCTURE_GATE_V2_1_2026-10-06"
 STRUCTURE_MIN_VOLUME_MULT=float(os.getenv("LS_STRUCTURE_MIN_VOLUME_MULT","1.10"))
 STRUCTURE_MIN_BODY_RATIO=float(os.getenv("LS_STRUCTURE_MIN_BODY_RATIO","0.45"))
 STRUCTURE_MAX_REJECTION_WICK=float(os.getenv("LS_STRUCTURE_MAX_REJECTION_WICK","0.35"))
@@ -694,7 +694,7 @@ def send_recovery_notice_once(watch_count=0):
     the notice on every 5-minute handoff. If delivery fails, the marker is not
     written and the next live cycle can retry.
     """
-    key="long_short_watchlist_admission_fix_2026_10_06"
+    key="long_short_v2_1_production_notice_2026_10_06"
     try:
         with sqlite3.connect(NOTIFY_DB,timeout=10) as con:
             con.execute("""CREATE TABLE IF NOT EXISTS runtime_settings(
@@ -703,9 +703,10 @@ def send_recovery_notice_once(watch_count=0):
             if row:
                 return False
         sent_at=send_telegram(
-            "🟢 LONG/SHORT MOTOR AKTİF\\n"
+            "🟢 LONG/SHORT MOTOR AKTİF | V2.1\\n"
             f"Canlı havuz {int(watch_count)} coin izliyor.\\n"
-            "İzleme adayları artık canlı havuza giriyor; güçlü teyit için Structure Gate şartları aynen korunuyor."
+            "Production: teyitli devam motoru. Dönüş motoru kapalı.\\n"
+            "Sinyaller maliyet + alan + gerçek stop/T1/T2 ile kaydedilecek."
         )
         with sqlite3.connect(NOTIFY_DB,timeout=10) as con:
             con.execute("""INSERT OR REPLACE INTO runtime_settings(key,value,updated_at)
