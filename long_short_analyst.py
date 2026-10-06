@@ -1479,11 +1479,11 @@ def update_paper():
              next_funding_ms,funding_interval_hours)=row
             try:
                 if expires and now >= expires:
-                    last=fetch_klines(symbol,"5m",2)["close"][-1]
+                    last=fetch_klines(symbol,"5m",24)["close"][-1]
                     outcome="TIMEOUT"
                     exit_price=last
                 else:
-                    k=fetch_klines(symbol,"5m",3)
+                    k=fetch_klines(symbol,"5m",24)
                     hi=max(k["high"][-2:]); lo=min(k["low"][-2:]); last=k["close"][-1]
                     outcome=None; exit_price=None
                     # Pessimistic same-candle ordering: stop first.
