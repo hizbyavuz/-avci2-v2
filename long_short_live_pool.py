@@ -243,9 +243,10 @@ def load_watchlist():
                     continue
                 if not plan.get("direction") or plan.get("trigger_level") is None:
                     continue
-                # Early alerts are now allowed only when 1D/4H context agrees.
-                if not gate.get("qualified") or gate.get("direction")!=plan.get("direction"):
-                    continue
+                # 1D/4H gate belongs only to the observational EARLY layer.
+                # Do not let it suppress the normal confirmed continuation watcher:
+                # frozen V1.9 already scores/vetoes higher-timeframe trend, while
+                # early_observation() below still requires explicit HTF agreement.
                 # V2 live-alert gate: the trigger must be a repeated/confluent
                 # support/resistance zone with enough room to the next obstacle.
                 # This does not alter frozen V1.9 scoring or paper labels.
