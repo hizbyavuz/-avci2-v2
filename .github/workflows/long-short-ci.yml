@@ -37,6 +37,7 @@ jobs:
         run: |
           python -m unittest -v test_long_short_data_router.py test_long_short_core.py
           python tests/test_long_short_discovery_v23.py
+          python tests/test_long_short_live_levels.py
 
       - name: Live public derivatives smoke test
         run: |
