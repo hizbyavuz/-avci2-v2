@@ -703,6 +703,75 @@ def multi_venue_perp_universe() -> list[dict[str, Any]]:
     )
 
 
+
+def multi_venue_perp_depth(symbol: str, limit: int = 100) -> dict[str, Any]:
+    """Return one public USDT-perpetual order book for discovery/radar fallbacks.
+
+    This is explicitly a proxy when Binance Futures is geo-blocked. Callers must
+    preserve the returned provider and must not label it as a Binance execution
+    book.
+    """
+    n=max(5,min(int(limit),200))
+    errors=[]
+
+    try:
+        x=_bybit("/v5/market/orderbook", {
+            "category":"linear","symbol":symbol,"limit":min(n,200),
+        })
+        res=x.get("result") or {}
+        bids=res.get("b") or []
+        asks=res.get("a") or []
+        if bids and asks:
+            return {
+                "provider":"BYBIT_LINEAR",
+                "source":"BYBIT_LINEAR_BOOK_PROXY",
+                "bids":bids,
+                "asks":asks,
+            }
+    except Exception as exc:
+        errors.append("bybit:"+type(exc).__name__+":"+str(exc)[:100])
+
+    try:
+        base=symbol[:-4] if symbol.endswith("USDT") else symbol
+        contract=f"{base}_USDT"
+        book=_gate("/futures/usdt/order_book", {
+            "contract":contract,"limit":min(n,100),"with_id":"true",
+        })
+        bids=[[r.get("p"),r.get("s")] for r in (book.get("bids") or [])]
+        asks=[[r.get("p"),r.get("s")] for r in (book.get("asks") or [])]
+        if bids and asks:
+            return {
+                "provider":"GATE_FUTURES",
+                "source":"GATE_FUTURES_BOOK_PROXY",
+                "bids":bids,
+                "asks":asks,
+            }
+    except Exception as exc:
+        errors.append("gate:"+type(exc).__name__+":"+str(exc)[:100])
+
+    try:
+        base=symbol[:-4] if symbol.endswith("USDT") else symbol
+        inst=f"{base}-USDT-SWAP"
+        rows=_okx("/api/v5/market/books", {"instId":inst,"sz":str(min(n,400))})
+        row=rows[0] if rows else {}
+        bids=row.get("bids") or []
+        asks=row.get("asks") or []
+        if bids and asks:
+            # OKX rows may contain extra fields; consumers only need px/size.
+            return {
+                "provider":"OKX_SWAP",
+                "source":"OKX_SWAP_BOOK_PROXY",
+                "bids":[r[:2] for r in bids],
+                "asks":[r[:2] for r in asks],
+            }
+    except Exception as exc:
+        errors.append("okx:"+type(exc).__name__+":"+str(exc)[:100])
+
+    raise RuntimeError(
+        f"{symbol}: no external perp order book; " + " | ".join(errors)
+    )
+
+
 def multi_venue_perp_klines(symbol: str, interval: str, limit: int = 220) -> dict[str, Any]:
     """Return normalized perpetual candles from Bybit, then Gate.
 
