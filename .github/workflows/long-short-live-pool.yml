@@ -33,6 +33,11 @@ jobs:
       - name: Install
         run: pip install requests==2.32.5
 
+      - name: Compile and test live structure layer
+        run: |
+          python -m py_compile long_short_live_pool.py long_short_reversal_live.py long_short_simple_notify.py
+          python tests/test_long_short_structure_gate_v2.py
+
       - name: Restore latest analyst state
         env:
           GH_TOKEN: ${{ github.token }}
