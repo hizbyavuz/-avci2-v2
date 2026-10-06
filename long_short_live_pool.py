@@ -271,11 +271,28 @@ def load_watchlist():
                     cohort="SPOT_PLUS_OTHER_OR_PARTIAL"
                 else:
                     cohort="UNKNOWN"
+
+                # Treat support/resistance as a band. LONG must clear the upper
+                # edge of the resistance zone; SHORT must clear the lower edge
+                # of the support zone. The retest then uses that same band.
+                zone=structure_gate.get("trigger_zone") or {}
+                raw_trigger=float(plan["trigger_level"])
+                zone_low=float(zone.get("low") or raw_trigger)
+                zone_high=float(zone.get("high") or raw_trigger)
+                if plan["direction"]=="LONG":
+                    live_trigger=zone_high
+                    live_retest_low=max(float(plan.get("retest_low") or raw_trigger),zone_low)
+                    live_retest_high=live_trigger
+                else:
+                    live_trigger=zone_low
+                    live_retest_low=live_trigger
+                    live_retest_high=min(float(plan.get("retest_high") or raw_trigger),zone_high)
+
                 out.append({
                     "symbol":r["symbol"],"direction":plan["direction"],
-                    "trigger_level":float(plan["trigger_level"]),
-                    "retest_low":float(plan.get("retest_low") or plan["trigger_level"]),
-                    "retest_high":float(plan.get("retest_high") or plan["trigger_level"]),
+                    "trigger_level":live_trigger,
+                    "retest_low":live_retest_low,
+                    "retest_high":live_retest_high,
                     "invalidation":float(plan.get("invalidation") or 0),
                     "target1":float(plan.get("target1") or 0),
                     "target2":float(plan.get("target2") or 0),
