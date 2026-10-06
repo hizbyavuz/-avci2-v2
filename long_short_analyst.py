@@ -58,8 +58,11 @@ SLIPPAGE_BPS_PER_SIDE = float(os.getenv("LS_SLIPPAGE_BPS_PER_SIDE", "5"))
 SIGNAL_EXPIRY_MIN = int(os.getenv("LS_SIGNAL_EXPIRY_MIN", "180"))
 SIGNAL_COOLDOWN_MIN = int(os.getenv("LS_SIGNAL_COOLDOWN_MIN", "120"))
 TELEGRAM_SUMMARY = os.getenv("LS_TELEGRAM_SUMMARY", "0").strip().lower() in ("1","true","yes","on")
-STRUCTURE_GATE_VERSION = "LS_STRUCTURE_GATE_V2_2026-10-06"
-STRUCTURE_MIN_ROOM_PCT = float(os.getenv("LS_STRUCTURE_MIN_ROOM_PCT", "0.35"))
+STRUCTURE_GATE_VERSION = "LS_STRUCTURE_GATE_V2_1_2026-10-06"
+STRUCTURE_MIN_ROOM_FLOOR_PCT = float(os.getenv("LS_STRUCTURE_MIN_ROOM_FLOOR_PCT", "0.90"))
+STRUCTURE_MIN_ROOM_COST_MULT = float(os.getenv("LS_STRUCTURE_MIN_ROOM_COST_MULT", "3.0"))
+VALIDATION_MIN_SLIPPAGE_BPS_PER_SIDE = float(os.getenv("LS_VALIDATION_MIN_SLIPPAGE_BPS_PER_SIDE", "10"))
+STRUCTURE_MIN_NET_T1_R = float(os.getenv("LS_STRUCTURE_MIN_NET_T1_R", "1.0"))
 STRUCTURE_MIN_VOLUME_MULT = float(os.getenv("LS_STRUCTURE_MIN_VOLUME_MULT", "1.10"))
 STRUCTURE_MIN_BODY_RATIO = float(os.getenv("LS_STRUCTURE_MIN_BODY_RATIO", "0.45"))
 STRUCTURE_MAX_REJECTION_WICK = float(os.getenv("LS_STRUCTURE_MAX_REJECTION_WICK", "0.35"))
@@ -406,6 +409,35 @@ def _closed_candle_alignment(k, direction, trigger=None):
     }
 
 
+def structure_min_round_trip_cost_pct():
+    """Minimum two-sided cost used by live V2.1 gating, expressed in percent."""
+    return 2.0 * (FEE_BPS_PER_SIDE + VALIDATION_MIN_SLIPPAGE_BPS_PER_SIDE) / 100.0
+
+
+def structure_required_room_pct():
+    """Room must be large enough that costs are not the whole trade."""
+    return max(STRUCTURE_MIN_ROOM_FLOOR_PCT,
+               structure_min_round_trip_cost_pct() * STRUCTURE_MIN_ROOM_COST_MULT)
+
+
+def structure_net_t1_r(direction, trigger, invalidation, target1):
+    """Net Target-1 reward/risk using the exact user-facing stop/target levels."""
+    trigger=float(trigger or 0.0)
+    invalidation=float(invalidation or 0.0)
+    target1=float(target1 or 0.0)
+    if trigger<=0 or invalidation<=0 or target1<=0:
+        return None
+    risk_pct=abs(trigger-invalidation)/trigger*100.0
+    if risk_pct<=0:
+        return None
+    if direction=="LONG":
+        reward_pct=(target1/trigger-1.0)*100.0
+    else:
+        reward_pct=(trigger/target1-1.0)*100.0 if target1 else -999.0
+    net_reward_pct=reward_pct-structure_min_round_trip_cost_pct()
+    return net_reward_pct/risk_pct
+
+
 def build_structure_gate(direction, price, setup_plan, k5, k15, k30, k1h):
     """V2 live-alert structure layer. Does not alter frozen V1.9 scores or paper labels."""
     trigger=float(setup_plan["trigger_level"])
@@ -447,7 +479,10 @@ def build_structure_gate(direction, price, setup_plan, k5, k15, k30, k1h):
 
     room_candidates=[x for x in (zone_room,target_room) if x is not None and x>=0]
     room_pct=min(room_candidates) if room_candidates else 0.0
-    room_ok=bool(room_pct>=STRUCTURE_MIN_ROOM_PCT)
+    required_room_pct=structure_required_room_pct()
+    room_ok=bool(room_pct>=required_room_pct)
+    net_t1_r=structure_net_t1_r(direction,trigger,setup_plan.get("invalidation"),setup_plan.get("target1"))
+    rr_ok=bool(net_t1_r is not None and net_t1_r>=STRUCTURE_MIN_NET_T1_R)
     candle=_closed_candle_alignment(k5,direction,trigger)
 
     reasons=[]
@@ -456,13 +491,17 @@ def build_structure_gate(direction, price, setup_plan, k5, k15, k30, k1h):
     else:
         reasons.append("tetik seviyesi yeterli tekrar/confluence göstermiyor")
     if room_ok:
-        reasons.append(f"sonraki engele alan var (%{room_pct:.2f})")
+        reasons.append(f"sonraki engele alan var (%{room_pct:.2f}; min %{required_room_pct:.2f})")
     else:
-        reasons.append(f"sonraki destek/direnç çok yakın (%{room_pct:.2f})")
+        reasons.append(f"sonraki destek/direnç çok yakın (%{room_pct:.2f}; min %{required_room_pct:.2f})")
+    if rr_ok:
+        reasons.append(f"T1 maliyet sonrası R yeterli ({net_t1_r:.2f}R)")
+    else:
+        reasons.append("T1 maliyet sonrası R yetersiz")
 
     return {
         "version":STRUCTURE_GATE_VERSION,
-        "qualified_precheck":bool(level_ok and room_ok),
+        "qualified_precheck":bool(level_ok and room_ok and rr_ok),
         "direction":direction,
         "trigger_level":trigger,
         "level_ok":level_ok,
@@ -471,12 +510,19 @@ def build_structure_gate(direction, price, setup_plan, k5, k15, k30, k1h):
         "timeframe_confluence":confluence,
         "room_ok":room_ok,
         "room_pct":room_pct,
+        "required_room_pct":required_room_pct,
+        "minimum_round_trip_cost_pct":structure_min_round_trip_cost_pct(),
+        "net_t1_r":net_t1_r,
+        "rr_ok":rr_ok,
         "trigger_zone":trigger_zone,
         "next_opposing_zone":next_zone,
         "last_closed_5m_alignment":candle,
         "thresholds":{
             "level_near_pct":STRUCTURE_LEVEL_NEAR_PCT,
-            "min_room_pct":STRUCTURE_MIN_ROOM_PCT,
+            "min_room_floor_pct":STRUCTURE_MIN_ROOM_FLOOR_PCT,
+            "min_room_cost_multiple":STRUCTURE_MIN_ROOM_COST_MULT,
+            "validation_min_slippage_bps_per_side":VALIDATION_MIN_SLIPPAGE_BPS_PER_SIDE,
+            "min_net_t1_r":STRUCTURE_MIN_NET_T1_R,
             "min_volume_mult":STRUCTURE_MIN_VOLUME_MULT,
             "min_body_ratio":STRUCTURE_MIN_BODY_RATIO,
             "max_rejection_wick_ratio":STRUCTURE_MAX_REJECTION_WICK,
