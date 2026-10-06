@@ -9,6 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import long_short_live_pool as lp
 from long_short_live_pool import live_structure_confirmation, STRUCTURE_GATE_VERSION
+from long_short_analyst import structure_required_room_pct, structure_min_round_trip_cost_pct, structure_net_t1_r
 
 
 def _row(direction="LONG", trigger=100.0):
@@ -26,6 +27,15 @@ def _row(direction="LONG", trigger=100.0):
 
 
 class StructureGateV2Tests(unittest.TestCase):
+    def test_v21_cost_room_floor_is_ninety_bps(self):
+        self.assertAlmostEqual(structure_min_round_trip_cost_pct(),0.30,places=6)
+        self.assertAlmostEqual(structure_required_room_pct(),0.90,places=6)
+
+    def test_v21_net_t1_r_uses_real_message_levels(self):
+        # LONG: trigger 100, stop 99 = 1% risk, T1 101.5 = 1.5% gross reward.
+        # After 0.30% round trip cost => 1.20R net.
+        self.assertAlmostEqual(structure_net_t1_r("LONG",100,99,101.5),1.20,places=6)
+
     def test_strong_long_breakout_passes(self):
         q=live_structure_confirmation(_row(),102.0,{
             "closed_5m_open":99.8,
