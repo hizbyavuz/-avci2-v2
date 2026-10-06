@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """Shared anti-spam + compact Telegram formatting for Long/Short observers."""
 from __future__ import annotations
-import os, sqlite3, time
+import json, os, sqlite3, time
 
 DB=os.getenv("LS_SIMPLE_NOTIFY_DB","long_short_simple_notify.db")
 COOLDOWN_SECONDS=int(os.getenv("LS_SIMPLE_NOTIFY_COOLDOWN","3600"))
@@ -22,6 +22,9 @@ def init_db():
             PRIMARY KEY(symbol,fingerprint)
         )""")
         con.execute("CREATE INDEX IF NOT EXISTS ix_simple_alert_symbol_time ON sent_alerts(symbol,sent_at_epoch)")
+        sent_cols={r[1] for r in con.execute("PRAGMA table_info(sent_alerts)")}
+        if "payload_json" not in sent_cols:
+            con.execute("ALTER TABLE sent_alerts ADD COLUMN payload_json TEXT")
         con.execute("""CREATE TABLE IF NOT EXISTS pending_alerts(
             symbol TEXT PRIMARY KEY,
             direction TEXT NOT NULL,
@@ -32,6 +35,9 @@ def init_db():
             queued_at_epoch REAL NOT NULL,
             updated_at_epoch REAL NOT NULL
         )""")
+        pending_cols={r[1] for r in con.execute("PRAGMA table_info(pending_alerts)")}
+        if "payload_json" not in pending_cols:
+            con.execute("ALTER TABLE pending_alerts ADD COLUMN payload_json TEXT")
         con.execute("""CREATE TABLE IF NOT EXISTS scheduler_state(
             key TEXT PRIMARY KEY,
             value REAL NOT NULL
@@ -53,29 +59,33 @@ def can_send(symbol,direction,level):
             return False
     return True
 
-def mark_sent(symbol,direction,level):
+def mark_sent(symbol,direction,level,payload=None):
     init_db()
     fp=fingerprint(symbol,direction,level)
+    payload_json=json.dumps(payload,ensure_ascii=False,separators=(",",":")) if payload is not None else None
     with sqlite3.connect(DB) as con:
-        con.execute("INSERT OR REPLACE INTO sent_alerts(symbol,direction,level,fingerprint,sent_at_epoch) VALUES(?,?,?,?,?)",
-                    (symbol,direction,float(level),fp,time.time()))
+        con.execute("""INSERT OR REPLACE INTO sent_alerts(
+            symbol,direction,level,fingerprint,sent_at_epoch,payload_json
+        ) VALUES(?,?,?,?,?,?)""",
+                    (symbol,direction,float(level),fp,time.time(),payload_json))
 
-def queue_alert(symbol,direction,level,message,priority=0):
-    """Queue at most one current alert per coin; shared across both live watchers."""
+def queue_alert(symbol,direction,level,message,priority=0,payload=None):
+    """Queue at most one current alert per coin; shared across observers."""
     init_db()
     if not can_send(symbol,direction,level):
         return False
     fp=fingerprint(symbol,direction,level)
     now=time.time()
+    payload_json=json.dumps(payload,ensure_ascii=False,separators=(",",":")) if payload is not None else None
     with sqlite3.connect(DB) as con:
         con.execute("""INSERT INTO pending_alerts(
-            symbol,direction,level,fingerprint,message,priority,queued_at_epoch,updated_at_epoch
-        ) VALUES(?,?,?,?,?,?,?,?)
+            symbol,direction,level,fingerprint,message,priority,queued_at_epoch,updated_at_epoch,payload_json
+        ) VALUES(?,?,?,?,?,?,?,?,?)
         ON CONFLICT(symbol) DO UPDATE SET
             direction=excluded.direction,level=excluded.level,fingerprint=excluded.fingerprint,
             message=excluded.message,priority=MAX(pending_alerts.priority,excluded.priority),
-            updated_at_epoch=excluded.updated_at_epoch""",
-            (symbol,direction,float(level),fp,message,int(priority),now,now))
+            updated_at_epoch=excluded.updated_at_epoch,payload_json=excluded.payload_json""",
+            (symbol,direction,float(level),fp,message,int(priority),now,now,payload_json))
     return True
 
 def claim_ready_alert():
@@ -93,13 +103,13 @@ def claim_ready_alert():
         if row and now<float(row[0]):
             con.commit()
             return None
-        item=con.execute("""SELECT symbol,direction,level,fingerprint,message,priority
+        item=con.execute("""SELECT symbol,direction,level,fingerprint,message,priority,payload_json
                             FROM pending_alerts
                             ORDER BY priority DESC,queued_at_epoch ASC LIMIT 1""").fetchone()
         if not item:
             con.commit()
             return None
-        symbol,direction,level,fp,message,priority=item
+        symbol,direction,level,fp,message,priority,payload_json=item
         # Reserve the global slot and remove this item from the queue so the two
         # parallel watchers cannot claim the same alert.
         con.execute("""INSERT INTO scheduler_state(key,value) VALUES('next_allowed_epoch',?)
@@ -110,6 +120,8 @@ def claim_ready_alert():
         return {
             "symbol":symbol,"direction":direction,"level":float(level),
             "fingerprint":fp,"message":message,"priority":int(priority),
+            "payload_json":payload_json,
+            "payload":json.loads(payload_json) if payload_json else None,
         }
     except Exception:
         con.rollback()
@@ -120,7 +132,7 @@ def claim_ready_alert():
 
 def ack_claimed_alert(item):
     """Mark a claimed alert sent only after Telegram delivery succeeds."""
-    mark_sent(item["symbol"],item["direction"],item["level"])
+    mark_sent(item["symbol"],item["direction"],item["level"],item.get("payload"))
 
 
 def retry_claimed_alert(item,retry_after_seconds=60):
@@ -129,14 +141,14 @@ def retry_claimed_alert(item,retry_after_seconds=60):
     now=time.time()
     with sqlite3.connect(DB) as con:
         con.execute("""INSERT INTO pending_alerts(
-            symbol,direction,level,fingerprint,message,priority,queued_at_epoch,updated_at_epoch
-        ) VALUES(?,?,?,?,?,?,?,?)
+            symbol,direction,level,fingerprint,message,priority,queued_at_epoch,updated_at_epoch,payload_json
+        ) VALUES(?,?,?,?,?,?,?,?,?)
         ON CONFLICT(symbol) DO UPDATE SET
             direction=excluded.direction,level=excluded.level,fingerprint=excluded.fingerprint,
             message=excluded.message,priority=MAX(pending_alerts.priority,excluded.priority),
-            updated_at_epoch=excluded.updated_at_epoch""",
+            updated_at_epoch=excluded.updated_at_epoch,payload_json=excluded.payload_json""",
             (item["symbol"],item["direction"],float(item["level"]),item["fingerprint"],
-             item["message"],int(item.get("priority",0)),now,now))
+             item["message"],int(item.get("priority",0)),now,now,item.get("payload_json")))
         con.execute("""INSERT INTO scheduler_state(key,value) VALUES('next_allowed_epoch',?)
                        ON CONFLICT(key) DO UPDATE SET value=excluded.value""",
                     (now+max(15,int(retry_after_seconds)),))
