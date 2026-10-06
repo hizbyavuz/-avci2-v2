@@ -1,0 +1,60 @@
+{
+  "version": "LS_STRUCTURE_GATE_V2_1_2026-10-06",
+  "status": "CANDIDATE_HARDENING",
+  "base_model": "LSA_V1_9_CLOSED_CANDLE_PARALLEL_VALIDATION_2026-10-05",
+  "supersedes_live_layer": "LS_STRUCTURE_GATE_V2_2026-10-06",
+  "changes_frozen_v1_9_scores": false,
+  "freeze_policy": {
+    "threshold_changes_forbidden_until_independent_triggered_episodes": 100,
+    "critical_bug_fix_requires_new_version": true,
+    "target_serious_evidence_episodes": 200
+  },
+  "cost_model": {
+    "fee_bps_per_side": 5,
+    "validation_min_slippage_bps_per_side": 10,
+    "round_trip_min_cost_bps": 30,
+    "minimum_room_cost_multiple": 3.0,
+    "minimum_room_floor_pct": 0.90
+  },
+  "support_resistance": {
+    "timeframes": ["5m","15m","30m","1h"],
+    "pivot_neighbors": 2,
+    "zone_tolerance": "max(0.12% of price, 0.30 ATR)",
+    "weights": {"5m":0.75,"15m":1.0,"30m":1.35,"1h":1.75},
+    "trigger_level_near_pct": 0.80,
+    "qualified_if": ">=2 touches OR >=2 timeframe confluence OR level strength >=2.0",
+    "break_rule": "LONG: close above resistance-zone high; SHORT: close below support-zone low"
+  },
+  "reward_risk": {
+    "minimum_net_t1_r": 1.0,
+    "entry_reference": "zone-edge trigger",
+    "stop_reference": "Telegram invalidation",
+    "target_reference": "Telegram target1",
+    "cost_adjusted": true
+  },
+  "breakout_candle": {
+    "minimum_5m_volume_multiple": 1.10,
+    "minimum_body_to_range_ratio": 0.45,
+    "long_close_location_min": 0.65,
+    "short_close_location_max": 0.35,
+    "maximum_rejection_wick_ratio": 0.35
+  },
+  "telegram": {
+    "production_engine": "CONTINUATION_ONLY",
+    "reversal_worker_enabled": false,
+    "early_layer": "RESEARCH_ONLY_WITH_WATCH_ALERTS",
+    "heartbeat_minutes": 60,
+    "close_confirmed_requires_full_gate": true,
+    "triggered_requires_retest": true
+  },
+  "validation": {
+    "actual_message_levels_required": true,
+    "stages": ["CLOSE_CONFIRMED","TRIGGERED"],
+    "horizons_minutes": [15,60,240],
+    "record_watch_no_confirmation_controls": true,
+    "record_delay_percentiles": true,
+    "native_binance_primary_only": true,
+    "fallback_cohorts_secondary_only": true,
+    "same_bar_ambiguity": "STOP_FIRST"
+  }
+}
