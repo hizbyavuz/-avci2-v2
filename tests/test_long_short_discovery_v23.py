@@ -1,6 +1,10 @@
 import json
+import sys
 import time
 import unittest
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import long_short_analyst as analyst
 import long_short_data_router as router
