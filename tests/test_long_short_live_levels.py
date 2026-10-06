@@ -1,7 +1,11 @@
 import json
 import sqlite3
+import sys
 import tempfile
 import unittest
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import long_short_live_pool as live
 
