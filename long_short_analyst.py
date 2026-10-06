@@ -1430,7 +1430,8 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
     reversal_plan=build_reversal_plan(price,k5,t5,t15,day_change_pct)
     payload={
         "version":VERSION,"frozen_config_hash":FROZEN_CONFIG_HASH,"data_mode":DATA_MODE,"market_regime":market_regime,
-        "day_change_pct":day_change_pct,"quote_volume_24h":pre_qv,"actionable_liquidity_ok":actionable_liquidity_ok,\n        "discovery_meta":discovery_meta,"chart":chart,"setup_plan":setup_plan,"reversal_plan":reversal_plan,
+        "day_change_pct":day_change_pct,"quote_volume_24h":pre_qv,"actionable_liquidity_ok":actionable_liquidity_ok,
+        "discovery_meta":discovery_meta,"chart":chart,"setup_plan":setup_plan,"reversal_plan":reversal_plan,
         "htf_gate":htf_gate,"structure_gate":structure_gate,
         "live_alert_version":STRUCTURE_GATE_VERSION,
         "t1":t1,"t5":t5,"t15":t15,"t1h":t1h,"t4h":t4h,
