@@ -21,6 +21,7 @@ from datetime import datetime, timezone
 import requests
 from binance_notify import resolve_chat_id
 from long_short_simple_notify import classify_move, format_alert, queue_alert, claim_ready_alert, ack_claimed_alert, retry_claimed_alert
+from long_short_data_router import multi_venue_perp_klines, multi_venue_perp_universe
 
 ANALYST_DB=os.getenv("LS_DB","long_short_analyst.db")
 LIVE_DB=os.getenv("LS_LIVE_DB","long_short_live_pool.db")
@@ -49,6 +50,7 @@ HEALTH_INTERVAL_SECONDS=int(os.getenv("LS_TELEGRAM_HEALTH_SECONDS","3600"))
 SPOT_BASES=("https://data-api.binance.vision","https://api.binance.com")
 FUTURES_DEPTH_URL="https://fapi.binance.com/fapi/v1/depth"
 EXECUTION_PROXY_NOTIONAL=float(os.getenv("LS_PAPER_NOTIONAL_USDT","250"))
+_PERP_STATS_CACHE={"ts":0.0,"rows":{}}
 
 def now_iso():
     return datetime.now(timezone.utc).isoformat()
@@ -462,14 +464,43 @@ def _true_range(rows):
         vals.append(max(ph-pl,abs(ph-pc),abs(pl-pc)))
     return sum(vals[-14:])/max(1,len(vals[-14:]))
 
+def _perp_stats(symbol):
+    """One-minute cached all-market perp stats for futures-only live symbols."""
+    now=time.time()
+    if now-float(_PERP_STATS_CACHE.get("ts") or 0.0)>60.0:
+        try:
+            rows=multi_venue_perp_universe()
+            _PERP_STATS_CACHE["rows"]={str(x.get("symbol") or ""):x for x in rows}
+            _PERP_STATS_CACHE["ts"]=now
+        except Exception:
+            # Preserve the last good cache on transient provider errors.
+            _PERP_STATS_CACHE["ts"]=now
+    return (_PERP_STATS_CACHE.get("rows") or {}).get(symbol) or {}
+
+
 def market_snapshot(symbol):
     # 1m data lets the observational layer see a breakout while it is forming.
     # The frozen continuation engine still uses the last completed 5m close below.
-    kl5=spot_get("/api/v3/klines",{"symbol":symbol,"interval":"5m","limit":30})
-    kl1=spot_get("/api/v3/klines",{"symbol":symbol,"interval":"1m","limit":30})
-    ticker=spot_get("/api/v3/ticker/price",{"symbol":symbol})
-    stats=spot_get("/api/v3/ticker/24hr",{"symbol":symbol})
-    price=float(ticker["price"])
+    try:
+        kl5=spot_get("/api/v3/klines",{"symbol":symbol,"interval":"5m","limit":30})
+        kl1=spot_get("/api/v3/klines",{"symbol":symbol,"interval":"1m","limit":30})
+        ticker=spot_get("/api/v3/ticker/price",{"symbol":symbol})
+        stats=spot_get("/api/v3/ticker/24hr",{"symbol":symbol})
+        price=float(ticker["price"])
+    except Exception:
+        # Futures-only listings can be absent from Binance Spot. Use the same
+        # public perpetual chart router as the analyst instead of silently losing
+        # the coin from the near-live watcher.
+        kl5=(multi_venue_perp_klines(symbol,"5m",30).get("rows") or [])
+        kl1=(multi_venue_perp_klines(symbol,"1m",30).get("rows") or [])
+        if len(kl5)<3 or len(kl1)<3:
+            raise RuntimeError(f"{symbol}: insufficient external live candles")
+        price=float(kl1[-1][4])
+        ps=_perp_stats(symbol)
+        stats={
+            "quoteVolume":str(float(ps.get("quote_volume") or 0.0)),
+            "priceChangePercent":str(float(ps.get("day_change_pct") or 0.0)),
+        }
     row=kl5[-2] if len(kl5)>=2 else kl5[-1]
     closed=float(row[4])
     close_ms=int(row[6])
