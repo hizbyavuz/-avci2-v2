@@ -626,6 +626,169 @@ def multi_venue_derivatives(symbol: str) -> dict[str, Any]:
     return out
 
 
+def multi_venue_perp_universe() -> list[dict[str, Any]]:
+    """Broad USDT-perpetual discovery feed for geo-blocked Binance runners.
+
+    This is a discovery layer only. It never claims that a symbol is Binance-native.
+    Bybit/Gate turnover is used to avoid collapsing the candidate universe to
+    Binance Spot volume when Binance Futures REST returns HTTP 451.
+    """
+    merged: dict[str, dict[str, Any]] = {}
+
+    def add(symbol, quote_volume, last_price, day_change_pct, provider):
+        sym = str(symbol or "").upper().replace("_", "")
+        if not sym.endswith("USDT"):
+            return
+        qv = _fv(quote_volume, 0.0) or 0.0
+        px = _fv(last_price, 0.0) or 0.0
+        ch = _fv(day_change_pct, 0.0) or 0.0
+        if qv <= 0 or px <= 0:
+            return
+        row = merged.setdefault(sym, {
+            "symbol": sym,
+            "quote_volume": 0.0,
+            "last_price": px,
+            "day_change_pct": ch,
+            "providers": [],
+            "provider_stats": {},
+        })
+        row["providers"].append(provider) if provider not in row["providers"] else None
+        row["provider_stats"][provider] = {
+            "quote_volume": qv,
+            "last_price": px,
+            "day_change_pct": ch,
+        }
+        # For ranking, retain the most liquid venue's change/price snapshot.
+        if qv >= float(row.get("quote_volume") or 0.0):
+            row["quote_volume"] = qv
+            row["last_price"] = px
+            row["day_change_pct"] = ch
+
+    try:
+        x = _bybit("/v5/market/tickers", {"category": "linear"})
+        for r in (x["result"].get("list") or []):
+            sym = str(r.get("symbol") or "")
+            if not sym.endswith("USDT"):
+                continue
+            turnover = _fv(r.get("turnover24h"), 0.0) or 0.0
+            change = (_fv(r.get("price24hPcnt"), 0.0) or 0.0) * 100.0
+            add(sym, turnover, r.get("lastPrice"), change, "BYBIT_LINEAR")
+    except Exception:
+        pass
+
+    try:
+        rows = _gate("/futures/usdt/tickers")
+        for r in (rows or []):
+            contract = str(r.get("contract") or "")
+            if not contract.endswith("_USDT"):
+                continue
+            sym = contract.replace("_", "")
+            last = _fv(r.get("last"), 0.0) or 0.0
+            qv = (
+                _fv(r.get("volume_24h_quote"))
+                or _fv(r.get("volume_24h_settle"))
+                or 0.0
+            )
+            if not qv:
+                base_vol = _fv(r.get("volume_24h_base")) or _fv(r.get("volume_24h")) or 0.0
+                qv = base_vol * last
+            add(sym, qv, last, r.get("change_percentage"), "GATE_FUTURES")
+    except Exception:
+        pass
+
+    return sorted(
+        merged.values(),
+        key=lambda r: (abs(float(r.get("day_change_pct") or 0.0)), float(r.get("quote_volume") or 0.0)),
+        reverse=True,
+    )
+
+
+def multi_venue_perp_klines(symbol: str, interval: str, limit: int = 220) -> dict[str, Any]:
+    """Return normalized perpetual candles from Bybit, then Gate.
+
+    Rows follow Binance-kline positions used by long_short_analyst.parse_klines:
+    open time, OHLC, base volume, close time, quote volume, trades, taker fields.
+    """
+    interval_ms = {
+        "1m": 60_000,
+        "5m": 300_000,
+        "15m": 900_000,
+        "30m": 1_800_000,
+        "1h": 3_600_000,
+        "4h": 14_400_000,
+        "1d": 86_400_000,
+    }
+    bybit_interval = {
+        "1m": "1", "5m": "5", "15m": "15", "30m": "30",
+        "1h": "60", "4h": "240", "1d": "D",
+    }
+    gate_interval = {
+        "1m": "1m", "5m": "5m", "15m": "15m", "30m": "30m",
+        "1h": "1h", "4h": "4h", "1d": "1d",
+    }
+    if interval not in interval_ms:
+        raise ValueError(f"unsupported interval: {interval}")
+
+    errors = []
+    try:
+        x = _bybit(
+            "/v5/market/kline",
+            {
+                "category": "linear",
+                "symbol": symbol,
+                "interval": bybit_interval[interval],
+                "limit": min(int(limit), 1000),
+            },
+        )
+        raw = list(x["result"].get("list") or [])
+        rows = []
+        for r in raw:
+            if len(r) < 7:
+                continue
+            ts = int(float(r[0]))
+            rows.append([
+                ts, r[1], r[2], r[3], r[4], r[5],
+                ts + interval_ms[interval] - 1,
+                r[6], 0, "0", "0", "0",
+            ])
+        rows.sort(key=lambda r: int(r[0]))
+        if rows:
+            return {"provider": "BYBIT_LINEAR", "rows": rows}
+    except Exception as exc:
+        errors.append("bybit:" + type(exc).__name__ + ":" + str(exc)[:100])
+
+    try:
+        base = symbol[:-4] if symbol.endswith("USDT") else symbol
+        contract = f"{base}_USDT"
+        raw = _gate(
+            "/futures/usdt/candlesticks",
+            {
+                "contract": contract,
+                "interval": gate_interval[interval],
+                "limit": min(int(limit), 2000),
+            },
+        )
+        rows = []
+        for r in (raw or []):
+            ts = int(float(r.get("t") or 0)) * 1000
+            if ts <= 0:
+                continue
+            quote_volume = _fv(r.get("sum"), 0.0) or 0.0
+            base_volume = _fv(r.get("v"), 0.0) or 0.0
+            rows.append([
+                ts, r.get("o"), r.get("h"), r.get("l"), r.get("c"), str(base_volume),
+                ts + interval_ms[interval] - 1,
+                str(quote_volume), 0, "0", "0", "0",
+            ])
+        rows.sort(key=lambda r: int(r[0]))
+        if rows:
+            return {"provider": "GATE_FUTURES", "rows": rows}
+    except Exception as exc:
+        errors.append("gate:" + type(exc).__name__ + ":" + str(exc)[:100])
+
+    raise RuntimeError(f"{symbol} {interval}: no external perp candles; " + " | ".join(errors))
+
+
 if __name__ == "__main__":
     import json
     import sys
