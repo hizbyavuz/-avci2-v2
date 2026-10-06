@@ -844,7 +844,22 @@ def loop_once():
                             queued_msg=format_alert(row["symbol"],row["direction"],level,mclass,day_change,price,
                                                     row["invalidation"],row["target1"],row["target2"])
                             priority=4 if mclass=="FAST_FRESH" else 3 if mclass=="STABLE" else 2
-                            queue_alert(row["symbol"],row["direction"],level,queued_msg,priority)
+                            watch_payload={
+                                "stage":"WATCH_ALERT",
+                                "early_state":estate,
+                                "price":float(price),
+                                "trigger_level":level,
+                                "invalidation":float(row["invalidation"] or 0.0),
+                                "target1":float(row["target1"] or 0.0),
+                                "target2":float(row["target2"] or 0.0),
+                                "data_cohort":str(row["data_cohort"] or "UNKNOWN") if "data_cohort" in row.keys() else "UNKNOWN",
+                                "structure_gate_version":str(row["structure_gate_version"] or "") if "structure_gate_version" in row.keys() else "",
+                                "analyst_scan_time":str(row["analyst_scan_time"] or ""),
+                                "analyst_confidence":int(row["analyst_confidence"] or 0),
+                                "day_change_pct":day_change,
+                                "move_class":mclass,
+                            }
+                            queue_alert(row["symbol"],row["direction"],level,queued_msg,priority,payload=watch_payload)
                     first_signal=estate in ("EARLY_LONG","EARLY_SHORT") and old_early not in ("EARLY_LONG","EARLY_SHORT")
                     con.execute("""UPDATE watch_state SET early_state=?,
                         early_signal_price=CASE WHEN ? THEN ? ELSE early_signal_price END,
