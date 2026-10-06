@@ -41,8 +41,9 @@ MIN_24H_QUOTE_VOL = float(os.getenv("LS_MIN_24H_QUOTE_VOL", "25000000"))
 MAX_SYMBOLS = int(os.getenv("LS_MAX_SYMBOLS", "80"))
 REQUEST_TIMEOUT = 12
 TELEGRAM_LIMIT = 4096
-VERSION = "LSA_V1_9_CLOSED_CANDLE_PARALLEL_VALIDATION_2026-10-05"
+VERSION = "LSA_V2_2_ACTIVITY_SHORTLIST_2026-10-06"
 PRESELECT_MAX = int(os.getenv("LS_PRESELECT_MAX", "12"))
+UNIVERSE_MOVER_SHARE = float(os.getenv("LS_UNIVERSE_MOVER_SHARE", "0.75"))
 PREFILTER_WORKERS = int(os.getenv("LS_PREFILTER_WORKERS", "6"))
 DEEP_WORKERS = int(os.getenv("LS_DEEP_WORKERS", "6"))
 PAPER_NOTIONAL_USDT = float(os.getenv("LS_PAPER_NOTIONAL_USDT", "250"))
@@ -833,7 +834,13 @@ def universe():
 
     by_move=sorted(eligible,key=lambda z:abs(z[3]),reverse=True)
     by_vol=sorted(eligible,key=lambda z:z[1],reverse=True)
-    mover_n=max(20, min(50, int(MAX_SYMBOLS*0.60)))
+
+    # Broad scan should follow where the market is actually moving, not where
+    # absolute market-cap/liquidity is largest. Volume remains a hard safety
+    # floor (MIN_24H_QUOTE_VOL), but it no longer dominates the candidate pool.
+    mover_share=min(1.0,max(0.0,float(UNIVERSE_MOVER_SHARE)))
+    mover_n=max(20,min(MAX_SYMBOLS,int(round(MAX_SYMBOLS*mover_share))))
+
     selected=[]
     seen=set()
     for row in by_move[:mover_n] + by_vol:
@@ -889,6 +896,26 @@ def prefilter_symbol(symbol, day_change_pct, quote_volume=0.0):
         "symbol":symbol,"day_change":day_change_pct,"quote_volume":float(quote_volume or 0.0),"rank":score,
         "k5":k5,"t5":t5,"k15":k15,"t15":t15,
     }
+
+
+def select_deep_shortlist(preselected, limit=PRESELECT_MAX):
+    """Return the strongest activity setups without reserving slots for mega-liquidity names.
+
+    Liquidity is already enforced by universe() through MIN_24H_QUOTE_VOL.
+    This stage is intentionally market-cap agnostic: recent price acceleration,
+    volume expansion, structure and breakout state decide who gets the expensive
+    deep scan. Large coins still qualify when their activity score deserves it.
+    """
+    n=max(0,min(int(limit),len(preselected)))
+    ranked=sorted(
+        preselected,
+        key=lambda x:(
+            -float(x.get("rank") or 0.0),
+            -abs(float(x.get("day_change") or 0.0)),
+            str(x.get("symbol") or ""),
+        ),
+    )
+    return ranked[:n]
 
 
 def build_htf_gate(symbol, t4h):
@@ -1798,25 +1825,11 @@ def main():
     preselected.sort(key=lambda x:x["rank"], reverse=True)
     save_reversal_candidates(ts,preselected)
 
-    # Mixed shortlist: keep fast movers, but reserve roughly half the deep-scan
-    # slots for the most liquid names. This prevents the motor from becoming a
-    # pure small/fast-coin scanner and gives 1D/4H structures on larger names room.
-    n=max(1,min(PRESELECT_MAX,len(preselected)))
-    momentum_n=max(1,(n+1)//2)
-    liquid_n=max(0,n-momentum_n)
-    shortlist=[]; seen=set()
-    for x in preselected[:momentum_n] + sorted(preselected,key=lambda z:z.get("quote_volume",0.0),reverse=True)[:max(liquid_n*3,liquid_n)]:
-        if x["symbol"] in seen:
-            continue
-        shortlist.append(x); seen.add(x["symbol"])
-        if len(shortlist)>=n:
-            break
-    if len(shortlist)<n:
-        for x in preselected:
-            if x["symbol"] not in seen:
-                shortlist.append(x); seen.add(x["symbol"])
-            if len(shortlist)>=n:
-                break
+    # Deep-scan shortlist is activity-ranked only. The previous policy reserved
+    # roughly half the slots for raw volume leaders, which systematically pushed
+    # BTC/ETH/other mega-liquidity names into the live pool even when faster
+    # mid/small-cap perpetuals had stronger current setups.
+    shortlist=select_deep_shortlist(preselected,PRESELECT_MAX)
     print("FAST_PREFILTER",len(uni),"->",len(shortlist),
           ",".join(x["symbol"] for x in shortlist))
     save_universe_observations(ts,preselected,shortlist)

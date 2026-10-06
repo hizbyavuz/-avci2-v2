@@ -35,6 +35,19 @@ class ClosedCandleTests(unittest.TestCase):
         self.assertNotEqual(k["close"][-1],999.0)
 
 
+class UniverseSelectionTests(unittest.TestCase):
+    def test_activity_shortlist_does_not_reserve_slots_for_volume_leaders(self):
+        rows=[
+            {"symbol":"BTCUSDT","rank":8.0,"day_change":1.0,"quote_volume":10_000_000_000},
+            {"symbol":"ETHUSDT","rank":7.0,"day_change":1.5,"quote_volume":8_000_000_000},
+            {"symbol":"RLCUSDT","rank":30.0,"day_change":60.0,"quote_volume":1_200_000_000},
+            {"symbol":"CAPUSDT","rank":24.0,"day_change":38.0,"quote_volume":100_000_000},
+            {"symbol":"NMRUSDT","rank":20.0,"day_change":36.0,"quote_volume":110_000_000},
+        ]
+        got=a.select_deep_shortlist(rows,3)
+        self.assertEqual([x["symbol"] for x in got],["RLCUSDT","CAPUSDT","NMRUSDT"])
+
+
 class PersistenceTests(unittest.TestCase):
     def test_save_scan_paper_insert_schema(self):
         old_db=a.DB
