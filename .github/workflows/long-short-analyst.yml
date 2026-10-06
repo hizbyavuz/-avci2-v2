@@ -1,5 +1,5 @@
 name: Long Short Analyst V1
-# restart-stamp: 2026-10-06-live-pool-reversal-fix
+# restart-stamp: 2026-10-06-structure-gate-v2
 # Active paper-trade analyst. Never places orders.
 on:
   workflow_dispatch:
@@ -38,10 +38,12 @@ jobs:
       - name: Install
         run: pip install requests==2.32.5 pyturso==0.7.2
 
-      - name: Compile frozen Long Short core
+      - name: Compile frozen Long Short core and V2 structure layer
         run: |
           python -m py_compile long_short_analyst.py long_short_live_pool.py long_short_reversal_live.py long_short_simple_notify.py
           python -m json.tool LONG_SHORT_V1_9_FROZEN_CONFIG.json >/dev/null
+          python -m json.tool LONG_SHORT_STRUCTURE_GATE_V2_CONFIG.json >/dev/null
+          python tests/test_long_short_structure_gate_v2.py
 
       - name: Restore latest analyst state
         continue-on-error: true
@@ -61,6 +63,11 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           LS_MAX_SYMBOLS: "30"
           LS_MIN_24H_QUOTE_VOL: "25000000"
+          LS_STRUCTURE_LEVEL_NEAR_PCT: "0.80"
+          LS_STRUCTURE_MIN_ROOM_PCT: "0.35"
+          LS_STRUCTURE_MIN_VOLUME_MULT: "1.10"
+          LS_STRUCTURE_MIN_BODY_RATIO: "0.45"
+          LS_STRUCTURE_MAX_REJECTION_WICK: "0.35"
         run: python -u long_short_analyst.py
 
       # Persist the fresh analyst DB before starting the near-live watcher.
