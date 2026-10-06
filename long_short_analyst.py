@@ -38,10 +38,12 @@ SPOT_BASES = (
 DATA_MODE = "BINANCE_FUTURES"
 DB = os.getenv("LS_DB", "long_short_analyst.db")
 MIN_24H_QUOTE_VOL = float(os.getenv("LS_MIN_24H_QUOTE_VOL", "25000000"))
+DISCOVERY_MIN_24H_QUOTE_VOL = float(os.getenv("LS_DISCOVERY_MIN_24H_QUOTE_VOL", "8000000"))
+DISCOVERY_META = {}
 MAX_SYMBOLS = int(os.getenv("LS_MAX_SYMBOLS", "80"))
 REQUEST_TIMEOUT = 12
 TELEGRAM_LIMIT = 4096
-VERSION = "LSA_V2_3_BROAD_PERP_DISCOVERY_2026-10-06"
+VERSION = "LSA_V2_3_1_BROAD_RADAR_DISCOVERY_2026-10-06"
 PRESELECT_MAX = int(os.getenv("LS_PRESELECT_MAX", "12"))
 UNIVERSE_MOVER_SHARE = float(os.getenv("LS_UNIVERSE_MOVER_SHARE", "0.75"))
 PREFILTER_WORKERS = int(os.getenv("LS_PREFILTER_WORKERS", "6"))
@@ -820,12 +822,15 @@ def fetch_depth_imbalance(symbol):
 
 
 def universe():
-    """Build a broad, liquid USDT-perpetual discovery universe.
+    """Build a broad USDT-perpetual discovery universe.
 
-    Native Binance Futures remains first choice. When GitHub is geo-blocked and
-    fget() has fallen back to Binance Spot, discovery is supplemented with public
-    Bybit/Gate perpetual tickers. Safety/entry rules are unchanged downstream.
+    Discovery may go below the actionable liquidity floor so fast movers are not
+    invisible. The hard MIN_24H_QUOTE_VOL gate is enforced later before a symbol
+    can become WAIT/LONG/SHORT; lower-liquidity or unverified names are radar-only.
     """
+    global DISCOVERY_META
+    DISCOVERY_META={}
+
     info=fget("/fapi/v1/exchangeInfo")
     tick=fget("/fapi/v1/ticker/24hr")
 
@@ -840,7 +845,6 @@ def universe():
             continue
         tradable[x["symbol"]]=base
 
-    # Native Futures path: preserve venue purity.
     if DATA_MODE=="BINANCE_FUTURES":
         eligible=[]
         for x in tick:
@@ -848,16 +852,21 @@ def universe():
             if sym not in tradable:
                 continue
             qv=float(x.get("quoteVolume") or 0)
-            if qv < MIN_24H_QUOTE_VOL:
+            if qv < DISCOVERY_MIN_24H_QUOTE_VOL:
                 continue
+            DISCOVERY_META[sym]={
+                "source":"BINANCE_FUTURES_NATIVE",
+                "binance_native_verified":True,
+                "binance_spot_member":True,
+                "external_only_unverified":False,
+                "provider_count":1,
+            }
             eligible.append((
                 sym, qv,
                 float(x.get("lastPrice") or 0),
                 float(x.get("priceChangePercent") or 0),
             ))
     else:
-        # Geo-blocked path. Spot is still useful for Binance membership/charting,
-        # but Spot turnover must not decide which Futures movers are scanned.
         spot_stats={}
         for x in tick:
             sym=x.get("symbol")
@@ -886,38 +895,54 @@ def universe():
                 continue
             if base in EXCLUDED_BASES or any(base.endswith(m) for m in EXCLUDED_MARKERS):
                 continue
-            providers=list(x.get("providers") or [])
-            # If Binance Spot knows the symbol, one public perp venue is enough.
-            # Futures-only names require two independent perp venues so discovery
-            # does not become a random non-Binance altcoin feed.
-            if sym not in tradable and len(providers)<2:
-                continue
             qv=float(x.get("quote_volume") or 0.0)
-            if qv < MIN_24H_QUOTE_VOL:
+            if qv < DISCOVERY_MIN_24H_QUOTE_VOL:
                 continue
+            providers=list(x.get("providers") or [])
+            spot_member=sym in tradable
+            external_only_unverified=bool(not spot_member and len(providers)<2)
             merged[sym]=(
                 qv,
                 float(x.get("last_price") or 0.0),
                 float(x.get("day_change_pct") or 0.0),
             )
+            DISCOVERY_META[sym]={
+                "source":"MULTI_VENUE_PERP",
+                "binance_native_verified":False,
+                "binance_spot_member":bool(spot_member),
+                "external_only_unverified":external_only_unverified,
+                "provider_count":len(providers),
+                "providers":providers,
+            }
 
-        # Keep liquid Binance Spot names as a backup only when no public perp
-        # snapshot exists. This prevents the old Spot-volume bias from dominating.
         for sym,(qv,px,ch) in spot_stats.items():
-            if sym in merged or qv < MIN_24H_QUOTE_VOL:
+            if sym in merged or qv < DISCOVERY_MIN_24H_QUOTE_VOL:
                 continue
             merged[sym]=(qv,px,ch)
+            DISCOVERY_META[sym]={
+                "source":"BINANCE_SPOT_BACKUP",
+                "binance_native_verified":False,
+                "binance_spot_member":True,
+                "external_only_unverified":False,
+                "provider_count":0,
+                "providers":[],
+            }
 
         eligible=[(sym,qv,px,ch) for sym,(qv,px,ch) in merged.items()]
+        liquid=sum(1 for _,qv,_,_ in eligible if qv>=MIN_24H_QUOTE_VOL)
+        unverified=sum(
+            1 for sym,_,_,_ in eligible
+            if bool((DISCOVERY_META.get(sym) or {}).get("external_only_unverified"))
+        )
         print(
             "DISCOVERY_MODE MULTI_VENUE_PERP_PLUS_BINANCE_SPOT",
-            "spot=",len(spot_stats),"perp=",len(perp_rows),"eligible=",len(eligible),
+            "spot=",len(spot_stats),"perp=",len(perp_rows),
+            "eligible=",len(eligible),"actionable_liquid=",liquid,
+            "radar_unverified=",unverified,
         )
 
     by_move=sorted(eligible,key=lambda z:abs(z[3]),reverse=True)
     by_vol=sorted(eligible,key=lambda z:z[1],reverse=True)
-
-    # Broad scan follows market activity; raw liquidity only fills remaining slots.
     mover_share=min(1.0,max(0.0,float(UNIVERSE_MOVER_SHARE)))
     mover_n=max(20,min(MAX_SYMBOLS,int(round(MAX_SYMBOLS*mover_share))))
 
@@ -974,6 +999,7 @@ def prefilter_symbol(symbol, day_change_pct, quote_volume=0.0):
     score += 1.5 if t5["structure"] != 0 else 0.0
     return {
         "symbol":symbol,"day_change":day_change_pct,"quote_volume":float(quote_volume or 0.0),"rank":score,
+        "discovery_meta":dict(DISCOVERY_META.get(symbol) or {}),
         "k5":k5,"t5":t5,"k15":k15,"t15":t15,
     }
 
@@ -981,7 +1007,7 @@ def prefilter_symbol(symbol, day_change_pct, quote_volume=0.0):
 def select_deep_shortlist(preselected, limit=PRESELECT_MAX):
     """Return the strongest activity setups without reserving slots for mega-liquidity names.
 
-    Liquidity is already enforced by universe() through MIN_24H_QUOTE_VOL.
+    Discovery liquidity is broad here; the hard actionable floor is enforced inside score_symbol().
     This stage is intentionally market-cap agnostic: recent price acceleration,
     volume expansion, structure and breakout state decide who gets the expensive
     deep scan. Large coins still qualify when their activity score deserves it.
@@ -1350,6 +1376,23 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
             "decision":_decision_from_scores(ll,ss),
         }
 
+    # Discovery is intentionally broader than the actionable universe. Preserve
+    # the original 25M USDT liquidity safety floor for real WAIT/LONG/SHORT setups,
+    # while keeping thinner or single-venue external movers as radar-only data.
+    pre_qv=float((pre or {}).get("quote_volume") or 0.0)
+    discovery_meta=dict((pre or {}).get("discovery_meta") or {})
+    actionable_liquidity_ok=bool(pre is None or pre_qv>=MIN_24H_QUOTE_VOL)
+    external_only_unverified=bool(discovery_meta.get("external_only_unverified"))
+    if not actionable_liquidity_ok:
+        risks.append(
+            f"24s perp hacmi {pre_qv/1_000_000:.1f}M USDT; "
+            f"işlem için minimum {MIN_24H_QUOTE_VOL/1_000_000:.0f}M, sadece radar"
+        )
+        status="NO_TRADE"
+    if external_only_unverified:
+        risks.append("Binance üyeliği doğrulanmadı; tek dış perp venue, sadece radar")
+        status="NO_TRADE"
+
     price=t5["price"]
     a=max(t15["atr"], price*0.002)
     if status=="LONG":
@@ -1372,11 +1415,13 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
         risks.append("Türev veri paketi tam değil; giriş sinyali kilitli")
         status="WAIT"
 
-    # Volatility risk gate.
+    # Volatility risk gate. High-ATR names stay visible through the radar layer
+    # but cannot silently become actionable merely because the live watcher sees
+    # a later candle close.
     if t15["atr_pct"]>=4.0:
-        risks.append(f"15dk ATR %{t15['atr_pct']:.1f}; aşırı oynaklık")
-        if status in ("LONG","SHORT"):
-            status="WAIT"
+        risks.append(f"15dk ATR %{t15['atr_pct']:.1f}; aşırı oynaklık, sadece radar")
+        if status in ("WAIT","LONG","SHORT"):
+            status="NO_TRADE"
 
     confidence=min(99, max(0, int(best*0.75 + edge*0.25)))
     preferred_direction="LONG" if long>short else "SHORT"
@@ -1385,7 +1430,7 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
     reversal_plan=build_reversal_plan(price,k5,t5,t15,day_change_pct)
     payload={
         "version":VERSION,"frozen_config_hash":FROZEN_CONFIG_HASH,"data_mode":DATA_MODE,"market_regime":market_regime,
-        "day_change_pct":day_change_pct,"chart":chart,"setup_plan":setup_plan,"reversal_plan":reversal_plan,
+        "day_change_pct":day_change_pct,"quote_volume_24h":pre_qv,"actionable_liquidity_ok":actionable_liquidity_ok,\n        "discovery_meta":discovery_meta,"chart":chart,"setup_plan":setup_plan,"reversal_plan":reversal_plan,
         "htf_gate":htf_gate,"structure_gate":structure_gate,
         "live_alert_version":STRUCTURE_GATE_VERSION,
         "t1":t1,"t5":t5,"t15":t15,"t1h":t1h,"t4h":t4h,
