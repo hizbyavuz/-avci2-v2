@@ -40,6 +40,7 @@ jobs:
           python tests/test_long_short_structure_gate_v2.py
           python tests/test_long_short_outcome_v21.py
           python tests/test_long_short_v21_integration.py
+          python tests/test_watch_alert_tracking_v21.py
 
       - name: Restore latest analyst state
         env:
