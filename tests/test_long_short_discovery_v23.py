@@ -1,5 +1,7 @@
 import json
+import sqlite3
 import sys
+import tempfile
 import time
 import unittest
 from pathlib import Path
@@ -189,6 +191,83 @@ class DiscoveryV23Tests(unittest.TestCase):
             structure_quality={"qualified":True},
         )
         self.assertEqual(state,"APPROACHING")
+
+
+    def test_external_perp_depth_prefers_bybit(self):
+        old_bybit, old_gate, old_okx = router._bybit, router._gate, router._okx
+        try:
+            router._bybit=lambda path,params=None: {
+                "result":{"b":[["10","5"]],"a":[["10.1","6"]]}
+            }
+            router._gate=lambda *a,**k: (_ for _ in ()).throw(RuntimeError("unused"))
+            router._okx=lambda *a,**k: (_ for _ in ()).throw(RuntimeError("unused"))
+            out=router.multi_venue_perp_depth("TESTUSDT",100)
+            self.assertEqual(out["provider"],"BYBIT_LINEAR")
+            self.assertEqual(out["source"],"BYBIT_LINEAR_BOOK_PROXY")
+            self.assertEqual(out["bids"][0][0],"10")
+        finally:
+            router._bybit,router._gate,router._okx=old_bybit,old_gate,old_okx
+
+    def test_analyst_depth_falls_back_without_fabricating_vwap(self):
+        old_fget=analyst.fget
+        old_depth=analyst.multi_venue_perp_depth
+        old_mode=analyst.DATA_MODE
+        try:
+            analyst.DATA_MODE="BINANCE_SPOT_GRAPH_ONLY"
+            analyst.fget=lambda *a,**k: (_ for _ in ()).throw(RuntimeError("spot symbol missing"))
+            analyst.multi_venue_perp_depth=lambda symbol,limit=100: {
+                "source":"BYBIT_LINEAR_BOOK_PROXY",
+                "bids":[["10","5"],["9.9","5"]],
+                "asks":[["10.1","5"],["10.2","5"]],
+            }
+            out=analyst.fetch_depth_metrics("FUTURESONLYUSDT")
+            self.assertTrue(out["external_proxy"])
+            self.assertEqual(out["source"],"BYBIT_LINEAR_BOOK_PROXY")
+            self.assertIsNotNone(out["spread_bps"])
+            self.assertIsNone(out["costs"][str(int(analyst.PAPER_NOTIONAL_USDT))]["buy_bps"])
+        finally:
+            analyst.fget=old_fget
+            analyst.multi_venue_perp_depth=old_depth
+            analyst.DATA_MODE=old_mode
+
+    def test_partial_derivatives_no_trade_can_enter_radar_only_watchlist(self):
+        old_db=live.ANALYST_DB
+        try:
+            with tempfile.NamedTemporaryFile(suffix=".db") as tmp:
+                live.ANALYST_DB=tmp.name
+                with sqlite3.connect(tmp.name) as con:
+                    con.execute("""CREATE TABLE analyses(
+                        scan_time_utc TEXT,symbol TEXT,status TEXT,long_score INTEGER,
+                        short_score INTEGER,confidence INTEGER,price REAL,payload_json TEXT
+                    )""")
+                    payload={
+                        "derivatives_ready":False,
+                        "derivatives_source":"MULTI_VENUE_PUBLIC",
+                        "derivatives_quality":"PARTIAL",
+                        "day_change_pct":18.0,
+                        "setup_plan":{
+                            "direction":"LONG","trigger_level":100.0,
+                            "retest_low":99.5,"retest_high":100.0,
+                            "invalidation":98.0,"target1":103.0,"target2":105.0,
+                        },
+                        "htf_gate":{"direction":"NONE","score":0,"reasons":[]},
+                        "structure_gate":{
+                            "version":live.STRUCTURE_GATE_VERSION,
+                            "direction":"LONG",
+                            "qualified_precheck":False,
+                            "trigger_zone":{"low":99.8,"high":100.2,"center":100.0},
+                        },
+                    }
+                    con.execute("INSERT INTO analyses VALUES(?,?,?,?,?,?,?,?)",(
+                        "2026-10-06T00:00:00+00:00","FASTUSDT","NO_TRADE",
+                        40,10,35,99.9,json.dumps(payload),
+                    ))
+                items=live.load_watchlist()
+                self.assertEqual(len(items),1)
+                self.assertTrue(items[0]["radar_only"])
+                self.assertEqual(items[0]["derivatives_quality"],"PARTIAL")
+        finally:
+            live.ANALYST_DB=old_db
 
 
 if __name__ == "__main__":
