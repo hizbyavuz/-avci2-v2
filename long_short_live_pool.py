@@ -263,11 +263,7 @@ def load_watchlist():
                 plan=p.get("setup_plan") or {}
                 gate=p.get("htf_gate") or {}
                 structure_gate=p.get("structure_gate") or {}
-                # Fail closed for Telegram/actionable watching: no alert is
-                # allowed unless every critical derivatives field was present
-                # in the analyst snapshot (native Binance or full multi-venue).
-                if not bool(p.get("derivatives_ready")):
-                    continue
+                derivatives_ready=bool(p.get("derivatives_ready"))
                 if not plan.get("direction") or plan.get("trigger_level") is None:
                     continue
                 # 1D/4H gate belongs only to the observational EARLY layer.
@@ -297,6 +293,11 @@ def load_watchlist():
                     and abs(day_change_pct)>=RADAR_MIN_DAY_MOVE_PCT
                 )
                 if analyst_status not in ("WAIT","LONG","SHORT") and not radar_only:
+                    continue
+                # Fail closed for every actionable candidate. Radar-only movers may
+                # still be observed with incomplete derivatives because the state
+                # machine below cannot advance radar to confirmation/trigger.
+                if not derivatives_ready and not radar_only:
                     continue
                 deriv_source=str(p.get("derivatives_source") or p.get("data_mode") or "UNKNOWN")
                 provider=str(p.get("derivatives_selected_provider") or "")
@@ -332,6 +333,8 @@ def load_watchlist():
                 stored_gate["_radar_only"]=bool(radar_only)
                 stored_gate["_analyst_status"]=analyst_status
                 stored_gate["_day_change_pct"]=day_change_pct
+                stored_gate["_derivatives_ready"]=bool(derivatives_ready)
+                stored_gate["_derivatives_quality"]=quality
                 out.append({
                     "symbol":r["symbol"],"direction":plan["direction"],
                     "reference_price":float(r["price"] or 0.0),
@@ -758,9 +761,16 @@ def queue_approaching_alert(row,price,structure_quality=None):
         except Exception:
             gate={}
         day_change=float(gate.get("_day_change_pct") or 0.0)
+        derivatives_ready=bool(gate.get("_derivatives_ready"))
+        data_line=(
+            "Türev teyidi: tamam."
+            if derivatives_ready else
+            "Türev teyidi: eksik/uyumsuz; yalnızca radar."
+        )
         msg=(f"🟡 OYNAK RADAR | {sym}\n"
              f"24s hareket: %{day_change:+.1f} | Yön eğilimi: {side_ball} {d}\n"
              f"5 dk izleme seviyesi: {fmtp(level)} | Şu an: {fmtp(price)}\n"
+             f"{data_line}\n"
              "Durum: Ana skor barajı henüz geçilmedi; bu bir işlem teyidi değildir.\n"
              "Güvenlik filtresi ve normal LONG/SHORT teyidi aynen korunuyor.")
         payload={
