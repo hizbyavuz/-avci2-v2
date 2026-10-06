@@ -31,6 +31,7 @@ ALIGN_TO_5M=os.getenv("LS_ALIGN_TO_5M","1").strip().lower() in ("1","true","yes"
 ALIGN_GRACE_SECONDS=float(os.getenv("LS_ALIGN_GRACE_SECONDS","4"))
 MAX_WATCH=int(os.getenv("LS_LIVE_MAX_WATCH","12"))
 APPROACH_PCT=float(os.getenv("LS_LIVE_APPROACH_PCT","0.25"))
+RADAR_MIN_DAY_MOVE_PCT=float(os.getenv("LS_RADAR_MIN_DAY_MOVE_PCT","5.0"))
 # Observational early-entry layer. It never changes the frozen continuation rules.
 EARLY_APPROACH_PCT=float(os.getenv("LS_EARLY_APPROACH_PCT","0.18"))
 EARLY_MAX_EXTENSION_PCT=float(os.getenv("LS_EARLY_MAX_EXTENSION_PCT","0.22"))
@@ -283,8 +284,17 @@ def load_watchlist():
                     continue
                 if not structure_gate.get("trigger_zone"):
                     continue
-                # Watch only meaningful WAIT/LONG/SHORT candidates.
-                if r["status"] not in ("WAIT","LONG","SHORT"):
+                # Normal candidates are WAIT/LONG/SHORT. Strong daily movers that are
+                # still NO_TRADE may enter a separate radar-only pool; radar can
+                # never advance to CLOSE_CONFIRMED/TRIGGERED until a later analyst
+                # scan upgrades the frozen status.
+                analyst_status=str(r["status"] or "")
+                day_change_pct=float(p.get("day_change_pct") or 0.0)
+                radar_only=bool(
+                    analyst_status=="NO_TRADE"
+                    and abs(day_change_pct)>=RADAR_MIN_DAY_MOVE_PCT
+                )
+                if analyst_status not in ("WAIT","LONG","SHORT") and not radar_only:
                     continue
                 deriv_source=str(p.get("derivatives_source") or p.get("data_mode") or "UNKNOWN")
                 provider=str(p.get("derivatives_selected_provider") or "")
@@ -316,6 +326,10 @@ def load_watchlist():
                     live_retest_low=live_trigger
                     live_retest_high=min(float(plan.get("retest_high") or raw_trigger),zone_high)
 
+                stored_gate=dict(structure_gate)
+                stored_gate["_radar_only"]=bool(radar_only)
+                stored_gate["_analyst_status"]=analyst_status
+                stored_gate["_day_change_pct"]=day_change_pct
                 out.append({
                     "symbol":r["symbol"],"direction":plan["direction"],
                     "reference_price":float(r["price"] or 0.0),
@@ -326,6 +340,8 @@ def load_watchlist():
                     "target1":float(plan.get("target1") or 0),
                     "target2":float(plan.get("target2") or 0),
                     "confidence":int(r["confidence"] or 0),
+                    "day_change_pct":day_change_pct,
+                    "radar_only":bool(radar_only),
                     "data_mode":deriv_source,
                     "data_cohort":cohort,
                     "derivatives_provider":provider,
@@ -334,14 +350,19 @@ def load_watchlist():
                     "htf_score":int(gate.get("score") or 0),
                     "htf_reasons":list(gate.get("reasons") or []),
                     "structure_gate_version":str(structure_gate.get("version") or ""),
-                    "structure_gate":structure_gate,
+                    "structure_gate":stored_gate,
                     "scan_time":scan["ts"],
                 })
-                if len(out)>=MAX_WATCH:
-                    break
             except Exception:
                 continue
-        return out
+        # Keep real WAIT/LONG/SHORT candidates first. Fill remaining capacity with
+        # the fastest radar-only movers, not with mega-cap names by confidence.
+        out.sort(key=lambda x:(
+            1 if x.get("radar_only") else 0,
+            -(abs(float(x.get("day_change_pct") or 0.0)) if x.get("radar_only") else float(x.get("confidence") or 0)),
+            -float(x.get("confidence") or 0),
+        ))
+        return out[:MAX_WATCH]
 
 def _close_open_watch_episode(con,symbol,reason,last_price=None):
     ts=now_iso()
@@ -611,6 +632,15 @@ def live_structure_confirmation(row,closed,early):
     }
 
 
+def _row_is_radar(row):
+    try:
+        raw=row["structure_gate_json"] if "structure_gate_json" in row.keys() else None
+        gate=json.loads(raw or "{}")
+        return bool(gate.get("_radar_only"))
+    except Exception:
+        return False
+
+
 def next_stage(row,price,closed,structure_quality=None):
     direction=row["direction"]
     trig=float(row["trigger_level"])
@@ -619,6 +649,12 @@ def next_stage(row,price,closed,structure_quality=None):
     inv=float(row["invalidation"] or 0)
     stage=row["stage"]
     dist=abs(price/trig-1.0)*100.0 if trig else 999
+
+    # Radar-only movers are observational. They may surface as APPROACHING but
+    # can never become a confirmed/triggered trade setup until the analyst later
+    # upgrades them out of NO_TRADE.
+    if _row_is_radar(row):
+        return "APPROACHING" if dist<=APPROACH_PCT else "WATCH"
 
     if direction=="LONG":
         if inv and closed < inv:
@@ -685,6 +721,30 @@ def queue_approaching_alert(row,price,structure_quality=None):
     t1=float(row["target1"] or 0.0)
     t2=float(row["target2"] or 0.0)
     side_ball="🟢" if d=="LONG" else "🔴"
+    if _row_is_radar(row):
+        try:
+            gate=json.loads(row["structure_gate_json"] or "{}")
+        except Exception:
+            gate={}
+        day_change=float(gate.get("_day_change_pct") or 0.0)
+        msg=(f"🟡 OYNAK RADAR | {sym}\n"
+             f"24s hareket: %{day_change:+.1f} | Yön eğilimi: {side_ball} {d}\n"
+             f"5 dk izleme seviyesi: {fmtp(level)} | Şu an: {fmtp(price)}\n"
+             "Durum: Ana skor barajı henüz geçilmedi; bu bir işlem teyidi değildir.\n"
+             "Güvenlik filtresi ve normal LONG/SHORT teyidi aynen korunuyor.")
+        payload={
+            "stage":"RADAR_ALERT",
+            "radar_only":True,
+            "price":float(price),
+            "trigger_level":level,
+            "data_cohort":str(row["data_cohort"] or "UNKNOWN") if "data_cohort" in row.keys() else "UNKNOWN",
+            "analyst_scan_time":str(row["analyst_scan_time"] or ""),
+            "analyst_confidence":int(row["analyst_confidence"] or 0),
+            "day_change_pct":day_change,
+        }
+        # Separate fingerprint from a later real LONG/SHORT watch message so a
+        # radar ping can never suppress the actionable alert via cooldown.
+        return queue_alert(sym,"RADAR_"+d,level,msg,1,payload=payload)
     relation="üstünde" if d=="LONG" else "altında"
     expectation=(f"{fmtp(level)} üstü kapanış → ardından seviyeyi koruması."
                  if d=="LONG" else
@@ -872,7 +932,10 @@ def loop_once():
 
                 # Separate observational early layer: never mutates frozen continuation stage.
                 old_early=(row["early_state"] or "NONE") if "early_state" in row.keys() else "NONE"
-                estate,emetrics=early_observation(row,price,early)
+                if _row_is_radar(row):
+                    estate,emetrics="NONE",{"radar_only":True}
+                else:
+                    estate,emetrics=early_observation(row,price,early)
                 inv=float(row["invalidation"] or 0)
                 if old_early in ("EARLY_LONG","EARLY_SHORT","PENDING","CHASE"):
                     broken=(row["direction"]=="LONG" and inv and price<inv) or (row["direction"]=="SHORT" and inv and price>inv)
