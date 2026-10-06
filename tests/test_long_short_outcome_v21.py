@@ -17,7 +17,7 @@ class OutcomeV21Tests(unittest.TestCase):
         self.assertAlmostEqual(_direction_return("LONG",100,102),2.0,places=6)
 
     def test_short_direction_return(self):
-        self.assertAlmostEqual(_direction_return("SHORT",100,98),100/98-1,places=6)
+        self.assertAlmostEqual(_direction_return("SHORT",100,98),(100/98-1)*100,places=6)
 
     def test_same_bar_stop_first_long(self):
         rows=[bar(0,100,102,98,101)]
