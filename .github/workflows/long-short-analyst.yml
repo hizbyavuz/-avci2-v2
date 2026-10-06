@@ -1,5 +1,5 @@
 name: Long Short Analyst V1
-# restart-stamp: 2026-10-06-v2-1-production
+# restart-stamp: 2026-10-06-v2-3-broad-perp-discovery
 # Active paper-trade analyst. Never places orders.
 on:
   workflow_dispatch:
@@ -46,6 +46,7 @@ jobs:
           python tests/test_long_short_structure_gate_v2.py
           python tests/test_long_short_outcome_v21.py
           python tests/test_long_short_v21_integration.py
+          python tests/test_long_short_discovery_v23.py
           python tests/test_watch_alert_tracking_v21.py
           python tests/test_approaching_alert_v21.py
 
@@ -65,7 +66,10 @@ jobs:
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          LS_MAX_SYMBOLS: "30"
+          LS_MAX_SYMBOLS: "80"
+          LS_PRESELECT_MAX: "24"
+          LS_PREFILTER_WORKERS: "8"
+          LS_DEEP_WORKERS: "8"
           LS_MIN_24H_QUOTE_VOL: "25000000"
           LS_STRUCTURE_LEVEL_NEAR_PCT: "0.80"
           LS_STRUCTURE_MIN_ROOM_FLOOR_PCT: "0.90"
