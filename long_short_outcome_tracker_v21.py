@@ -247,6 +247,32 @@ def init_db(con):
         p95_delay_seconds REAL,
         PRIMARY KEY(report_time_utc,stage_name,data_cohort,horizon_min)
     )""")
+    con.execute("""CREATE TABLE IF NOT EXISTS delivered_watch_outcomes(
+        fingerprint TEXT NOT NULL,
+        sent_at_epoch REAL NOT NULL,
+        version TEXT NOT NULL,
+        symbol TEXT NOT NULL,
+        direction TEXT NOT NULL,
+        data_cohort TEXT,
+        early_state TEXT,
+        trigger_level REAL,
+        invalidation REAL,
+        target1 REAL,
+        target2 REAL,
+        execution_time_utc TEXT NOT NULL,
+        entry_price REAL NOT NULL,
+        round_trip_cost_pct REAL NOT NULL,
+        horizon_min INTEGER NOT NULL,
+        endpoint_price REAL,
+        gross_return_pct REAL,
+        net_return_pct REAL,
+        mfe_pct REAL,
+        mae_pct REAL,
+        first_barrier TEXT,
+        direction_correct INTEGER,
+        evaluated_at_utc TEXT NOT NULL,
+        PRIMARY KEY(fingerprint,sent_at_epoch,horizon_min)
+    )""")
     con.execute("""CREATE TABLE IF NOT EXISTS outcome_runtime(
         key TEXT PRIMARY KEY,value TEXT NOT NULL,updated_at_utc TEXT NOT NULL
     )""")
@@ -332,6 +358,111 @@ def evaluate_delivered(con):
              1 if mfe>=10 else 0,1 if mfe>=15 else 0,correct,now_iso()))
             added+=1
     return added
+
+
+def evaluate_watch_alerts(con):
+    """Measure delivered 'LONG/SHORT İÇİN İZLE' messages separately from trade signals."""
+    if not os.path.exists(NOTIFY_DB):
+        return 0
+    try:
+        ncon=sqlite3.connect(NOTIFY_DB)
+        ncon.row_factory=sqlite3.Row
+        cols={r[1] for r in ncon.execute("PRAGMA table_info(sent_alerts)")}
+        if "payload_json" not in cols:
+            ncon.close()
+            return 0
+        alerts=ncon.execute("""SELECT symbol,direction,level,fingerprint,sent_at_epoch,payload_json
+                               FROM sent_alerts
+                               WHERE payload_json IS NOT NULL
+                               ORDER BY sent_at_epoch""").fetchall()
+        ncon.close()
+    except Exception as exc:
+        print("watch alert state error",type(exc).__name__,str(exc)[:120])
+        return 0
+
+    now=datetime.now(timezone.utc)
+    added=0
+    cost_pct=2.0*(FEE_BPS_PER_SIDE+MIN_SLIPPAGE_BPS_PER_SIDE)/100.0
+    for a in alerts:
+        try:
+            payload=json.loads(a["payload_json"] or "{}")
+        except Exception:
+            continue
+        if payload.get("stage")!="WATCH_ALERT":
+            continue
+        sent=datetime.fromtimestamp(float(a["sent_at_epoch"]),tz=timezone.utc)
+        execute=sent+timedelta(seconds=HUMAN_DELAY_SECONDS)
+        if now<execute+timedelta(minutes=min(HORIZONS)+2):
+            continue
+        try:
+            rows_all=_rows_1m(a["symbol"],execute,execute+timedelta(minutes=max(HORIZONS)+2))
+        except Exception as exc:
+            print("watch outcome fetch error",a["symbol"],type(exc).__name__,str(exc)[:120])
+            continue
+        if not rows_all:
+            continue
+        entry=float(rows_all[0][1])
+        direction=a["direction"]
+        stop=float(payload.get("invalidation") or 0.0)
+        t1=float(payload.get("target1") or 0.0)
+        t2=float(payload.get("target2") or 0.0)
+        levels_valid=(direction=="LONG" and stop<entry<t1) or (direction=="SHORT" and t1<entry<stop)
+        for h in HORIZONS:
+            if now<execute+timedelta(minutes=h+2):
+                continue
+            if con.execute("""SELECT 1 FROM delivered_watch_outcomes
+                              WHERE fingerprint=? AND sent_at_epoch=? AND horizon_min=?""",
+                           (a["fingerprint"],float(a["sent_at_epoch"]),h)).fetchone():
+                continue
+            cutoff=execute+timedelta(minutes=h)
+            rows=[r for r in rows_all if datetime.fromtimestamp(int(r[0])/1000,tz=timezone.utc)<cutoff]
+            if not rows:
+                continue
+            endpoint=float(rows[-1][4])
+            gross=_direction_return(direction,entry,endpoint)
+            net=gross-cost_pct
+            high=max(float(r[2]) for r in rows); low=min(float(r[3]) for r in rows)
+            if direction=="LONG":
+                mfe=(high/entry-1.0)*100.0
+                mae=(low/entry-1.0)*100.0
+            else:
+                mfe=(entry/low-1.0)*100.0 if low else 0.0
+                mae=(entry/high-1.0)*100.0 if high else 0.0
+            first=None
+            if levels_valid:
+                first,_,_,_,_=_barrier_path(direction,entry,stop,t1,t2,rows)
+            con.execute("""INSERT INTO delivered_watch_outcomes(
+                fingerprint,sent_at_epoch,version,symbol,direction,data_cohort,early_state,
+                trigger_level,invalidation,target1,target2,execution_time_utc,entry_price,
+                round_trip_cost_pct,horizon_min,endpoint_price,gross_return_pct,net_return_pct,
+                mfe_pct,mae_pct,first_barrier,direction_correct,evaluated_at_utc
+            ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (a["fingerprint"],float(a["sent_at_epoch"]),VERSION,a["symbol"],direction,
+             str(payload.get("data_cohort") or "UNKNOWN"),str(payload.get("early_state") or ""),
+             float(payload.get("trigger_level") or a["level"] or 0.0),stop,t1,t2,
+             execute.isoformat(),entry,cost_pct,h,endpoint,gross,net,mfe,mae,first,
+             1 if net>0 else 0,now_iso()))
+            added+=1
+    return added
+
+
+def watch_report(con):
+    out=[]
+    cohorts=[r[0] for r in con.execute("SELECT DISTINCT COALESCE(data_cohort,'UNKNOWN') FROM delivered_watch_outcomes").fetchall()]
+    for cohort in cohorts:
+        for h in HORIZONS:
+            rows=con.execute("""SELECT direction_correct,net_return_pct,first_barrier
+                                FROM delivered_watch_outcomes
+                                WHERE COALESCE(data_cohort,'UNKNOWN')=? AND horizon_min=?""",
+                             (cohort,h)).fetchall()
+            if not rows:
+                continue
+            correct=sum(int(r[0] or 0) for r in rows)
+            avg=statistics.fmean([float(r[1]) for r in rows if r[1] is not None])
+            tp1=sum(1 for r in rows if r[2]=="TP1")
+            stop=sum(1 for r in rows if r[2]=="STOP")
+            out.append((cohort,h,len(rows),correct,100.0*correct/len(rows),avg,tp1,stop))
+    return out
 
 
 def evaluate_no_confirm(con):
@@ -431,7 +562,7 @@ def report(con):
     return out
 
 
-def _send_daily_summary(rows):
+def _send_daily_summary(rows,watch_rows=None):
     token=(os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
     if not token or not rows:
         return
@@ -451,6 +582,9 @@ def _send_daily_summary(rows):
         av="-" if avg is None else f"%{avg:+.2f}"
         ds="-" if p95 is None else f"{p95:.0f}s"
         lines.append(f"{cohort}: n={n} | doğru {correct}/{n} (%{wr:.1f}) | TP1 {tp1} | stop {stop} | net {av} | exp {es} | p95 gecikme {ds}")
+    watch60=[r for r in (watch_rows or []) if r[1]==60]
+    for cohort,h,n,correct,wr,avg,tp1,stop in watch60:
+        lines.append(f"İZLE—{cohort}: n={n} | yön doğru {correct}/{n} (%{wr:.1f}) | 60dk net ort %{avg:+.2f} | TP1 {tp1} | stop {stop}")
     lines.append("Not: 100 bağımsız TRIGGERED episode öncesi edge kanıtlanmış sayılmaz.")
     msg="\n".join(lines)[:TELEGRAM_LIMIT]
     configured=(os.getenv("TELEGRAM_CHAT_ID") or "").strip()
@@ -471,18 +605,22 @@ def main():
     with sqlite3.connect(DB) as con:
         init_db(con)
         a=evaluate_delivered(con)
+        w=evaluate_watch_alerts(con)
         b=evaluate_no_confirm(con)
         rows=report(con)
+        wrows=watch_report(con)
         con.commit()
-    print("V2.1_OUTCOMES delivered_added=",a,"watch_controls_added=",b)
+    print("V2.1_OUTCOMES delivered_added=",a,"watch_alerts_added=",w,"watch_controls_added=",b)
     for r in rows:
         stage,cohort,h,n,correct,tp1,stop,timeout,wr,exp,avg,p50,p95=r
         es="-" if exp is None else f"{exp:+.3f}R"
         ns="-" if avg is None else f"{avg:+.3f}%"
         d95="-" if p95 is None else f"{p95:.1f}s"
         print(f"{stage} {cohort} {h}m n={n} correct={correct}/{n} TP1={tp1} STOP={stop} timeout={timeout} win={wr:.1f}% exp={es} net={ns} p95={d95}")
+    for cohort,h,n,correct,wr,avg,tp1,stop in wrows:
+        print(f"WATCH {cohort} {h}m n={n} correct={correct}/{n} win={wr:.1f}% net={avg:+.3f}% TP1={tp1} STOP={stop}")
     try:
-        _send_daily_summary(rows)
+        _send_daily_summary(rows,wrows)
     except Exception as exc:
         print("daily summary error",type(exc).__name__,str(exc)[:160])
 
