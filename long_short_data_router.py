@@ -746,10 +746,11 @@ def multi_venue_perp_klines(symbol: str, interval: str, limit: int = 220) -> dic
             if len(r) < 7:
                 continue
             ts = int(float(r[0]))
+            quote_volume = _fv(r[6], 0.0) or 0.0
             rows.append([
                 ts, r[1], r[2], r[3], r[4], r[5],
                 ts + interval_ms[interval] - 1,
-                r[6], 0, "0", "0", "0",
+                str(quote_volume), 0, "0", str(quote_volume * 0.5), "0",
             ])
         rows.sort(key=lambda r: int(r[0]))
         if rows:
@@ -778,7 +779,7 @@ def multi_venue_perp_klines(symbol: str, interval: str, limit: int = 220) -> dic
             rows.append([
                 ts, r.get("o"), r.get("h"), r.get("l"), r.get("c"), str(base_volume),
                 ts + interval_ms[interval] - 1,
-                str(quote_volume), 0, "0", "0", "0",
+                str(quote_volume), 0, "0", str(quote_volume * 0.5), "0",
             ])
         rows.sort(key=lambda r: int(r[0]))
         if rows:
