@@ -247,14 +247,17 @@ def load_watchlist():
                 # Do not let it suppress the normal confirmed continuation watcher:
                 # frozen V1.9 already scores/vetoes higher-timeframe trend, while
                 # early_observation() below still requires explicit HTF agreement.
-                # V2 live-alert gate: the trigger must be a repeated/confluent
-                # support/resistance zone with enough room to the next obstacle.
-                # This does not alter frozen V1.9 scoring or paper labels.
+                # V2 distinction:
+                # - admission to the LIVE WATCHLIST only needs a versioned structural plan;
+                # - CLOSE_CONFIRMED/TRIGGERED still fail closed unless the full
+                #   Structure Gate precheck + live candle-quality checks pass.
+                # Keeping qualified_precheck here used to produce an empty live pool
+                # whenever every WAIT candidate was merely close-but-not-yet-qualified.
                 if structure_gate.get("version")!=STRUCTURE_GATE_VERSION:
                     continue
-                if not bool(structure_gate.get("qualified_precheck")):
-                    continue
                 if structure_gate.get("direction")!=plan.get("direction"):
+                    continue
+                if not structure_gate.get("trigger_zone"):
                     continue
                 # Watch only meaningful WAIT/LONG/SHORT candidates.
                 if r["status"] not in ("WAIT","LONG","SHORT"):
@@ -684,14 +687,14 @@ def send_telegram(msg):
                 time.sleep(2.0*(attempt+1))
     raise last or RuntimeError("Telegram send failed")
 
-def send_recovery_notice_once():
-    """Send one recovery confirmation after the repaired runtime actually starts.
+def send_recovery_notice_once(watch_count=0):
+    """Send one deployment confirmation after the repaired runtime actually starts.
 
     Stored in the shared Telegram DB so short-lived GitHub runners do not repeat
     the notice on every 5-minute handoff. If delivery fails, the marker is not
     written and the next live cycle can retry.
     """
-    key="long_short_recovery_notice_2026_10_06"
+    key="long_short_watchlist_admission_fix_2026_10_06"
     try:
         with sqlite3.connect(NOTIFY_DB,timeout=10) as con:
             con.execute("""CREATE TABLE IF NOT EXISTS runtime_settings(
@@ -701,7 +704,8 @@ def send_recovery_notice_once():
                 return False
         sent_at=send_telegram(
             "🟢 LONG/SHORT MOTOR AKTİF\\n"
-            "Otomatik tarama yeniden başladı. Uygun LONG/SHORT koşulu oluşursa buradan mesaj gelecek."
+            f"Canlı havuz {int(watch_count)} coin izliyor.\\n"
+            "İzleme adayları artık canlı havuza giriyor; güçlü teyit için Structure Gate şartları aynen korunuyor."
         )
         with sqlite3.connect(NOTIFY_DB,timeout=10) as con:
             con.execute("""INSERT OR REPLACE INTO runtime_settings(key,value,updated_at)
@@ -879,7 +883,7 @@ def main():
     items=load_watchlist()
     sync_watchlist(items)
     if token:
-        send_recovery_notice_once()
+        send_recovery_notice_once(len(items))
     now=time.time()
     hard_end=now+RUN_SECONDS
     if ALIGN_TO_5M:
