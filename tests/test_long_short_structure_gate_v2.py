@@ -92,7 +92,7 @@ class StructureGateV2Tests(unittest.TestCase):
                         "setup_plan":{
                             "direction":"LONG","trigger_level":100.0,
                             "retest_low":99.5,"retest_high":100.0,
-                            "invalidation":98.0,"target1":102.0,"target2":104.0,
+                            "invalidation":98.0,"target1":104.0,"target2":106.0,
                         },
                         "htf_gate":{"direction":"LONG","score":4,"reasons":[]},
                         "structure_gate":{
