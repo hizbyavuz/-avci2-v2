@@ -84,7 +84,7 @@ class StructureGateV2Tests(unittest.TestCase):
                 with sqlite3.connect(tmp.name) as con:
                     con.execute("""CREATE TABLE analyses(
                         scan_time_utc TEXT,symbol TEXT,status TEXT,long_score INTEGER,
-                        short_score INTEGER,confidence INTEGER,payload_json TEXT
+                        short_score INTEGER,confidence INTEGER,price REAL,payload_json TEXT
                     )""")
                     payload={
                         "derivatives_ready":True,
@@ -104,8 +104,8 @@ class StructureGateV2Tests(unittest.TestCase):
                         },
                         "derivatives_quality":"NATIVE",
                     }
-                    con.execute("INSERT INTO analyses VALUES(?,?,?,?,?,?,?)",
-                                ("2026-10-06T00:00:00+00:00","TESTUSDT","WAIT",51,0,51,
+                    con.execute("INSERT INTO analyses VALUES(?,?,?,?,?,?,?,?)",
+                                ("2026-10-06T00:00:00+00:00","TESTUSDT","WAIT",51,0,51,99.5,
                                  json.dumps(payload)))
                 items=lp.load_watchlist()
                 self.assertEqual(len(items),1)
