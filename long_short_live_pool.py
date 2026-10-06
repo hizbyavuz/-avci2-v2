@@ -43,6 +43,7 @@ STRUCTURE_MIN_VOLUME_MULT=float(os.getenv("LS_STRUCTURE_MIN_VOLUME_MULT","1.10")
 STRUCTURE_MIN_BODY_RATIO=float(os.getenv("LS_STRUCTURE_MIN_BODY_RATIO","0.45"))
 STRUCTURE_MAX_REJECTION_WICK=float(os.getenv("LS_STRUCTURE_MAX_REJECTION_WICK","0.35"))
 TELEGRAM_LIMIT=4096
+HEALTH_INTERVAL_SECONDS=int(os.getenv("LS_TELEGRAM_HEALTH_SECONDS","3600"))
 
 SPOT_BASES=("https://data-api.binance.vision","https://api.binance.com")
 FUTURES_DEPTH_URL="https://fapi.binance.com/fapi/v1/depth"
@@ -769,6 +770,44 @@ def send_recovery_notice_once(watch_count=0):
         print("Recovery Telegram notice failed",type(exc).__name__,str(exc)[:200],flush=True)
         return False
 
+def send_health_if_due(watch_count=0):
+    """At most one health heartbeat per interval; does not pretend a trade signal exists."""
+    token=(os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
+    if not token:
+        return False
+    key="long_short_health_v2_1"
+    now=time.time()
+    try:
+        with sqlite3.connect(NOTIFY_DB,timeout=10) as con:
+            con.execute("""CREATE TABLE IF NOT EXISTS runtime_settings(
+                key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at TEXT NOT NULL)""")
+            row=con.execute("SELECT value FROM runtime_settings WHERE key=?",(key,)).fetchone()
+            if row:
+                try:
+                    if now-float(row[0])<HEALTH_INTERVAL_SECONDS:
+                        return False
+                except Exception:
+                    pass
+        counts={"WATCH":0,"APPROACHING":0,"CLOSE_CONFIRMED":0,"RETESTING":0,"TRIGGERED":0}
+        with sqlite3.connect(LIVE_DB) as con:
+            for stage,n in con.execute("SELECT stage,COUNT(*) FROM watch_state GROUP BY stage").fetchall():
+                counts[str(stage)]=int(n)
+        msg=(
+            "🟢 LONG/SHORT MOTOR ÇALIŞIYOR | V2.1\n"
+            f"İzlenen: {int(watch_count)} coin | Yaklaşan: {counts.get('APPROACHING',0)} | "
+            f"Teyit: {counts.get('CLOSE_CONFIRMED',0)} | Retest: {counts.get('RETESTING',0)}\n"
+            "Bu sağlık mesajıdır; işlem sinyali değildir."
+        )
+        send_telegram(msg)
+        with sqlite3.connect(NOTIFY_DB,timeout=10) as con:
+            con.execute("""INSERT OR REPLACE INTO runtime_settings(key,value,updated_at)
+                           VALUES(?,?,?)""",(key,str(now),now_iso()))
+        return True
+    except Exception as exc:
+        print("Health Telegram failed",type(exc).__name__,str(exc)[:180],flush=True)
+        return False
+
+
 def loop_once():
     with sqlite3.connect(LIVE_DB) as con:
         con.row_factory=sqlite3.Row
@@ -943,7 +982,9 @@ def main():
     items=load_watchlist()
     sync_watchlist(items)
     if token:
-        send_recovery_notice_once(len(items))
+        deployment_notice=send_recovery_notice_once(len(items))
+        if not deployment_notice:
+            send_health_if_due(len(items))
     now=time.time()
     hard_end=now+RUN_SECONDS
     if ALIGN_TO_5M:
