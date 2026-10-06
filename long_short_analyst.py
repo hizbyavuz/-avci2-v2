@@ -22,7 +22,7 @@ from typing import Any
 
 import requests
 from binance_notify import resolve_chat_id
-from long_short_data_router import multi_venue_derivatives
+from long_short_data_router import multi_venue_derivatives, multi_venue_perp_universe, multi_venue_perp_klines
 
 FUTURES_BASES = (
     "https://fapi.binance.com",
@@ -41,7 +41,7 @@ MIN_24H_QUOTE_VOL = float(os.getenv("LS_MIN_24H_QUOTE_VOL", "25000000"))
 MAX_SYMBOLS = int(os.getenv("LS_MAX_SYMBOLS", "80"))
 REQUEST_TIMEOUT = 12
 TELEGRAM_LIMIT = 4096
-VERSION = "LSA_V2_2_ACTIVITY_SHORTLIST_2026-10-06"
+VERSION = "LSA_V2_3_BROAD_PERP_DISCOVERY_2026-10-06"
 PRESELECT_MAX = int(os.getenv("LS_PRESELECT_MAX", "12"))
 UNIVERSE_MOVER_SHARE = float(os.getenv("LS_UNIVERSE_MOVER_SHARE", "0.75"))
 PREFILTER_WORKERS = int(os.getenv("LS_PREFILTER_WORKERS", "6"))
@@ -254,20 +254,39 @@ def parse_klines(rows):
 
 
 def fetch_klines(symbol, interval, limit=220):
-    """Return CLOSED candles only.
+    """Return CLOSED candles only, with a public perpetual fallback.
 
-    Binance REST includes the currently-forming candle as the last row. Using it
-    in EMA/RSI/structure creates look-ahead-ish intrabar drift and breaks the
-    documented "5m candle close" semantics. The live watcher has its own explicit
-    forming-candle path; the analyst never uses an unfinished bar.
+    Binance Futures REST can return HTTP 451 on GitHub-hosted runners. In that
+    case fget() falls back to Binance Spot. If the symbol is futures-only (or its
+    Spot history is too short), use Bybit/Gate USDT-perpetual candles for chart
+    discovery instead of silently dropping the coin from the scanner.
     """
-    rows=fget("/fapi/v1/klines", {
-        "symbol": symbol, "interval": interval, "limit": limit
-    })
+    rows=None
+    primary_error=None
+    try:
+        rows=fget("/fapi/v1/klines", {
+            "symbol": symbol, "interval": interval, "limit": limit
+        })
+    except Exception as exc:
+        primary_error=exc
+
     now_ms=int(time.time()*1000)
-    closed=[r for r in rows if int(r[6]) <= now_ms-250]
+    closed=[r for r in (rows or []) if int(r[6]) <= now_ms-250]
+
+    if len(closed)<20 and DATA_MODE!="BINANCE_FUTURES":
+        try:
+            ext=multi_venue_perp_klines(symbol,interval,limit)
+            ext_rows=ext.get("rows") or []
+            ext_closed=[r for r in ext_rows if int(r[6]) <= now_ms-250]
+            if len(ext_closed)>len(closed):
+                closed=ext_closed
+        except Exception as exc:
+            if primary_error is None:
+                primary_error=exc
+
     if len(closed)<20:
-        raise RuntimeError(f"{symbol} {interval}: not enough closed candles ({len(closed)})")
+        suffix=f"; fallback={type(primary_error).__name__}:{str(primary_error)[:120]}" if primary_error else ""
+        raise RuntimeError(f"{symbol} {interval}: not enough closed candles ({len(closed)}){suffix}")
     return parse_klines(closed)
 
 
@@ -801,12 +820,15 @@ def fetch_depth_imbalance(symbol):
 
 
 def universe():
-    """
-    Futures action universe:
-    liquid USDT perpetuals; daily top movers first, then volume leaders.
+    """Build a broad, liquid USDT-perpetual discovery universe.
+
+    Native Binance Futures remains first choice. When GitHub is geo-blocked and
+    fget() has fallen back to Binance Spot, discovery is supplemented with public
+    Bybit/Gate perpetual tickers. Safety/entry rules are unchanged downstream.
     """
     info=fget("/fapi/v1/exchangeInfo")
     tick=fget("/fapi/v1/ticker/24hr")
+
     tradable={}
     for x in info.get("symbols",[]):
         if x.get("quoteAsset")!="USDT" or x.get("status")!="TRADING":
@@ -818,26 +840,84 @@ def universe():
             continue
         tradable[x["symbol"]]=base
 
-    eligible=[]
-    for x in tick:
-        sym=x.get("symbol")
-        if sym not in tradable:
-            continue
-        qv=float(x.get("quoteVolume") or 0)
-        if qv < MIN_24H_QUOTE_VOL:
-            continue
-        eligible.append((
-            sym, qv,
-            float(x.get("lastPrice") or 0),
-            float(x.get("priceChangePercent") or 0),
-        ))
+    # Native Futures path: preserve venue purity.
+    if DATA_MODE=="BINANCE_FUTURES":
+        eligible=[]
+        for x in tick:
+            sym=x.get("symbol")
+            if sym not in tradable:
+                continue
+            qv=float(x.get("quoteVolume") or 0)
+            if qv < MIN_24H_QUOTE_VOL:
+                continue
+            eligible.append((
+                sym, qv,
+                float(x.get("lastPrice") or 0),
+                float(x.get("priceChangePercent") or 0),
+            ))
+    else:
+        # Geo-blocked path. Spot is still useful for Binance membership/charting,
+        # but Spot turnover must not decide which Futures movers are scanned.
+        spot_stats={}
+        for x in tick:
+            sym=x.get("symbol")
+            if sym not in tradable:
+                continue
+            try:
+                spot_stats[sym]=(
+                    float(x.get("quoteVolume") or 0),
+                    float(x.get("lastPrice") or 0),
+                    float(x.get("priceChangePercent") or 0),
+                )
+            except (TypeError,ValueError):
+                continue
+
+        merged={}
+        try:
+            perp_rows=multi_venue_perp_universe()
+        except Exception as exc:
+            print("PERP_DISCOVERY_FALLBACK_ERROR",type(exc).__name__,str(exc)[:160])
+            perp_rows=[]
+
+        for x in perp_rows:
+            sym=str(x.get("symbol") or "")
+            base=sym[:-4] if sym.endswith("USDT") else sym
+            if not sym.endswith("USDT"):
+                continue
+            if base in EXCLUDED_BASES or any(base.endswith(m) for m in EXCLUDED_MARKERS):
+                continue
+            providers=list(x.get("providers") or [])
+            # If Binance Spot knows the symbol, one public perp venue is enough.
+            # Futures-only names require two independent perp venues so discovery
+            # does not become a random non-Binance altcoin feed.
+            if sym not in tradable and len(providers)<2:
+                continue
+            qv=float(x.get("quote_volume") or 0.0)
+            if qv < MIN_24H_QUOTE_VOL:
+                continue
+            merged[sym]=(
+                qv,
+                float(x.get("last_price") or 0.0),
+                float(x.get("day_change_pct") or 0.0),
+            )
+
+        # Keep liquid Binance Spot names as a backup only when no public perp
+        # snapshot exists. This prevents the old Spot-volume bias from dominating.
+        for sym,(qv,px,ch) in spot_stats.items():
+            if sym in merged or qv < MIN_24H_QUOTE_VOL:
+                continue
+            merged[sym]=(qv,px,ch)
+
+        eligible=[(sym,qv,px,ch) for sym,(qv,px,ch) in merged.items()]
+        print(
+            "DISCOVERY_MODE MULTI_VENUE_PERP_PLUS_BINANCE_SPOT",
+            "spot=",len(spot_stats),"perp=",len(perp_rows),"eligible=",len(eligible),
+        )
 
     by_move=sorted(eligible,key=lambda z:abs(z[3]),reverse=True)
     by_vol=sorted(eligible,key=lambda z:z[1],reverse=True)
 
-    # Broad scan should follow where the market is actually moving, not where
-    # absolute market-cap/liquidity is largest. Volume remains a hard safety
-    # floor (MIN_24H_QUOTE_VOL), but it no longer dominates the candidate pool.
+    # Broad scan follows market activity; raw liquidity only fills remaining slots.
     mover_share=min(1.0,max(0.0,float(UNIVERSE_MOVER_SHARE)))
     mover_n=max(20,min(MAX_SYMBOLS,int(round(MAX_SYMBOLS*mover_share))))
 
@@ -925,8 +1005,31 @@ def build_htf_gate(symbol, t4h):
     only to decide whether a micro 1m/5m early trigger sits inside a meaningful
     higher-timeframe breakout / near-breakout structure.
     """
-    kd=fetch_htf_cached(symbol,"1d",220)
-    td=timeframe_features(kd)
+    try:
+        kd=fetch_htf_cached(symbol,"1d",220)
+        td=timeframe_features(kd)
+    except Exception as exc:
+        # A fresh Futures listing can have enough 1m/5m/4h history to trade but
+        # fewer than 20 daily candles. Do not crash the whole deep scan; only the
+        # observational early HTF layer is unavailable until more history exists.
+        return {
+            "qualified":False,
+            "direction":"NONE",
+            "score":0,
+            "long_score":0,
+            "short_score":0,
+            "extended":False,
+            "near_daily_high":False,
+            "near_daily_low":False,
+            "daily_breakout20":False,
+            "daily_breakdown20":False,
+            "daily_change_pct":0.0,
+            "daily_volume_mult":0.0,
+            "reasons":[],
+            "daily":None,
+            "unavailable":True,
+            "error":f"{type(exc).__name__}:{str(exc)[:160]}",
+        }
 
     near_high = 0.0 <= float(td["dist_high20_pct"]) <= HTF_NEAR_LEVEL_PCT
     near_low = 0.0 <= float(td["dist_low20_pct"]) <= HTF_NEAR_LEVEL_PCT
