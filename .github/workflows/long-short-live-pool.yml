@@ -39,6 +39,7 @@ jobs:
           python -m json.tool LONG_SHORT_STRUCTURE_GATE_V2_1_CONFIG.json >/dev/null
           python tests/test_long_short_structure_gate_v2.py
           python tests/test_long_short_outcome_v21.py
+          python tests/test_long_short_v21_integration.py
 
       - name: Restore latest analyst state
         env:
