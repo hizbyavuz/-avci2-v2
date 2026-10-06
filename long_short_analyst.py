@@ -40,6 +40,7 @@ DB = os.getenv("LS_DB", "long_short_analyst.db")
 MIN_24H_QUOTE_VOL = float(os.getenv("LS_MIN_24H_QUOTE_VOL", "25000000"))
 DISCOVERY_MIN_24H_QUOTE_VOL = float(os.getenv("LS_DISCOVERY_MIN_24H_QUOTE_VOL", "8000000"))
 DISCOVERY_META = {}
+MULTI_DERIV_CACHE = {}
 MAX_SYMBOLS = int(os.getenv("LS_MAX_SYMBOLS", "80"))
 REQUEST_TIMEOUT = 12
 TELEGRAM_LIMIT = 4096
@@ -783,13 +784,43 @@ def _book_vwap(rows, quote_notional, side):
     return spent/base_qty
 
 
-def fetch_depth_metrics(symbol):
-    """Order-book imbalance plus executable-cost proxy from Binance's visible book.
+def _cached_multi_venue_derivatives(symbol):
+    cached=MULTI_DERIV_CACHE.get(symbol)
+    if cached is None:
+        cached=multi_venue_derivatives(symbol)
+        MULTI_DERIV_CACHE[symbol]=cached
+    return cached
 
-    On geo-blocked runners this is Binance Spot, so the source is labelled as a
-    proxy rather than pretending it is the Futures execution book.
+
+def fetch_depth_metrics(symbol):
+    """Order-book imbalance plus executable-cost proxy.
+
+    Native/Spot Binance depth is preferred. Futures-only symbols can be absent
+    from Spot, so a failed Spot depth lookup falls back to the already fail-closed
+    multi-venue derivatives bundle for imbalance only. We never invent spread or
+    slippage costs from contract-size books whose units are not normalized.
     """
-    d=fget("/fapi/v1/depth",{"symbol":symbol,"limit":100})
+    try:
+        d=fget("/fapi/v1/depth",{"symbol":symbol,"limit":100})
+    except Exception as primary_exc:
+        mv=_cached_multi_venue_derivatives(symbol)
+        imbalance=mv.get("depth_imbalance")
+        if imbalance is None:
+            raise RuntimeError(
+                f"{symbol}: Binance depth unavailable and external depth missing: "
+                f"{type(primary_exc).__name__}:{str(primary_exc)[:100]}"
+            )
+        return {
+            "source":"EXTERNAL_PERP_DEPTH_"+str(mv.get("selected_provider") or "PARTIAL"),
+            "imbalance":float(imbalance),
+            "spread_bps":None,
+            "costs":{
+                str(int(n)):{"buy_bps":None,"sell_bps":None}
+                for n in (100.0,PAPER_NOTIONAL_USDT,500.0)
+            },
+            "binance_depth_error":type(primary_exc).__name__+":"+str(primary_exc)[:120],
+        }
+
     bids=d.get("bids",[]) or []
     asks=d.get("asks",[]) or []
     bid_notional=sum(float(p)*float(q) for p,q in bids[:20])
@@ -1193,7 +1224,7 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
     cross=None
     deriv_ready=(DATA_MODE=="BINANCE_FUTURES")
     if DATA_MODE!="BINANCE_FUTURES":
-        multi_deriv=multi_venue_derivatives(symbol)
+        multi_deriv=_cached_multi_venue_derivatives(symbol)
         cross=(multi_deriv.get("sources") or {}).get("okx")
         if multi_deriv.get("quality")=="FULL":
             oi={
