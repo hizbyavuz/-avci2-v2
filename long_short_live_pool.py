@@ -698,7 +698,10 @@ def queue_approaching_alert(row,price,structure_quality=None):
          f"5 dk mum {fmtp(level)} {relation} kapanırsa {d} güçlenir.\n"
          f"Şu an fiyat: {fmtp(price)}\n"
          f"Beklenen: {expectation}\n"
-         f"Durum: 🟡 {status_line}")
+         f"Durum: 🟡 {status_line}\n"
+         f"🛡️ SL: {fmtp(inv)}\n"
+         f"🎯 TP1: {fmtp(t1)}\n"
+         f"🎯 TP2: {fmtp(t2)}")
     payload={
         "stage":"WATCH_ALERT",
         "early_state":"APPROACHING",
@@ -738,7 +741,9 @@ def message_for(row,stage,price,closed):
                 f"✅ Yapı filtresi geçti: destek/direnç + hacim/mum + fake breakout kontrolü.\n"
                 f"Kapanış: {fmtp(closed)} | Şu an: {fmtp(price)}\n"
                 f"Şimdi beklenen: {next_step}.\n"
-                f"❌ Fikir bozulur: {fmtp(inv)}")
+                f"🛡️ SL: {fmtp(inv)}\n"
+                f"🎯 TP1: {fmtp(t1)}\n"
+                f"🎯 TP2: {fmtp(t2)}")
 
     if stage=="RETESTING":
         # Retest itself is recorded but not messaged; the next actionable state
@@ -753,9 +758,9 @@ def message_for(row,stage,price,closed):
                 f"{side_ball} {d} DEĞERLENDİRİLEBİLİR{warn}\n"
                 f"✅ Destek/direnç bölgesi + hacim/mum uyumu + fake breakout filtresi geçti.\n"
                 f"Fiyat: {fmtp(price)}\n"
-                f"❌ Fikir bozulur: {fmtp(inv)}\n"
-                f"🎯 Hedef 1: {fmtp(t1)}\n"
-                f"🎯 Hedef 2: {fmtp(t2)}")
+                f"🛡️ SL: {fmtp(inv)}\n"
+                f"🎯 TP1: {fmtp(t1)}\n"
+                f"🎯 TP2: {fmtp(t2)}")
 
     if stage=="INVALIDATED":
         return (f"➡️ DEVAM MOTORU\n"
