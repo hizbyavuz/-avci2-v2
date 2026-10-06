@@ -38,6 +38,10 @@ EARLY_MIN_VOLUME_MULT=float(os.getenv("LS_EARLY_MIN_VOLUME_MULT","1.20"))
 EARLY_MIN_TAKER_SHARE=float(os.getenv("LS_EARLY_MIN_TAKER_SHARE","0.54"))
 EARLY_MAX_COMPRESSION_PCT=float(os.getenv("LS_EARLY_MAX_COMPRESSION_PCT","0.90"))
 EARLY_MIN_ROOM_PCT=float(os.getenv("LS_EARLY_MIN_ROOM_PCT","0.30"))
+STRUCTURE_GATE_VERSION="LS_STRUCTURE_GATE_V2_2026-10-06"
+STRUCTURE_MIN_VOLUME_MULT=float(os.getenv("LS_STRUCTURE_MIN_VOLUME_MULT","1.10"))
+STRUCTURE_MIN_BODY_RATIO=float(os.getenv("LS_STRUCTURE_MIN_BODY_RATIO","0.45"))
+STRUCTURE_MAX_REJECTION_WICK=float(os.getenv("LS_STRUCTURE_MAX_REJECTION_WICK","0.35"))
 TELEGRAM_LIMIT=4096
 
 SPOT_BASES=("https://data-api.binance.vision","https://api.binance.com")
@@ -171,7 +175,8 @@ def init_db():
             con.execute("ALTER TABLE watch_state ADD COLUMN data_mode TEXT")
         for name,typ in [
             ("data_cohort","TEXT"),("derivatives_provider","TEXT"),("derivatives_quality","TEXT"),
-            ("htf_direction","TEXT"),("htf_score","INTEGER"),("htf_reasons_json","TEXT")
+            ("htf_direction","TEXT"),("htf_score","INTEGER"),("htf_reasons_json","TEXT"),
+            ("structure_gate_version","TEXT"),("structure_gate_json","TEXT")
         ]:
             if name not in cols:
                 con.execute(f"ALTER TABLE watch_state ADD COLUMN {name} {typ}")
@@ -230,6 +235,7 @@ def load_watchlist():
                 p=json.loads(r["payload_json"] or "{}")
                 plan=p.get("setup_plan") or {}
                 gate=p.get("htf_gate") or {}
+                structure_gate=p.get("structure_gate") or {}
                 # Fail closed for Telegram/actionable watching: no alert is
                 # allowed unless every critical derivatives field was present
                 # in the analyst snapshot (native Binance or full multi-venue).
@@ -239,6 +245,15 @@ def load_watchlist():
                     continue
                 # Early alerts are now allowed only when 1D/4H context agrees.
                 if not gate.get("qualified") or gate.get("direction")!=plan.get("direction"):
+                    continue
+                # V2 live-alert gate: the trigger must be a repeated/confluent
+                # support/resistance zone with enough room to the next obstacle.
+                # This does not alter frozen V1.9 scoring or paper labels.
+                if structure_gate.get("version")!=STRUCTURE_GATE_VERSION:
+                    continue
+                if not bool(structure_gate.get("qualified_precheck")):
+                    continue
+                if structure_gate.get("direction")!=plan.get("direction"):
                     continue
                 # Watch only meaningful WAIT/LONG/SHORT candidates.
                 if r["status"] not in ("WAIT","LONG","SHORT"):
@@ -272,6 +287,8 @@ def load_watchlist():
                     "htf_direction":str(gate.get("direction") or "NONE"),
                     "htf_score":int(gate.get("score") or 0),
                     "htf_reasons":list(gate.get("reasons") or []),
+                    "structure_gate_version":str(structure_gate.get("version") or ""),
+                    "structure_gate":structure_gate,
                     "scan_time":scan["ts"],
                 })
                 if len(out)>=MAX_WATCH:
@@ -292,13 +309,14 @@ def sync_watchlist(items):
                 con.execute("""INSERT OR REPLACE INTO watch_state(
                     symbol,direction,trigger_level,retest_low,retest_high,invalidation,target1,target2,
                     analyst_scan_time,analyst_confidence,data_mode,data_cohort,derivatives_provider,derivatives_quality,
-                    htf_direction,htf_score,htf_reasons_json,
+                    htf_direction,htf_score,htf_reasons_json,structure_gate_version,structure_gate_json,
                     stage,close_confirmed_time,retest_seen,last_price,last_closed_5m,last_update_utc
-                ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'WATCH',NULL,0,NULL,NULL,?)""",
+                ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'WATCH',NULL,0,NULL,NULL,?)""",
                 (x["symbol"],x["direction"],x["trigger_level"],x["retest_low"],x["retest_high"],
                  x["invalidation"],x["target1"],x["target2"],x["scan_time"],x["confidence"],x["data_mode"],
                  x["data_cohort"],x["derivatives_provider"],x["derivatives_quality"],
-                 x["htf_direction"],x["htf_score"],json.dumps(x["htf_reasons"],ensure_ascii=False),now_iso()))
+                 x["htf_direction"],x["htf_score"],json.dumps(x["htf_reasons"],ensure_ascii=False),
+                 x["structure_gate_version"],json.dumps(x["structure_gate"],ensure_ascii=False),now_iso()))
                 con.execute("""UPDATE watch_state SET early_state='NONE',early_signal_price=NULL,early_signal_time=NULL,
                     confirmed_signal_price=NULL,confirmed_signal_time=NULL,gain_before_confirmation=NULL,
                     time_early_to_confirmed_seconds=NULL,early_short_signal_price=NULL,
@@ -309,18 +327,22 @@ def sync_watchlist(items):
                     con.execute("""UPDATE watch_state SET retest_low=?,retest_high=?,invalidation=?,
                         target1=?,target2=?,analyst_scan_time=?,analyst_confidence=?,data_mode=?,
                         data_cohort=?,derivatives_provider=?,derivatives_quality=?,
-                        htf_direction=?,htf_score=?,htf_reasons_json=?,last_update_utc=? WHERE symbol=?""",
+                        htf_direction=?,htf_score=?,htf_reasons_json=?,
+                        structure_gate_version=?,structure_gate_json=?,last_update_utc=? WHERE symbol=?""",
                     (x["retest_low"],x["retest_high"],x["invalidation"],x["target1"],x["target2"],
                      x["scan_time"],x["confidence"],x["data_mode"],x["data_cohort"],x["derivatives_provider"],
                      x["derivatives_quality"],x["htf_direction"],x["htf_score"],
-                     json.dumps(x["htf_reasons"],ensure_ascii=False),now_iso(),x["symbol"]))
+                     json.dumps(x["htf_reasons"],ensure_ascii=False),x["structure_gate_version"],
+                     json.dumps(x["structure_gate"],ensure_ascii=False),now_iso(),x["symbol"]))
                 else:
                     con.execute("""UPDATE watch_state SET analyst_scan_time=?,analyst_confidence=?,data_mode=?,
                         data_cohort=?,derivatives_provider=?,derivatives_quality=?,
-                        htf_direction=?,htf_score=?,htf_reasons_json=?,last_update_utc=? WHERE symbol=?""",
+                        htf_direction=?,htf_score=?,htf_reasons_json=?,
+                        structure_gate_version=?,structure_gate_json=?,last_update_utc=? WHERE symbol=?""",
                     (x["scan_time"],x["confidence"],x["data_mode"],x["data_cohort"],x["derivatives_provider"],
                      x["derivatives_quality"],x["htf_direction"],x["htf_score"],
-                     json.dumps(x["htf_reasons"],ensure_ascii=False),now_iso(),x["symbol"]))
+                     json.dumps(x["htf_reasons"],ensure_ascii=False),x["structure_gate_version"],
+                     json.dumps(x["structure_gate"],ensure_ascii=False),now_iso(),x["symbol"]))
         if keep:
             q=",".join("?" for _ in keep)
             con.execute(f"DELETE FROM watch_state WHERE symbol NOT IN ({q})",tuple(keep))
@@ -380,8 +402,22 @@ def market_snapshot(symbol):
     atr1=_true_range(kl1[-16:])
 
     short_range_pct=((max(highs)-min(lows))/price*100.0) if highs and lows and price else 0.0
+
+    co=float(row[1]); ch=float(row[2]); cl=float(row[3]); cc=float(row[4])
+    cr=max(ch-cl,1e-12)
+    cbody=abs(cc-co)/cr
+    cclose_loc=(cc-cl)/cr
+    cqvol=float(row[7] or 0.0)
+    cbase_rows=kl5[-22:-2] if len(kl5)>=22 else kl5[:-2]
+    cbase=(sum(float(x[7] or 0.0) for x in cbase_rows)/len(cbase_rows)) if cbase_rows else 0.0
+    cvol_mult=cqvol/cbase if cbase>0 else 1.0
+
     early={
         "local_high":local_high,"local_low":local_low,
+        "closed_5m_open":co,"closed_5m_high":ch,"closed_5m_low":cl,
+        "closed_5m_close":cc,"closed_5m_body_ratio":cbody,
+        "closed_5m_close_location":cclose_loc,
+        "closed_5m_volume_mult":cvol_mult,
         "compression_pct":compression_pct,"ema7_slope_pct":ema7_slope,
         "vol_mult":vol_mult,"taker_buy_share":taker_share,"atr1":atr1,
         "quote_volume_24h":float(stats.get("quoteVolume") or 0.0),
@@ -441,7 +477,67 @@ def early_observation(row,price,early):
         return "PENDING",metrics
     return "NONE",metrics
 
-def next_stage(row,price,closed):
+def live_structure_confirmation(row,closed,early):
+    """Require volume/candle agreement and reject wick-only fake breakouts."""
+    try:
+        gate=json.loads(row["structure_gate_json"] or "{}") if "structure_gate_json" in row.keys() else {}
+    except Exception:
+        gate={}
+    if gate.get("version")!=STRUCTURE_GATE_VERSION or not gate.get("qualified_precheck"):
+        return {"qualified":False,"reason":"structure_precheck_failed"}
+
+    d=row["direction"]; trig=float(row["trigger_level"])
+    o=float(early.get("closed_5m_open") or closed)
+    h=float(early.get("closed_5m_high") or closed)
+    l=float(early.get("closed_5m_low") or closed)
+    c=float(early.get("closed_5m_close") or closed)
+    rng=max(h-l,1e-12)
+    body_ratio=float(early.get("closed_5m_body_ratio") or 0.0)
+    close_loc=float(early.get("closed_5m_close_location") or 0.5)
+    vol_mult=float(early.get("closed_5m_volume_mult") or 0.0)
+
+    if d=="LONG":
+        direction_ok=c>o
+        close_location_ok=close_loc>=0.65
+        rejection_wick=(h-max(o,c))/rng
+        fake_breakout=bool(h>trig and c<=trig)
+        beyond=bool(c>trig)
+    else:
+        direction_ok=c<o
+        close_location_ok=close_loc<=0.35
+        rejection_wick=(min(o,c)-l)/rng
+        fake_breakout=bool(l<trig and c>=trig)
+        beyond=bool(c<trig)
+
+    volume_ok=vol_mult>=STRUCTURE_MIN_VOLUME_MULT
+    body_ok=body_ratio>=STRUCTURE_MIN_BODY_RATIO
+    wick_ok=rejection_wick<=STRUCTURE_MAX_REJECTION_WICK
+    qualified=bool(
+        beyond and direction_ok and volume_ok and body_ok
+        and close_location_ok and wick_ok and not fake_breakout
+    )
+    return {
+        "version":STRUCTURE_GATE_VERSION,
+        "qualified":qualified,
+        "precheck_ok":True,
+        "beyond_trigger":beyond,
+        "direction_ok":direction_ok,
+        "volume_ok":volume_ok,
+        "body_ok":body_ok,
+        "close_location_ok":close_location_ok,
+        "rejection_wick_ok":wick_ok,
+        "fake_breakout":fake_breakout,
+        "volume_mult":vol_mult,
+        "body_ratio":body_ratio,
+        "close_location":close_loc,
+        "rejection_wick_ratio":rejection_wick,
+        "room_pct":float(gate.get("room_pct") or 0.0),
+        "timeframe_confluence":int(gate.get("timeframe_confluence") or 0),
+        "level_touches":int(gate.get("level_touches") or 0),
+    }
+
+
+def next_stage(row,price,closed,structure_quality=None):
     direction=row["direction"]
     trig=float(row["trigger_level"])
     rl=float(row["retest_low"])
@@ -464,7 +560,7 @@ def next_stage(row,price,closed):
         moving_away=price<rl
 
     if stage in ("WATCH","APPROACHING"):
-        if close_ok:
+        if close_ok and bool((structure_quality or {}).get("qualified")):
             return "CLOSE_CONFIRMED"
         if dist<=APPROACH_PCT:
             return "APPROACHING"
@@ -520,6 +616,7 @@ def message_for(row,stage,price,closed):
         next_step="seviyeyi koruması / retestten güç alması" if d=="LONG" else "seviyenin altında kalması / retestten reddedilmesi"
         return (f"{side_ball} {d} TEYİT GELDİ | {sym}\n"
                 f"5 dk mum {fmtp(trig)} {relation} kapandı.\n"
+                f"✅ Yapı filtresi geçti: destek/direnç + hacim/mum + fake breakout kontrolü.\n"
                 f"Kapanış: {fmtp(closed)} | Şu an: {fmtp(price)}\n"
                 f"Şimdi beklenen: {next_step}.\n"
                 f"❌ Fikir bozulur: {fmtp(inv)}")
@@ -535,6 +632,7 @@ def message_for(row,stage,price,closed):
         return (f"➡️ DEVAM MOTORU\n"
                 f"{coin} — {side_word} ŞARTLARI TAMAM\n"
                 f"{side_ball} {d} DEĞERLENDİRİLEBİLİR{warn}\n"
+                f"✅ Destek/direnç bölgesi + hacim/mum uyumu + fake breakout filtresi geçti.\n"
                 f"Fiyat: {fmtp(price)}\n"
                 f"❌ Fikir bozulur: {fmtp(inv)}\n"
                 f"🎯 Hedef 1: {fmtp(t1)}\n"
@@ -604,7 +702,8 @@ def loop_once():
             try:
                 price,closed,closed_candle_time,early=market_snapshot(row["symbol"])
                 old=row["stage"]
-                new=next_stage(row,price,closed)
+                structure_quality=live_structure_confirmation(row,closed,early)
+                new=next_stage(row,price,closed,structure_quality)
                 observed_time=now_iso()
 
                 # Separate observational early layer: never mutates frozen continuation stage.
@@ -648,6 +747,8 @@ def loop_once():
                         (observed_time,row["symbol"],row["direction"],"EARLY:"+old_early,"EARLY:"+estate,
                          price,closed,observed_time,json.dumps({
                              **emetrics,
+                             "_live_structure_quality":structure_quality,
+                             "_live_alert_version":STRUCTURE_GATE_VERSION,
                              "_setup":{
                                  "trigger_level":float(row["trigger_level"]),
                                  "invalidation":float(row["invalidation"] or 0.0),
@@ -697,6 +798,8 @@ def loop_once():
                     telegram_status="NOT_APPLICABLE" if not msg else "PENDING"
                     telegram_error=None
                     event_payload=dict(row)
+                    event_payload["_live_structure_quality"]=structure_quality
+                    event_payload["_live_alert_version"]=STRUCTURE_GATE_VERSION
                     if msg:
                         print(msg)
                         try:
