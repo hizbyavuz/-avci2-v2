@@ -218,6 +218,29 @@ def init_db():
             if name not in event_cols:
                 con.execute(f"ALTER TABLE events ADD COLUMN {name} {typ}")
 
+        con.execute("""CREATE TABLE IF NOT EXISTS watch_episodes(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            symbol TEXT NOT NULL,
+            direction TEXT NOT NULL,
+            started_at_utc TEXT NOT NULL,
+            ended_at_utc TEXT,
+            end_reason TEXT,
+            analyst_scan_time TEXT,
+            start_price REAL,
+            trigger_level REAL NOT NULL,
+            invalidation REAL,
+            target1 REAL,
+            target2 REAL,
+            data_cohort TEXT,
+            structure_gate_version TEXT,
+            max_stage TEXT NOT NULL DEFAULT 'WATCH',
+            close_confirmed_time TEXT,
+            triggered_time TEXT,
+            last_price REAL
+        )""")
+        con.execute("""CREATE INDEX IF NOT EXISTS ix_watch_episodes_open
+                       ON watch_episodes(symbol,ended_at_utc)""")
+
 def load_watchlist():
     if not os.path.exists(ANALYST_DB):
         return []
@@ -226,7 +249,7 @@ def load_watchlist():
         scan=con.execute("SELECT MAX(scan_time_utc) AS ts FROM analyses").fetchone()
         if not scan or not scan["ts"]:
             return []
-        rows=con.execute("""SELECT symbol,status,long_score,short_score,confidence,payload_json
+        rows=con.execute("""SELECT symbol,status,long_score,short_score,confidence,price,payload_json
                            FROM analyses WHERE scan_time_utc=?
                            ORDER BY confidence DESC LIMIT ?""",(scan["ts"],MAX_WATCH*3)).fetchall()
         out=[]
@@ -294,6 +317,7 @@ def load_watchlist():
 
                 out.append({
                     "symbol":r["symbol"],"direction":plan["direction"],
+                    "reference_price":float(r["price"] or 0.0),
                     "trigger_level":live_trigger,
                     "retest_low":live_retest_low,
                     "retest_high":live_retest_high,
@@ -318,6 +342,25 @@ def load_watchlist():
                 continue
         return out
 
+def _close_open_watch_episode(con,symbol,reason,last_price=None):
+    ts=now_iso()
+    con.execute("""UPDATE watch_episodes SET ended_at_utc=?,end_reason=?,
+                   last_price=COALESCE(?,last_price)
+                   WHERE symbol=? AND ended_at_utc IS NULL""",
+                (ts,reason,last_price,symbol))
+
+
+def _open_watch_episode(con,x):
+    con.execute("""INSERT INTO watch_episodes(
+        symbol,direction,started_at_utc,analyst_scan_time,start_price,
+        trigger_level,invalidation,target1,target2,data_cohort,
+        structure_gate_version,max_stage,last_price
+    ) VALUES(?,?,?,?,?,?,?,?,?,?,?,'WATCH',?)""",
+    (x["symbol"],x["direction"],now_iso(),x["scan_time"],x.get("reference_price"),
+     x["trigger_level"],x["invalidation"],x["target1"],x["target2"],
+     x["data_cohort"],x["structure_gate_version"],x.get("reference_price")))
+
+
 def sync_watchlist(items):
     with sqlite3.connect(LIVE_DB) as con:
         keep={x["symbol"] for x in items}
@@ -327,6 +370,9 @@ def sync_watchlist(items):
             level_changed=(old and abs(float(old[1])-x["trigger_level"])>max(1e-12,x["trigger_level"]*0.001))
             reset = not old or old[0]!=x["direction"] or (active_stage in ("WATCH","APPROACHING") and level_changed)
             if reset:
+                if old:
+                    _close_open_watch_episode(con,x["symbol"],"RESET_DIRECTION_OR_LEVEL")
+                _open_watch_episode(con,x)
                 con.execute("""INSERT OR REPLACE INTO watch_state(
                     symbol,direction,trigger_level,retest_low,retest_high,invalidation,target1,target2,
                     analyst_scan_time,analyst_confidence,data_mode,data_cohort,derivatives_provider,derivatives_quality,
@@ -366,8 +412,14 @@ def sync_watchlist(items):
                      json.dumps(x["structure_gate"],ensure_ascii=False),now_iso(),x["symbol"]))
         if keep:
             q=",".join("?" for _ in keep)
+            dropped=con.execute(f"SELECT symbol,last_price FROM watch_state WHERE symbol NOT IN ({q})",tuple(keep)).fetchall()
+            for sym,last_price in dropped:
+                _close_open_watch_episode(con,sym,"DROPPED_FROM_WATCHLIST",last_price)
             con.execute(f"DELETE FROM watch_state WHERE symbol NOT IN ({q})",tuple(keep))
         else:
+            dropped=con.execute("SELECT symbol,last_price FROM watch_state").fetchall()
+            for sym,last_price in dropped:
+                _close_open_watch_episode(con,sym,"DROPPED_FROM_WATCHLIST",last_price)
             con.execute("DELETE FROM watch_state")
 
 def _ema(values,period=7):
@@ -814,6 +866,13 @@ def loop_once():
                                 gain_before_short_confirmation=CASE WHEN direction='SHORT' THEN ? ELSE gain_before_short_confirmation END,
                                 time_early_short_to_confirmed_seconds=CASE WHEN direction='SHORT' THEN ? ELSE time_early_short_to_confirmed_seconds END
                                 WHERE symbol=?""",(price,observed_time,gain,dt,price,gain,dt,row["symbol"]))
+                    con.execute("""UPDATE watch_episodes SET
+                        max_stage=?,
+                        close_confirmed_time=CASE WHEN ?='CLOSE_CONFIRMED' THEN ? ELSE close_confirmed_time END,
+                        triggered_time=CASE WHEN ?='TRIGGERED' THEN ? ELSE triggered_time END,
+                        last_price=?
+                        WHERE symbol=? AND ended_at_utc IS NULL""",
+                        (new,new,condition_time,new,condition_time,price,row["symbol"]))
                     con.commit()
 
                     sent_time=None
