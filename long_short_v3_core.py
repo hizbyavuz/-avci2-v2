@@ -248,6 +248,8 @@ def decide_setup(
         or (direction=="SHORT" and float(taker_ratio or 1.0)<=1.10)
     )
     extension_ok=comp["pre_signal_extension_atr"]<=2.50
+    btc_shock_atr=float(residual.get("btc_shock_atr") or 0.0)
+    btc_shock_ok=btc_shock_atr<=3.0
 
     gates={
         "setup":True,
@@ -258,6 +260,7 @@ def decide_setup(
         "crowding_not_extreme":not crowd_extreme,
         "taker_not_strongly_opposite":taker_not_opposite,
         "anti_chase":extension_ok,
+        "btc_shock":btc_shock_ok,
         "residual_direction":residual_long if direction=="LONG" else residual_short,
     }
     veto=[k for k,v in gates.items() if not v]
@@ -281,4 +284,5 @@ def decide_setup(
         "distance_resistance_atr":dist_res,
         "distance_support_atr":dist_sup,
         "ema20_distance_atr":ema_dist,
+        "btc_shock_atr":btc_shock_atr,
     }
