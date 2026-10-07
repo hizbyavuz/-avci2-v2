@@ -617,12 +617,15 @@ def build_setup_plan(direction, price, t5k, t15, chart):
         retest_low=trigger
         retest_high=trigger+pad
         invalid=max(levels["resistance"], trigger+0.9*a)
-        # Reject meaningless targets that sit almost on the entry level.
-        min_t1_gap=max(1.0*a, trigger*0.004)
-        min_t2_gap=max(0.8*a, trigger*0.003)
+        # Build targets from the actual stop risk, not a fixed ATR shortcut.
+        # This prevents WATCH setups that can never pass the later net-R gate.
+        risk_gap=max(invalid-trigger,1e-12)
+        cost_gap=trigger*(structure_min_round_trip_cost_pct()/100.0)
+        min_t1_gap=max(1.0*a,trigger*0.004,1.15*risk_gap+cost_gap)
+        min_t2_gap=max(0.8*a,trigger*0.003,0.75*risk_gap)
         structural_t1=levels["support2"]
         target1=structural_t1 if structural_t1 <= trigger-min_t1_gap else trigger-min_t1_gap
-        target2=min(target1-min_t2_gap, trigger-2.5*a)
+        target2=min(target1-min_t2_gap, trigger-(min_t1_gap+min_t2_gap))
         candle="5dk"
         text=(
             f"{candle} mum {trigger:.10g} altında kapanırsa ve "
@@ -639,12 +642,14 @@ def build_setup_plan(direction, price, t5k, t15, chart):
     retest_low=trigger-pad
     retest_high=trigger
     invalid=min(levels["support"], trigger-0.9*a)
-    # Reject meaningless targets that sit almost on the entry level.
-    min_t1_gap=max(1.0*a, trigger*0.004)
-    min_t2_gap=max(0.8*a, trigger*0.003)
+    # Build targets from the actual stop risk, not a fixed ATR shortcut.
+    risk_gap=max(trigger-invalid,1e-12)
+    cost_gap=trigger*(structure_min_round_trip_cost_pct()/100.0)
+    min_t1_gap=max(1.0*a,trigger*0.004,1.15*risk_gap+cost_gap)
+    min_t2_gap=max(0.8*a,trigger*0.003,0.75*risk_gap)
     structural_t1=levels["resistance2"]
     target1=structural_t1 if structural_t1 >= trigger+min_t1_gap else trigger+min_t1_gap
-    target2=max(target1+min_t2_gap, trigger+2.5*a)
+    target2=max(target1+min_t2_gap, trigger+(min_t1_gap+min_t2_gap))
     candle="5dk"
     text=(
         f"{candle} mum {trigger:.10g} üstünde kapanırsa ve "
@@ -669,8 +674,11 @@ def build_pullback_plan(direction, price, t5k, t15):
         invalid=min(lows[-8:]) if lows else price-1.0*a
         if invalid>=trigger:
             invalid=trigger-1.0*a
-        target1=max(max(highs[-24:]),trigger+1.4*a)
-        target2=max(target1+0.8*a,trigger+2.4*a)
+        risk_gap=max(trigger-invalid,1e-12)
+        cost_gap=trigger*(structure_min_round_trip_cost_pct()/100.0)
+        min_t1_gap=max(1.4*a,1.15*risk_gap+cost_gap)
+        target1=max(max(highs[-24:]),trigger+min_t1_gap)
+        target2=max(target1+max(0.8*a,0.75*risk_gap),trigger+min_t1_gap+0.8*a)
         return {
             "setup_type":"PULLBACK","direction":"LONG","trigger_level":trigger,"close_tf":"5dk",
             "retest_low":trigger-0.30*a,"retest_high":trigger,
@@ -682,8 +690,11 @@ def build_pullback_plan(direction, price, t5k, t15):
     invalid=max(highs[-8:]) if highs else price+1.0*a
     if invalid<=trigger:
         invalid=trigger+1.0*a
-    target1=min(min(lows[-24:]),trigger-1.4*a)
-    target2=min(target1-0.8*a,trigger-2.4*a)
+    risk_gap=max(invalid-trigger,1e-12)
+    cost_gap=trigger*(structure_min_round_trip_cost_pct()/100.0)
+    min_t1_gap=max(1.4*a,1.15*risk_gap+cost_gap)
+    target1=min(min(lows[-24:]),trigger-min_t1_gap)
+    target2=min(target1-max(0.8*a,0.75*risk_gap),trigger-min_t1_gap-0.8*a)
     return {
         "setup_type":"PULLBACK","direction":"SHORT","trigger_level":trigger,"close_tf":"5dk",
         "retest_low":trigger,"retest_high":trigger+0.30*a,
