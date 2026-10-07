@@ -396,16 +396,20 @@ def gate_derivatives(symbol: str) -> dict[str, Any]:
                 if latest_ts>10_000_000_000:
                     latest_ts=latest_ts/1000.0
                 out["source_age_seconds"]=max(0.0,time.time()-float(latest_ts))
-            oi_vals = [_fv(r.get("open_interest_usd")) for r in rows]
+            # V3: prefer contract/coin OI, not USD OI. USD OI mechanically
+            # rises when price rises and can create a false "new positioning" signal.
+            oi_vals = [_fv(r.get("open_interest")) for r in rows]
+            oi_unit = "GATE_FUTURES_CONTRACT_OI"
             if not any(v is not None and v > 0 for v in oi_vals):
-                oi_vals = [_fv(r.get("open_interest")) for r in rows]
+                oi_vals = [_fv(r.get("open_interest_usd")) for r in rows]
+                oi_unit = "GATE_FUTURES_USD_OI_FALLBACK"
             oi_vals = [v for v in oi_vals if v is not None and v > 0]
             if oi_vals:
                 out["oi_now"] = oi_vals[-1]
-                out["field_source"]["oi_now"] = "GATE_FUTURES"
+                out["field_source"]["oi_now"] = oi_unit
             if len(oi_vals) >= 2:
                 out["oi_change_1h"] = _pct(oi_vals[0], oi_vals[-1])
-                out["field_source"]["oi_change_1h"] = "GATE_FUTURES"
+                out["field_source"]["oi_change_1h"] = oi_unit
 
             taker = _fv(latest.get("lsr_taker"))
             if taker is None:
