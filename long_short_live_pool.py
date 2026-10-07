@@ -433,9 +433,16 @@ def load_watchlist():
                     and live_retest_low<=live_retest_high
                 )
 
-                # Radar-only entries are observational. Real WAIT/LONG/SHORT items
-                # fail closed if the user-facing trigger/SL/TP geometry is not sane.
-                if not radar_only and not effective_levels_ok:
+                # Radar-only entries are observational. A real WATCH message must
+                # be capable of becoming a confirmation with the *locked* setup.
+                # Do not tell the user to watch an entry whose structural room/R
+                # precheck already says it can never pass.
+                structure_precheck_ok=bool(
+                    structure_gate.get("qualified_precheck")
+                    if setup_type=="BREAKOUT"
+                    else (structure_gate.get("room_ok") and structure_gate.get("rr_ok"))
+                )
+                if not radar_only and (not effective_levels_ok or not structure_precheck_ok):
                     continue
 
                 stored_gate=dict(structure_gate)
