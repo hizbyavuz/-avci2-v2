@@ -113,9 +113,16 @@ def _simulate(row, candles, direction):
     first, first_ts, _, mfe, mae = _barrier_path(direction, entry, stop, target, 0.0, candles)
     endpoint = float(candles[-1][4])
     exit_price = target if first == "TP1" else stop if first == "STOP" else endpoint
-    payload = _payload(row["event_payload_json"])
-    buy_slip, sell_slip = _slippage_pair(payload, direction)
-    cost = (2.0 * FEE_BPS_PER_SIDE + buy_slip + sell_slip) / 100.0
+    # Match the live outcome's exact already-recorded round-trip cost.
+    # A flipped baseline must not get a different assumed fee/slippage hurdle.
+    try:
+        cost = float(row["round_trip_cost_pct"])
+        if not math.isfinite(cost) or cost < 0:
+            raise ValueError("bad recorded cost")
+    except (KeyError, IndexError, TypeError, ValueError):
+        payload = _payload(row["event_payload_json"])
+        entry_slip, exit_slip = _slippage_pair(payload, direction)
+        cost = (2.0 * FEE_BPS_PER_SIDE + entry_slip + exit_slip) / 100.0
     gross = _direction_return(direction, entry, exit_price)
     net = gross - cost
     risk = abs(entry - stop) / entry * 100.0
