@@ -2,7 +2,7 @@ name: Long Short Live Pool V3
 
 # Separate near-live watcher. Reads analyst candidates, never places orders.
 on:
-  workflow_dispatch:
+  workflow_dispatch: {}
 permissions:
   contents: read
   actions: write
