@@ -1,5 +1,5 @@
-name: Long Short Analyst V1
-# restart-stamp: 2026-10-06-v2-3-1-broad-radar-discovery
+name: Long Short Analyst V3
+# restart-stamp: 2026-10-07-v3-state-machine-freeze
 # Active paper-trade analyst. Never places orders.
 on:
   workflow_dispatch:
@@ -7,13 +7,20 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/long-short-analyst.yml"
+      - "long_short_analyst.py"
+      - "long_short_v3_core.py"
+      - "long_short_data_router.py"
+      - "long_short_live_pool.py"
+      - "long_short_outcome_tracker_v21.py"
+      - "LONG_SHORT_V3_FROZEN_CONFIG.json"
+      - "tests/test_long_short_v3_core.py"
 
 permissions:
   contents: read
   actions: write
 
 concurrency:
-  group: long-short-analyst-v1-fast
+  group: long-short-analyst-v3-freeze
   cancel-in-progress: true
 
 jobs:
@@ -38,12 +45,12 @@ jobs:
       - name: Install
         run: pip install requests==2.32.5 pyturso==0.7.2
 
-      - name: Compile frozen core and V2.1 hardening layer
+      - name: Compile frozen V3 state-machine layer
         run: |
-          python -m py_compile long_short_analyst.py long_short_live_pool.py long_short_simple_notify.py long_short_outcome_tracker_v21.py
-          python -m json.tool LONG_SHORT_V1_9_FROZEN_CONFIG.json >/dev/null
-          python -m json.tool LONG_SHORT_STRUCTURE_GATE_V2_1_CONFIG.json >/dev/null
+          python -m py_compile long_short_analyst.py long_short_v3_core.py long_short_live_pool.py long_short_simple_notify.py long_short_outcome_tracker_v21.py
+          python -m json.tool LONG_SHORT_V3_FROZEN_CONFIG.json >/dev/null
           python tests/test_long_short_structure_gate_v2.py
+          python tests/test_long_short_v3_core.py
           python tests/test_long_short_outcome_v21.py
           python tests/test_long_short_v21_integration.py
           python tests/test_long_short_discovery_v23.py
@@ -56,16 +63,18 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p .lsa-state
-          run_id=$(gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts?name=long-short-analyst-state&per_page=100"             --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | reverse | .[0].workflow_run.id // empty')
+          run_id=$(gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts?name=long-short-v3-analyst-state&per_page=100"             --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | reverse | .[0].workflow_run.id // empty')
           if test -n "$run_id"; then
-            gh run download "$run_id" --name long-short-analyst-state --dir .lsa-state || true
-            test -f .lsa-state/long_short_analyst.db && cp .lsa-state/long_short_analyst.db .
+            gh run download "$run_id" --name long-short-v3-analyst-state --dir .lsa-state || true
+            test -f .lsa-state/long_short_v3_analyst.db && cp .lsa-state/long_short_v3_analyst.db .
           fi
 
       - name: Run deterministic analyst
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          LS_DB: "long_short_v3_analyst.db"
+          LS_FROZEN_CONFIG_PATH: "LONG_SHORT_V3_FROZEN_CONFIG.json"
           LS_MAX_SYMBOLS: "80"
           LS_PRESELECT_MAX: "24"
           LS_PREFILTER_WORKERS: "8"
@@ -87,8 +96,8 @@ jobs:
       - name: Upload analyst state
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: long-short-analyst-state
-          path: long_short_analyst.db
+          name: long-short-v3-analyst-state
+          path: long_short_v3_analyst.db
           if-no-files-found: error
           retention-days: 30
           compression-level: 6
