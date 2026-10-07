@@ -16,6 +16,7 @@ import math
 import os
 import sqlite3
 import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 
 import requests
@@ -31,6 +32,10 @@ RUN_SECONDS=int(os.getenv("LS_LIVE_RUN_SECONDS","3600"))
 ALIGN_TO_5M=os.getenv("LS_ALIGN_TO_5M","1").strip().lower() in ("1","true","yes","on")
 ALIGN_GRACE_SECONDS=float(os.getenv("LS_ALIGN_GRACE_SECONDS","4"))
 MAX_WATCH=int(os.getenv("LS_LIVE_MAX_WATCH","12"))
+# Delivery policy only: frozen direction/structure/execution thresholds remain unchanged.
+TELEGRAM_TRADE_ONLY=os.getenv("LS_TELEGRAM_TRADE_ONLY","1").strip().lower() in ("1","true","yes","on")
+TELEGRAM_RUNTIME_NOTICES=os.getenv("LS_TELEGRAM_RUNTIME_NOTICES","0").strip().lower() in ("1","true","yes","on")
+LIVE_FETCH_WORKERS=max(1,min(12,int(os.getenv("LS_LIVE_FETCH_WORKERS","6"))))
 APPROACH_PCT=float(os.getenv("LS_LIVE_APPROACH_PCT","0.25"))
 WATCHLIST_GRACE_SECONDS=int(os.getenv("LS_WATCHLIST_GRACE_SECONDS","900"))
 SETUP_MAX_AGE_SECONDS=int(os.getenv("LS_SETUP_MAX_AGE_SECONDS","10800"))
@@ -1094,6 +1099,24 @@ def message_for(row,stage,price,closed):
     side_word=f"{side_ball} {d}"
     coin=f"{side_ball} {sym}"
 
+    # Only one Telegram alert at a *trade-qualified* transition. Earlier
+    # radar/watch/early/close-confirmed/invalidation stages stay in events DB.
+    # This is a presentation policy, never a weaker signal or execution gate.
+    if TELEGRAM_TRADE_ONLY:
+        if stage!="TRIGGERED":
+            return None
+        data_mode=(row["data_mode"] or "UNKNOWN") if "data_mode" in row.keys() else "UNKNOWN"
+        data_note=("Binance Futures" if data_mode=="BINANCE_FUTURES"
+                   else "Spot grafik + çoklu-venue türev doğrulaması")
+        return (f"{side_ball} {d} SİNYALİ | {sym}\n"
+                f"5 dk kapanış + devam koşulları tamamlandı.\n"
+                f"Tetik seviyesi: {fmtp(trig)} | Gözlenen fiyat: {fmtp(price)}\n"
+                f"🛡️ SL: {fmtp(inv)}\n"
+                f"🎯 TP1: {fmtp(t1)}\n"
+                f"🎯 TP2: {fmtp(t2)}\n"
+                f"Veri: {data_note}\n"
+                "⚠️ Analiz uyarısı; otomatik emir açılmadı.")
+
     if stage=="APPROACHING":
         # Approach alerts are handled by the shared anti-spam queue.
         return None
@@ -1266,234 +1289,239 @@ def loop_once():
     with sqlite3.connect(LIVE_DB) as con:
         con.row_factory=sqlite3.Row
         rows=con.execute("SELECT * FROM watch_state ORDER BY analyst_confidence DESC").fetchall()
-        for row in rows:
-            try:
-                price,closed,closed_candle_time,early=market_snapshot(row["symbol"])
-                old=row["stage"]
-                structure_quality=live_structure_confirmation(row,closed,early)
-                new=next_stage(row,price,closed,structure_quality)
-                observed_time=now_iso()
+        # Fetch external market snapshots concurrently; DB state writes and
+        # Telegram sends remain serialized and deterministic in watchlist order.
+        with ThreadPoolExecutor(max_workers=LIVE_FETCH_WORKERS) as workers:
+            snapshots={r["symbol"]:workers.submit(market_snapshot,r["symbol"]) for r in rows}
+            for row in rows:
+                try:
+                    price,closed,closed_candle_time,early=snapshots[row["symbol"]].result()
+                    old=row["stage"]
+                    structure_quality=live_structure_confirmation(row,closed,early)
+                    new=next_stage(row,price,closed,structure_quality)
+                    observed_time=now_iso()
 
-                # Separate observational early layer: never mutates frozen continuation stage.
-                old_early=(row["early_state"] or "NONE") if "early_state" in row.keys() else "NONE"
-                if _row_is_radar(row) or not _row_is_analyst_active(row):
-                    estate,emetrics="NONE",{
-                        "radar_only":_row_is_radar(row),
-                        "analyst_active":_row_is_analyst_active(row),
-                    }
-                else:
-                    estate,emetrics=early_observation(row,price,early)
-                inv=float(row["invalidation"] or 0)
-                if old_early in ("EARLY_LONG","EARLY_SHORT","PENDING","CHASE"):
-                    broken=(row["direction"]=="LONG" and inv and price<inv) or (row["direction"]=="SHORT" and inv and price>inv)
-                    if broken:
-                        estate="BROKEN"
-                    elif old_early in ("EARLY_LONG","EARLY_SHORT") and estate=="NONE":
-                        estate="PENDING"
-                    elif old_early=="PENDING" and estate=="NONE":
-                        estate="PENDING"
-                    elif old_early=="CHASE" and estate in ("NONE","PENDING"):
-                        estate="CHASE"
-                if estate!=old_early:
-                    emsg=None
-                    if estate in ("PENDING","EARLY_LONG","EARLY_SHORT","CHASE"):
-                        level=float(row["trigger_level"])
-                        day_change=float(emetrics.get("day_change_pct") or 0.0)
-                        mclass=classify_move(row["symbol"],day_change)
-                        if mclass!="FAST_QUIET":
-                            queued_msg=format_alert(row["symbol"],row["direction"],level,mclass,day_change,price,
-                                                    row["invalidation"],row["target1"],row["target2"])
-                            priority=4 if mclass=="FAST_FRESH" else 3 if mclass=="STABLE" else 2
-                            watch_payload={
-                                "stage":"WATCH_ALERT",
-                                "early_state":estate,
-                                "price":float(price),
-                                "trigger_level":level,
-                                "invalidation":float(row["invalidation"] or 0.0),
-                                "target1":float(row["target1"] or 0.0),
-                                "target2":float(row["target2"] or 0.0),
-                                "data_cohort":str(row["data_cohort"] or "UNKNOWN") if "data_cohort" in row.keys() else "UNKNOWN",
-                                "structure_gate_version":str(row["structure_gate_version"] or "") if "structure_gate_version" in row.keys() else "",
-                                "analyst_scan_time":str(row["analyst_scan_time"] or ""),
-                                "analyst_confidence":int(row["analyst_confidence"] or 0),
-                                "day_change_pct":day_change,
-                                "move_class":mclass,
-                            }
-                            queue_alert(row["symbol"],row["direction"],level,queued_msg,priority,payload=watch_payload)
-                    first_signal=estate in ("EARLY_LONG","EARLY_SHORT") and old_early not in ("EARLY_LONG","EARLY_SHORT")
-                    con.execute("""UPDATE watch_state SET early_state=?,
-                        early_signal_price=CASE WHEN ? THEN ? ELSE early_signal_price END,
-                        early_signal_time=CASE WHEN ? THEN ? ELSE early_signal_time END,
-                        early_short_signal_price=CASE WHEN ? AND direction='SHORT' THEN ? ELSE early_short_signal_price END,
-                        last_price=?,last_closed_5m=?,last_update_utc=? WHERE symbol=?""",
-                        (estate,1 if first_signal else 0,price,1 if first_signal else 0,observed_time,
-                         1 if first_signal else 0,price,price,closed,observed_time,row["symbol"]))
-                    con.commit()
-                    if emsg:
-                        print(emsg); send_telegram(emsg)
-                    con.execute("""INSERT INTO events(event_time_utc,symbol,direction,stage_from,stage_to,
-                        price,closed_5m,condition_time_utc,payload_json) VALUES(?,?,?,?,?,?,?,?,?)""",
-                        (observed_time,row["symbol"],row["direction"],"EARLY:"+old_early,"EARLY:"+estate,
-                         price,closed,observed_time,json.dumps({
-                             **emetrics,
-                             "_live_structure_quality":structure_quality,
-                             "_live_alert_version":STRUCTURE_GATE_VERSION,
-                             "_setup":{
-                                 "trigger_level":float(row["trigger_level"]),
-                                 "invalidation":float(row["invalidation"] or 0.0),
-                                 "target1":float(row["target1"] or 0.0),
-                                 "target2":float(row["target2"] or 0.0),
-                                 "analyst_confidence":int(row["analyst_confidence"] or 0),
-                                 "data_mode":str(row["data_mode"] or "UNKNOWN"),
-                                 "data_cohort":str(row["data_cohort"] or "UNKNOWN") if "data_cohort" in row.keys() else "UNKNOWN",
-                                 "derivatives_provider":str(row["derivatives_provider"] or "") if "derivatives_provider" in row.keys() else "",
-                                 "derivatives_quality":str(row["derivatives_quality"] or "") if "derivatives_quality" in row.keys() else "",
-                                 "analyst_scan_time":str(row["analyst_scan_time"] or ""),
-                             },
-                         },ensure_ascii=False)))
-                    con.commit()
+                    # Separate observational early layer: never mutates frozen continuation stage.
+                    old_early=(row["early_state"] or "NONE") if "early_state" in row.keys() else "NONE"
+                    if _row_is_radar(row) or not _row_is_analyst_active(row):
+                        estate,emetrics="NONE",{
+                            "radar_only":_row_is_radar(row),
+                            "analyst_active":_row_is_analyst_active(row),
+                        }
+                    else:
+                        estate,emetrics=early_observation(row,price,early)
+                    inv=float(row["invalidation"] or 0)
+                    if old_early in ("EARLY_LONG","EARLY_SHORT","PENDING","CHASE"):
+                        broken=(row["direction"]=="LONG" and inv and price<inv) or (row["direction"]=="SHORT" and inv and price>inv)
+                        if broken:
+                            estate="BROKEN"
+                        elif old_early in ("EARLY_LONG","EARLY_SHORT") and estate=="NONE":
+                            estate="PENDING"
+                        elif old_early=="PENDING" and estate=="NONE":
+                            estate="PENDING"
+                        elif old_early=="CHASE" and estate in ("NONE","PENDING"):
+                            estate="CHASE"
+                    if estate!=old_early:
+                        emsg=None
+                        if estate in ("PENDING","EARLY_LONG","EARLY_SHORT","CHASE"):
+                            level=float(row["trigger_level"])
+                            day_change=float(emetrics.get("day_change_pct") or 0.0)
+                            mclass=classify_move(row["symbol"],day_change)
+                            if not TELEGRAM_TRADE_ONLY and mclass!="FAST_QUIET":
+                                queued_msg=format_alert(row["symbol"],row["direction"],level,mclass,day_change,price,
+                                                        row["invalidation"],row["target1"],row["target2"])
+                                priority=4 if mclass=="FAST_FRESH" else 3 if mclass=="STABLE" else 2
+                                watch_payload={
+                                    "stage":"WATCH_ALERT",
+                                    "early_state":estate,
+                                    "price":float(price),
+                                    "trigger_level":level,
+                                    "invalidation":float(row["invalidation"] or 0.0),
+                                    "target1":float(row["target1"] or 0.0),
+                                    "target2":float(row["target2"] or 0.0),
+                                    "data_cohort":str(row["data_cohort"] or "UNKNOWN") if "data_cohort" in row.keys() else "UNKNOWN",
+                                    "structure_gate_version":str(row["structure_gate_version"] or "") if "structure_gate_version" in row.keys() else "",
+                                    "analyst_scan_time":str(row["analyst_scan_time"] or ""),
+                                    "analyst_confidence":int(row["analyst_confidence"] or 0),
+                                    "day_change_pct":day_change,
+                                    "move_class":mclass,
+                                }
+                                queue_alert(row["symbol"],row["direction"],level,queued_msg,priority,payload=watch_payload)
+                        first_signal=estate in ("EARLY_LONG","EARLY_SHORT") and old_early not in ("EARLY_LONG","EARLY_SHORT")
+                        con.execute("""UPDATE watch_state SET early_state=?,
+                            early_signal_price=CASE WHEN ? THEN ? ELSE early_signal_price END,
+                            early_signal_time=CASE WHEN ? THEN ? ELSE early_signal_time END,
+                            early_short_signal_price=CASE WHEN ? AND direction='SHORT' THEN ? ELSE early_short_signal_price END,
+                            last_price=?,last_closed_5m=?,last_update_utc=? WHERE symbol=?""",
+                            (estate,1 if first_signal else 0,price,1 if first_signal else 0,observed_time,
+                             1 if first_signal else 0,price,price,closed,observed_time,row["symbol"]))
+                        con.commit()
+                        if emsg:
+                            print(emsg); send_telegram(emsg)
+                        con.execute("""INSERT INTO events(event_time_utc,symbol,direction,stage_from,stage_to,
+                            price,closed_5m,condition_time_utc,payload_json) VALUES(?,?,?,?,?,?,?,?,?)""",
+                            (observed_time,row["symbol"],row["direction"],"EARLY:"+old_early,"EARLY:"+estate,
+                             price,closed,observed_time,json.dumps({
+                                 **emetrics,
+                                 "_live_structure_quality":structure_quality,
+                                 "_live_alert_version":STRUCTURE_GATE_VERSION,
+                                 "_setup":{
+                                     "trigger_level":float(row["trigger_level"]),
+                                     "invalidation":float(row["invalidation"] or 0.0),
+                                     "target1":float(row["target1"] or 0.0),
+                                     "target2":float(row["target2"] or 0.0),
+                                     "analyst_confidence":int(row["analyst_confidence"] or 0),
+                                     "data_mode":str(row["data_mode"] or "UNKNOWN"),
+                                     "data_cohort":str(row["data_cohort"] or "UNKNOWN") if "data_cohort" in row.keys() else "UNKNOWN",
+                                     "derivatives_provider":str(row["derivatives_provider"] or "") if "derivatives_provider" in row.keys() else "",
+                                     "derivatives_quality":str(row["derivatives_quality"] or "") if "derivatives_quality" in row.keys() else "",
+                                     "analyst_scan_time":str(row["analyst_scan_time"] or ""),
+                                 },
+                             },ensure_ascii=False)))
+                        con.commit()
 
-                if new!=old:
-                    # V3 correlated-risk cap: at most two user-facing TRIGGERED
-                    # signals per direction in a rolling 15m market wave. Extra
-                    # qualifying setups are preserved as shadow events, not sent.
-                    if new=="TRIGGERED":
-                        try:
-                            trigger_proxy=trigger_execution_proxy(row["symbol"])
-                        except Exception as exc:
-                            trigger_proxy={"available":False,"error":type(exc).__name__+":"+str(exc)[:120]}
-                        execution_check=live_execution_gate(row,price,trigger_proxy)
-                        if not execution_check.get("qualified"):
-                            blocked_payload=dict(row)
-                            blocked_payload["_live_structure_quality"]=structure_quality
-                            blocked_payload["_live_alert_version"]=STRUCTURE_GATE_VERSION
-                            blocked_payload["_trigger_execution_gate"]=execution_check
-                            con.execute("""INSERT INTO events(
-                                event_time_utc,symbol,direction,stage_from,stage_to,price,closed_5m,
-                                condition_time_utc,telegram_status,payload_json
-                            ) VALUES(?,?,?,?,?,?,?,?,?,?)""",
-                                (observed_time,row["symbol"],row["direction"],old,"EXECUTION_BLOCKED",
-                                 price,closed,observed_time,"SHADOW",
-                                 json.dumps(blocked_payload,ensure_ascii=False)))
-                            con.execute("""UPDATE watch_state
-                                           SET stage='EXECUTION_BLOCKED',last_price=?,last_closed_5m=?,
-                                               last_update_utc=? WHERE symbol=?""",
-                                        (price,closed,observed_time,row["symbol"]))
-                            con.execute("""UPDATE watch_episodes SET max_stage='EXECUTION_BLOCKED',
-                                           ended_at_utc=?,end_reason='TRIGGER_EXECUTION_GATE',
-                                           last_price=? WHERE symbol=? AND ended_at_utc IS NULL""",
-                                        (observed_time,price,row["symbol"]))
-                            con.commit()
-                            continue
-
-                        allowed,cluster_count=cluster_trigger_allowed(con,row["direction"],observed_time,2)
-                        if not allowed:
-                            blocked_payload=dict(row)
-                            blocked_payload["_live_structure_quality"]=structure_quality
-                            blocked_payload["_live_alert_version"]=STRUCTURE_GATE_VERSION
-                            blocked_payload["_cluster_blocked_count"]=cluster_count
-                            con.execute("""INSERT INTO events(
-                                event_time_utc,symbol,direction,stage_from,stage_to,price,closed_5m,
-                                condition_time_utc,telegram_status,payload_json
-                            ) VALUES(?,?,?,?,?,?,?,?,?,?)""",
-                                (observed_time,row["symbol"],row["direction"],old,"CLUSTER_BLOCKED",
-                                 price,closed,observed_time,"SHADOW",
-                                 json.dumps(blocked_payload,ensure_ascii=False)))
-                            con.execute("""UPDATE watch_state
-                                           SET stage='CLUSTER_BLOCKED',last_price=?,last_closed_5m=?,
-                                               last_update_utc=? WHERE symbol=?""",
-                                        (price,closed,observed_time,row["symbol"]))
-                            con.execute("""UPDATE watch_episodes SET max_stage='CLUSTER_BLOCKED',
-                                           ended_at_utc=?,end_reason='CORRELATED_CLUSTER_CAP',
-                                           last_price=? WHERE symbol=? AND ended_at_utc IS NULL""",
-                                        (observed_time,price,row["symbol"]))
-                            con.commit()
-                            continue
-
-                    # APPROACHING is a user-facing watch state. Previously it was
-                    # stored in DB but never queued to Telegram.
-                    if new=="APPROACHING":
-                        queued=queue_approaching_alert(row,price,structure_quality)
-                        if queued:
-                            print(f"WATCH_ALERT_QUEUED {row['symbol']} {row['direction']} {float(row['trigger_level'])}",flush=True)
-                    # For a 5m close confirmation, the market condition time is the
-                    # completed candle close. For intrabar states, first observation
-                    # is the most honest timestamp available without websocket trades.
-                    condition_time = closed_candle_time if new=="CLOSE_CONFIRMED" else observed_time
-                    msg=message_for(row,new,price,closed)
-
-                    con.execute("""UPDATE watch_state SET stage=?,last_price=?,last_closed_5m=?,last_update_utc=?,
-                                   close_confirmed_time=CASE WHEN ?='CLOSE_CONFIRMED' THEN ? ELSE close_confirmed_time END,
-                                   retest_seen=CASE WHEN ?='RETESTING' THEN 1 ELSE retest_seen END
-                                   WHERE symbol=?""",
-                        (new,price,closed,observed_time,new,condition_time,new,row["symbol"]))
-                    if new=="TRIGGERED":
-                        fresh=con.execute("SELECT early_signal_price,early_signal_time,direction FROM watch_state WHERE symbol=?",(row["symbol"],)).fetchone()
-                        if fresh and fresh[0] is not None:
-                            ep=float(fresh[0]); et=fresh[1]
-                            gain=((price/ep-1.0)*100.0) if fresh[2]=="LONG" else ((ep/price-1.0)*100.0)
+                    if new!=old:
+                        # V3 correlated-risk cap: at most two user-facing TRIGGERED
+                        # signals per direction in a rolling 15m market wave. Extra
+                        # qualifying setups are preserved as shadow events, not sent.
+                        if new=="TRIGGERED":
                             try:
-                                dt=(datetime.fromisoformat(observed_time)-datetime.fromisoformat(et)).total_seconds() if et else None
-                            except Exception:
-                                dt=None
-                            con.execute("""UPDATE watch_state SET confirmed_signal_price=?,confirmed_signal_time=?,
-                                gain_before_confirmation=?,time_early_to_confirmed_seconds=?,
-                                confirmed_short_signal_price=CASE WHEN direction='SHORT' THEN ? ELSE confirmed_short_signal_price END,
-                                gain_before_short_confirmation=CASE WHEN direction='SHORT' THEN ? ELSE gain_before_short_confirmation END,
-                                time_early_short_to_confirmed_seconds=CASE WHEN direction='SHORT' THEN ? ELSE time_early_short_to_confirmed_seconds END
-                                WHERE symbol=?""",(price,observed_time,gain,dt,price,gain,dt,row["symbol"]))
-                    con.execute("""UPDATE watch_episodes SET
-                        max_stage=?,
-                        close_confirmed_time=CASE WHEN ?='CLOSE_CONFIRMED' THEN ? ELSE close_confirmed_time END,
-                        triggered_time=CASE WHEN ?='TRIGGERED' THEN ? ELSE triggered_time END,
-                        last_price=?
-                        WHERE symbol=? AND ended_at_utc IS NULL""",
-                        (new,new,condition_time,new,condition_time,price,row["symbol"]))
-                    con.commit()
+                                trigger_proxy=trigger_execution_proxy(row["symbol"])
+                            except Exception as exc:
+                                trigger_proxy={"available":False,"error":type(exc).__name__+":"+str(exc)[:120]}
+                            execution_check=live_execution_gate(row,price,trigger_proxy)
+                            if not execution_check.get("qualified"):
+                                blocked_payload=dict(row)
+                                blocked_payload["_live_structure_quality"]=structure_quality
+                                blocked_payload["_live_alert_version"]=STRUCTURE_GATE_VERSION
+                                blocked_payload["_trigger_execution_gate"]=execution_check
+                                con.execute("""INSERT INTO events(
+                                    event_time_utc,symbol,direction,stage_from,stage_to,price,closed_5m,
+                                    condition_time_utc,telegram_status,payload_json
+                                ) VALUES(?,?,?,?,?,?,?,?,?,?)""",
+                                    (observed_time,row["symbol"],row["direction"],old,"EXECUTION_BLOCKED",
+                                     price,closed,observed_time,"SHADOW",
+                                     json.dumps(blocked_payload,ensure_ascii=False)))
+                                con.execute("""UPDATE watch_state
+                                               SET stage='EXECUTION_BLOCKED',last_price=?,last_closed_5m=?,
+                                                   last_update_utc=? WHERE symbol=?""",
+                                            (price,closed,observed_time,row["symbol"]))
+                                con.execute("""UPDATE watch_episodes SET max_stage='EXECUTION_BLOCKED',
+                                               ended_at_utc=?,end_reason='TRIGGER_EXECUTION_GATE',
+                                               last_price=? WHERE symbol=? AND ended_at_utc IS NULL""",
+                                            (observed_time,price,row["symbol"]))
+                                con.commit()
+                                continue
 
-                    sent_time=None
-                    delay=None
-                    telegram_status="NOT_APPLICABLE" if not msg else "PENDING"
-                    telegram_error=None
-                    event_payload=dict(row)
-                    event_payload["_live_structure_quality"]=structure_quality
-                    event_payload["_live_alert_version"]=STRUCTURE_GATE_VERSION
-                    if msg:
-                        print(msg)
-                        try:
-                            sent_time=send_telegram(msg)
-                            telegram_status="SENT"
-                        except Exception as exc:
-                            telegram_status="FAILED"
-                            telegram_error=type(exc).__name__+":"+str(exc)[:180]
-                            print("telegram direct send failed",row["symbol"],new,telegram_error)
-                        if sent_time:
+                            allowed,cluster_count=cluster_trigger_allowed(con,row["direction"],observed_time,2)
+                            if not allowed:
+                                blocked_payload=dict(row)
+                                blocked_payload["_live_structure_quality"]=structure_quality
+                                blocked_payload["_live_alert_version"]=STRUCTURE_GATE_VERSION
+                                blocked_payload["_cluster_blocked_count"]=cluster_count
+                                con.execute("""INSERT INTO events(
+                                    event_time_utc,symbol,direction,stage_from,stage_to,price,closed_5m,
+                                    condition_time_utc,telegram_status,payload_json
+                                ) VALUES(?,?,?,?,?,?,?,?,?,?)""",
+                                    (observed_time,row["symbol"],row["direction"],old,"CLUSTER_BLOCKED",
+                                     price,closed,observed_time,"SHADOW",
+                                     json.dumps(blocked_payload,ensure_ascii=False)))
+                                con.execute("""UPDATE watch_state
+                                               SET stage='CLUSTER_BLOCKED',last_price=?,last_closed_5m=?,
+                                                   last_update_utc=? WHERE symbol=?""",
+                                            (price,closed,observed_time,row["symbol"]))
+                                con.execute("""UPDATE watch_episodes SET max_stage='CLUSTER_BLOCKED',
+                                               ended_at_utc=?,end_reason='CORRELATED_CLUSTER_CAP',
+                                               last_price=? WHERE symbol=? AND ended_at_utc IS NULL""",
+                                            (observed_time,price,row["symbol"]))
+                                con.commit()
+                                continue
+
+                        # APPROACHING is a user-facing watch state. Previously it was
+                        # stored in DB but never queued to Telegram.
+                        if new=="APPROACHING" and not TELEGRAM_TRADE_ONLY:
+                            queued=queue_approaching_alert(row,price,structure_quality)
+                            if queued:
+                                print(f"WATCH_ALERT_QUEUED {row['symbol']} {row['direction']} {float(row['trigger_level'])}",flush=True)
+                        # For a 5m close confirmation, the market condition time is the
+                        # completed candle close. For intrabar states, first observation
+                        # is the most honest timestamp available without websocket trades.
+                        condition_time = closed_candle_time if new=="CLOSE_CONFIRMED" else observed_time
+                        msg=message_for(row,new,price,closed)
+
+                        con.execute("""UPDATE watch_state SET stage=?,last_price=?,last_closed_5m=?,last_update_utc=?,
+                                       close_confirmed_time=CASE WHEN ?='CLOSE_CONFIRMED' THEN ? ELSE close_confirmed_time END,
+                                       retest_seen=CASE WHEN ?='RETESTING' THEN 1 ELSE retest_seen END
+                                       WHERE symbol=?""",
+                            (new,price,closed,observed_time,new,condition_time,new,row["symbol"]))
+                        if new=="TRIGGERED":
+                            fresh=con.execute("SELECT early_signal_price,early_signal_time,direction FROM watch_state WHERE symbol=?",(row["symbol"],)).fetchone()
+                            if fresh and fresh[0] is not None:
+                                ep=float(fresh[0]); et=fresh[1]
+                                gain=((price/ep-1.0)*100.0) if fresh[2]=="LONG" else ((ep/price-1.0)*100.0)
+                                try:
+                                    dt=(datetime.fromisoformat(observed_time)-datetime.fromisoformat(et)).total_seconds() if et else None
+                                except Exception:
+                                    dt=None
+                                con.execute("""UPDATE watch_state SET confirmed_signal_price=?,confirmed_signal_time=?,
+                                    gain_before_confirmation=?,time_early_to_confirmed_seconds=?,
+                                    confirmed_short_signal_price=CASE WHEN direction='SHORT' THEN ? ELSE confirmed_short_signal_price END,
+                                    gain_before_short_confirmation=CASE WHEN direction='SHORT' THEN ? ELSE gain_before_short_confirmation END,
+                                    time_early_short_to_confirmed_seconds=CASE WHEN direction='SHORT' THEN ? ELSE time_early_short_to_confirmed_seconds END
+                                    WHERE symbol=?""",(price,observed_time,gain,dt,price,gain,dt,row["symbol"]))
+                        con.execute("""UPDATE watch_episodes SET
+                            max_stage=?,
+                            close_confirmed_time=CASE WHEN ?='CLOSE_CONFIRMED' THEN ? ELSE close_confirmed_time END,
+                            triggered_time=CASE WHEN ?='TRIGGERED' THEN ? ELSE triggered_time END,
+                            last_price=?
+                            WHERE symbol=? AND ended_at_utc IS NULL""",
+                            (new,new,condition_time,new,condition_time,price,row["symbol"]))
+                        con.commit()
+
+                        sent_time=None
+                        delay=None
+                        telegram_status="NOT_APPLICABLE" if not msg else "PENDING"
+                        telegram_error=None
+                        event_payload=dict(row)
+                        event_payload["_live_structure_quality"]=structure_quality
+                        event_payload["_live_alert_version"]=STRUCTURE_GATE_VERSION
+                        if msg:
+                            print(msg)
                             try:
-                                delay=(datetime.fromisoformat(sent_time)-datetime.fromisoformat(condition_time)).total_seconds()
-                            except Exception:
-                                delay=None
-                            if delay is not None:
-                                print(f"ALERT_DELAY {row['symbol']} {new}: {delay:.1f}s")
-                    if new=="TRIGGERED":
-                        event_payload["_trigger_execution_proxy"]=trigger_proxy
-                        event_payload["_trigger_execution_gate"]=execution_check
+                                sent_time=send_telegram(msg)
+                                telegram_status="SENT"
+                            except Exception as exc:
+                                telegram_status="FAILED"
+                                telegram_error=type(exc).__name__+":"+str(exc)[:180]
+                                print("telegram direct send failed",row["symbol"],new,telegram_error)
+                            if sent_time:
+                                try:
+                                    delay=(datetime.fromisoformat(sent_time)-datetime.fromisoformat(condition_time)).total_seconds()
+                                except Exception:
+                                    delay=None
+                                if delay is not None:
+                                    print(f"ALERT_DELAY {row['symbol']} {new}: {delay:.1f}s")
+                        if new=="TRIGGERED":
+                            event_payload["_trigger_execution_proxy"]=trigger_proxy
+                            event_payload["_trigger_execution_gate"]=execution_check
 
-                    con.execute("""INSERT INTO events(
-                        event_time_utc,symbol,direction,stage_from,stage_to,price,closed_5m,
-                        condition_time_utc,telegram_sent_time_utc,telegram_status,telegram_error,delay_seconds,payload_json
-                    ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-                        (observed_time,row["symbol"],row["direction"],old,new,price,closed,
-                         condition_time,sent_time,telegram_status,telegram_error,delay,
-                         json.dumps(event_payload,ensure_ascii=False)))
-                    con.commit()
-                else:
-                    con.execute("UPDATE watch_state SET last_price=?,last_closed_5m=?,last_update_utc=? WHERE symbol=?",
-                                (price,closed,observed_time,row["symbol"]))
-                    con.commit()
-            except Exception as exc:
-                print("live error",row["symbol"],type(exc).__name__,str(exc)[:120])
+                        con.execute("""INSERT INTO events(
+                            event_time_utc,symbol,direction,stage_from,stage_to,price,closed_5m,
+                            condition_time_utc,telegram_sent_time_utc,telegram_status,telegram_error,delay_seconds,payload_json
+                        ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                            (observed_time,row["symbol"],row["direction"],old,new,price,closed,
+                             condition_time,sent_time,telegram_status,telegram_error,delay,
+                             json.dumps(event_payload,ensure_ascii=False)))
+                        con.commit()
+                    else:
+                        con.execute("UPDATE watch_state SET last_price=?,last_closed_5m=?,last_update_utc=? WHERE symbol=?",
+                                    (price,closed,observed_time,row["symbol"]))
+                        con.commit()
+                except Exception as exc:
+                    print("live error",row["symbol"],type(exc).__name__,str(exc)[:120])
 
-    ready=claim_ready_alert()
+    # Retain old pending observational alerts in DB; never release them to Telegram.
+    ready=None if TELEGRAM_TRADE_ONLY else claim_ready_alert()
     if ready:
         print(ready["message"])
         try:
@@ -1516,7 +1544,7 @@ def main():
             print("Telegram chat cache prime failed",type(exc).__name__,str(exc)[:160])
     items=load_watchlist()
     sync_watchlist(items)
-    if token:
+    if token and TELEGRAM_RUNTIME_NOTICES and not TELEGRAM_TRADE_ONLY:
         deployment_notice=send_recovery_notice_once(len(items))
         if not deployment_notice:
             send_health_if_due(len(items))
