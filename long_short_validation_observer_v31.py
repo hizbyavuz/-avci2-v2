@@ -44,10 +44,14 @@ def _source_health(event):
     ready = bool(gate.get("_derivatives_ready"))
     native = cohort == "BINANCE_FUTURES_NATIVE"
     alternate = provider in ("BYBIT_LINEAR", "GATE_FUTURES")
-    full_single_venue = ready and (native or alternate)
+    core_single_venue = ready and (native or alternate)
+    # The fallback router may mark a 4/4 core packet "V3_CORE_FULL" even
+    # when 5th depth field is absent; do not inflate FULL health coverage.
+    full_single_venue = core_single_venue and (native or quality == "FULL")
     return {
         "data_cohort": cohort, "derivatives_provider": provider,
         "derivatives_quality": quality, "ready": ready,
+        "core_single_venue": bool(core_single_venue),
         "full_single_venue": bool(full_single_venue),
         "native": bool(native),
         # Outcome tracker always fetches Binance SPOT 1m, even for perp signals.
@@ -270,6 +274,7 @@ def report(conn):
         WHERE stage_to='TRIGGERED' AND telegram_status='SENT'""").fetchall()
     sources=defaultdict(lambda:{"sent":0,"single_venue_full":0,"historical_missing_hash":0})
     full=0
+    core=0
     for event in events:
         h=_source_health(event)
         k=h["data_cohort"]+"|"+h["derivatives_provider"]+"|"+h["derivatives_quality"]
@@ -277,6 +282,7 @@ def report(conn):
         sources[k]["single_venue_full"]+=int(h["full_single_venue"])
         sources[k]["historical_missing_hash"]+=int(h["config_hash"]=="HISTORICAL_MISSING")
         full+=int(h["full_single_venue"])
+        core+=int(h["core_single_venue"])
     comparisons=[]
     for h in (15,60,180):
         for method in ("RANDOM_DIRECTION","MOMENTUM_15M"):
@@ -305,6 +311,8 @@ def report(conn):
         "version":VERSION,
         "data_health":{"sent_trade_signals":len(events),
                        "full_single_venue":full,
+                       "four_field_core_single_venue":core,
+                       "four_field_core_ratio":core/len(events) if events else None,
                        "full_single_venue_ratio":full/len(events) if events else None,
                        "outcome_market":"BINANCE_SPOT_1M",
                        "perp_venue_matched_outcomes":0,
