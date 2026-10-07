@@ -13,7 +13,7 @@ on:
       - "long_short_live_pool.py"
       - "long_short_outcome_tracker_v21.py"
       - "LONG_SHORT_V3_FROZEN_CONFIG.json"
-      - "tests/test_long_short_v3_core.py"
+      - "tests/test_long_short_v3_core.py"\n      - "tests/test_long_short_*.py"
 
 permissions:
   contents: read
