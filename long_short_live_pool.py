@@ -32,6 +32,8 @@ ALIGN_TO_5M=os.getenv("LS_ALIGN_TO_5M","1").strip().lower() in ("1","true","yes"
 ALIGN_GRACE_SECONDS=float(os.getenv("LS_ALIGN_GRACE_SECONDS","4"))
 MAX_WATCH=int(os.getenv("LS_LIVE_MAX_WATCH","12"))
 APPROACH_PCT=float(os.getenv("LS_LIVE_APPROACH_PCT","0.25"))
+WATCHLIST_GRACE_SECONDS=int(os.getenv("LS_WATCHLIST_GRACE_SECONDS","900"))
+SETUP_MAX_AGE_SECONDS=int(os.getenv("LS_SETUP_MAX_AGE_SECONDS","10800"))
 RADAR_MIN_DAY_MOVE_PCT=float(os.getenv("LS_RADAR_MIN_DAY_MOVE_PCT","5.0"))
 # Observational early-entry layer. It never changes the frozen continuation rules.
 EARLY_APPROACH_PCT=float(os.getenv("LS_EARLY_APPROACH_PCT","0.18"))
@@ -219,6 +221,10 @@ def init_db():
             confirmed_short_signal_price REAL,
             gain_before_short_confirmation REAL,
             time_early_short_to_confirmed_seconds REAL,
+            analyst_active INTEGER NOT NULL DEFAULT 1,
+            last_seen_watchlist_utc TEXT,
+            last_actionable_scan_time TEXT,
+            setup_locked_at_utc TEXT,
             last_update_utc TEXT NOT NULL
         )""")
         cols={r[1] for r in con.execute("PRAGMA table_info(watch_state)")}
@@ -240,6 +246,8 @@ def init_db():
             ("gain_before_confirmation","REAL",None),("time_early_to_confirmed_seconds","REAL",None),
             ("early_short_signal_price","REAL",None),("confirmed_short_signal_price","REAL",None),
             ("gain_before_short_confirmation","REAL",None),("time_early_short_to_confirmed_seconds","REAL",None),
+            ("analyst_active","INTEGER","1"),("last_seen_watchlist_utc","TEXT",None),
+            ("last_actionable_scan_time","TEXT",None),("setup_locked_at_utc","TEXT",None),
         ]:
             if name not in cols:
                 clause=f" DEFAULT {default}" if default is not None else ""
@@ -505,65 +513,125 @@ def _open_watch_episode(con,x):
 
 
 def sync_watchlist(items):
+    """Synchronize analyst observations without moving an active setup's goalposts.
+
+    Core rule:
+    - analysis may refresh every cycle;
+    - an actionable setup keeps its original trigger/retest/SL/TP/gate until it
+      is invalidated, expires, or a fresh actionable setup flips direction/type;
+    - radar or temporary watchlist absence can pause a setup, but cannot silently
+      rewrite it or confirm a trade.
+    """
+    seen_at=now_iso()
     with sqlite3.connect(LIVE_DB) as con:
+        con.row_factory=sqlite3.Row
         keep={x["symbol"] for x in items}
+
         for x in items:
-            old=con.execute("SELECT direction,trigger_level,stage FROM watch_state WHERE symbol=?",(x["symbol"],)).fetchone()
-            active_stage=old[2] if old else None
-            level_changed=(old and abs(float(old[1])-x["trigger_level"])>max(1e-12,x["trigger_level"]*0.001))
-            reset = not old or old[0]!=x["direction"] or (active_stage in ("WATCH","APPROACHING") and level_changed)
+            old=con.execute("SELECT * FROM watch_state WHERE symbol=?",(x["symbol"],)).fetchone()
+            new_radar=bool(x.get("radar_only"))
+            new_actionable=not new_radar
+            new_setup_type=str(x.get("setup_type") or "BREAKOUT")
+
+            old_gate={}
+            if old:
+                try:
+                    old_gate=json.loads(old["structure_gate_json"] or "{}")
+                except Exception:
+                    old_gate={}
+            old_radar=bool(old_gate.get("_radar_only")) if old else False
+            old_setup_type=str(old_gate.get("_v3_setup_type") or "BREAKOUT") if old else "NONE"
+            direction_changed=bool(old and str(old["direction"])!=str(x["direction"]))
+
+            # Only a fresh ACTIONABLE hypothesis may replace an actionable setup.
+            # Same-direction recalculation is metadata, not a new trade idea.
+            reset=bool(
+                not old
+                or (new_actionable and old_radar)
+                or (new_actionable and direction_changed)
+                or (new_actionable and (not old_radar) and old_setup_type!=new_setup_type)
+            )
+
             if reset:
                 if old:
-                    _close_open_watch_episode(con,x["symbol"],"RESET_DIRECTION_OR_LEVEL")
+                    if direction_changed:
+                        reason="RESET_ACTIONABLE_DIRECTION_FLIP"
+                    elif old_radar and new_actionable:
+                        reason="UPGRADE_RADAR_TO_ACTIONABLE"
+                    elif old_setup_type!=new_setup_type:
+                        reason="RESET_SETUP_TYPE_CHANGE"
+                    else:
+                        reason="RESET_NEW_SETUP"
+                    _close_open_watch_episode(con,x["symbol"],reason,old["last_price"])
                 _open_watch_episode(con,x)
                 con.execute("""INSERT OR REPLACE INTO watch_state(
                     symbol,direction,trigger_level,retest_low,retest_high,invalidation,target1,target2,
                     analyst_scan_time,analyst_confidence,data_mode,data_cohort,derivatives_provider,derivatives_quality,
                     htf_direction,htf_score,htf_reasons_json,structure_gate_version,structure_gate_json,
-                    stage,close_confirmed_time,retest_seen,last_price,last_closed_5m,last_update_utc
-                ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'WATCH',NULL,0,NULL,NULL,?)""",
+                    stage,close_confirmed_time,retest_seen,last_price,last_closed_5m,
+                    early_state,early_signal_price,early_signal_time,confirmed_signal_price,confirmed_signal_time,
+                    gain_before_confirmation,time_early_to_confirmed_seconds,early_short_signal_price,
+                    confirmed_short_signal_price,gain_before_short_confirmation,time_early_short_to_confirmed_seconds,
+                    analyst_active,last_seen_watchlist_utc,last_actionable_scan_time,setup_locked_at_utc,last_update_utc
+                ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'WATCH',NULL,0,NULL,NULL,
+                         'NONE',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,?,?,?,?,?)""",
                 (x["symbol"],x["direction"],x["trigger_level"],x["retest_low"],x["retest_high"],
                  x["invalidation"],x["target1"],x["target2"],x["scan_time"],x["confidence"],x["data_mode"],
                  x["data_cohort"],x["derivatives_provider"],x["derivatives_quality"],
                  x["htf_direction"],x["htf_score"],json.dumps(x["htf_reasons"],ensure_ascii=False),
-                 x["structure_gate_version"],json.dumps(x["structure_gate"],ensure_ascii=False),now_iso()))
-                con.execute("""UPDATE watch_state SET early_state='NONE',early_signal_price=NULL,early_signal_time=NULL,
-                    confirmed_signal_price=NULL,confirmed_signal_time=NULL,gain_before_confirmation=NULL,
-                    time_early_to_confirmed_seconds=NULL,early_short_signal_price=NULL,
-                    confirmed_short_signal_price=NULL,gain_before_short_confirmation=NULL,
-                    time_early_short_to_confirmed_seconds=NULL WHERE symbol=?""",(x["symbol"],))
-            else:
-                if active_stage in ("WATCH","APPROACHING"):
-                    con.execute("""UPDATE watch_state SET retest_low=?,retest_high=?,invalidation=?,
-                        target1=?,target2=?,analyst_scan_time=?,analyst_confidence=?,data_mode=?,
-                        data_cohort=?,derivatives_provider=?,derivatives_quality=?,
-                        htf_direction=?,htf_score=?,htf_reasons_json=?,
-                        structure_gate_version=?,structure_gate_json=?,last_update_utc=? WHERE symbol=?""",
-                    (x["retest_low"],x["retest_high"],x["invalidation"],x["target1"],x["target2"],
-                     x["scan_time"],x["confidence"],x["data_mode"],x["data_cohort"],x["derivatives_provider"],
-                     x["derivatives_quality"],x["htf_direction"],x["htf_score"],
+                 x["structure_gate_version"],json.dumps(x["structure_gate"],ensure_ascii=False),
+                 1 if new_actionable else 0,seen_at,x["scan_time"] if new_actionable else None,seen_at,seen_at))
+                continue
+
+            # Radar-to-radar is observational, so its moving level may refresh.
+            if old_radar and new_radar:
+                con.execute("""UPDATE watch_state SET
+                    direction=?,trigger_level=?,retest_low=?,retest_high=?,invalidation=?,target1=?,target2=?,
+                    analyst_scan_time=?,analyst_confidence=?,data_mode=?,data_cohort=?,
+                    derivatives_provider=?,derivatives_quality=?,htf_direction=?,htf_score=?,htf_reasons_json=?,
+                    structure_gate_version=?,structure_gate_json=?,analyst_active=0,
+                    last_seen_watchlist_utc=?,last_update_utc=? WHERE symbol=?""",
+                    (x["direction"],x["trigger_level"],x["retest_low"],x["retest_high"],x["invalidation"],
+                     x["target1"],x["target2"],x["scan_time"],x["confidence"],x["data_mode"],x["data_cohort"],
+                     x["derivatives_provider"],x["derivatives_quality"],x["htf_direction"],x["htf_score"],
                      json.dumps(x["htf_reasons"],ensure_ascii=False),x["structure_gate_version"],
-                     json.dumps(x["structure_gate"],ensure_ascii=False),now_iso(),x["symbol"]))
-                else:
-                    con.execute("""UPDATE watch_state SET analyst_scan_time=?,analyst_confidence=?,data_mode=?,
-                        data_cohort=?,derivatives_provider=?,derivatives_quality=?,
-                        htf_direction=?,htf_score=?,htf_reasons_json=?,
-                        structure_gate_version=?,structure_gate_json=?,last_update_utc=? WHERE symbol=?""",
-                    (x["scan_time"],x["confidence"],x["data_mode"],x["data_cohort"],x["derivatives_provider"],
-                     x["derivatives_quality"],x["htf_direction"],x["htf_score"],
-                     json.dumps(x["htf_reasons"],ensure_ascii=False),x["structure_gate_version"],
-                     json.dumps(x["structure_gate"],ensure_ascii=False),now_iso(),x["symbol"]))
+                     json.dumps(x["structure_gate"],ensure_ascii=False),seen_at,seen_at,x["symbol"]))
+                continue
+
+            # Existing actionable episode: LOCK trigger/retest/SL/TP/structure_gate.
+            # Fresh actionable analysis only refreshes context/freshness. A radar
+            # downgrade pauses confirmation but does not destroy the setup.
+            con.execute("""UPDATE watch_state SET
+                analyst_scan_time=?,analyst_confidence=?,data_mode=?,data_cohort=?,
+                derivatives_provider=?,derivatives_quality=?,htf_direction=?,htf_score=?,htf_reasons_json=?,
+                analyst_active=?,last_seen_watchlist_utc=?,
+                last_actionable_scan_time=CASE WHEN ?=1 THEN ? ELSE last_actionable_scan_time END,
+                setup_locked_at_utc=COALESCE(setup_locked_at_utc,last_update_utc,?),
+                last_update_utc=? WHERE symbol=?""",
+                (x["scan_time"],x["confidence"],x["data_mode"],x["data_cohort"],x["derivatives_provider"],
+                 x["derivatives_quality"],x["htf_direction"],x["htf_score"],
+                 json.dumps(x["htf_reasons"],ensure_ascii=False),
+                 1 if new_actionable else 0,seen_at,1 if new_actionable else 0,
+                 x["scan_time"],seen_at,seen_at,x["symbol"]))
+
+        # Missing for one analyst cycle is not an invalidation. Pause it first:
+        # no confirmation while absent, but preserve the locked setup for a short
+        # grace window so top-K churn cannot erase a nearly confirmed idea.
         if keep:
             q=",".join("?" for _ in keep)
-            dropped=con.execute(f"SELECT symbol,last_price FROM watch_state WHERE symbol NOT IN ({q})",tuple(keep)).fetchall()
-            for sym,last_price in dropped:
-                _close_open_watch_episode(con,sym,"DROPPED_FROM_WATCHLIST",last_price)
-            con.execute(f"DELETE FROM watch_state WHERE symbol NOT IN ({q})",tuple(keep))
+            con.execute(f"""UPDATE watch_state SET analyst_active=0,last_update_utc=?
+                            WHERE symbol NOT IN ({q})""",(seen_at,*tuple(keep)))
         else:
-            dropped=con.execute("SELECT symbol,last_price FROM watch_state").fetchall()
-            for sym,last_price in dropped:
-                _close_open_watch_episode(con,sym,"DROPPED_FROM_WATCHLIST",last_price)
-            con.execute("DELETE FROM watch_state")
+            con.execute("UPDATE watch_state SET analyst_active=0,last_update_utc=?",(seen_at,))
+
+        # Truly stale paused setups are retired; they cannot live forever.
+        stale=con.execute("""SELECT symbol,last_price FROM watch_state
+            WHERE analyst_active=0
+              AND (julianday(?) - julianday(COALESCE(last_seen_watchlist_utc,last_update_utc)))*86400.0 > ?""",
+            (seen_at,float(WATCHLIST_GRACE_SECONDS))).fetchall()
+        for r in stale:
+            _close_open_watch_episode(con,r["symbol"],"WATCHLIST_GRACE_EXPIRED",r["last_price"])
+            con.execute("DELETE FROM watch_state WHERE symbol=?",(r["symbol"],))
 
 def _ema(values,period=7):
     if not values:
@@ -800,6 +868,26 @@ def _row_is_radar(row):
         return False
 
 
+def _row_is_analyst_active(row):
+    try:
+        return bool(int(row["analyst_active"])) if "analyst_active" in row.keys() else True
+    except Exception:
+        return True
+
+
+def _setup_age_seconds(row):
+    try:
+        ts=row["setup_locked_at_utc"] if "setup_locked_at_utc" in row.keys() else None
+        if not ts:
+            return 0.0
+        dt=datetime.fromisoformat(ts)
+        if dt.tzinfo is None:
+            dt=dt.replace(tzinfo=timezone.utc)
+        return max(0.0,(datetime.now(timezone.utc)-dt).total_seconds())
+    except Exception:
+        return 0.0
+
+
 def next_stage(row,price,closed,structure_quality=None):
     direction=row["direction"]
     trig=float(row["trigger_level"])
@@ -827,6 +915,14 @@ def next_stage(row,price,closed,structure_quality=None):
         close_ok=closed<trig
         in_retest=(rl<=price<=rh)
         moving_away=price<rl
+
+    # A locked setup may be paused when it temporarily disappears from the
+    # analyst's active watchlist. Keep observing/invalidation, but NEVER confirm
+    # or trigger while the latest analyst cycle is not actively endorsing it.
+    if stage not in ("TRIGGERED","EXECUTION_BLOCKED","CLUSTER_BLOCKED") and _setup_age_seconds(row)>SETUP_MAX_AGE_SECONDS:
+        return "INVALIDATED"
+    if not _row_is_analyst_active(row):
+        return stage
 
     sq=structure_quality or {}
     setup_type=str(sq.get("setup_type") or "BREAKOUT")
@@ -1154,8 +1250,11 @@ def loop_once():
 
                 # Separate observational early layer: never mutates frozen continuation stage.
                 old_early=(row["early_state"] or "NONE") if "early_state" in row.keys() else "NONE"
-                if _row_is_radar(row):
-                    estate,emetrics="NONE",{"radar_only":True}
+                if _row_is_radar(row) or not _row_is_analyst_active(row):
+                    estate,emetrics="NONE",{
+                        "radar_only":_row_is_radar(row),
+                        "analyst_active":_row_is_analyst_active(row),
+                    }
                 else:
                     estate,emetrics=early_observation(row,price,early)
                 inv=float(row["invalidation"] or 0)
