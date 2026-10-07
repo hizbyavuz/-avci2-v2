@@ -1057,21 +1057,11 @@ def universe():
             "radar_unverified=",unverified,
         )
 
-    by_move=sorted(eligible,key=lambda z:abs(z[3]),reverse=True)
-    by_vol=sorted(eligible,key=lambda z:z[1],reverse=True)
-    mover_share=min(1.0,max(0.0,float(UNIVERSE_MOVER_SHARE)))
-    mover_n=max(20,min(MAX_SYMBOLS,int(round(MAX_SYMBOLS*mover_share))))
-
-    selected=[]
-    seen=set()
-    for row in by_move[:mover_n] + by_vol:
-        if row[0] in seen:
-            continue
-        selected.append(row)
-        seen.add(row[0])
-        if len(selected)>=MAX_SYMBOLS:
-            break
-    return selected
+    # V3: universe admission must NOT reward movement. Absolute 24h movers
+    # were the main source of late/chase selection in V1/V2. Liquidity only
+    # determines which symbols are cheap/safe enough to inspect; pre-move
+    # compression/readiness is ranked later by v3_discovery_rank().
+    return sorted(eligible,key=lambda z:(-float(z[1]),str(z[0])))[:MAX_SYMBOLS]
 
 
 def fetch_htf_cached(symbol, interval, limit=220):
@@ -2029,7 +2019,7 @@ def build_message(ts, regime, results, errors, perf=None):
     lines += [
         "Terimler: OI = açık vadeli pozisyon miktarı | Funding = long/short taraflarının birbirine ödediği ücret.",
         "Canlı havuz = bu coinleri daha sık izleyen ayrı takip sistemi.",
-        "Not: Skor veriden hesaplanır; kesin fiyat tahmini değildir.",
+        "Not: V3 final kararında toplamalı skor kullanılmaz; eski skor yalnız gölge karşılaştırmadır.",
         "Kaldıraç, kötü bir setup'ı iyi yapmaz. Stop ve pozisyon büyüklüğü ayrı karardır."
     ]
     return "\n".join(lines)[:TELEGRAM_LIMIT]
