@@ -50,6 +50,9 @@ HEALTH_INTERVAL_SECONDS=int(os.getenv("LS_TELEGRAM_HEALTH_SECONDS","3600"))
 SPOT_BASES=("https://data-api.binance.vision","https://api.binance.com")
 FUTURES_DEPTH_URL="https://fapi.binance.com/fapi/v1/depth"
 EXECUTION_PROXY_NOTIONAL=float(os.getenv("LS_PAPER_NOTIONAL_USDT","250"))
+EXECUTION_FEE_BPS_PER_SIDE=float(os.getenv("LS_FEE_BPS_PER_SIDE","5"))
+EXECUTION_MIN_SLIPPAGE_BPS_PER_SIDE=float(os.getenv("LS_VALIDATION_MIN_SLIPPAGE_BPS_PER_SIDE","10"))
+EXECUTION_MIN_NET_T1_R=float(os.getenv("LS_STRUCTURE_MIN_NET_T1_R","1.0"))
 _PERP_STATS_CACHE={"ts":0.0,"rows":{}}
 
 def now_iso():
@@ -126,6 +129,52 @@ def trigger_execution_proxy(symbol):
             }
         },
     }
+
+def live_execution_gate(row,price,proxy):
+    """Fail closed if the trigger-time executable cost destroys net T1 R."""
+    if not proxy or not proxy.get("available"):
+        return {"qualified":False,"reason":"execution_proxy_unavailable"}
+    size=str(int(float(proxy.get("notional_usdt") or EXECUTION_PROXY_NOTIONAL)))
+    costs=(proxy.get("costs") or {}).get(size) or {}
+    def finite_nonneg(x):
+        try:
+            x=float(x)
+            return x if math.isfinite(x) and x>=0 else None
+        except Exception:
+            return None
+    buy=finite_nonneg(costs.get("buy_bps"))
+    sell=finite_nonneg(costs.get("sell_bps"))
+    if buy is None or sell is None:
+        return {"qualified":False,"reason":"execution_cost_missing","proxy":proxy}
+    direction=str(row["direction"])
+    entry_slip=max(EXECUTION_MIN_SLIPPAGE_BPS_PER_SIDE,buy if direction=="LONG" else sell)
+    exit_slip=max(EXECUTION_MIN_SLIPPAGE_BPS_PER_SIDE,sell if direction=="LONG" else buy)
+    total_cost_pct=(2.0*EXECUTION_FEE_BPS_PER_SIDE+entry_slip+exit_slip)/100.0
+    inv=float(row["invalidation"] or 0.0)
+    t1=float(row["target1"] or 0.0)
+    entry=float(price)
+    if direction=="LONG":
+        geometry=bool(inv<entry<t1)
+        reward=(t1/entry-1.0)*100.0 if geometry else -999.0
+        risk=(entry/inv-1.0)*100.0 if geometry and inv>0 else 0.0
+    else:
+        geometry=bool(t1<entry<inv)
+        reward=(entry/t1-1.0)*100.0 if geometry and t1>0 else -999.0
+        risk=(inv/entry-1.0)*100.0 if geometry else 0.0
+    net_r=((reward-total_cost_pct)/risk) if risk>0 else None
+    qualified=bool(geometry and net_r is not None and net_r>=EXECUTION_MIN_NET_T1_R)
+    return {
+        "qualified":qualified,
+        "reason":"ok" if qualified else "trigger_time_net_r_failed",
+        "entry_slippage_bps":entry_slip,
+        "exit_slippage_bps":exit_slip,
+        "round_trip_cost_pct":total_cost_pct,
+        "risk_pct":risk,
+        "reward_pct":reward,
+        "net_t1_r":net_r,
+        "proxy":proxy,
+    }
+
 
 def fmtp(x):
     if x is None: return "-"
@@ -1163,6 +1212,34 @@ def loop_once():
                     # signals per direction in a rolling 15m market wave. Extra
                     # qualifying setups are preserved as shadow events, not sent.
                     if new=="TRIGGERED":
+                        try:
+                            trigger_proxy=trigger_execution_proxy(row["symbol"])
+                        except Exception as exc:
+                            trigger_proxy={"available":False,"error":type(exc).__name__+":"+str(exc)[:120]}
+                        execution_check=live_execution_gate(row,price,trigger_proxy)
+                        if not execution_check.get("qualified"):
+                            blocked_payload=dict(row)
+                            blocked_payload["_live_structure_quality"]=structure_quality
+                            blocked_payload["_live_alert_version"]=STRUCTURE_GATE_VERSION
+                            blocked_payload["_trigger_execution_gate"]=execution_check
+                            con.execute("""INSERT INTO events(
+                                event_time_utc,symbol,direction,stage_from,stage_to,price,closed_5m,
+                                condition_time_utc,telegram_status,payload_json
+                            ) VALUES(?,?,?,?,?,?,?,?,?,?)""",
+                                (observed_time,row["symbol"],row["direction"],old,"EXECUTION_BLOCKED",
+                                 price,closed,observed_time,"SHADOW",
+                                 json.dumps(blocked_payload,ensure_ascii=False)))
+                            con.execute("""UPDATE watch_state
+                                           SET stage='EXECUTION_BLOCKED',last_price=?,last_closed_5m=?,
+                                               last_update_utc=? WHERE symbol=?""",
+                                        (price,closed,observed_time,row["symbol"]))
+                            con.execute("""UPDATE watch_episodes SET max_stage='EXECUTION_BLOCKED',
+                                           ended_at_utc=?,end_reason='TRIGGER_EXECUTION_GATE',
+                                           last_price=? WHERE symbol=? AND ended_at_utc IS NULL""",
+                                        (observed_time,price,row["symbol"]))
+                            con.commit()
+                            continue
+
                         allowed,cluster_count=cluster_trigger_allowed(con,row["direction"],observed_time,2)
                         if not allowed:
                             blocked_payload=dict(row)
@@ -1252,10 +1329,8 @@ def loop_once():
                             if delay is not None:
                                 print(f"ALERT_DELAY {row['symbol']} {new}: {delay:.1f}s")
                     if new=="TRIGGERED":
-                        try:
-                            event_payload["_trigger_execution_proxy"]=trigger_execution_proxy(row["symbol"])
-                        except Exception as exc:
-                            event_payload["_trigger_execution_proxy_error"]=type(exc).__name__+":"+str(exc)[:120]
+                        event_payload["_trigger_execution_proxy"]=trigger_proxy
+                        event_payload["_trigger_execution_gate"]=execution_check
 
                     con.execute("""INSERT INTO events(
                         event_time_utc,symbol,direction,stage_from,stage_to,price,closed_5m,
