@@ -1,4 +1,4 @@
-name: Long Short Analyst V3
+name: Long Short Analyst V3.1
 # restart-stamp: 2026-10-07-v3-state-machine-freeze
 # Active paper-trade analyst. Never places orders.
 on:
@@ -21,7 +21,7 @@ permissions:
   actions: write
 
 concurrency:
-  group: long-short-analyst-v3-freeze
+  group: long-short-analyst-v31-final-freeze
   cancel-in-progress: true
 
 jobs:
@@ -64,17 +64,17 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p .lsa-state
-          run_id=$(gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts?name=long-short-v3-analyst-state&per_page=100"             --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | reverse | .[0].workflow_run.id // empty')
+          run_id=$(gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts?name=long-short-v31-analyst-state&per_page=100"             --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | reverse | .[0].workflow_run.id // empty')
           if test -n "$run_id"; then
-            gh run download "$run_id" --name long-short-v3-analyst-state --dir .lsa-state || true
-            test -f .lsa-state/long_short_v3_analyst.db && cp .lsa-state/long_short_v3_analyst.db .
+            gh run download "$run_id" --name long-short-v31-analyst-state --dir .lsa-state || true
+            test -f .lsa-state/long_short_v31_analyst.db && cp .lsa-state/long_short_v31_analyst.db .
           fi
 
       - name: Run deterministic analyst
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          LS_DB: "long_short_v3_analyst.db"
+          LS_DB: "long_short_v31_analyst.db"
           LS_FROZEN_CONFIG_PATH: "LONG_SHORT_V3_FROZEN_CONFIG.json"
           LS_MAX_SYMBOLS: "160"
           LS_PRESELECT_MAX: "24"
@@ -97,8 +97,8 @@ jobs:
       - name: Upload analyst state
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: long-short-v3-analyst-state
-          path: long_short_v3_analyst.db
+          name: long-short-v31-analyst-state
+          path: long_short_v31_analyst.db
           if-no-files-found: error
           retention-days: 30
           compression-level: 6
@@ -108,7 +108,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          active=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs?per_page=50" --jq '[.workflow_runs[] | select(.name=="Long Short Live Pool V3" and (.status=="queued" or .status=="in_progress" or .status=="pending"))] | length')
+          active=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs?per_page=50" --jq '[.workflow_runs[] | select(.name=="Long Short Live Pool V3.1" and (.status=="queued" or .status=="in_progress" or .status=="pending"))] | length')
           if test "$active" -gt 0; then
             echo "Live Pool already active; skip duplicate dispatch."
             exit 0
