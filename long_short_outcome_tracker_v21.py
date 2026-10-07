@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""V2.1 user-executable outcome tracker.
+"""V3 user-executable outcome tracker.
 
 Measures exactly what the user could act on:
 - delivered CLOSE_CONFIRMED and TRIGGERED Telegram events,
@@ -28,8 +28,8 @@ from binance_notify import resolve_chat_id
 
 DB=os.getenv("LS_LIVE_DB","long_short_live_pool.db")
 NOTIFY_DB=os.getenv("LS_SIMPLE_NOTIFY_DB","long_short_simple_notify.db")
-VERSION="LS_OUTCOME_V2_1_2026-10-06"
-HORIZONS=(15,60,240)
+VERSION="LS_OUTCOME_V3_0_2026-10-07"
+HORIZONS=(15,60,180)
 FEE_BPS_PER_SIDE=float(os.getenv("LS_FEE_BPS_PER_SIDE","5"))
 MIN_SLIPPAGE_BPS_PER_SIDE=float(os.getenv("LS_VALIDATION_MIN_SLIPPAGE_BPS_PER_SIDE","10"))
 HUMAN_DELAY_SECONDS=float(os.getenv("LS_VALIDATION_HUMAN_DELAY_SECONDS","30"))
@@ -53,7 +53,7 @@ def _get(path,params):
     for base in BASES:
         try:
             r=requests.get(base+path,params=params,timeout=12,
-                           headers={"User-Agent":"lsa-outcome-v2.1"})
+                           headers={"User-Agent":"lsa-outcome-v3"})
             r.raise_for_status()
             return r.json()
         except Exception as exc:
@@ -99,6 +99,23 @@ def _levels(payload):
 
 def _cohort(payload):
     return str(payload.get("data_cohort") or "UNKNOWN")
+
+
+def _v3_meta(payload):
+    gate=payload.get("structure_gate_json") or {}
+    if isinstance(gate,str):
+        try:
+            gate=json.loads(gate)
+        except Exception:
+            gate={}
+    v3=gate.get("_v3") or {}
+    setup_type=str(gate.get("_v3_setup_type") or v3.get("setup_type") or "UNKNOWN")
+    return gate,v3,setup_type
+
+
+def _cluster_id(ts,direction):
+    # Correlated altcoin signals in the same 15m directional wave share a cluster.
+    return f"{int(ts.timestamp()//900)}|{direction}"
 
 
 def _slippage_pair(payload,direction):
@@ -212,6 +229,14 @@ def init_db(con):
     )""")
     con.execute("""CREATE INDEX IF NOT EXISTS ix_delivered_signal_perf
                    ON delivered_signal_outcomes(stage_name,data_cohort,horizon_min)""")
+    delivered_cols={r[1] for r in con.execute("PRAGMA table_info(delivered_signal_outcomes)")}
+    for name,typ in {
+        "setup_type":"TEXT","signal_path":"TEXT","cluster_id":"TEXT",
+        "trade_success":"INTEGER","realized_exit_price":"REAL",
+        "beta_at_signal":"REAL","btc_return_pct":"REAL","beta_adjusted_net_pct":"REAL"
+    }.items():
+        if name not in delivered_cols:
+            con.execute(f"ALTER TABLE delivered_signal_outcomes ADD COLUMN {name} {typ}")
     con.execute("""CREATE TABLE IF NOT EXISTS watch_no_confirm_outcomes(
         watch_episode_id INTEGER NOT NULL,
         version TEXT NOT NULL,
@@ -298,6 +323,12 @@ def evaluate_delivered(con):
         delay=(sent-cond).total_seconds()
         cohort=_cohort(payload)
         direction=ev["direction"]
+        gate,v3,setup_type=_v3_meta(payload)
+        signal_path=("FAST" if ev["stage_to"]=="TRIGGERED" and ev["stage_from"]=="CLOSE_CONFIRMED"
+                     else "RETEST" if ev["stage_to"]=="TRIGGERED" and ev["stage_from"]=="RETESTING"
+                     else "CONFIRM_ONLY")
+        cluster_id=_cluster_id(execute,direction)
+        beta=float(((v3.get("residual") or {}).get("beta")) or 1.0)
         entry_slip,exit_slip=_slippage_pair(payload,direction)
         cost_pct=(2.0*FEE_BPS_PER_SIDE+entry_slip+exit_slip)/100.0
         max_end=execute+timedelta(minutes=max(HORIZONS)+2)
@@ -305,6 +336,7 @@ def evaluate_delivered(con):
             continue
         try:
             all_rows=_rows_1m(ev["symbol"],execute,max_end)
+            btc_rows=_rows_1m("BTCUSDT",execute,max_end) if ev["symbol"]!="BTCUSDT" else all_rows
         except Exception as exc:
             print("outcome fetch error",ev["symbol"],type(exc).__name__,str(exc)[:120])
             continue
@@ -329,13 +361,30 @@ def evaluate_delivered(con):
             if not rows:
                 continue
             endpoint=float(rows[-1][4])
-            gross=_direction_return(direction,entry,endpoint)
-            net=gross-cost_pct
             first,first_time,tp2_hit,mfe,mae=_barrier_path(direction,entry,inv,t1,t2,rows)
+            # V3 primary PnL follows the immutable signal object: first TP1/STOP
+            # is the realized exit. Only no-barrier cases use the horizon price.
+            if first=="TP1":
+                realized_exit=t1
+                trade_success=1
+            elif first=="STOP":
+                realized_exit=inv
+                trade_success=0
+            else:
+                realized_exit=endpoint
+                trade_success=None
+            gross=_direction_return(direction,entry,realized_exit)
+            net=gross-cost_pct
             rm=net/risk_pct if risk_pct>0 else None
             mfe_r=mfe/risk_pct if risk_pct>0 else None
             mae_r=mae/risk_pct if risk_pct>0 else None
             correct=1 if net>0 else 0
+            btc_cut=[r for r in btc_rows if datetime.fromtimestamp(int(r[0])/1000,tz=timezone.utc)<cutoff]
+            btc_ret=0.0
+            if btc_cut:
+                btc_entry=float(btc_cut[0][1]); btc_end=float(btc_cut[-1][4])
+                btc_ret=(btc_end/btc_entry-1.0)*100.0 if btc_entry else 0.0
+            beta_adjusted=net-beta*btc_ret
             con.execute("""INSERT INTO delivered_signal_outcomes(
                 event_id,version,symbol,direction,stage_name,data_cohort,
                 condition_time_utc,telegram_sent_time_utc,execution_time_utc,
@@ -345,8 +394,9 @@ def evaluate_delivered(con):
                 horizon_min,endpoint_price,gross_return_pct,net_return_pct,r_multiple,
                 mfe_pct,mae_pct,mfe_r,mae_r,first_barrier,first_barrier_time_utc,tp2_hit,
                 reached_3,reached_5,reached_7,reached_10,reached_15,direction_correct,
-                evaluated_at_utc
-            ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                evaluated_at_utc,setup_type,signal_path,cluster_id,trade_success,
+                realized_exit_price,beta_at_signal,btc_return_pct,beta_adjusted_net_pct
+            ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (ev["id"],VERSION,ev["symbol"],direction,ev["stage_to"],cohort,
              cond.isoformat(),sent.isoformat(),execute.isoformat(),delay,
              1 if delay>STALE_DELAY_SECONDS else 0,
@@ -355,7 +405,8 @@ def evaluate_delivered(con):
              h,endpoint,gross,net,rm,mfe,mae,mfe_r,mae_r,first,first_time,
              1 if tp2_hit else 0,
              1 if mfe>=3 else 0,1 if mfe>=5 else 0,1 if mfe>=7 else 0,
-             1 if mfe>=10 else 0,1 if mfe>=15 else 0,correct,now_iso()))
+             1 if mfe>=10 else 0,1 if mfe>=15 else 0,correct,now_iso(),
+             setup_type,signal_path,cluster_id,trade_success,realized_exit,beta,btc_ret,beta_adjusted))
             added+=1
     return added
 
@@ -575,7 +626,7 @@ def _send_daily_summary(rows,watch_rows=None):
     selected=[r for r in rows if r[0]=="TRIGGERED" and r[2]==60]
     if not selected:
         return
-    lines=["📊 LONG/SHORT V2.1 — GÜNLÜK SONUÇ",
+    lines=["📊 LONG/SHORT V3 — GÜNLÜK SONUÇ",
            "Gerçek Telegram seviyeleriyle ölçüm (maliyet sonrası)."]
     for stage,cohort,h,n,correct,tp1,stop,timeout,wr,exp,avg,p50,p95 in selected:
         es="-" if exp is None else f"{exp:+.2f}R"
@@ -585,10 +636,10 @@ def _send_daily_summary(rows,watch_rows=None):
     watch60=[r for r in (watch_rows or []) if r[1]==60]
     for cohort,h,n,correct,wr,avg,tp1,stop in watch60:
         lines.append(f"İZLE—{cohort}: n={n} | yön doğru {correct}/{n} (%{wr:.1f}) | 60dk net ort %{avg:+.2f} | TP1 {tp1} | stop {stop}")
-    lines.append("Not: 100 bağımsız TRIGGERED episode öncesi edge kanıtlanmış sayılmaz.")
+    lines.append("Not: 100 bağımsız cluster yalnızca ön sağlık kontrolüdür; edge kanıtı değildir.")
     msg="\n".join(lines)[:TELEGRAM_LIMIT]
     configured=(os.getenv("TELEGRAM_CHAT_ID") or "").strip()
-    chat=resolve_chat_id(token,configured,NOTIFY_DB,"Long/Short V2.1 Outcome")
+    chat=resolve_chat_id(token,configured,NOTIFY_DB,"Long/Short V3 Outcome")
     r=requests.post(f"https://api.telegram.org/bot{token}/sendMessage",
                     json={"chat_id":chat,"text":msg,"disable_web_page_preview":True},
                     timeout=10)
@@ -610,7 +661,7 @@ def main():
         rows=report(con)
         wrows=watch_report(con)
         con.commit()
-    print("V2.1_OUTCOMES delivered_added=",a,"watch_alerts_added=",w,"watch_controls_added=",b)
+    print("V3_OUTCOMES delivered_added=",a,"watch_alerts_added=",w,"watch_controls_added=",b)
     for r in rows:
         stage,cohort,h,n,correct,tp1,stop,timeout,wr,exp,avg,p50,p95=r
         es="-" if exp is None else f"{exp:+.3f}R"
