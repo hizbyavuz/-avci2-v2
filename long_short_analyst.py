@@ -809,7 +809,12 @@ def fetch_oi(symbol):
         })
         if not rows:
             return {"oi_change_1h":0.0,"oi_now":0.0}
-        vals=[float(x.get("sumOpenInterestValue") or 0) for x in rows]
+        # V3: use contract/base-unit OI, not quote-value OI. Quote-value OI
+        # mechanically changes with price and can fake "new positioning".
+        vals=[float(x.get("sumOpenInterest") or 0) for x in rows]
+        vals=[x for x in vals if x>0]
+        if len(vals)<2:
+            return {"oi_change_1h":0.0,"oi_now":vals[-1] if vals else 0.0}
         return {"oi_change_1h":pct(vals[0],vals[-1]),"oi_now":vals[-1]}
     except Exception:
         return {"oi_change_1h":0.0,"oi_now":0.0}
