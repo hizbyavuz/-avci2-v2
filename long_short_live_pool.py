@@ -1407,8 +1407,8 @@ def loop_once():
                             if not execution_check.get("qualified"):
                                 blocked_payload=dict(row)
                                 blocked_payload["_frozen_config_hash"]=FROZEN_SIGNAL_CONFIG_HASH
-                            blocked_payload["_signal_code_sha"]=SIGNAL_CODE_SHA
-                            blocked_payload["_live_structure_quality"]=structure_quality
+                                blocked_payload["_signal_code_sha"]=SIGNAL_CODE_SHA
+                                blocked_payload["_live_structure_quality"]=structure_quality
                                 blocked_payload["_live_alert_version"]=STRUCTURE_GATE_VERSION
                                 blocked_payload["_trigger_execution_gate"]=execution_check
                                 con.execute("""INSERT INTO events(
@@ -1432,6 +1432,8 @@ def loop_once():
                             allowed,cluster_count=cluster_trigger_allowed(con,row["direction"],observed_time,2)
                             if not allowed:
                                 blocked_payload=dict(row)
+                                blocked_payload["_frozen_config_hash"]=FROZEN_SIGNAL_CONFIG_HASH
+                                blocked_payload["_signal_code_sha"]=SIGNAL_CODE_SHA
                                 blocked_payload["_live_structure_quality"]=structure_quality
                                 blocked_payload["_live_alert_version"]=STRUCTURE_GATE_VERSION
                                 blocked_payload["_cluster_blocked_count"]=cluster_count
