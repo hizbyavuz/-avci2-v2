@@ -1540,6 +1540,18 @@ def loop_once():
             ack_claimed_alert(ready)
 
 
+def watch_window_end(start_epoch, run_seconds, align_to_5m=ALIGN_TO_5M, grace_seconds=ALIGN_GRACE_SECONDS):
+    """Run a full observation window even when a candle boundary occurs early.
+
+    Aligning to the next 5-minute timestamp is useful for deciding when to
+    inspect closed candles, NOT for shortening the watcher job. Old code used
+    min(start+RUN_SECONDS, next_boundary+grace), often only running ~1 minute.
+    The live loop already fetches only closed candles and its 15s polling
+    naturally observes the first post-boundary candle.
+    """
+    return float(start_epoch) + max(0.0, float(run_seconds))
+
+
 def main():
     init_db()
     token=(os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
@@ -1556,13 +1568,12 @@ def main():
         if not deployment_notice:
             send_health_if_due(len(items))
     now=time.time()
-    hard_end=now+RUN_SECONDS
-    if ALIGN_TO_5M:
-        next_boundary=(math.floor(now/300.0)+1.0)*300.0+ALIGN_GRACE_SECONDS
-        end=min(hard_end,next_boundary)
-    else:
-        end=hard_end
-    print(f"Live pool started: {len(items)} symbols, poll={POLL_SECONDS}s, until={datetime.fromtimestamp(end,tz=timezone.utc).isoformat()}")
+    end=watch_window_end(now,RUN_SECONDS)
+    # The previous early 5m boundary stop created substantial unmonitored
+    # windows between analyst/live GitHub Actions executions.
+    print(f"Live pool started: {len(items)} symbols, poll={POLL_SECONDS}s, "
+          f"full_window_seconds={RUN_SECONDS}, "
+          f"until={datetime.fromtimestamp(end,tz=timezone.utc).isoformat()}",flush=True)
     while time.time()<end:
         loop_once()
         time.sleep(POLL_SECONDS)

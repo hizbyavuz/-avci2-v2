@@ -38,6 +38,7 @@ jobs:
           python -m unittest -v test_long_short_data_router.py test_long_short_core.py
           python tests/test_long_short_discovery_v23.py
           python tests/test_long_short_live_levels.py
+          python tests/test_long_short_live_window_coverage.py
           python tests/test_long_short_v3_core.py
           python tests/test_long_short_direction_engine.py
           python tests/test_long_short_outcome_v21.py
