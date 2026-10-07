@@ -808,16 +808,16 @@ def fetch_oi(symbol):
             "symbol":symbol,"period":"5m","limit":13
         })
         if not rows:
-            return {"oi_change_1h":0.0,"oi_now":0.0}
+            return {"oi_change_1h":None,"oi_now":None}
         # V3: use contract/base-unit OI, not quote-value OI. Quote-value OI
         # mechanically changes with price and can fake "new positioning".
         vals=[float(x.get("sumOpenInterest") or 0) for x in rows]
         vals=[x for x in vals if x>0]
         if len(vals)<2:
-            return {"oi_change_1h":0.0,"oi_now":vals[-1] if vals else 0.0}
+            return {"oi_change_1h":None,"oi_now":vals[-1] if vals else None}
         return {"oi_change_1h":pct(vals[0],vals[-1]),"oi_now":vals[-1]}
     except Exception:
-        return {"oi_change_1h":0.0,"oi_now":0.0}
+        return {"oi_change_1h":None,"oi_now":None}
 
 
 def fetch_funding(symbol):
@@ -827,7 +827,7 @@ def fetch_funding(symbol):
         x=fget("/fapi/v1/premiumIndex",{"symbol":symbol})
         return float(x.get("lastFundingRate") or 0.0) * 100.0
     except Exception:
-        return 0.0
+        return None
 
 
 def fetch_taker(symbol):
@@ -840,7 +840,7 @@ def fetch_taker(symbol):
         ratios=[float(x.get("buySellRatio") or 1.0) for x in rows]
         return mean(ratios[-6:]) if ratios else 1.0
     except Exception:
-        return 1.0
+        return None
 
 
 def fetch_long_short(symbol):
@@ -853,7 +853,7 @@ def fetch_long_short(symbol):
         if not rows: return 1.0
         return float(rows[-1].get("longShortRatio") or 1.0)
     except Exception:
-        return 1.0
+        return None
 
 
 def _book_vwap(rows, quote_notional, side):
@@ -1297,21 +1297,55 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
     t1h=timeframe_features(k1h)
     t4h=timeframe_features(k4h)
     htf_gate=build_htf_gate(symbol,t4h)
-    oi=fetch_oi(symbol)
-    funding=fetch_funding(symbol)
-    taker=fetch_taker(symbol)
-    ls=fetch_long_short(symbol)
-    depth_metrics=fetch_depth_metrics(symbol)
-    depth=float(depth_metrics["imbalance"])
+    oi_raw=fetch_oi(symbol)
+    funding_raw=fetch_funding(symbol)
+    taker_raw=fetch_taker(symbol)
+    ls_raw=fetch_long_short(symbol)
+    try:
+        depth_metrics=fetch_depth_metrics(symbol)
+        depth=float(depth_metrics.get("imbalance") or 0.0)
+    except Exception as exc:
+        depth_metrics={
+            "source":"UNAVAILABLE_DIAGNOSTIC_ONLY","imbalance":0.0,"spread_bps":None,
+            "costs":{},"error":f"{type(exc).__name__}:{str(exc)[:120]}",
+        }
+        depth=0.0
     chart=chart_state(t1,t5,t15,t1h)
 
-    # Data-integrity rule: never let missing Binance Futures fields silently turn
-    # into neutral 0/1 values. When Binance Futures is geo-blocked, require a
-    # complete five-field public derivatives bundle before derivatives scoring
-    # or entry eligibility is enabled.
+    # V3 native derivatives fail closed: a failed API field is missing, not a
+    # fabricated neutral zero/one. Order-book depth is diagnostic only.
+    native_ready=bool(
+        DATA_MODE=="BINANCE_FUTURES"
+        and oi_raw.get("oi_change_1h") is not None
+        and funding_raw is not None
+        and taker_raw is not None
+        and ls_raw is not None
+    )
+    oi={
+        "oi_change_1h":float(oi_raw.get("oi_change_1h") or 0.0),
+        "oi_now":float(oi_raw.get("oi_now") or 0.0),
+    }
+    funding=float(funding_raw) if funding_raw is not None else 0.0
+    taker=float(taker_raw) if taker_raw is not None else 1.0
+    ls=float(ls_raw) if ls_raw is not None else 1.0
+
+    # Data-integrity rule: never let missing Futures fields silently turn into
+    # actionable neutral values. Fallback must be a coherent single-venue bundle.
     multi_deriv=None
     cross=None
-    deriv_ready=(DATA_MODE=="BINANCE_FUTURES")
+    deriv_ready=native_ready
+    if DATA_MODE=="BINANCE_FUTURES" and not native_ready:
+        risks_native=[
+            k for k,v in {
+                "oi_change_1h":oi_raw.get("oi_change_1h"),
+                "funding_pct":funding_raw,
+                "taker_ratio":taker_raw,
+                "long_short_ratio":ls_raw,
+            }.items() if v is None
+        ]
+    else:
+        risks_native=[]
+
     if DATA_MODE!="BINANCE_FUTURES":
         multi_deriv=_cached_multi_venue_derivatives(symbol)
         cross=(multi_deriv.get("sources") or {}).get("okx")
@@ -1336,6 +1370,8 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
 
     long=short=0
     reasons=[]; risks=[]
+    if risks_native:
+        risks.append("Native türev veri eksik; V3 giriş kilitli: "+",".join(risks_native))
     components={}
 
     # Higher timeframe trend: max 28 points each side.
