@@ -24,6 +24,7 @@ import requests
 from binance_notify import resolve_chat_id
 from long_short_data_router import multi_venue_derivatives, multi_venue_perp_universe, multi_venue_perp_klines
 from long_short_v3_core import V3_VERSION, discovery_rank as v3_discovery_rank, beta_residual_3h, decide_setup as v3_decide_setup
+from long_short_direction_engine import DIRECTION_ENGINE_VERSION, decide_direction as production_decide_direction
 
 FUTURES_BASES = (
     "https://fapi.binance.com",
@@ -45,7 +46,7 @@ MULTI_DERIV_CACHE = {}
 MAX_SYMBOLS = int(os.getenv("LS_MAX_SYMBOLS", "80"))
 REQUEST_TIMEOUT = 12
 TELEGRAM_LIMIT = 4096
-VERSION = V3_VERSION
+VERSION = DIRECTION_ENGINE_VERSION
 PRESELECT_MAX = int(os.getenv("LS_PRESELECT_MAX", "12"))
 UNIVERSE_MOVER_SHARE = float(os.getenv("LS_UNIVERSE_MOVER_SHARE", "0.75"))
 PREFILTER_WORKERS = int(os.getenv("LS_PREFILTER_WORKERS", "6"))
@@ -1579,9 +1580,11 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
         if status in ("WAIT","LONG","SHORT"):
             status="NO_TRADE"
 
-    # ---- V3 final decision layer -----------------------------------------
-    # Legacy additive scores above are kept only as shadow diagnostics. They
-    # cannot authorize a V3 live signal.
+    # ---- Production direction + separate entry layer ----------------------
+    # V3.1 hard-gate logic is preserved as SHADOW diagnostics. Production
+    # direction now comes from combined evidence: trend/structure/momentum/
+    # derivatives/BTC context plus soft Spot-flow and beta-residual evidence.
+    # A single disagreeing soft feature must not erase the full thesis.
     btc1h=fetch_htf_cached("BTCUSDT","1h",220)
     residual=beta_residual_3h(k1h,btc1h)
     btc_tf=timeframe_features(btc1h)
@@ -1590,30 +1593,57 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
     residual["btc_1h_atr_pct"]=btc_atr_pct
     residual["btc_shock_atr"]=abs(residual["btc_1h_change_pct"])/btc_atr_pct
     spot_flow=spot_delta_proxy(symbol)
-    v3=v3_decide_setup(
+
+    v3_hard_gate_shadow=v3_decide_setup(
         symbol=symbol,k5=k5,k15=k15,k1h=k1h,t5=t5,t15=t15,t1h=t1h,
         levels=swing_levels(k5,48),day_change_pct=day_change_pct,
         deriv_ready=deriv_ready,oi_change_1h=float(oi.get("oi_change_1h") or 0.0),
         funding_pct=float(funding or 0.0),taker_ratio=float(taker or 1.0),
         long_short_ratio=float(ls or 1.0),spot_flow=spot_flow,residual=residual,
     )
+
+    v3=production_decide_direction(
+        long_score=long,
+        short_score=short,
+        deriv_ready=deriv_ready,
+        actionable_liquidity_ok=actionable_liquidity_ok,
+        external_only_unverified=external_only_unverified,
+        spot_flow=spot_flow,
+        residual=residual,
+        phase=str(v3_hard_gate_shadow.get("phase") or "NONE"),
+    )
+
     preferred_direction=v3.get("direction") if v3.get("direction") in ("LONG","SHORT") else ("LONG" if long>short else "SHORT")
-    setup_type=str(v3.get("setup_type") or "NONE")
+
+    # Reuse the old V3 setup-type diagnosis when it agrees with the production
+    # direction; otherwise choose the entry style from the current phase.
+    shadow_direction=str(v3_hard_gate_shadow.get("direction") or "NONE")
+    shadow_setup=str(v3_hard_gate_shadow.get("setup_type") or "NONE")
+    if shadow_direction==preferred_direction and shadow_setup in ("BREAKOUT","PULLBACK"):
+        setup_type=shadow_setup
+    else:
+        setup_type=str(v3.get("setup_type") or "BREAKOUT")
+    v3["setup_type"]=setup_type
+
     if setup_type=="PULLBACK" and preferred_direction in ("LONG","SHORT"):
         setup_plan=build_pullback_plan(preferred_direction,price,k5,t15)
     else:
         setup_plan=build_setup_plan(preferred_direction,price,k5,t15,chart)
         setup_plan["setup_type"]="BREAKOUT"
+
     structure_gate=build_structure_gate(preferred_direction,price,setup_plan,k5,k15,k30,k1h,k4h)
-    # V3 eligibility is hard-gated. Analyst never opens a trade itself; eligible
-    # candidates enter WAIT and the live state machine owns confirmation.
-    if v3.get("eligible") and actionable_liquidity_ok and not external_only_unverified:
+
+    # Direction and entry timing are deliberately separate:
+    # - direction engine chooses LONG/SHORT from combined evidence;
+    # - live pool still requires a real price trigger + acceptable structure/R.
+    if v3.get("eligible"):
         status="WAIT"
     else:
         status="NO_TRADE"
+
     entry_low=entry_high=stop=tp1=tp2=None
     rr1=None
-    confidence=0  # legacy score is shadow-only in V3
+    confidence=int(round(float(v3.get("best_score") or 0.0)))
     reversal_plan=build_reversal_plan(price,k5,t5,t15,day_change_pct)
     payload={
         "version":VERSION,"frozen_config_hash":FROZEN_CONFIG_HASH,"data_mode":DATA_MODE,"market_regime":market_regime,
@@ -1631,8 +1661,10 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
         "score_components":components,
         "ablations":ablations,
         "raw_scores":{"long":raw_long,"short":raw_short},
-        "legacy_score_shadow_only":True,
+        "legacy_score_shadow_only":False,
+        "direction_engine":v3,
         "v3":v3,
+        "v3_hard_gate_shadow":v3_hard_gate_shadow,
         "spot_flow":spot_flow,
         "beta_residual":residual,
         "derivatives_source":deriv_source,"cross_venue":cross,
