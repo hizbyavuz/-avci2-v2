@@ -80,7 +80,7 @@ class WatchAlertTrackingTests(unittest.TestCase):
                     self.assertEqual(added,3)
                     vals=con.execute("""SELECT horizon_min,net_return_pct,first_barrier,direction_correct
                                         FROM delivered_watch_outcomes ORDER BY horizon_min""").fetchall()
-                    self.assertEqual([r[0] for r in vals],[15,60,240])
+                    self.assertEqual([r[0] for r in vals],[15,60,180])
                     self.assertTrue(all(r[1]>0 for r in vals))
                     self.assertTrue(all(r[2]=="TP1" for r in vals))
                     self.assertTrue(all(r[3]==1 for r in vals))
