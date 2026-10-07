@@ -508,12 +508,16 @@ def structure_net_t1_r(direction, trigger, invalidation, target1):
     return net_reward_pct/risk_pct
 
 
-def build_structure_gate(direction, price, setup_plan, k5, k15, k30, k1h):
+def build_structure_gate(direction, price, setup_plan, k5, k15, k30, k1h, k4h=None):
     """V2 live-alert structure layer. Does not alter frozen V1.9 scores or paper labels."""
     trigger=float(setup_plan["trigger_level"])
     zones=[]
     for k,label,weight in ((k5,"5m",0.75),(k15,"15m",1.0),(k30,"30m",1.35),(k1h,"1h",1.75)):
         zones.extend(_timeframe_zones(k,label,weight,price))
+    # V3: 4h is obstacle/context only. It contributes zones for room checks,
+    # never a directional score.
+    if k4h is not None:
+        zones.extend(_timeframe_zones(k4h,"4h",2.25,price))
 
     desired="RESISTANCE" if direction=="LONG" else "SUPPORT"
     near_limit=max(trigger*STRUCTURE_LEVEL_NEAR_PCT/100.0,price*0.0015)
@@ -571,7 +575,7 @@ def build_structure_gate(direction, price, setup_plan, k5, k15, k30, k1h):
 
     return {
         "version":STRUCTURE_GATE_VERSION,
-        "qualified_precheck":bool(level_ok and room_ok and rr_ok),
+        "qualified_precheck":bool((level_ok or setup_plan.get("setup_type")=="PULLBACK") and room_ok and rr_ok),
         "direction":direction,
         "trigger_level":trigger,
         "level_ok":level_ok,
@@ -1550,7 +1554,7 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
     else:
         setup_plan=build_setup_plan(preferred_direction,price,k5,t15,chart)
         setup_plan["setup_type"]="BREAKOUT"
-    structure_gate=build_structure_gate(preferred_direction,price,setup_plan,k5,k15,k30,k1h)
+    structure_gate=build_structure_gate(preferred_direction,price,setup_plan,k5,k15,k30,k1h,k4h)
     # V3 eligibility is hard-gated. Analyst never opens a trade itself; eligible
     # candidates enter WAIT and the live state machine owns confirmation.
     if v3.get("eligible") and actionable_liquidity_ok and not external_only_unverified:
@@ -1564,7 +1568,10 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
     payload={
         "version":VERSION,"frozen_config_hash":FROZEN_CONFIG_HASH,"data_mode":DATA_MODE,"market_regime":market_regime,
         "day_change_pct":day_change_pct,"quote_volume_24h":pre_qv,"actionable_liquidity_ok":actionable_liquidity_ok,
-        "discovery_meta":discovery_meta,"chart":chart,"setup_plan":setup_plan,"reversal_plan":reversal_plan,
+        "discovery_meta":discovery_meta,
+        "v3_discovery":dict((pre or {}).get("v3_discovery") or {}),
+        "discovery_rank":float((pre or {}).get("rank") or 0.0),
+        "chart":chart,"setup_plan":setup_plan,"reversal_plan":reversal_plan,
         "htf_gate":htf_gate,"structure_gate":structure_gate,
         "live_alert_version":STRUCTURE_GATE_VERSION,
         "t1":t1,"t5":t5,"t15":t15,"t1h":t1h,"t4h":t4h,
