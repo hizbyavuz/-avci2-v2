@@ -2,6 +2,10 @@ name: Long Short Watchdog
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/long-short-watchdog.yml"
   schedule:
     - cron: "*/10 * * * *"
 
@@ -27,7 +31,7 @@ jobs:
             exit 0
           fi
 
-          latest=$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/long-short-analyst.yml/runs?per_page=20" --jq '[.workflow_runs[] | select(.status=="completed" and .conclusion=="success")] | sort_by(.updated_at) | reverse | .[0].updated_at // empty')
+          latest=$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/long-short-analyst.yml/runs?per_page=20" --jq '[.workflow_runs[] | select(.name=="Long Short Analyst V3" and .status=="completed" and .conclusion=="success")] | sort_by(.updated_at) | reverse | .[0].updated_at // empty')
 
           now=$(date -u +%s)
           if test -z "$latest"; then
