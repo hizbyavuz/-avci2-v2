@@ -16,7 +16,7 @@ import math
 import os
 import sqlite3
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import requests
 from binance_notify import resolve_chat_id
@@ -1052,6 +1052,24 @@ def send_health_if_due(watch_count=0):
         return False
 
 
+def cluster_trigger_allowed(con,direction,observed_time,max_per_cluster=2):
+    """Cap user-facing correlated risk, while preserving blocked events as shadow data."""
+    try:
+        now_dt=datetime.fromisoformat(observed_time)
+        if now_dt.tzinfo is None:
+            now_dt=now_dt.replace(tzinfo=timezone.utc)
+    except Exception:
+        now_dt=datetime.now(timezone.utc)
+    cutoff=(now_dt-timedelta(minutes=15)).isoformat()
+    n=con.execute("""SELECT COUNT(*) FROM events
+                     WHERE stage_to='TRIGGERED'
+                       AND direction=?
+                       AND event_time_utc>=?
+                       AND telegram_status='SENT'""",
+                  (direction,cutoff)).fetchone()[0]
+    return int(n)<int(max_per_cluster),int(n)
+
+
 def loop_once():
     with sqlite3.connect(LIVE_DB) as con:
         con.row_factory=sqlite3.Row
@@ -1141,6 +1159,34 @@ def loop_once():
                     con.commit()
 
                 if new!=old:
+                    # V3 correlated-risk cap: at most two user-facing TRIGGERED
+                    # signals per direction in a rolling 15m market wave. Extra
+                    # qualifying setups are preserved as shadow events, not sent.
+                    if new=="TRIGGERED":
+                        allowed,cluster_count=cluster_trigger_allowed(con,row["direction"],observed_time,2)
+                        if not allowed:
+                            blocked_payload=dict(row)
+                            blocked_payload["_live_structure_quality"]=structure_quality
+                            blocked_payload["_live_alert_version"]=STRUCTURE_GATE_VERSION
+                            blocked_payload["_cluster_blocked_count"]=cluster_count
+                            con.execute("""INSERT INTO events(
+                                event_time_utc,symbol,direction,stage_from,stage_to,price,closed_5m,
+                                condition_time_utc,telegram_status,payload_json
+                            ) VALUES(?,?,?,?,?,?,?,?,?,?)""",
+                                (observed_time,row["symbol"],row["direction"],old,"CLUSTER_BLOCKED",
+                                 price,closed,observed_time,"SHADOW",
+                                 json.dumps(blocked_payload,ensure_ascii=False)))
+                            con.execute("""UPDATE watch_state
+                                           SET stage='CLUSTER_BLOCKED',last_price=?,last_closed_5m=?,
+                                               last_update_utc=? WHERE symbol=?""",
+                                        (price,closed,observed_time,row["symbol"]))
+                            con.execute("""UPDATE watch_episodes SET max_stage='CLUSTER_BLOCKED',
+                                           ended_at_utc=?,end_reason='CORRELATED_CLUSTER_CAP',
+                                           last_price=? WHERE symbol=? AND ended_at_utc IS NULL""",
+                                        (observed_time,price,row["symbol"]))
+                            con.commit()
+                            continue
+
                     # APPROACHING is a user-facing watch state. Previously it was
                     # stored in DB but never queued to Telegram.
                     if new=="APPROACHING":
