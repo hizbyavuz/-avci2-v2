@@ -1,0 +1,63 @@
+{
+  "version": "LS_V3_0_STATE_MACHINE_FREEZE_2026-10-07",
+  "status": "FROZEN_FORWARD_TEST",
+  "purpose": "3h paper/Telegram research only; no automatic execution",
+  "decision_model": "HARD_GATES_NOT_ADDITIVE_SCORE",
+  "live_setups": ["BREAKOUT", "PULLBACK"],
+  "shadow_setups": ["REVERSAL"],
+  "principles": {
+    "score_is_shadow_only": true,
+    "discovery_predicts_expansion_before_direction": true,
+    "long_short_parameters_are_asymmetric": true,
+    "watch_is_control_group_only": true,
+    "single_signal_object_for_telegram_and_outcome": true
+  },
+  "discovery": {
+    "actionable_min_24h_quote_volume_usdt": 25000000,
+    "radar_min_24h_quote_volume_usdt": 8000000,
+    "atr_ratio_soft_max": 0.90,
+    "bb_width_percentile_soft_max": 0.35,
+    "pre_signal_extension_atr_hard_max": 2.50,
+    "rank_uses": ["compression", "distance_to_key_level_atr", "volume_reacceleration_without_spike", "oi_buildup_while_price_quiet"]
+  },
+  "context": {
+    "directional_timeframes": ["5m", "15m", "1h"],
+    "4h_1d_role": "obstacle_and_extension_context_only_not_direction_score",
+    "btc_beta_residual_observation": true,
+    "btc_shock_veto": true
+  },
+  "flow": {
+    "spot_delta_required_when_available": true,
+    "perp_taker_is_one_flow_family_not_extra_score": true,
+    "price_up_oi_down_blocks_long_continuation": true,
+    "price_down_oi_down_blocks_short_continuation": true,
+    "funding_extreme_abs_pct_veto": 0.10,
+    "orderbook_snapshot_actionable": false,
+    "orderbook_snapshot_log_only": true
+  },
+  "acceptance": {
+    "fast_path_enabled": true,
+    "fast_path_min_closed_bars_beyond_level_last3": 2,
+    "retest_path_enabled": true,
+    "retest_not_mandatory_for_fast_path": true,
+    "fake_breakout_veto": true,
+    "rejection_wick_veto": true
+  },
+  "execution": {
+    "fee_bps_per_side": 5,
+    "min_slippage_bps_per_side": 10,
+    "minimum_net_t1_r": 1.0,
+    "max_horizon_minutes": 180,
+    "same_bar_ambiguity": "STOP_FIRST",
+    "signal_object_immutable": true
+  },
+  "validation": {
+    "primary": "delivered TRIGGERED signals only",
+    "secondary": ["CLOSE_CONFIRMED", "WATCH controls", "vetoed shadow candidates"],
+    "cluster_correlated_signals": true,
+    "report_long_short_separately": true,
+    "report_setup_type_separately": true,
+    "100_clusters_interpretation": "preliminary health check only",
+    "no_threshold_changes_during_7_10_day_freeze": true
+  }
+}
