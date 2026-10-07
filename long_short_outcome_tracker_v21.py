@@ -708,6 +708,10 @@ def report(con):
 
 
 def _send_daily_summary(rows,watch_rows=None):
+    # Metrics continue to accumulate, but Telegram is reserved for qualified
+    # trade alerts; outcome summaries live in the database and job logs.
+    if os.getenv("LS_OUTCOME_TELEGRAM","0").strip().lower() not in ("1","true","yes","on"):
+        return
     token=(os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
     if not token or not rows:
         return
