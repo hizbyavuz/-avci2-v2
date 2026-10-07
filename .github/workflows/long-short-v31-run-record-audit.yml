@@ -1,0 +1,96 @@
+name: Long Short V3.1 Live Record Audit
+on:
+  workflow_dispatch: {}
+  push:
+    branches: [research/v31-validation-audit-20261008]
+    paths:
+      - ".github/workflows/long-short-v31-run-record-audit.yml"
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: long-short-v31-readonly-audit
+  cancel-in-progress: false
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 14
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.12"
+      - run: pip install requests==2.32.5
+      - name: Restore latest V3.1 actual signal records (working copy only)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p .v31-audit-source
+          run_id=$(gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts?name=long-short-v31-live-pool-state&per_page=100" \
+            --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | reverse | .[0].workflow_run.id // empty')
+          test -n "$run_id" || { echo "AUDIT_INPUT_MISSING: no live-pool artifact"; exit 1; }
+          echo "SOURCE_MAIN_RUN_ID=$run_id"
+          gh run download "$run_id" --name long-short-v31-live-pool-state --dir .v31-audit-source
+          test -s .v31-audit-source/long_short_v31_live_pool.db
+          cp .v31-audit-source/long_short_v31_live_pool.db .v31-audit-source/audit_copy.db
+      - name: Check integrity and inventory without altering source
+        run: |
+          python - <<'PY'
+          import sqlite3, json
+          p='.v31-audit-source/audit_copy.db'
+          with sqlite3.connect(f"file:{p}?mode=ro",uri=True) as con:
+              print("DB_INTEGRITY",con.execute("pragma integrity_check").fetchone()[0])
+              tabs={x[0] for x in con.execute("select name from sqlite_master where type='table'")}
+              summary={}
+              for table in ("events","delivered_signal_outcomes","watch_state","watch_episodes"):
+                  summary[table]=con.execute(f"select count(*) from {table}").fetchone()[0] if table in tabs else None
+              if "events" in tabs:
+                  summary["sent_triggered"]=con.execute("select count(*) from events where stage_to='TRIGGERED' and telegram_status='SENT'").fetchone()[0]
+              if "delivered_signal_outcomes" in tabs:
+                  summary["measured_triggers_by_horizon"]=con.execute("select horizon_min,count(*) from delivered_signal_outcomes where stage_name='TRIGGERED' group by horizon_min").fetchall()
+              print("SOURCE_INVENTORY",json.dumps(summary,ensure_ascii=False))
+          PY
+      - name: Diagnose stage funnel, rejected setups and all delivered outcomes
+        run: |
+          python - <<'PY'
+          import sqlite3,json,statistics
+          p='.v31-audit-source/audit_copy.db'
+          with sqlite3.connect(f"file:{p}?mode=ro",uri=True) as db:
+              db.row_factory=sqlite3.Row
+              data={}
+              data["state_transitions"]=[dict(x) for x in db.execute(
+                  "SELECT stage_to,telegram_status,COUNT(*) AS n FROM events GROUP BY stage_to,telegram_status ORDER BY n DESC").fetchall()]
+              data["watch_end_reasons"]=[dict(x) for x in db.execute(
+                  "SELECT COALESCE(end_reason,'ACTIVE') AS reason,COUNT(*) AS n FROM watch_episodes GROUP BY COALESCE(end_reason,'ACTIVE') ORDER BY n DESC LIMIT 15").fetchall()]
+              data["delivered_performance"]=[dict(x) for x in db.execute(
+                  "SELECT stage_name,horizon_min,COUNT(*) AS n,"
+                  "ROUND(AVG(net_return_pct),4) AS avg_net_pct,"
+                  "SUM(CASE WHEN net_return_pct>0 THEN 1 ELSE 0 END) AS profitable,"
+                  "SUM(CASE WHEN first_barrier='TP1' THEN 1 ELSE 0 END) AS tp1,"
+                  "SUM(CASE WHEN first_barrier='STOP' THEN 1 ELSE 0 END) AS stop "
+                  "FROM delivered_signal_outcomes GROUP BY stage_name,horizon_min "
+                  "ORDER BY stage_name,horizon_min").fetchall()]
+              data["outcomes_detail"]=[dict(x) for x in db.execute(
+                  "SELECT symbol,direction,stage_name,horizon_min,ROUND(net_return_pct,4) AS net_pct,"
+                  "first_barrier,ROUND(delivery_delay_seconds,1) AS delay_seconds,data_cohort "
+                  "FROM delivered_signal_outcomes ORDER BY event_id,horizon_min LIMIT 60").fetchall()]
+              data["live_pool_by_state"]=[dict(x) for x in db.execute(
+                  "SELECT stage,COUNT(*) AS n FROM watch_state GROUP BY stage ORDER BY n DESC").fetchall()]
+              print("FULL_DIAGNOSTICS",json.dumps(data,ensure_ascii=False,separators=(',',':')))
+          PY
+      - name: Evaluate paired controls on real recorded signals
+        env:
+          LS_LIVE_DB: .v31-audit-source/audit_copy.db
+          LS_VALIDATION_MAX_NEW_EVENTS: "30"
+        run: |
+          python -u long_short_validation_observer_v31.py --max-events 30 | tee .v31-audit-source/report.jsonl
+          echo "AUDIT_OBSERVER_COMPLETE"
+      - name: Upload isolated audit report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: long-short-v31-readonly-audit-report
+          path: |
+            .v31-audit-source/report.jsonl
+          if-no-files-found: warn
+          retention-days: 14
