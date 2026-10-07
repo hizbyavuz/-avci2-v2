@@ -28,7 +28,7 @@ from binance_notify import resolve_chat_id
 
 DB=os.getenv("LS_LIVE_DB","long_short_live_pool.db")
 NOTIFY_DB=os.getenv("LS_SIMPLE_NOTIFY_DB","long_short_simple_notify.db")
-VERSION="LS_OUTCOME_V3_0_2026-10-07"
+VERSION="LS_OUTCOME_V3_1_2026-10-07"
 HORIZONS=(15,60,180)
 FEE_BPS_PER_SIDE=float(os.getenv("LS_FEE_BPS_PER_SIDE","5"))
 MIN_SLIPPAGE_BPS_PER_SIDE=float(os.getenv("LS_VALIDATION_MIN_SLIPPAGE_BPS_PER_SIDE","10"))
@@ -720,7 +720,7 @@ def _send_daily_summary(rows,watch_rows=None):
     selected=[r for r in rows if r[0]=="TRIGGERED" and r[2]==60]
     if not selected:
         return
-    lines=["📊 LONG/SHORT V3 — GÜNLÜK SONUÇ",
+    lines=["📊 LONG/SHORT V3.1 — GÜNLÜK SONUÇ",
            "Gerçek Telegram seviyeleriyle ölçüm (maliyet sonrası)."]
     for stage,cohort,h,n,correct,tp1,stop,timeout,wr,exp,avg,p50,p95 in selected:
         es="-" if exp is None else f"{exp:+.2f}R"
@@ -733,7 +733,7 @@ def _send_daily_summary(rows,watch_rows=None):
     lines.append("Not: 100 bağımsız cluster yalnızca ön sağlık kontrolüdür; edge kanıtı değildir.")
     msg="\n".join(lines)[:TELEGRAM_LIMIT]
     configured=(os.getenv("TELEGRAM_CHAT_ID") or "").strip()
-    chat=resolve_chat_id(token,configured,NOTIFY_DB,"Long/Short V3 Outcome")
+    chat=resolve_chat_id(token,configured,NOTIFY_DB,"Long/Short V3.1 Outcome")
     r=requests.post(f"https://api.telegram.org/bot{token}/sendMessage",
                     json={"chat_id":chat,"text":msg,"disable_web_page_preview":True},
                     timeout=10)
@@ -756,7 +756,7 @@ def main():
         rows=report(con)
         wrows=watch_report(con)
         con.commit()
-    print("V3_OUTCOMES delivered_added=",a,"shadow_blocked_added=",s,"watch_alerts_added=",w,"watch_controls_added=",b)
+    print("V3_1_OUTCOMES delivered_added=",a,"shadow_blocked_added=",s,"watch_alerts_added=",w,"watch_controls_added=",b)
     for r in rows:
         stage,cohort,h,n,correct,tp1,stop,timeout,wr,exp,avg,p50,p95=r
         es="-" if exp is None else f"{exp:+.3f}R"
