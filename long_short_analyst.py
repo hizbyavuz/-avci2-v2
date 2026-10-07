@@ -1112,23 +1112,29 @@ def prefilter_symbol(symbol, day_change_pct, quote_volume=0.0):
 
 
 def select_deep_shortlist(preselected, limit=PRESELECT_MAX):
-    """Return the strongest activity setups without reserving slots for mega-liquidity names.
+    """V3 shortlist: spend deep-scan capacity on actually executable candidates first.
 
-    Discovery liquidity is broad here; the hard actionable floor is enforced inside score_symbol().
-    This stage is intentionally market-cap agnostic: recent price acceleration,
-    volume expansion, structure and breakout state decide who gets the expensive
-    deep scan. Large coins still qualify when their activity score deserves it.
+    The 8M discovery floor is useful for radar/research, but a low-liquidity or
+    no-Binance-Spot symbol cannot pass V3 execution/spot-flow gates. Such names
+    must never crowd a >=25M, real-Spot candidate out of the expensive shortlist.
+    Within each cohort, V3 pre-move readiness rank decides ordering.
     """
     n=max(0,min(int(limit),len(preselected)))
-    ranked=sorted(
-        preselected,
-        key=lambda x:(
-            -float(x.get("rank") or 0.0),
-            -abs(float(x.get("day_change") or 0.0)),
-            str(x.get("symbol") or ""),
-        ),
-    )
-    return ranked[:n]
+    def rank_key(x):
+        return (-float(x.get("rank") or 0.0),str(x.get("symbol") or ""))
+    actionable=[]
+    research=[]
+    for x in preselected:
+        meta=dict(x.get("discovery_meta") or {})
+        can_execute=bool(
+            float(x.get("quote_volume") or 0.0)>=MIN_24H_QUOTE_VOL
+            and meta.get("binance_spot_member")
+            and not meta.get("external_only_unverified")
+        )
+        (actionable if can_execute else research).append(x)
+    actionable.sort(key=rank_key)
+    research.sort(key=rank_key)
+    return (actionable+research)[:n]
 
 
 def build_htf_gate(symbol, t4h):
@@ -1735,6 +1741,7 @@ def save_universe_observations(ts, preselected, shortlist):
                     "research_only":True,
                     "source":"V3_DISCOVERY_SHADOW",
                     "v3_discovery":dict(x.get("v3_discovery") or {}),
+                    "discovery_meta":dict(x.get("discovery_meta") or {}),
                     "discovery_rank":float(x.get("rank") or 0.0),
                     "t5":t5,
                     "t15":t15,
