@@ -97,5 +97,42 @@ class V3CoreTests(unittest.TestCase):
         self.assertEqual(new,"RETESTING")
 
 
+
+    def test_trigger_execution_gate_blocks_bad_net_r(self):
+        class Row(dict):
+            def keys(self):
+                return super().keys()
+        row=Row({
+            "direction":"LONG",
+            "invalidation":99.0,
+            "target1":100.7,
+        })
+        proxy={
+            "available":True,
+            "notional_usdt":250,
+            "costs":{"250":{"buy_bps":25.0,"sell_bps":25.0}},
+        }
+        out=live.live_execution_gate(row,100.0,proxy)
+        self.assertFalse(out["qualified"])
+        self.assertLess(out["net_t1_r"],1.0)
+
+    def test_trigger_execution_gate_passes_clean_geometry(self):
+        class Row(dict):
+            def keys(self):
+                return super().keys()
+        row=Row({
+            "direction":"LONG",
+            "invalidation":99.0,
+            "target1":102.0,
+        })
+        proxy={
+            "available":True,
+            "notional_usdt":250,
+            "costs":{"250":{"buy_bps":2.0,"sell_bps":2.0}},
+        }
+        out=live.live_execution_gate(row,100.0,proxy)
+        self.assertTrue(out["qualified"])
+        self.assertGreaterEqual(out["net_t1_r"],1.0)
+
 if __name__=="__main__":
     unittest.main()
