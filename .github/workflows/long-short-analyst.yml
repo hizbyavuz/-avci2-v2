@@ -48,10 +48,11 @@ jobs:
 
       - name: Compile frozen V3 state-machine layer
         run: |
-          python -m py_compile long_short_analyst.py long_short_v3_core.py long_short_live_pool.py long_short_simple_notify.py long_short_outcome_tracker_v21.py
+          python -m py_compile long_short_analyst.py long_short_direction_engine.py long_short_v3_core.py long_short_live_pool.py long_short_simple_notify.py long_short_outcome_tracker_v21.py
           python -m json.tool LONG_SHORT_V3_FROZEN_CONFIG.json >/dev/null
           python tests/test_long_short_structure_gate_v2.py
           python tests/test_long_short_v3_core.py
+          python tests/test_long_short_direction_engine.py
           python tests/test_long_short_outcome_v21.py
           python tests/test_long_short_v21_integration.py
           python tests/test_long_short_discovery_v23.py
@@ -77,7 +78,7 @@ jobs:
           LS_DB: "long_short_v31_analyst.db"
           LS_FROZEN_CONFIG_PATH: "LONG_SHORT_V3_FROZEN_CONFIG.json"
           LS_MAX_SYMBOLS: "160"
-          LS_PRESELECT_MAX: "24"
+          LS_PRESELECT_MAX: "40"
           LS_PREFILTER_WORKERS: "8"
           LS_DEEP_WORKERS: "8"
           LS_MIN_24H_QUOTE_VOL: "25000000"
