@@ -2,7 +2,7 @@ name: Long Short Analyst V3
 # restart-stamp: 2026-10-07-v3-state-machine-freeze
 # Active paper-trade analyst. Never places orders.
 on:
-  workflow_dispatch:
+  workflow_dispatch: {}
   push:
     branches: [main]
     paths:
