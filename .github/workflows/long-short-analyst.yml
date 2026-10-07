@@ -76,7 +76,7 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           LS_DB: "long_short_v3_analyst.db"
           LS_FROZEN_CONFIG_PATH: "LONG_SHORT_V3_FROZEN_CONFIG.json"
-          LS_MAX_SYMBOLS: "80"
+          LS_MAX_SYMBOLS: "160"
           LS_PRESELECT_MAX: "24"
           LS_PREFILTER_WORKERS: "8"
           LS_DEEP_WORKERS: "8"
