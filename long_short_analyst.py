@@ -23,6 +23,7 @@ from typing import Any
 import requests
 from binance_notify import resolve_chat_id
 from long_short_data_router import multi_venue_derivatives, multi_venue_perp_universe, multi_venue_perp_klines
+from long_short_v3_core import V3_VERSION, discovery_rank as v3_discovery_rank, beta_residual_3h, decide_setup as v3_decide_setup
 
 FUTURES_BASES = (
     "https://fapi.binance.com",
@@ -44,7 +45,7 @@ MULTI_DERIV_CACHE = {}
 MAX_SYMBOLS = int(os.getenv("LS_MAX_SYMBOLS", "80"))
 REQUEST_TIMEOUT = 12
 TELEGRAM_LIMIT = 4096
-VERSION = "LSA_V2_3_1_BROAD_RADAR_DISCOVERY_2026-10-06"
+VERSION = V3_VERSION
 PRESELECT_MAX = int(os.getenv("LS_PRESELECT_MAX", "12"))
 UNIVERSE_MOVER_SHARE = float(os.getenv("LS_UNIVERSE_MOVER_SHARE", "0.75"))
 PREFILTER_WORKERS = int(os.getenv("LS_PREFILTER_WORKERS", "6"))
@@ -62,7 +63,7 @@ SLIPPAGE_BPS_PER_SIDE = float(os.getenv("LS_SLIPPAGE_BPS_PER_SIDE", "5"))
 SIGNAL_EXPIRY_MIN = int(os.getenv("LS_SIGNAL_EXPIRY_MIN", "180"))
 SIGNAL_COOLDOWN_MIN = int(os.getenv("LS_SIGNAL_COOLDOWN_MIN", "120"))
 TELEGRAM_SUMMARY = os.getenv("LS_TELEGRAM_SUMMARY", "0").strip().lower() in ("1","true","yes","on")
-STRUCTURE_GATE_VERSION = "LS_STRUCTURE_GATE_V2_1_2026-10-06"
+STRUCTURE_GATE_VERSION = "LS_STRUCTURE_GATE_V3_0_2026-10-07"
 STRUCTURE_MIN_ROOM_FLOOR_PCT = float(os.getenv("LS_STRUCTURE_MIN_ROOM_FLOOR_PCT", "0.90"))
 STRUCTURE_MIN_ROOM_COST_MULT = float(os.getenv("LS_STRUCTURE_MIN_ROOM_COST_MULT", "3.0"))
 VALIDATION_MIN_SLIPPAGE_BPS_PER_SIDE = float(os.getenv("LS_VALIDATION_MIN_SLIPPAGE_BPS_PER_SIDE", "10"))
@@ -76,7 +77,7 @@ EXCLUDED_BASES = {
     "USDC","FDUSD","TUSD","USDP","DAI","BUSD","EUR","TRY","BTCST",
 }
 EXCLUDED_MARKERS = ("UP","DOWN","BULL","BEAR")
-FROZEN_CONFIG_PATH = os.getenv("LS_FROZEN_CONFIG_PATH", "LONG_SHORT_V1_9_FROZEN_CONFIG.json")
+FROZEN_CONFIG_PATH = os.getenv("LS_FROZEN_CONFIG_PATH", "LONG_SHORT_V3_FROZEN_CONFIG.json")
 
 
 def frozen_config_hash():
@@ -156,6 +157,52 @@ def fget(path: str, params: dict | None = None):
             except (requests.RequestException, ValueError) as exc:
                 last = exc
     raise last or RuntimeError("Binance market data unavailable")
+
+
+def spot_delta_proxy(symbol: str) -> dict[str, Any]:
+    """Real Binance Spot aggressive-flow proxy from CLOSED 1m klines.
+
+    delta_share = sum(2*taker_buy_quote - quote_volume) / sum(quote_volume).
+    Never uses normalized external candles, so missing Spot data stays missing.
+    """
+    last=None
+    for base in SPOT_BASES:
+        try:
+            r=requests.get(
+                base + "/api/v3/klines",
+                params={"symbol":symbol,"interval":"1m","limit":14},
+                timeout=REQUEST_TIMEOUT,
+                headers={"User-Agent":"long-short-v3-spot-flow/1.0"},
+            )
+            r.raise_for_status()
+            rows=r.json()
+            now_ms=int(time.time()*1000)
+            rows=[x for x in rows if int(x[6]) <= now_ms-250]
+            if len(rows)<8:
+                continue
+            recent=rows[-8:]
+            quote=sum(float(x[7] or 0.0) for x in recent)
+            delta=sum(2.0*float(x[10] or 0.0)-float(x[7] or 0.0) for x in recent)
+            first=recent[:4]; second=recent[4:]
+            def dshare(xs):
+                q=sum(float(x[7] or 0.0) for x in xs)
+                d=sum(2.0*float(x[10] or 0.0)-float(x[7] or 0.0) for x in xs)
+                return d/q if q>0 else 0.0
+            return {
+                "available":True,
+                "provider":"BINANCE_SPOT",
+                "delta_share":delta/quote if quote>0 else 0.0,
+                "delta_share_prev4":dshare(first),
+                "delta_share_last4":dshare(second),
+            }
+        except Exception as exc:
+            last=exc
+    return {
+        "available":False,
+        "provider":"UNAVAILABLE",
+        "delta_share":None,
+        "error":None if last is None else f"{type(last).__name__}:{str(last)[:120]}",
+    }
 
 
 def okx_get(path: str, params: dict | None = None):
@@ -605,6 +652,40 @@ def build_setup_plan(direction, price, t5k, t15, chart):
     }
 
 
+def build_pullback_plan(direction, price, t5k, t15):
+    """Micro-structure restart plan after a controlled pullback."""
+    a=max(float(t15["atr"]),price*0.002)
+    highs=[float(x) for x in t5k["high"]]
+    lows=[float(x) for x in t5k["low"]]
+    if direction=="LONG":
+        trigger=max(highs[-4:-1]) if len(highs)>=4 else highs[-1]
+        invalid=min(lows[-8:]) if lows else price-1.0*a
+        if invalid>=trigger:
+            invalid=trigger-1.0*a
+        target1=max(max(highs[-24:]),trigger+1.4*a)
+        target2=max(target1+0.8*a,trigger+2.4*a)
+        return {
+            "setup_type":"PULLBACK","direction":"LONG","trigger_level":trigger,"close_tf":"5dk",
+            "retest_low":trigger-0.30*a,"retest_high":trigger,
+            "invalidation":invalid,"target1":target1,"target2":target2,
+            "triggered":False,
+            "instruction":"Kontrollü pullback sonrası mikro tepe kırılımı ve kabul beklenir.",
+        }
+    trigger=min(lows[-4:-1]) if len(lows)>=4 else lows[-1]
+    invalid=max(highs[-8:]) if highs else price+1.0*a
+    if invalid<=trigger:
+        invalid=trigger+1.0*a
+    target1=min(min(lows[-24:]),trigger-1.4*a)
+    target2=min(target1-0.8*a,trigger-2.4*a)
+    return {
+        "setup_type":"PULLBACK","direction":"SHORT","trigger_level":trigger,"close_tf":"5dk",
+        "retest_low":trigger,"retest_high":trigger+0.30*a,
+        "invalidation":invalid,"target1":target1,"target2":target2,
+        "triggered":False,
+        "instruction":"Kontrollü tepki sonrası mikro dip kırılımı ve kabul beklenir.",
+    }
+
+
 def build_reversal_plan(price, t5k, t5, t15, day_change_pct=0.0):
     """
     Separate reversal research engine. It does NOT predict the exact top/bottom.
@@ -1015,22 +1096,17 @@ def fetch_htf_cached(symbol, interval, limit=220):
 
 
 def prefilter_symbol(symbol, day_change_pct, quote_volume=0.0):
-    """Cheap first pass: only 5m + 15m chart data. No OKX/derivatives/order book."""
-    k5=fetch_klines(symbol,"5m",90)
-    k15=fetch_klines(symbol,"15m",90)
+    """V3 discovery: rank pre-move readiness, never absolute mover magnitude."""
+    k5=fetch_klines(symbol,"5m",120)
+    k15=fetch_klines(symbol,"15m",120)
     t5=timeframe_features(k5)
     t15=timeframe_features(k15)
-    score=0.0
-    score += min(abs(float(day_change_pct)),30.0)*0.35
-    score += min(abs(t15["change_4"]),12.0)*1.40
-    score += min(abs(t5["change_4"]),8.0)*1.10
-    score += min(max(t15["vol_mult"]-1.0,0.0),4.0)*2.2
-    score += 2.5 if t15["structure"] != 0 else 0.0
-    score += 4.0 if (t15["breakout20"] or t15["breakdown20"]) else 0.0
-    score += 1.5 if t5["structure"] != 0 else 0.0
+    levels=swing_levels(k5,48)
+    rank,v3_discovery=v3_discovery_rank(k5,k15,t5,t15,day_change_pct,levels)
     return {
-        "symbol":symbol,"day_change":day_change_pct,"quote_volume":float(quote_volume or 0.0),"rank":score,
+        "symbol":symbol,"day_change":day_change_pct,"quote_volume":float(quote_volume or 0.0),"rank":rank,
         "discovery_meta":dict(DISCOVERY_META.get(symbol) or {}),
+        "v3_discovery":v3_discovery,
         "k5":k5,"t5":t5,"k15":k15,"t15":t15,
     }
 
@@ -1454,10 +1530,36 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
         if status in ("WAIT","LONG","SHORT"):
             status="NO_TRADE"
 
-    confidence=min(99, max(0, int(best*0.75 + edge*0.25)))
-    preferred_direction="LONG" if long>short else "SHORT"
-    setup_plan=build_setup_plan(preferred_direction,price,k5,t15,chart)
+    # ---- V3 final decision layer -----------------------------------------
+    # Legacy additive scores above are kept only as shadow diagnostics. They
+    # cannot authorize a V3 live signal.
+    btc1h=fetch_htf_cached("BTCUSDT","1h",220)
+    residual=beta_residual_3h(k1h,btc1h)
+    spot_flow=spot_delta_proxy(symbol)
+    v3=v3_decide_setup(
+        symbol=symbol,k5=k5,k15=k15,k1h=k1h,t5=t5,t15=t15,t1h=t1h,
+        levels=swing_levels(k5,48),day_change_pct=day_change_pct,
+        deriv_ready=deriv_ready,oi_change_1h=float(oi.get("oi_change_1h") or 0.0),
+        funding_pct=float(funding or 0.0),taker_ratio=float(taker or 1.0),
+        long_short_ratio=float(ls or 1.0),spot_flow=spot_flow,residual=residual,
+    )
+    preferred_direction=v3.get("direction") if v3.get("direction") in ("LONG","SHORT") else ("LONG" if long>short else "SHORT")
+    setup_type=str(v3.get("setup_type") or "NONE")
+    if setup_type=="PULLBACK" and preferred_direction in ("LONG","SHORT"):
+        setup_plan=build_pullback_plan(preferred_direction,price,k5,t15)
+    else:
+        setup_plan=build_setup_plan(preferred_direction,price,k5,t15,chart)
+        setup_plan["setup_type"]="BREAKOUT"
     structure_gate=build_structure_gate(preferred_direction,price,setup_plan,k5,k15,k30,k1h)
+    # V3 eligibility is hard-gated. Analyst never opens a trade itself; eligible
+    # candidates enter WAIT and the live state machine owns confirmation.
+    if v3.get("eligible") and actionable_liquidity_ok and not external_only_unverified:
+        status="WAIT"
+    else:
+        status="NO_TRADE"
+    entry_low=entry_high=stop=tp1=tp2=None
+    rr1=None
+    confidence=0  # legacy score is shadow-only in V3
     reversal_plan=build_reversal_plan(price,k5,t5,t15,day_change_pct)
     payload={
         "version":VERSION,"frozen_config_hash":FROZEN_CONFIG_HASH,"data_mode":DATA_MODE,"market_regime":market_regime,
@@ -1472,6 +1574,10 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
         "score_components":components,
         "ablations":ablations,
         "raw_scores":{"long":raw_long,"short":raw_short},
+        "legacy_score_shadow_only":True,
+        "v3":v3,
+        "spot_flow":spot_flow,
+        "beta_residual":residual,
         "derivatives_source":deriv_source,"cross_venue":cross,
         "multi_venue_derivatives":multi_deriv,
         "derivatives_ready":bool(deriv_ready),
@@ -1687,7 +1793,7 @@ def save_scan(ts, regime, n, results):
              p.get("derivatives_quality"),p.get("derivatives_coverage"),
              json.dumps(missing,ensure_ascii=False),
              json.dumps(errors,ensure_ascii=False)))
-            if a.status in ("LONG","SHORT") and a.stop and a.tp1 and a.tp2:
+            if (not VERSION.startswith("LS_V3_")) and a.status in ("LONG","SHORT") and a.stop and a.tp1 and a.tp2:
                 exists=con.execute("""SELECT 1 FROM paper_setups
                     WHERE symbol=? AND direction=? AND (
                       status='OPEN' OR datetime(signal_time_utc) >= datetime(?, ?)
