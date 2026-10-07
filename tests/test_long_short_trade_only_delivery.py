@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Regression: one user-facing alert only after all V3.1 trade gates."""
+import os
 import unittest
+from unittest.mock import patch
 import sys
 from pathlib import Path
 
@@ -35,6 +37,7 @@ class TradeOnlyTelegramTests(unittest.TestCase):
         self.assertIn("116.2500",msg)
         self.assertIn("TP1:",msg)
         self.assertIn("TP2:",msg)
+        self.assertIn("Tip: 🟦 Güçlü/Stabil",msg)
         self.assertIn("otomatik emir açılmadı",msg)
         self.assertNotIn("DEVAM MOTORU",msg)
         self.assertNotIn("OYNAK RADAR",msg)
@@ -45,6 +48,11 @@ class TradeOnlyTelegramTests(unittest.TestCase):
                  target1=116.2,target2=117.4)
         self.assertTrue(live.message_for(row,"TRIGGERED",115.7,115.6).startswith(
             "🟢 LONG SİNYALİ | SOLUSDT"))
+
+    def test_missing_telegram_token_cannot_count_as_sent(self):
+        with patch.dict(os.environ,{"TELEGRAM_BOT_TOKEN":""}):
+            with self.assertRaisesRegex(RuntimeError,"not delivered"):
+                live.send_telegram("test")
 
     def test_trade_message_notifies_external_data_mode(self):
         row=dict(self.row,data_mode="MULTI_VENUE_PERP")
