@@ -1,4 +1,4 @@
-# Long/Short V3 — Final Forward-Test Design
+# Long/Short V3.1 — Final Forward-Test Design
 
 This version is intentionally smaller than the previous rule engine.
 
@@ -22,5 +22,8 @@ Use real venue-tagged data only. Spot delta/CVD proxy may use real Binance Spot 
 ## Validation
 Telegram and outcome evaluation consume the same immutable signal levels. WATCH remains a separate control group. Results are grouped by correlated market-wave cluster. 100 independent clusters is only a health check, not proof of edge.
 
+## Deliberately not in V3.1
+To avoid rebuilding a rule-engine monster, V3.1 does **not** make these live decision inputs: sector scoring, breadth scoring, news NLP, order-book directional snapshots, order-book replenishment/cancellation models, direct reversal signals, per-coin tuned thresholds, or a large OI×funding×CVD combination table. They may be logged/researched later, not added during the freeze.
+
 ## Freeze
-No thresholds or logic changes for the first 7–10 calendar days except critical data-integrity/runtime bugs, which require a new version tag and intervention log.
+V3.1 starts from fresh analyst/live/notify databases. No thresholds or signal-logic changes for the first 7–10 calendar days except critical data-integrity/runtime bugs; any such fix must create a new version and restart the clean sample.
