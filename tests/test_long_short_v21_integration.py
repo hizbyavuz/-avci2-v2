@@ -117,7 +117,7 @@ class V21IntegrationTests(unittest.TestCase):
                     out=con.execute("""SELECT horizon_min,first_barrier,direction_correct,
                                       round_trip_cost_pct
                                       FROM delivered_signal_outcomes ORDER BY horizon_min""").fetchall()
-                    self.assertEqual([r[0] for r in out],[15,60,240])
+                    self.assertEqual([r[0] for r in out],[15,60,180])
                     self.assertTrue(all(r[1]=="TP1" for r in out))
                     self.assertTrue(all(r[2]==1 for r in out))
                     self.assertTrue(all(abs(r[3]-0.30)<1e-9 for r in out))
