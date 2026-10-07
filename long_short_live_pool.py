@@ -40,7 +40,7 @@ EARLY_MIN_VOLUME_MULT=float(os.getenv("LS_EARLY_MIN_VOLUME_MULT","1.20"))
 EARLY_MIN_TAKER_SHARE=float(os.getenv("LS_EARLY_MIN_TAKER_SHARE","0.54"))
 EARLY_MAX_COMPRESSION_PCT=float(os.getenv("LS_EARLY_MAX_COMPRESSION_PCT","0.90"))
 EARLY_MIN_ROOM_PCT=float(os.getenv("LS_EARLY_MIN_ROOM_PCT","0.30"))
-STRUCTURE_GATE_VERSION="LS_STRUCTURE_GATE_V2_1_2026-10-06"
+STRUCTURE_GATE_VERSION="LS_STRUCTURE_GATE_V3_0_2026-10-07"
 STRUCTURE_MIN_VOLUME_MULT=float(os.getenv("LS_STRUCTURE_MIN_VOLUME_MULT","1.10"))
 STRUCTURE_MIN_BODY_RATIO=float(os.getenv("LS_STRUCTURE_MIN_BODY_RATIO","0.45"))
 STRUCTURE_MAX_REJECTION_WICK=float(os.getenv("LS_STRUCTURE_MAX_REJECTION_WICK","0.35"))
@@ -254,16 +254,18 @@ def load_watchlist():
         if not scan or not scan["ts"]:
             return []
         rows=con.execute("""SELECT symbol,status,long_score,short_score,confidence,price,payload_json
-                           FROM analyses WHERE scan_time_utc=?
-                           ORDER BY confidence DESC LIMIT ?""",(scan["ts"],MAX_WATCH*3)).fetchall()
+                           FROM analyses WHERE scan_time_utc=?""",(scan["ts"],)).fetchall()
         out=[]
         for r in rows:
             try:
                 p=json.loads(r["payload_json"] or "{}")
                 plan=p.get("setup_plan") or {}
                 gate=p.get("htf_gate") or {}
+                v3=p.get("v3") or {}
+                v3_discovery=p.get("v3_discovery") or {}
                 structure_gate=p.get("structure_gate") or {}
                 derivatives_ready=bool(p.get("derivatives_ready"))
+                setup_type=str(plan.get("setup_type") or v3.get("setup_type") or "BREAKOUT")
                 if not plan.get("direction") or plan.get("trigger_level") is None:
                     continue
                 # 1D/4H gate belongs only to the observational EARLY layer.
@@ -280,7 +282,7 @@ def load_watchlist():
                     continue
                 if structure_gate.get("direction")!=plan.get("direction"):
                     continue
-                if not structure_gate.get("trigger_zone"):
+                if setup_type=="BREAKOUT" and not structure_gate.get("trigger_zone"):
                     continue
                 # Normal candidates are WAIT/LONG/SHORT. Strong daily movers that are
                 # still NO_TRADE may enter a separate radar-only pool; radar can
@@ -293,6 +295,8 @@ def load_watchlist():
                     and abs(day_change_pct)>=RADAR_MIN_DAY_MOVE_PCT
                 )
                 if analyst_status not in ("WAIT","LONG","SHORT") and not radar_only:
+                    continue
+                if not radar_only and not bool(v3.get("eligible")):
                     continue
                 # Fail closed for every actionable candidate. Radar-only movers may
                 # still be observed with incomplete derivatives because the state
@@ -388,6 +392,14 @@ def load_watchlist():
                 stored_gate["_day_change_pct"]=day_change_pct
                 stored_gate["_derivatives_ready"]=bool(derivatives_ready)
                 stored_gate["_derivatives_quality"]=quality
+                stored_gate["_v3"]=v3
+                stored_gate["_v3_discovery"]=v3_discovery
+                stored_gate["_v3_setup_type"]=setup_type
+                stored_gate["_v3_precheck_ok"]=bool(
+                    structure_gate.get("qualified_precheck")
+                    if setup_type=="BREAKOUT"
+                    else (structure_gate.get("room_ok") and structure_gate.get("rr_ok"))
+                )
                 out.append({
                     "symbol":r["symbol"],"direction":plan["direction"],
                     "reference_price":float(r["price"] or 0.0),
@@ -404,11 +416,13 @@ def load_watchlist():
                     "data_cohort":cohort,
                     "derivatives_provider":provider,
                     "derivatives_quality":quality,
-                    "htf_direction":str(gate.get("direction") or "NONE"),
-                    "htf_score":int(gate.get("score") or 0),
-                    "htf_reasons":list(gate.get("reasons") or []),
+                    "htf_direction":str(plan.get("direction") or "NONE"),
+                    "htf_score":0,
+                    "htf_reasons":[f"V3 {setup_type}", f"phase={v3.get('phase','NONE')}"],
                     "structure_gate_version":str(structure_gate.get("version") or ""),
                     "structure_gate":stored_gate,
+                    "setup_type":setup_type,
+                    "discovery_rank":float(p.get("discovery_rank") or 0.0),
                     "scan_time":scan["ts"],
                 })
             except Exception:
@@ -417,8 +431,8 @@ def load_watchlist():
         # the fastest radar-only movers, not with mega-cap names by confidence.
         out.sort(key=lambda x:(
             1 if x.get("radar_only") else 0,
-            -(abs(float(x.get("day_change_pct") or 0.0)) if x.get("radar_only") else float(x.get("confidence") or 0)),
-            -float(x.get("confidence") or 0),
+            -(abs(float(x.get("day_change_pct") or 0.0)) if x.get("radar_only") else float(x.get("discovery_rank") or 0.0)),
+            str(x.get("symbol") or ""),
         ))
         return out[:MAX_WATCH]
 
@@ -605,6 +619,7 @@ def market_snapshot(symbol):
         "quote_volume_24h":float(stats.get("quoteVolume") or 0.0),
         "day_change_pct":float(stats.get("priceChangePercent") or 0.0),
         "short_range_pct":short_range_pct,
+        "recent_closed_5m_closes":[float(x[4]) for x in kl5[-4:-1]] if len(kl5)>=4 else [closed],
     }
     return price,closed,close_time,early
 
@@ -665,7 +680,8 @@ def live_structure_confirmation(row,closed,early):
         gate=json.loads(row["structure_gate_json"] or "{}") if "structure_gate_json" in row.keys() else {}
     except Exception:
         gate={}
-    if gate.get("version")!=STRUCTURE_GATE_VERSION or not gate.get("qualified_precheck"):
+    precheck_ok=bool(gate.get("_v3_precheck_ok",gate.get("qualified_precheck")))
+    if gate.get("version")!=STRUCTURE_GATE_VERSION or not precheck_ok:
         return {"qualified":False,"reason":"structure_precheck_failed"}
 
     d=row["direction"]; trig=float(row["trigger_level"])
@@ -698,6 +714,11 @@ def live_structure_confirmation(row,closed,early):
         beyond and direction_ok and volume_ok and body_ok
         and close_location_ok and wick_ok and not fake_breakout
     )
+    recent=[float(x) for x in (early.get("recent_closed_5m_closes") or [])]
+    if d=="LONG":
+        acceptance_count=sum(1 for x in recent[-3:] if x>trig)
+    else:
+        acceptance_count=sum(1 for x in recent[-3:] if x<trig)
     return {
         "version":STRUCTURE_GATE_VERSION,
         "qualified":qualified,
@@ -713,6 +734,8 @@ def live_structure_confirmation(row,closed,early):
         "body_ratio":body_ratio,
         "close_location":close_loc,
         "rejection_wick_ratio":rejection_wick,
+        "acceptance_bars_beyond_last3":acceptance_count,
+        "setup_type":str(gate.get("_v3_setup_type") or "BREAKOUT"),
         "room_pct":float(gate.get("room_pct") or 0.0),
         "timeframe_confluence":int(gate.get("timeframe_confluence") or 0),
         "level_touches":int(gate.get("level_touches") or 0),
@@ -756,18 +779,35 @@ def next_stage(row,price,closed,structure_quality=None):
         in_retest=(rl<=price<=rh)
         moving_away=price<rl
 
+    sq=structure_quality or {}
+    setup_type=str(sq.get("setup_type") or "BREAKOUT")
     if stage in ("WATCH","APPROACHING"):
-        if close_ok and bool((structure_quality or {}).get("qualified")):
+        if close_ok and bool(sq.get("qualified")):
             return "CLOSE_CONFIRMED"
         if dist<=APPROACH_PCT:
             return "APPROACHING"
         return "WATCH"
     if stage=="CLOSE_CONFIRMED":
+        # V3 has two legitimate paths:
+        # FAST: strong acceptance, no forced retest.
+        # RETEST: controlled revisit then renewed directional close.
+        if int(sq.get("acceptance_bars_beyond_last3") or 0)>=2 and bool(sq.get("qualified")):
+            return "TRIGGERED"
         if in_retest:
             return "RETESTING"
+        # Do not wait forever for a retest on a 3h research horizon.
+        try:
+            t0=datetime.fromisoformat(row["close_confirmed_time"]) if row["close_confirmed_time"] else None
+            ttl=45*60 if setup_type=="BREAKOUT" else 90*60
+            if t0 and (datetime.now(timezone.utc)-t0).total_seconds()>ttl:
+                return "INVALIDATED"
+        except Exception:
+            pass
         return "CLOSE_CONFIRMED"
     if stage=="RETESTING":
-        if moving_away:
+        # A touch is not enough. Re-entry requires a fresh qualified close back
+        # in the trade direction.
+        if moving_away and close_ok and bool(sq.get("qualified")):
             return "TRIGGERED"
         return "RETESTING"
     return stage
@@ -824,7 +864,7 @@ def queue_approaching_alert(row,price,structure_quality=None):
              f"24s hareket: %{day_change:+.1f} | Yön eğilimi: {side_ball} {d}\n"
              f"5 dk izleme seviyesi: {fmtp(level)} | Şu an: {fmtp(price)}\n"
              f"{data_line}\n"
-             "Durum: Ana skor barajı henüz geçilmedi; bu bir işlem teyidi değildir.\n"
+             "Durum: V3 hard-gate şartları tamamlanmadı; bu bir işlem teyidi değildir.\n"
              "Güvenlik filtresi ve normal LONG/SHORT teyidi aynen korunuyor.")
         payload={
             "stage":"RADAR_ALERT",
@@ -951,7 +991,7 @@ def send_recovery_notice_once(watch_count=0):
     the notice on every 5-minute handoff. If delivery fails, the marker is not
     written and the next live cycle can retry.
     """
-    key="long_short_v2_1_production_notice_2026_10_06"
+    key="long_short_v3_production_notice_2026_10_07"
     try:
         with sqlite3.connect(NOTIFY_DB,timeout=10) as con:
             con.execute("""CREATE TABLE IF NOT EXISTS runtime_settings(
@@ -979,7 +1019,7 @@ def send_health_if_due(watch_count=0):
     token=(os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
     if not token:
         return False
-    key="long_short_health_v2_1"
+    key="long_short_health_v3"
     now=time.time()
     try:
         with sqlite3.connect(NOTIFY_DB,timeout=10) as con:
@@ -997,7 +1037,7 @@ def send_health_if_due(watch_count=0):
             for stage,n in con.execute("SELECT stage,COUNT(*) FROM watch_state GROUP BY stage").fetchall():
                 counts[str(stage)]=int(n)
         msg=(
-            "🟢 LONG/SHORT MOTOR ÇALIŞIYOR | V2.1\n"
+            "🟢 LONG/SHORT MOTOR ÇALIŞIYOR | V3\n"
             f"İzlenen: {int(watch_count)} coin | Yaklaşan: {counts.get('APPROACHING',0)} | "
             f"Teyit: {counts.get('CLOSE_CONFIRMED',0)} | Retest: {counts.get('RETESTING',0)}\n"
             "Bu sağlık mesajıdır; işlem sinyali değildir."
