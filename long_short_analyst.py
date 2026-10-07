@@ -891,10 +891,16 @@ def fetch_depth_metrics(symbol):
         mv=_cached_multi_venue_derivatives(symbol)
         imbalance=mv.get("depth_imbalance")
         if imbalance is None:
-            raise RuntimeError(
-                f"{symbol}: Binance depth unavailable and external depth missing: "
-                f"{type(primary_exc).__name__}:{str(primary_exc)[:100]}"
-            )
+            return {
+                "source":"ORDERBOOK_UNAVAILABLE_V3_DIAGNOSTIC_ONLY",
+                "imbalance":0.0,
+                "spread_bps":None,
+                "costs":{
+                    str(int(n)):{"buy_bps":None,"sell_bps":None}
+                    for n in (100.0,PAPER_NOTIONAL_USDT,500.0)
+                },
+                "binance_depth_error":type(primary_exc).__name__+":"+str(primary_exc)[:120],
+            }
         return {
             "source":"EXTERNAL_PERP_DEPTH_"+str(mv.get("selected_provider") or "PARTIAL"),
             "imbalance":float(imbalance),
@@ -1296,7 +1302,7 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
     if DATA_MODE!="BINANCE_FUTURES":
         multi_deriv=_cached_multi_venue_derivatives(symbol)
         cross=(multi_deriv.get("sources") or {}).get("okx")
-        if multi_deriv.get("quality")=="FULL":
+        if bool(multi_deriv.get("v3_core_ready")) and bool(multi_deriv.get("source_consistent")):
             oi={
                 "oi_change_1h":float(multi_deriv["oi_change_1h"]),
                 "oi_now":float(multi_deriv.get("oi_now") or 0.0),
@@ -1304,7 +1310,7 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
             funding=float(multi_deriv["funding_pct"])
             taker=float(multi_deriv["taker_ratio"])
             ls=float(multi_deriv["long_short_ratio"])
-            depth=float(multi_deriv["depth_imbalance"])
+            depth=float(multi_deriv.get("depth_imbalance") or 0.0)
             deriv_ready=True
             mark=multi_deriv.get("mark_price")
             spot_px=float(t5["price"] or 0.0)
@@ -1529,6 +1535,11 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
     # cannot authorize a V3 live signal.
     btc1h=fetch_htf_cached("BTCUSDT","1h",220)
     residual=beta_residual_3h(k1h,btc1h)
+    btc_tf=timeframe_features(btc1h)
+    btc_atr_pct=max(float(btc_tf.get("atr_pct") or 0.0),1e-9)
+    residual["btc_1h_change_pct"]=float(btc_tf.get("change_1") or 0.0)
+    residual["btc_1h_atr_pct"]=btc_atr_pct
+    residual["btc_shock_atr"]=abs(residual["btc_1h_change_pct"])/btc_atr_pct
     spot_flow=spot_delta_proxy(symbol)
     v3=v3_decide_setup(
         symbol=symbol,k5=k5,k15=k15,k1h=k1h,t5=t5,t15=t15,t1h=t1h,
@@ -1580,6 +1591,8 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
         "derivatives_ready":bool(deriv_ready),
         "derivatives_coverage":1.0 if DATA_MODE=="BINANCE_FUTURES" else float((multi_deriv or {}).get("coverage") or 0.0),
         "derivatives_quality":"NATIVE" if DATA_MODE=="BINANCE_FUTURES" else str((multi_deriv or {}).get("quality") or "UNAVAILABLE"),
+        "derivatives_v3_core_ready":bool(deriv_ready),
+        "derivatives_v3_core_coverage":1.0 if DATA_MODE=="BINANCE_FUTURES" else float((multi_deriv or {}).get("v3_core_coverage") or 0.0),
         "derivatives_selected_provider":None if DATA_MODE=="BINANCE_FUTURES" else (multi_deriv or {}).get("selected_provider"),
         "derivatives_source_age_seconds":None if DATA_MODE=="BINANCE_FUTURES" else (multi_deriv or {}).get("source_age_seconds"),
         "spot_vs_selected_mark_basis_pct":None if DATA_MODE=="BINANCE_FUTURES" else (multi_deriv or {}).get("spot_vs_selected_mark_basis_pct"),
@@ -1720,7 +1733,9 @@ def save_universe_observations(ts, preselected, shortlist):
                 risk_pct=max(0.20, (1.35*float(t15["atr"])/ref*100.0) if ref else 0.20)
                 payload={
                     "research_only":True,
-                    "source":"PREFILTER_SHADOW",
+                    "source":"V3_DISCOVERY_SHADOW",
+                    "v3_discovery":dict(x.get("v3_discovery") or {}),
+                    "discovery_rank":float(x.get("rank") or 0.0),
                     "t5":t5,
                     "t15":t15,
                 }
