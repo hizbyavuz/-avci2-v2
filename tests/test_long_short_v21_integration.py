@@ -57,10 +57,26 @@ class V21IntegrationTests(unittest.TestCase):
                     self.assertIsNone(ep[1])
                 lp.sync_watchlist([])
                 with sqlite3.connect(live) as con:
+                    con.row_factory=sqlite3.Row
+                    # One-cycle disappearance pauses the setup instead of deleting it.
+                    row=con.execute("SELECT * FROM watch_state").fetchone()
+                    self.assertIsNotNone(row)
+                    self.assertEqual(row["analyst_active"],0)
+                    ep=con.execute("SELECT ended_at_utc,end_reason,close_confirmed_time FROM watch_episodes").fetchone()
+                    self.assertIsNone(ep[0])
+                    self.assertIsNone(ep[1])
+                    self.assertIsNone(ep[2])
+
+                    # Once the grace window is truly stale, retirement is explicit.
+                    con.execute("""UPDATE watch_state
+                                   SET last_seen_watchlist_utc='2000-01-01T00:00:00+00:00'""")
+                    con.commit()
+                lp.sync_watchlist([])
+                with sqlite3.connect(live) as con:
                     self.assertEqual(con.execute("SELECT COUNT(*) FROM watch_state").fetchone()[0],0)
                     ep=con.execute("SELECT ended_at_utc,end_reason,close_confirmed_time FROM watch_episodes").fetchone()
                     self.assertIsNotNone(ep[0])
-                    self.assertEqual(ep[1],"DROPPED_FROM_WATCHLIST")
+                    self.assertEqual(ep[1],"WATCHLIST_GRACE_EXPIRED")
                     self.assertIsNone(ep[2])
         finally:
             lp.LIVE_DB,lp.ANALYST_DB=old_live,old_analyst
