@@ -482,16 +482,32 @@ def _finish(out: dict[str, Any]) -> dict[str, Any]:
         "long_short_ratio",
         "depth_imbalance",
     )
+    # V3 deliberately does not treat one REST order-book snapshot as a
+    # decision-critical field. Core positioning/flow must still come from one
+    # coherent venue; depth remains diagnostic only.
+    v3_core = (
+        "oi_change_1h",
+        "funding_pct",
+        "taker_ratio",
+        "long_short_ratio",
+    )
     available = sum(out.get(k) is not None for k in critical)
     coverage = available / float(len(critical))
+    v3_available = sum(out.get(k) is not None for k in v3_core)
     out["critical_fields"] = list(critical)
     out["available_critical"] = available
     out["coverage"] = coverage
+    out["v3_core_fields"] = list(v3_core)
+    out["v3_core_available"] = v3_available
+    out["v3_core_coverage"] = v3_available / float(len(v3_core))
     age=out.get("source_age_seconds")
     stale=age is not None and float(age)>900.0
     out["stale"]=bool(stale)
+    out["v3_core_ready"]=bool(v3_available==len(v3_core) and not stale)
     if available == len(critical) and not stale:
         out["quality"]="FULL"
+    elif out["v3_core_ready"]:
+        out["quality"]="V3_CORE_FULL"
     elif available >= 2:
         out["quality"]="STALE" if stale else "PARTIAL"
     else:
@@ -571,15 +587,19 @@ def multi_venue_derivatives(symbol: str) -> dict[str, Any]:
         for key in fields:
             out[key] = chosen.get(key)
         out["critical_fields"] = list(critical)
-        out["available_critical"] = len(critical)
-        out["coverage"] = 1.0
-        out["quality"] = "FULL"
+        out["available_critical"] = sum(out.get(k) is not None for k in critical)
+        out["coverage"] = out["available_critical"] / float(len(critical))
+        out["v3_core_fields"] = list(chosen.get("v3_core_fields") or [])
+        out["v3_core_available"] = int(chosen.get("v3_core_available") or 0)
+        out["v3_core_coverage"] = float(chosen.get("v3_core_coverage") or 0.0)
+        out["v3_core_ready"] = bool(chosen.get("v3_core_ready"))
+        out["quality"] = str(chosen.get("quality") or "UNAVAILABLE")
         out["source_consistent"] = True
         return out
 
     # Short-circuit on a complete primary source. This is both faster and more
     # semantically coherent than unconditional three-venue mixing.
-    if by.get("quality") == "FULL":
+    if by.get("v3_core_ready"):
         return selected_bundle(by, {"bybit": by})
 
     try:
@@ -587,7 +607,7 @@ def multi_venue_derivatives(symbol: str) -> dict[str, Any]:
     except Exception as exc:
         gate = empty("GATE_FUTURES", exc)
 
-    if gate.get("quality") == "FULL":
+    if gate.get("v3_core_ready"):
         return selected_bundle(gate, {"bybit": by, "gate": gate})
 
     try:
@@ -626,6 +646,10 @@ def multi_venue_derivatives(symbol: str) -> dict[str, Any]:
     out["available_critical"] = available
     out["coverage"] = available / float(len(critical))
     out["diagnostic_full"] = available == len(critical)
+    out["v3_core_fields"] = ["oi_change_1h","funding_pct","taker_ratio","long_short_ratio"]
+    out["v3_core_available"] = sum(out.get(k) is not None for k in out["v3_core_fields"])
+    out["v3_core_coverage"] = out["v3_core_available"] / 4.0
+    out["v3_core_ready"] = False  # mixed venues are diagnostic, never actionable
     out["quality"] = "PARTIAL" if available >= 2 else "UNAVAILABLE"
     return out
 
