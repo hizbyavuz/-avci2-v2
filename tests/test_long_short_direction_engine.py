@@ -54,6 +54,20 @@ class DirectionEvidenceTests(unittest.TestCase):
         self.assertEqual(out["direction"],"NONE")
         self.assertFalse(out["eligible"])
 
+    def test_moderate_but_clear_direction_can_enter_watch_stage(self):
+        out=decide_direction(
+            long_score=44,
+            short_score=3,
+            deriv_ready=True,
+            actionable_liquidity_ok=True,
+            external_only_unverified=False,
+            spot_flow={"available":True,"delta_share":0.0},
+            residual={"residual_3h_pct":0.0},
+            phase="BALANCE",
+        )
+        self.assertEqual(out["direction"],"LONG")
+        self.assertTrue(out["eligible"])
+
     def test_impulse_prefers_pullback_entry_style(self):
         out=decide_direction(
             long_score=75,
