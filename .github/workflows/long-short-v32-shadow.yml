@@ -4,6 +4,11 @@ name: Long Short V3.2 Shadow Observer
 # or writes to V3.1 analyst/live/notify databases.
 on:
   workflow_dispatch: {}
+  push:
+    paths:
+      - "long_short_v32_shadow.py"
+      - "tests/test_long_short_v32_shadow.py"
+      - ".github/workflows/long-short-v32-shadow.yml"
   schedule:
     - cron: "*/10 * * * *"
 
