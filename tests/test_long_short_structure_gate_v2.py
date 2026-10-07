@@ -90,7 +90,7 @@ class StructureGateV2Tests(unittest.TestCase):
         self.assertLess(q["quality_score"],4)
 
 
-    def test_wait_candidate_enters_watchlist_before_full_structure_precheck(self):
+    def test_unqualified_wait_candidate_is_not_user_facing_watch(self):
         old_db=lp.ANALYST_DB
         try:
             with tempfile.NamedTemporaryFile(suffix=".db") as tmp:
@@ -114,17 +114,15 @@ class StructureGateV2Tests(unittest.TestCase):
                             "direction":"LONG",
                             "qualified_precheck":False,
                             "trigger_zone":{"low":99.8,"high":100.2,"center":100.0},
-                            "room_pct":1.2,
+                            "room_ok":True,"rr_ok":True,"room_pct":1.2,
                         },
                         "derivatives_quality":"NATIVE",
                     }
                     con.execute("INSERT INTO analyses VALUES(?,?,?,?,?,?,?,?)",
-                                ("2026-10-06T00:00:00+00:00","TESTUSDT","WAIT",51,0,51,99.5,
+                                ("2026-10-06T00:00:00+00:00","TESTUSDT","WAIT",70,5,70,99.5,
                                  json.dumps(payload)))
                 items=lp.load_watchlist()
-                self.assertEqual(len(items),1)
-                self.assertEqual(items[0]["symbol"],"TESTUSDT")
-                self.assertAlmostEqual(items[0]["trigger_level"],100.2)
+                self.assertEqual(items,[])
         finally:
             lp.ANALYST_DB=old_db
 
