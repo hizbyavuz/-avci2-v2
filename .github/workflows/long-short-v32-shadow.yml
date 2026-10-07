@@ -33,10 +33,10 @@ jobs:
 
       - name: Restore latest V3.1 analyst state (read-only input)
         env:
-          GH_TOKEN: \${{ github.token }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p .v31-analyst
-          run_id=$(gh api "repos/\${GITHUB_REPOSITORY}/actions/artifacts?name=long-short-v31-analyst-state&per_page=100" \
+          run_id=$(gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts?name=long-short-v31-analyst-state&per_page=100" \
             --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | reverse | .[0].workflow_run.id // empty')
           test -n "$run_id"
           gh run download "$run_id" --name long-short-v31-analyst-state --dir .v31-analyst
@@ -46,10 +46,10 @@ jobs:
       - name: Restore V3.2 shadow state
         continue-on-error: true
         env:
-          GH_TOKEN: \${{ github.token }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p .v32-shadow
-          run_id=$(gh api "repos/\${GITHUB_REPOSITORY}/actions/artifacts?name=long-short-v32-shadow-state&per_page=100" \
+          run_id=$(gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts?name=long-short-v32-shadow-state&per_page=100" \
             --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | reverse | .[0].workflow_run.id // empty')
           if test -n "$run_id"; then
             gh run download "$run_id" --name long-short-v32-shadow-state --dir .v32-shadow || true
