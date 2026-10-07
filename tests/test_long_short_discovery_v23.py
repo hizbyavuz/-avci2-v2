@@ -56,6 +56,38 @@ class DiscoveryV23Tests(unittest.TestCase):
         finally:
             router._bybit, router._gate = old_bybit, old_gate
 
+    def test_v3_universe_does_not_prioritize_big_movers(self):
+        old_fget = analyst.fget
+        old_perps = analyst.multi_venue_perp_universe
+        old_mode = analyst.DATA_MODE
+        old_max = analyst.MAX_SYMBOLS
+        old_discovery_min = analyst.DISCOVERY_MIN_24H_QUOTE_VOL
+        try:
+            analyst.DATA_MODE = "BINANCE_SPOT_GRAPH_ONLY"
+            analyst.MAX_SYMBOLS = 2
+            analyst.DISCOVERY_MIN_24H_QUOTE_VOL = 1
+            def fake_fget(path, params=None):
+                analyst.DATA_MODE = "BINANCE_SPOT_GRAPH_ONLY"
+                if path.endswith("exchangeInfo"):
+                    return {"symbols":[]}
+                if path.endswith("ticker/24hr"):
+                    return []
+                raise AssertionError(path)
+            analyst.fget = fake_fget
+            analyst.multi_venue_perp_universe = lambda: [
+                {"symbol":"MOONUSDT","quote_volume":10_000_000,"last_price":1.0,"day_change_pct":80.0,"providers":["BYBIT_LINEAR","GATE_FUTURES"]},
+                {"symbol":"LIQ1USDT","quote_volume":100_000_000,"last_price":1.0,"day_change_pct":1.0,"providers":["BYBIT_LINEAR","GATE_FUTURES"]},
+                {"symbol":"LIQ2USDT","quote_volume":90_000_000,"last_price":1.0,"day_change_pct":2.0,"providers":["BYBIT_LINEAR","GATE_FUTURES"]},
+            ]
+            got=analyst.universe()
+            self.assertEqual([x[0] for x in got],["LIQ1USDT","LIQ2USDT"])
+        finally:
+            analyst.fget=old_fget
+            analyst.multi_venue_perp_universe=old_perps
+            analyst.DATA_MODE=old_mode
+            analyst.MAX_SYMBOLS=old_max
+            analyst.DISCOVERY_MIN_24H_QUOTE_VOL=old_discovery_min
+
     def test_fetch_klines_uses_external_perp_when_spot_missing(self):
         old_fget = analyst.fget
         old_ext = analyst.multi_venue_perp_klines
