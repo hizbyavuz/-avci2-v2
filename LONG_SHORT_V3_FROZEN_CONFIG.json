@@ -26,9 +26,9 @@
     "rank_uses": [
       "compression",
       "distance_to_key_level_atr",
-      "volume_reacceleration_without_spike",
-      "oi_buildup_while_price_quiet"
-    ]
+      "volume_reacceleration_without_spike"
+    ],
+    "oi_buildup_role": "deep-scan flow observation/gate context after shortlist; not a discovery-rank input"
   },
   "context": {
     "directional_timeframes": [
@@ -42,7 +42,6 @@
     "btc_shock_veto_atr_multiple": 3
   },
   "flow": {
-    "spot_delta_required_when_available": true,
     "perp_taker_is_one_flow_family_not_extra_score": true,
     "price_up_oi_down_blocks_long_continuation": true,
     "price_down_oi_down_blocks_short_continuation": true,
@@ -55,7 +54,8 @@
       "taker_ratio",
       "long_short_ratio"
     ],
-    "orderbook_snapshot_required_for_derivatives_ready": false
+    "orderbook_snapshot_required_for_derivatives_ready": false,
+    "spot_delta_required_for_actionable": true
   },
   "acceptance": {
     "fast_path_enabled": true,
