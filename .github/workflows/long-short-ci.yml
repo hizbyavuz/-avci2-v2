@@ -30,7 +30,7 @@ jobs:
 
       - name: Compile Long/Short modules
         run: |
-          python -m py_compile             long_short_data_router.py             long_short_v3_core.py             long_short_analyst.py             long_short_live_pool.py             long_short_reversal_live.py             long_short_simple_notify.py             long_short_validation.py \
+          python -m py_compile             long_short_data_router.py             long_short_direction_engine.py             long_short_v3_core.py             long_short_analyst.py             long_short_live_pool.py             long_short_reversal_live.py             long_short_simple_notify.py             long_short_validation.py \
             long_short_live_validation.py
 
       - name: Run Long/Short unit tests
@@ -39,6 +39,7 @@ jobs:
           python tests/test_long_short_discovery_v23.py
           python tests/test_long_short_live_levels.py
           python tests/test_long_short_v3_core.py
+          python tests/test_long_short_direction_engine.py
           python tests/test_long_short_outcome_v21.py
           python tests/test_long_short_v21_integration.py
 
