@@ -1,6 +1,6 @@
 {
-  "version": "LS_V3_0_STATE_MACHINE_FREEZE_2026-10-07",
-  "status": "FROZEN_FORWARD_TEST",
+  "version": "LS_V3_1_FINAL_FREEZE_2026-10-07",
+  "status": "FROZEN_FORWARD_TEST_FINAL",
   "purpose": "3h paper/Telegram research only; no automatic execution",
   "decision_model": "HARD_GATES_NOT_ADDITIVE_SCORE",
   "live_setups": [
@@ -91,12 +91,13 @@
     "shadow_blocked_states": [
       "EXECUTION_BLOCKED",
       "CLUSTER_BLOCKED"
-    ]
+    ],
+    "sample_isolation": "V3.1 uses fresh analyst/live/notify DBs and artifacts; V3.0 is historical only"
   },
   "freeze_window": {
-    "start_date": "2026-10-07",
+    "start_policy": "First successful V3.1 Analyst + Live Pool chain on clean V3.1 state",
     "minimum_review_date": "2026-10-14",
     "preferred_review_date": "2026-10-17",
-    "rule": "No signal logic or threshold changes; critical runtime/data-integrity fixes require a new version/intervention log."
+    "rule": "No signal logic or threshold changes during the 7-10 day window. Only critical runtime/data-integrity fixes may create a new version and restart the sample."
   }
 }
