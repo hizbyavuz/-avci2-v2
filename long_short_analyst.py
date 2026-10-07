@@ -2118,11 +2118,12 @@ def send_health_once(results):
         return
 
     msg=(
-        f"✅ LONG / SHORT MOTORU AKTİF | V1.8\n"
-        f"Veri sağlığı: {ready}/{len(results)} derin tarama coininde kritik türev paketi TAM.\n"
+        f"✅ LONG / SHORT MOTORU AKTİF | V3.1\n"
+        f"Veri sağlığı: {ready}/{len(results)} derin tarama coininde V3.1 türev çekirdeği TAM.\n"
         f"Kaynak: Binance Futures {native} | Çoklu-venue {multi}.\n"
-        f"OI + Funding + Taker + Long/Short + Order-book eksikse sinyal artık kilitleniyor.\n"
-        f"📊 15dk / 1s / 4s sonuç ölçümü açık.\n"
+        f"OI + Funding + Taker + Long/Short eksikse gerçek sinyal kilitlenir.\n"
+        f"Order-book snapshot yalnız tanısal; final yön kararı vermez.\n"
+        f"📊 15dk / 1s / 3s sonuç ölçümü açık.\n"
         f"🤖 Otomatik emir KAPALI — Telegram analiz/uyarı modu."
     )
     send_telegram(msg)
