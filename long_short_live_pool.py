@@ -19,7 +19,7 @@ import time
 from datetime import datetime, timedelta, timezone
 
 import requests
-from binance_notify import resolve_chat_id
+from binance_notify import resolve_chat_id, load_cached_chat_id, save_cached_chat_id
 from long_short_simple_notify import classify_move, format_alert, queue_alert, claim_ready_alert, ack_claimed_alert, retry_claimed_alert
 from long_short_data_router import multi_venue_perp_klines, multi_venue_perp_universe
 
@@ -1012,6 +1012,27 @@ def message_for(row,stage,price,closed):
 
     return None
 
+def resolve_live_chat_id(token, configured=""):
+    """Resolve V3.1 Telegram chat id, falling back to restored Binance cache."""
+    configured=str(configured or "").strip()
+    if configured:
+        return resolve_chat_id(token, configured, NOTIFY_DB, "Long/Short Live Pool")
+
+    cached=load_cached_chat_id(NOTIFY_DB)
+    if cached:
+        return cached
+
+    # V3.1 uses a fresh notify DB, while the workflow already restores
+    # binance_avci2.db specifically to preserve the previously working chat id.
+    legacy=load_cached_chat_id("binance_avci2.db")
+    if legacy:
+        save_cached_chat_id(legacy, NOTIFY_DB)
+        print("Long/Short Live Pool Chat ID restored from Binance cache", flush=True)
+        return legacy
+
+    return resolve_chat_id(token, "", NOTIFY_DB, "Long/Short Live Pool")
+
+
 def send_telegram(msg):
     token=(os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
     configured=(os.getenv("TELEGRAM_CHAT_ID") or "").strip()
@@ -1021,7 +1042,7 @@ def send_telegram(msg):
     last=None
     for attempt in range(3):
         try:
-            chat=resolve_chat_id(token,configured,NOTIFY_DB,"Long/Short Live Pool")
+            chat=resolve_live_chat_id(token,configured)
             r=requests.post(f"https://api.telegram.org/bot{token}/sendMessage",
                             json={"chat_id":chat,"text":msg[:TELEGRAM_LIMIT],"disable_web_page_preview":True},
                             timeout=10)
@@ -1365,7 +1386,7 @@ def main():
     configured=(os.getenv("TELEGRAM_CHAT_ID") or "").strip()
     if token:
         try:
-            resolve_chat_id(token,configured,NOTIFY_DB,"Long/Short Live Pool")
+            resolve_live_chat_id(token,configured)
         except Exception as exc:
             print("Telegram chat cache prime failed",type(exc).__name__,str(exc)[:160])
     items=load_watchlist()
