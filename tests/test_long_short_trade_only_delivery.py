@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """Regression: one user-facing alert only after all V3.1 trade gates."""
 import unittest
+import sys
+from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import long_short_live_pool as live
 
 
