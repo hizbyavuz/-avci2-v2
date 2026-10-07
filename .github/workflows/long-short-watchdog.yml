@@ -21,7 +21,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          active=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs?per_page=50" --jq '[.workflow_runs[] | select((.name=="Long Short Analyst V1" or .name=="Long Short Live Pool") and (.status=="queued" or .status=="in_progress" or .status=="pending"))] | length')
+          active=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs?per_page=50" --jq '[.workflow_runs[] | select((.name=="Long Short Analyst V3" or .name=="Long Short Live Pool V3") and (.status=="queued" or .status=="in_progress" or .status=="pending"))] | length')
           if test "$active" -gt 0; then
             echo "Long/Short chain already active; no restart."
             exit 0
