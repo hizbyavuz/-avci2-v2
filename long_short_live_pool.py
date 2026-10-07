@@ -296,7 +296,7 @@ def load_watchlist():
                 )
                 if analyst_status not in ("WAIT","LONG","SHORT") and not radar_only:
                     continue
-                if not radar_only and not bool(v3.get("eligible")):
+                if not radar_only and ("v3" in p) and not bool(v3.get("eligible")):
                     continue
                 # Fail closed for every actionable candidate. Radar-only movers may
                 # still be observed with incomplete derivatives because the state
