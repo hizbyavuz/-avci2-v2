@@ -1,4 +1,4 @@
-name: Long Short Live Pool V3.1.1
+name: Long Short Live Pool V3.1
 
 # Separate near-live watcher. Reads analyst candidates, never places orders.
 on:
