@@ -58,6 +58,14 @@ class V3CoreTests(unittest.TestCase):
             self.assertFalse(out["eligible"])
             self.assertIn("spot_flow",out["veto_reasons"])
 
+    def test_btc_volatility_shock_vetoes_setup(self):
+        a=self.base_args()
+        a["residual"]=dict(a["residual"],btc_shock_atr=3.5)
+        out=decide_setup(**a)
+        if out["setup_type"]!="NONE":
+            self.assertFalse(out["eligible"])
+            self.assertIn("btc_shock",out["veto_reasons"])
+
     def test_fast_path_after_two_acceptance_closes(self):
         class Row(dict):
             def keys(self):
