@@ -11,7 +11,7 @@ import math
 import statistics
 from typing import Any
 
-V3_VERSION = "LS_V3_0_STATE_MACHINE_FREEZE_2026-10-07"
+V3_VERSION = "LS_V3_1_FINAL_FREEZE_2026-10-07"
 
 
 def _mean(xs):
