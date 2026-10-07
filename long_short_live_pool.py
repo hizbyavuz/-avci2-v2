@@ -827,9 +827,23 @@ def live_structure_confirmation(row,closed,early):
     volume_ok=vol_mult>=STRUCTURE_MIN_VOLUME_MULT
     body_ok=body_ratio>=STRUCTURE_MIN_BODY_RATIO
     wick_ok=rejection_wick<=STRUCTURE_MAX_REJECTION_WICK
+
+    # Entry quality is combined evidence, not an all-or-nothing checklist.
+    # The actual close beyond the locked trigger remains mandatory. Among the
+    # five quality observations (candle direction, volume, body, close location,
+    # rejection wick), four are enough. One imperfect soft feature cannot erase
+    # an otherwise clean breakout/breakdown.
+    quality_checks={
+        "direction":bool(direction_ok),
+        "volume":bool(volume_ok),
+        "body":bool(body_ok),
+        "close_location":bool(close_location_ok),
+        "wick":bool(wick_ok),
+    }
+    quality_score=sum(1 for ok in quality_checks.values() if ok)
+    quality_required=4
     qualified=bool(
-        beyond and direction_ok and volume_ok and body_ok
-        and close_location_ok and wick_ok and not fake_breakout
+        beyond and not fake_breakout and quality_score>=quality_required
     )
     recent=[float(x) for x in (early.get("recent_closed_5m_closes") or [])]
     if d=="LONG":
@@ -847,6 +861,9 @@ def live_structure_confirmation(row,closed,early):
         "close_location_ok":close_location_ok,
         "rejection_wick_ok":wick_ok,
         "fake_breakout":fake_breakout,
+        "quality_score":quality_score,
+        "quality_required":quality_required,
+        "quality_checks":quality_checks,
         "volume_mult":vol_mult,
         "body_ratio":body_ratio,
         "close_location":close_loc,
