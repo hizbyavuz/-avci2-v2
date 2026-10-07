@@ -1108,12 +1108,20 @@ def message_for(row,stage,price,closed):
         data_mode=(row["data_mode"] or "UNKNOWN") if "data_mode" in row.keys() else "UNKNOWN"
         data_note=("Binance Futures" if data_mode=="BINANCE_FUTURES"
                    else "Spot grafik + çoklu-venue türev doğrulaması")
+        try:
+            gate=json.loads(row["structure_gate_json"] or "{}") if "structure_gate_json" in row.keys() else {}
+        except Exception:
+            gate={}
+        mclass=classify_move(sym,float(gate.get("_day_change_pct") or 0.0))
+        coin_type={"STABLE":"🟦 Güçlü/Stabil","FAST_FRESH":"⚡ Hızlı/Taze",
+                   "FAST_EXTENDED":"🔥 Hızlı/Uzamış","FAST_QUIET":"⚪ Hızlı/Sakin"}[mclass]
         return (f"{side_ball} {d} SİNYALİ | {sym}\n"
                 f"5 dk kapanış + devam koşulları tamamlandı.\n"
                 f"Tetik seviyesi: {fmtp(trig)} | Gözlenen fiyat: {fmtp(price)}\n"
                 f"🛡️ SL: {fmtp(inv)}\n"
                 f"🎯 TP1: {fmtp(t1)}\n"
                 f"🎯 TP2: {fmtp(t2)}\n"
+                f"Tip: {coin_type}\n"
                 f"Veri: {data_note}\n"
                 "⚠️ Analiz uyarısı; otomatik emir açılmadı.")
 
@@ -1182,8 +1190,7 @@ def send_telegram(msg):
     token=(os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
     configured=(os.getenv("TELEGRAM_CHAT_ID") or "").strip()
     if not token:
-        print(msg)
-        return now_iso()
+        raise RuntimeError("TELEGRAM_BOT_TOKEN missing: alert was not delivered")
     last=None
     for attempt in range(3):
         try:
