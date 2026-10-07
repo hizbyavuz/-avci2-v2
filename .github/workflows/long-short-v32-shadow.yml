@@ -1,0 +1,79 @@
+name: Long Short V3.2 Shadow Observer
+
+# Research-only observer. It never sends Telegram, changes V3.1 decisions,
+# or writes to V3.1 analyst/live/notify databases.
+on:
+  workflow_dispatch: {}
+  schedule:
+    - cron: "*/10 * * * *"
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: long-short-v32-shadow-observer
+  cancel-in-progress: false
+
+jobs:
+  observe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+
+      - name: Setup Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        run: pip install requests==2.32.5
+
+      - name: Restore latest V3.1 analyst state (read-only input)
+        env:
+          GH_TOKEN: \${{ github.token }}
+        run: |
+          mkdir -p .v31-analyst
+          run_id=$(gh api "repos/\${GITHUB_REPOSITORY}/actions/artifacts?name=long-short-v31-analyst-state&per_page=100" \
+            --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | reverse | .[0].workflow_run.id // empty')
+          test -n "$run_id"
+          gh run download "$run_id" --name long-short-v31-analyst-state --dir .v31-analyst
+          cp .v31-analyst/long_short_v31_analyst.db .
+          test -f long_short_v31_analyst.db
+
+      - name: Restore V3.2 shadow state
+        continue-on-error: true
+        env:
+          GH_TOKEN: \${{ github.token }}
+        run: |
+          mkdir -p .v32-shadow
+          run_id=$(gh api "repos/\${GITHUB_REPOSITORY}/actions/artifacts?name=long-short-v32-shadow-state&per_page=100" \
+            --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | reverse | .[0].workflow_run.id // empty')
+          if test -n "$run_id"; then
+            gh run download "$run_id" --name long-short-v32-shadow-state --dir .v32-shadow || true
+            test -f .v32-shadow/long_short_v32_shadow.db && cp .v32-shadow/long_short_v32_shadow.db . || true
+          fi
+
+      - name: Verify shadow isolation
+        run: |
+          python -m py_compile long_short_v32_shadow.py tests/test_long_short_v32_shadow.py
+          python -m unittest -v tests.test_long_short_v32_shadow
+
+      - name: Observe both hypotheses and label due outcomes
+        env:
+          LS_DB: "long_short_v31_analyst.db"
+          LS_V32_SHADOW_DB: "long_short_v32_shadow.db"
+          LS_V32_MAX_SYMBOLS: "30"
+        run: python -u long_short_v32_shadow.py
+
+      - name: Upload V3.2 shadow state
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: long-short-v32-shadow-state
+          path: long_short_v32_shadow.db
+          if-no-files-found: warn
+          retention-days: 30
+          compression-level: 6
