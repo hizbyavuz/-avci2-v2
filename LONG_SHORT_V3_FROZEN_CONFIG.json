@@ -71,7 +71,10 @@
     "minimum_net_t1_r": 1,
     "max_horizon_minutes": 180,
     "same_bar_ambiguity": "STOP_FIRST",
-    "signal_object_immutable": true
+    "signal_object_immutable": true,
+    "trigger_time_execution_gate": true,
+    "trigger_time_cost_source": "live depth VWAP proxy at $250 notional; fail closed if unavailable",
+    "max_same_direction_triggered_per_15m_cluster": 2
   },
   "validation": {
     "primary": "delivered TRIGGERED signals only",
@@ -84,7 +87,11 @@
     "report_long_short_separately": true,
     "report_setup_type_separately": true,
     "100_clusters_interpretation": "preliminary health check only",
-    "no_threshold_changes_during_7_10_day_freeze": true
+    "no_threshold_changes_during_7_10_day_freeze": true,
+    "shadow_blocked_states": [
+      "EXECUTION_BLOCKED",
+      "CLUSTER_BLOCKED"
+    ]
   },
   "freeze_window": {
     "start_date": "2026-10-07",
