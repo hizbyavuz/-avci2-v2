@@ -298,6 +298,29 @@ def init_db(con):
         evaluated_at_utc TEXT NOT NULL,
         PRIMARY KEY(fingerprint,sent_at_epoch,horizon_min)
     )""")
+    con.execute("""CREATE TABLE IF NOT EXISTS shadow_blocked_outcomes(
+        event_id INTEGER NOT NULL,
+        version TEXT NOT NULL,
+        symbol TEXT NOT NULL,
+        direction TEXT NOT NULL,
+        blocked_stage TEXT NOT NULL,
+        event_time_utc TEXT NOT NULL,
+        execution_time_utc TEXT NOT NULL,
+        entry_price REAL NOT NULL,
+        invalidation REAL,
+        target1 REAL,
+        target2 REAL,
+        round_trip_cost_pct REAL NOT NULL,
+        horizon_min INTEGER NOT NULL,
+        endpoint_price REAL,
+        net_return_pct REAL,
+        mfe_pct REAL,
+        mae_pct REAL,
+        first_barrier TEXT,
+        direction_correct INTEGER,
+        evaluated_at_utc TEXT NOT NULL,
+        PRIMARY KEY(event_id,horizon_min)
+    )""")
     con.execute("""CREATE TABLE IF NOT EXISTS outcome_runtime(
         key TEXT PRIMARY KEY,value TEXT NOT NULL,updated_at_utc TEXT NOT NULL
     )""")
@@ -407,6 +430,77 @@ def evaluate_delivered(con):
              1 if mfe>=3 else 0,1 if mfe>=5 else 0,1 if mfe>=7 else 0,
              1 if mfe>=10 else 0,1 if mfe>=15 else 0,correct,now_iso(),
              setup_type,signal_path,cluster_id,trade_success,realized_exit,beta,btc_ret,beta_adjusted))
+            added+=1
+    return added
+
+
+def evaluate_shadow_blocked(con):
+    """Counterfactual outcomes for V3 vetoed final triggers.
+
+    These never count as live performance. They answer whether execution/correlation
+    vetoes actually remove bad trades or accidentally suppress good ones.
+    """
+    con.row_factory=sqlite3.Row
+    events=con.execute("""SELECT * FROM events
+        WHERE stage_to IN ('EXECUTION_BLOCKED','CLUSTER_BLOCKED')
+        ORDER BY id""").fetchall()
+    now=datetime.now(timezone.utc)
+    added=0
+    min_cost_pct=2.0*(FEE_BPS_PER_SIDE+MIN_SLIPPAGE_BPS_PER_SIDE)/100.0
+    for ev in events:
+        payload=_payload(ev)
+        inv,t1,t2=_levels(payload)
+        direction=str(ev["direction"])
+        event_time=_dt(ev["event_time_utc"])
+        execute=event_time+timedelta(seconds=HUMAN_DELAY_SECONDS)
+        if now<execute+timedelta(minutes=min(HORIZONS)+2):
+            continue
+        try:
+            rows_all=_rows_1m(ev["symbol"],execute,execute+timedelta(minutes=max(HORIZONS)+2))
+        except Exception as exc:
+            print("shadow blocked fetch error",ev["symbol"],type(exc).__name__,str(exc)[:120])
+            continue
+        if not rows_all:
+            continue
+        entry=float(rows_all[0][1])
+        levels_valid=(
+            (direction=="LONG" and inv>0 and t1>0 and inv<entry<t1)
+            or (direction=="SHORT" and inv>0 and t1>0 and t1<entry<inv)
+        )
+        for h in HORIZONS:
+            if now<execute+timedelta(minutes=h+2):
+                continue
+            if con.execute("""SELECT 1 FROM shadow_blocked_outcomes
+                              WHERE event_id=? AND horizon_min=?""",(ev["id"],h)).fetchone():
+                continue
+            cutoff=execute+timedelta(minutes=h)
+            rows=[r for r in rows_all if datetime.fromtimestamp(int(r[0])/1000,tz=timezone.utc)<cutoff]
+            if not rows:
+                continue
+            endpoint=float(rows[-1][4])
+            first=None
+            high=max(float(r[2]) for r in rows); low=min(float(r[3]) for r in rows)
+            if levels_valid:
+                first,_,_,mfe,mae=_barrier_path(direction,entry,inv,t1,t2,rows)
+                realized=t1 if first=="TP1" else inv if first=="STOP" else endpoint
+            else:
+                if direction=="LONG":
+                    mfe=(high/entry-1.0)*100.0
+                    mae=(low/entry-1.0)*100.0
+                else:
+                    mfe=(entry/low-1.0)*100.0 if low else 0.0
+                    mae=(entry/high-1.0)*100.0 if high else 0.0
+                realized=endpoint
+            net=_direction_return(direction,entry,realized)-min_cost_pct
+            con.execute("""INSERT INTO shadow_blocked_outcomes(
+                event_id,version,symbol,direction,blocked_stage,event_time_utc,
+                execution_time_utc,entry_price,invalidation,target1,target2,
+                round_trip_cost_pct,horizon_min,endpoint_price,net_return_pct,
+                mfe_pct,mae_pct,first_barrier,direction_correct,evaluated_at_utc
+            ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (ev["id"],VERSION,ev["symbol"],direction,ev["stage_to"],event_time.isoformat(),
+             execute.isoformat(),entry,inv,t1,t2,min_cost_pct,h,endpoint,net,mfe,mae,first,
+             1 if net>0 else 0,now_iso()))
             added+=1
     return added
 
@@ -656,12 +750,13 @@ def main():
     with sqlite3.connect(DB) as con:
         init_db(con)
         a=evaluate_delivered(con)
+        s=evaluate_shadow_blocked(con)
         w=evaluate_watch_alerts(con)
         b=evaluate_no_confirm(con)
         rows=report(con)
         wrows=watch_report(con)
         con.commit()
-    print("V3_OUTCOMES delivered_added=",a,"watch_alerts_added=",w,"watch_controls_added=",b)
+    print("V3_OUTCOMES delivered_added=",a,"shadow_blocked_added=",s,"watch_alerts_added=",w,"watch_controls_added=",b)
     for r in rows:
         stage,cohort,h,n,correct,tp1,stop,timeout,wr,exp,avg,p50,p95=r
         es="-" if exp is None else f"{exp:+.3f}R"
