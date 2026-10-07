@@ -38,7 +38,8 @@
     ],
     "4h_1d_role": "obstacle_and_extension_context_only_not_direction_score",
     "btc_beta_residual_observation": true,
-    "btc_shock_veto": true
+    "btc_shock_veto": true,
+    "btc_shock_veto_atr_multiple": 3
   },
   "flow": {
     "spot_delta_required_when_available": true,
@@ -47,7 +48,14 @@
     "price_down_oi_down_blocks_short_continuation": true,
     "funding_extreme_abs_pct_veto": 0.1,
     "orderbook_snapshot_actionable": false,
-    "orderbook_snapshot_log_only": true
+    "orderbook_snapshot_log_only": true,
+    "v3_core_derivatives_fields": [
+      "oi_change_1h",
+      "funding_pct",
+      "taker_ratio",
+      "long_short_ratio"
+    ],
+    "orderbook_snapshot_required_for_derivatives_ready": false
   },
   "acceptance": {
     "fast_path_enabled": true,
