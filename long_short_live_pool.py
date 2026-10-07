@@ -11,6 +11,7 @@ Separate from Avci/Gate/Long-Short analyst scoring.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import os
@@ -18,6 +19,7 @@ import sqlite3
 import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 import requests
 from binance_notify import resolve_chat_id, load_cached_chat_id, save_cached_chat_id
@@ -48,6 +50,11 @@ EARLY_MIN_TAKER_SHARE=float(os.getenv("LS_EARLY_MIN_TAKER_SHARE","0.54"))
 EARLY_MAX_COMPRESSION_PCT=float(os.getenv("LS_EARLY_MAX_COMPRESSION_PCT","0.90"))
 EARLY_MIN_ROOM_PCT=float(os.getenv("LS_EARLY_MIN_ROOM_PCT","0.30"))
 STRUCTURE_GATE_VERSION="LS_STRUCTURE_GATE_V3_1_2026-10-07"
+# Observational provenance only. Frozen scores, gates and execution remain unchanged.
+_FROZEN_CONFIG_FILE=Path(__file__).resolve().parent/"LONG_SHORT_V3_FROZEN_CONFIG.json"
+FROZEN_SIGNAL_CONFIG_HASH=(hashlib.sha256(_FROZEN_CONFIG_FILE.read_bytes()).hexdigest()
+                           if _FROZEN_CONFIG_FILE.exists() else "MISSING")
+SIGNAL_CODE_SHA=os.getenv("GITHUB_SHA","UNKNOWN")
 STRUCTURE_MIN_VOLUME_MULT=float(os.getenv("LS_STRUCTURE_MIN_VOLUME_MULT","1.10"))
 STRUCTURE_MIN_BODY_RATIO=float(os.getenv("LS_STRUCTURE_MIN_BODY_RATIO","0.45"))
 STRUCTURE_MAX_REJECTION_WICK=float(os.getenv("LS_STRUCTURE_MAX_REJECTION_WICK","0.35"))
@@ -1399,7 +1406,9 @@ def loop_once():
                             execution_check=live_execution_gate(row,price,trigger_proxy)
                             if not execution_check.get("qualified"):
                                 blocked_payload=dict(row)
-                                blocked_payload["_live_structure_quality"]=structure_quality
+                                blocked_payload["_frozen_config_hash"]=FROZEN_SIGNAL_CONFIG_HASH
+                            blocked_payload["_signal_code_sha"]=SIGNAL_CODE_SHA
+                            blocked_payload["_live_structure_quality"]=structure_quality
                                 blocked_payload["_live_alert_version"]=STRUCTURE_GATE_VERSION
                                 blocked_payload["_trigger_execution_gate"]=execution_check
                                 con.execute("""INSERT INTO events(
@@ -1508,6 +1517,17 @@ def loop_once():
                                     delay=None
                                 if delay is not None:
                                     print(f"ALERT_DELAY {row['symbol']} {new}: {delay:.1f}s")
+                        # Append to the immutable event snapshot, never to signal
+                        # qualification. Audit can stratify outcomes by version/source.
+                        event_payload["_frozen_config_hash"]=FROZEN_SIGNAL_CONFIG_HASH
+                        event_payload["_signal_code_sha"]=SIGNAL_CODE_SHA
+                        event_payload["_signal_engine_version"]=STRUCTURE_GATE_VERSION
+                        event_payload["_source_provenance"]={
+                            "data_mode":str(row["data_mode"] or "UNKNOWN"),
+                            "data_cohort":str(row["data_cohort"] or "UNKNOWN"),
+                            "derivatives_provider":str(row["derivatives_provider"] or "UNKNOWN"),
+                            "derivatives_quality":str(row["derivatives_quality"] or "UNKNOWN"),
+                        }
                         if new=="TRIGGERED":
                             event_payload["_trigger_execution_proxy"]=trigger_proxy
                             event_payload["_trigger_execution_gate"]=execution_check
