@@ -386,13 +386,17 @@ def load_watchlist():
                 target1=float(plan.get("target1") or 0.0)
                 target2=float(plan.get("target2") or 0.0)
 
+                # The analyst's structural trigger is the contract for this setup.
+                # Do not harden it a second time by moving it to a trigger-zone edge:
+                # the structure gate already validated zone strength/confluence and
+                # room/R using this trigger. The zone remains useful for retest
+                # context, while the locked breakout/breakdown level stays stable.
+                live_trigger=raw_trigger
                 if plan["direction"]=="LONG":
-                    # Must clear BOTH the raw resistance and the upper edge of the
-                    # nearby resistance zone.
-                    live_trigger=max(raw_trigger,zone_high)
+                    zone_retest_low=min(zone_low,live_trigger)
                     live_retest_low=min(
                         live_trigger,
-                        max(float(plan.get("retest_low") or raw_trigger),zone_low),
+                        max(float(plan.get("retest_low") or raw_trigger),zone_retest_low),
                     )
                     live_retest_high=live_trigger
                     level_order_ok=bool(
@@ -402,13 +406,11 @@ def load_watchlist():
                     risk_pct=((live_trigger-invalidation)/live_trigger*100.0) if level_order_ok else 0.0
                     reward_pct=((target1/live_trigger-1.0)*100.0) if level_order_ok else 0.0
                 else:
-                    # Must break BOTH the raw support and the lower edge of the
-                    # nearby support zone.
-                    live_trigger=min(raw_trigger,zone_low)
+                    zone_retest_high=max(zone_high,live_trigger)
                     live_retest_low=live_trigger
                     live_retest_high=max(
                         live_trigger,
-                        min(float(plan.get("retest_high") or raw_trigger),zone_high),
+                        min(float(plan.get("retest_high") or raw_trigger),zone_retest_high),
                     )
                     level_order_ok=bool(
                         invalidation>0 and target1>0 and
