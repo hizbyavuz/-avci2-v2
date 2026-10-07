@@ -56,6 +56,25 @@ class DiscoveryV23Tests(unittest.TestCase):
         finally:
             router._bybit, router._gate = old_bybit, old_gate
 
+    def test_v3_deep_shortlist_prioritizes_executable_before_radar(self):
+        old_min=analyst.MIN_24H_QUOTE_VOL
+        try:
+            analyst.MIN_24H_QUOTE_VOL=25_000_000
+            rows=[
+                {"symbol":"RADARUSDT","quote_volume":10_000_000,"rank":99.0,
+                 "discovery_meta":{"binance_spot_member":True,"external_only_unverified":False}},
+                {"symbol":"EXTUSDT","quote_volume":80_000_000,"rank":98.0,
+                 "discovery_meta":{"binance_spot_member":False,"external_only_unverified":True}},
+                {"symbol":"REAL1USDT","quote_volume":30_000_000,"rank":5.0,
+                 "discovery_meta":{"binance_spot_member":True,"external_only_unverified":False}},
+                {"symbol":"REAL2USDT","quote_volume":40_000_000,"rank":4.0,
+                 "discovery_meta":{"binance_spot_member":True,"external_only_unverified":False}},
+            ]
+            got=analyst.select_deep_shortlist(rows,limit=2)
+            self.assertEqual([x["symbol"] for x in got],["REAL1USDT","REAL2USDT"])
+        finally:
+            analyst.MIN_24H_QUOTE_VOL=old_min
+
     def test_v3_universe_does_not_prioritize_big_movers(self):
         old_fget = analyst.fget
         old_perps = analyst.multi_venue_perp_universe
