@@ -1,4 +1,4 @@
-name: Long Short Live Pool
+name: Long Short Live Pool V3
 
 # Separate near-live watcher. Reads analyst candidates, never places orders.
 on:
@@ -8,7 +8,7 @@ permissions:
   actions: write
 
 concurrency:
-  group: long-short-live-pool
+  group: long-short-live-pool-v3
   cancel-in-progress: true
 
 jobs:
@@ -33,11 +33,12 @@ jobs:
       - name: Install
         run: pip install requests==2.32.5
 
-      - name: Compile and test V2.1 production layer
+      - name: Compile and test V3 production layer
         run: |
-          python -m py_compile long_short_live_pool.py long_short_simple_notify.py long_short_outcome_tracker_v21.py
-          python -m json.tool LONG_SHORT_STRUCTURE_GATE_V2_1_CONFIG.json >/dev/null
+          python -m py_compile long_short_analyst.py long_short_v3_core.py long_short_live_pool.py long_short_simple_notify.py long_short_outcome_tracker_v21.py
+          python -m json.tool LONG_SHORT_V3_FROZEN_CONFIG.json >/dev/null
           python tests/test_long_short_structure_gate_v2.py
+          python tests/test_long_short_v3_core.py
           python tests/test_long_short_outcome_v21.py
           python tests/test_long_short_v21_integration.py
           python tests/test_watch_alert_tracking_v21.py
@@ -49,13 +50,13 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p .lsa-state
-          run_id=$(gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts?name=long-short-analyst-state&per_page=100" \
+          run_id=$(gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts?name=long-short-v3-analyst-state&per_page=100" \
             --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | reverse | .[0].workflow_run.id // empty')
           if test -n "$run_id"; then
-            gh run download "$run_id" --name long-short-analyst-state --dir .lsa-state
-            cp .lsa-state/long_short_analyst.db .
+            gh run download "$run_id" --name long-short-v3-analyst-state --dir .lsa-state
+            cp .lsa-state/long_short_v3_analyst.db .
           fi
-          test -f long_short_analyst.db
+          test -f long_short_v3_analyst.db
 
       - name: Restore live-pool state
         continue-on-error: true
@@ -63,11 +64,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p .live-state
-          run_id=$(gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts?name=long-short-live-pool-state&per_page=100" \
+          run_id=$(gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts?name=long-short-v3-live-pool-state&per_page=100" \
             --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | reverse | .[0].workflow_run.id // empty')
           if test -n "$run_id"; then
-            gh run download "$run_id" --name long-short-live-pool-state --dir .live-state || true
-            test -f .live-state/long_short_live_pool.db && cp .live-state/long_short_live_pool.db .
+            gh run download "$run_id" --name long-short-v3-live-pool-state --dir .live-state || true
+            test -f .live-state/long_short_v3_live_pool.db && cp .live-state/long_short_v3_live_pool.db .
           fi
 
       - name: Restore shared Telegram anti-spam state
@@ -76,17 +77,20 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p .notify-state
-          run_id=$(gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts?name=long-short-simple-notify-state&per_page=100" \
+          run_id=$(gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts?name=long-short-v3-notify-state&per_page=100" \
             --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | reverse | .[0].workflow_run.id // empty')
           if test -n "$run_id"; then
-            gh run download "$run_id" --name long-short-simple-notify-state --dir .notify-state || true
-            test -f .notify-state/long_short_simple_notify.db && cp .notify-state/long_short_simple_notify.db .
+            gh run download "$run_id" --name long-short-v3-notify-state --dir .notify-state || true
+            test -f .notify-state/long_short_v3_notify.db && cp .notify-state/long_short_v3_notify.db .
           fi
 
-      - name: Run production continuation live pool
+      - name: Run frozen V3 live pool
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          LS_DB: "long_short_v3_analyst.db"
+          LS_LIVE_DB: "long_short_v3_live_pool.db"
+          LS_SIMPLE_NOTIFY_DB: "long_short_v3_notify.db"
           LS_LIVE_POLL_SECONDS: "15"
           LS_LIVE_RUN_SECONDS: "330"
           LS_ALIGN_TO_5M: "1"
@@ -101,15 +105,13 @@ jobs:
           LS_VALIDATION_MIN_SLIPPAGE_BPS_PER_SIDE: "10"
         run: python -u long_short_live_pool.py
 
-      - name: Update legacy live-stage validation
-        if: always()
-        run: python -u long_short_live_validation.py
-
-      - name: Update V2.1 real-message outcomes
+      - name: Update V3 real-message outcomes
         if: always()
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          LS_LIVE_DB: "long_short_v3_live_pool.db"
+          LS_SIMPLE_NOTIFY_DB: "long_short_v3_notify.db"
           LS_VALIDATION_MIN_SLIPPAGE_BPS_PER_SIDE: "10"
           LS_VALIDATION_HUMAN_DELAY_SECONDS: "30"
         run: python -u long_short_outcome_tracker_v21.py
@@ -118,8 +120,8 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: long-short-live-pool-state
-          path: long_short_live_pool.db
+          name: long-short-v3-live-pool-state
+          path: long_short_v3_live_pool.db
           if-no-files-found: warn
           retention-days: 30
           compression-level: 6
@@ -129,8 +131,8 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: long-short-simple-notify-state
-          path: long_short_simple_notify.db
+          name: long-short-v3-notify-state
+          path: long_short_v3_notify.db
           if-no-files-found: warn
           retention-days: 30
           compression-level: 6
@@ -141,7 +143,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           sleep 3
-          active=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs?per_page=50" --jq '[.workflow_runs[] | select(.id != (${{ github.run_id }}|tonumber)) | select((.name=="Long Short Analyst V1" or .name=="Long Short Live Pool") and (.status=="queued" or .status=="in_progress" or .status=="pending"))] | length')
+          active=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs?per_page=50" --jq '[.workflow_runs[] | select(.id != (${{ github.run_id }}|tonumber)) | select((.name=="Long Short Analyst V3" or .name=="Long Short Live Pool V3") and (.status=="queued" or .status=="in_progress" or .status=="pending"))] | length')
           if test "$active" -gt 0; then
             echo "Another Long/Short cycle is already active; skip duplicate analyst dispatch."
             exit 0
