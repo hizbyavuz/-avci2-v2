@@ -40,7 +40,7 @@ EARLY_MIN_VOLUME_MULT=float(os.getenv("LS_EARLY_MIN_VOLUME_MULT","1.20"))
 EARLY_MIN_TAKER_SHARE=float(os.getenv("LS_EARLY_MIN_TAKER_SHARE","0.54"))
 EARLY_MAX_COMPRESSION_PCT=float(os.getenv("LS_EARLY_MAX_COMPRESSION_PCT","0.90"))
 EARLY_MIN_ROOM_PCT=float(os.getenv("LS_EARLY_MIN_ROOM_PCT","0.30"))
-STRUCTURE_GATE_VERSION="LS_STRUCTURE_GATE_V3_0_2026-10-07"
+STRUCTURE_GATE_VERSION="LS_STRUCTURE_GATE_V3_1_2026-10-07"
 STRUCTURE_MIN_VOLUME_MULT=float(os.getenv("LS_STRUCTURE_MIN_VOLUME_MULT","1.10"))
 STRUCTURE_MIN_BODY_RATIO=float(os.getenv("LS_STRUCTURE_MIN_BODY_RATIO","0.45"))
 STRUCTURE_MAX_REJECTION_WICK=float(os.getenv("LS_STRUCTURE_MAX_REJECTION_WICK","0.35"))
@@ -1040,7 +1040,7 @@ def send_recovery_notice_once(watch_count=0):
     the notice on every 5-minute handoff. If delivery fails, the marker is not
     written and the next live cycle can retry.
     """
-    key="long_short_v3_production_notice_2026_10_07"
+    key="long_short_v31_production_notice_2026_10_07"
     try:
         with sqlite3.connect(NOTIFY_DB,timeout=10) as con:
             con.execute("""CREATE TABLE IF NOT EXISTS runtime_settings(
@@ -1068,7 +1068,7 @@ def send_health_if_due(watch_count=0):
     token=(os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
     if not token:
         return False
-    key="long_short_health_v3"
+    key="long_short_health_v31"
     now=time.time()
     try:
         with sqlite3.connect(NOTIFY_DB,timeout=10) as con:
@@ -1086,7 +1086,7 @@ def send_health_if_due(watch_count=0):
             for stage,n in con.execute("SELECT stage,COUNT(*) FROM watch_state GROUP BY stage").fetchall():
                 counts[str(stage)]=int(n)
         msg=(
-            "🟢 LONG/SHORT MOTOR ÇALIŞIYOR | V3\n"
+            "🟢 LONG/SHORT MOTOR ÇALIŞIYOR | V3.1\n"
             f"İzlenen: {int(watch_count)} coin | Yaklaşan: {counts.get('APPROACHING',0)} | "
             f"Teyit: {counts.get('CLOSE_CONFIRMED',0)} | Retest: {counts.get('RETESTING',0)}\n"
             "Bu sağlık mesajıdır; işlem sinyali değildir."
