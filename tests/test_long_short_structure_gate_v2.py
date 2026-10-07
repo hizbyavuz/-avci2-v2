@@ -62,7 +62,7 @@ class StructureGateV2Tests(unittest.TestCase):
         self.assertFalse(q["qualified"])
         self.assertTrue(q["fake_breakout"])
 
-    def test_weak_volume_breakout_is_rejected(self):
+    def test_one_soft_weakness_does_not_kill_clean_breakout(self):
         q=live_structure_confirmation(_row(),101.2,{
             "closed_5m_open":99.7,
             "closed_5m_high":101.4,
@@ -72,8 +72,22 @@ class StructureGateV2Tests(unittest.TestCase):
             "closed_5m_close_location":0.889,
             "closed_5m_volume_mult":0.82,
         })
-        self.assertFalse(q["qualified"])
+        self.assertTrue(q["qualified"])
         self.assertFalse(q["volume_ok"])
+        self.assertEqual(q["quality_score"],4)
+
+    def test_multiple_soft_weaknesses_are_rejected(self):
+        q=live_structure_confirmation(_row(),100.4,{
+            "closed_5m_open":100.3,
+            "closed_5m_high":101.2,
+            "closed_5m_low":99.7,
+            "closed_5m_close":100.4,
+            "closed_5m_body_ratio":0.067,
+            "closed_5m_close_location":0.467,
+            "closed_5m_volume_mult":0.82,
+        })
+        self.assertFalse(q["qualified"])
+        self.assertLess(q["quality_score"],4)
 
 
     def test_wait_candidate_enters_watchlist_before_full_structure_precheck(self):
