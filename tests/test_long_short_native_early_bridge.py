@@ -14,10 +14,10 @@ class NativeEarlyBridgeTests(unittest.TestCase):
             ms=int(datetime(2026,10,8,2,40,tzinfo=timezone.utc).timestamp()*1000)
             history={"version":"NATIVE_BINANCE_UM_MARKET_WATCH_V1",
                      "history":{
-                       "UPUSDT":[[ms-300000,100],[ms-1000,102]],
-                       "DOWNUSDT":[[ms-300000,100],[ms-1000,97]],
-                       "MISSINGUSDT":[[ms-300000,100],[ms-1000,101.5]],
-                       "STALEUSDT":[[ms-300000,100],[ms-100000,110]]}}
+                       "UPUSDT":[[ms-301000,100],[ms-1000,102]],
+                       "DOWNUSDT":[[ms-301000,100],[ms-1000,97]],
+                       "MISSINGUSDT":[[ms-301000,100],[ms-1000,101.5]],
+                       "STALEUSDT":[[ms-301000,100],[ms-100000,110]]}}
             state=folder/"state.json";state.write_text(json.dumps(history))
             market=folder/"market.json"
             market.write_text(json.dumps({"source":"BINANCE_FUTURES_UM_WS",
