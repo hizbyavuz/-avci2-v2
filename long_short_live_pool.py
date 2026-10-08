@@ -682,6 +682,7 @@ def _perp_stats(symbol):
 def market_snapshot(symbol):
     # 1m data lets the observational layer see a breakout while it is forming.
     # The frozen continuation engine still uses the last completed 5m close below.
+    price_source="BINANCE_SPOT"
     try:
         kl5=spot_get("/api/v3/klines",{"symbol":symbol,"interval":"5m","limit":30})
         kl1=spot_get("/api/v3/klines",{"symbol":symbol,"interval":"1m","limit":30})
@@ -692,8 +693,13 @@ def market_snapshot(symbol):
         # Futures-only listings can be absent from Binance Spot. Use the same
         # public perpetual chart router as the analyst instead of silently losing
         # the coin from the near-live watcher.
-        kl5=(multi_venue_perp_klines(symbol,"5m",30).get("rows") or [])
-        kl1=(multi_venue_perp_klines(symbol,"1m",30).get("rows") or [])
+        ext5=multi_venue_perp_klines(symbol,"5m",30)
+        ext1=multi_venue_perp_klines(symbol,"1m",30)
+        price_source=str(ext1.get("provider") or "UNKNOWN")
+        if price_source not in ("GATE_FUTURES","BYBIT_LINEAR") or ext5.get("provider")!=price_source:
+            raise RuntimeError(f"{symbol}: mixed live candle venues cannot qualify")
+        kl5=ext5.get("rows") or []
+        kl1=ext1.get("rows") or []
         if len(kl5)<3 or len(kl1)<3:
             raise RuntimeError(f"{symbol}: insufficient external live candles")
         price=float(kl1[-1][4])
@@ -740,6 +746,7 @@ def market_snapshot(symbol):
     cvol_mult=cqvol/cbase if cbase>0 else 1.0
 
     early={
+        "live_price_source":price_source,
         "local_high":local_high,"local_low":local_low,
         "closed_5m_open":co,"closed_5m_high":ch,"closed_5m_low":cl,
         "closed_5m_close":cc,"closed_5m_body_ratio":cbody,
@@ -1399,6 +1406,7 @@ def loop_once():
                             execution_check=live_execution_gate(row,price,trigger_proxy)
                             if not execution_check.get("qualified"):
                                 blocked_payload=dict(row)
+                                blocked_payload["_live_price_source"]=str(early.get("live_price_source") or "UNKNOWN")
                                 blocked_payload["_live_structure_quality"]=structure_quality
                                 blocked_payload["_live_alert_version"]=STRUCTURE_GATE_VERSION
                                 blocked_payload["_trigger_execution_gate"]=execution_check
@@ -1425,6 +1433,7 @@ def loop_once():
                                 blocked_payload=dict(row)
                                 blocked_payload["_live_structure_quality"]=structure_quality
                                 blocked_payload["_live_alert_version"]=STRUCTURE_GATE_VERSION
+                                blocked_payload["_live_price_source"]=str(early.get("live_price_source") or "UNKNOWN")
                                 blocked_payload["_cluster_blocked_count"]=cluster_count
                                 con.execute("""INSERT INTO events(
                                     event_time_utc,symbol,direction,stage_from,stage_to,price,closed_5m,
@@ -1491,6 +1500,7 @@ def loop_once():
                         telegram_error=None
                         event_payload=dict(row)
                         event_payload["_live_structure_quality"]=structure_quality
+                        event_payload["_live_price_source"]=str(early.get("live_price_source") or "UNKNOWN")
                         event_payload["_live_alert_version"]=STRUCTURE_GATE_VERSION
                         if msg:
                             print(msg)
