@@ -26,6 +26,7 @@ from long_short_data_router import multi_venue_derivatives, multi_venue_perp_uni
 from long_short_v3_core import V3_VERSION, discovery_rank as v3_discovery_rank, beta_residual_3h, decide_setup as v3_decide_setup
 from long_short_direction_engine import DIRECTION_ENGINE_VERSION, decide_direction as production_decide_direction
 from long_short_room_v32_shadow import from_analyst_snapshots as v32_room_shadow
+from long_short_dual_v32 import build_both_sides as build_v32_dual_scenarios
 
 FUTURES_BASES = (
     "https://fapi.binance.com",
@@ -1663,6 +1664,25 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
         }
 
 
+    # V3.2: every scanned coin receives TWO independently generated locked
+    # hypotheses (LONG + SHORT), with separate trigger/stop/targets/geometry.
+    # Only V3.1's presently authorized side can pass the V3.2 trade-quality
+    # permission gate. The alternative is retained as counterfactual evidence.
+    # This does not mutate frozen V3.1 model choice or its telegram signals.
+    v32_dual_sides=build_v32_dual_scenarios(
+        symbol=symbol,price=price,k5=k5,t15=t15,chart=chart,
+        build_breakout=build_setup_plan,build_pullback=build_pullback_plan,
+        build_structure=build_structure_gate,k15=k15,k30=k30,k1h=k1h,k4h=k4h,
+        long_score=v3.get("long_score",long),short_score=v3.get("short_score",short),
+        preferred_direction=v3.get("direction"),preferred_setup_type=setup_type,
+        analyst_eligible=bool(v3.get("eligible")),
+        derivatives_ready=deriv_ready,liquidity_ok=actionable_liquidity_ok,
+        external_only=external_only_unverified,atr_pct=t15["atr_pct"],
+        source=deriv_source,required_room_pct=structure_required_room_pct(),
+        minimum_cost_pct=structure_min_round_trip_cost_pct(),
+        min_net_r=STRUCTURE_MIN_NET_T1_R,
+    )
+
     # Direction and entry timing are deliberately separate:
     # - direction engine chooses LONG/SHORT from combined evidence;
     # - live pool still requires a real price trigger + acceptable structure/R.
@@ -1684,6 +1704,7 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
         "chart":chart,"setup_plan":setup_plan,"reversal_plan":reversal_plan,
         "htf_gate":htf_gate,"structure_gate":structure_gate,
         "v32_distinct_room_shadow":v32_room_diagnostic,
+        "v32_dual_sides":v32_dual_sides,
         "live_alert_version":STRUCTURE_GATE_VERSION,
         "t1":t1,"t5":t5,"t15":t15,"t1h":t1h,"t4h":t4h,
         "oi":oi,"funding_pct":funding,"taker_ratio":taker,
