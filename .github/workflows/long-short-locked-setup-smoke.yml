@@ -1,0 +1,79 @@
+name: Long Short Locked Setup Real-DB Smoke
+on:
+  push:
+    branches: [feature/locked-setup-lifecycle-20261008]
+    paths: [.github/workflows/long-short-locked-setup-smoke.yml]
+  workflow_dispatch: {}
+permissions:
+  contents: read
+  actions: read
+jobs:
+  sqlite-observer-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.12"
+      - run: pip install requests==2.32.5
+      - name: Restore latest successful analyst and live state artifacts to job-local copies
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p .audit
+          for spec in "long-short-v31-analyst-state long_short_v31_analyst.db" "long-short-v31-live-pool-state long_short_v31_live_pool.db"; do
+            set -- $spec
+            name="$1"
+            target="$2"
+            run_id=$(gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts?name=$name&per_page=100" \
+              --jq '[.artifacts[] | select(.expired==false) | select(.workflow_run.head_branch=="main")] | sort_by(.created_at) | reverse | .[0].workflow_run.id // empty')
+            test -n "$run_id" || { echo "MISSING_ARTIFACT $name"; exit 1; }
+            echo "AUDIT_SOURCE $name run=$run_id"
+            gh run download "$run_id" --name "$name" --dir ".audit/$name"
+            test -s ".audit/$name/$target" || { echo "MISSING_DB $target"; exit 1; }
+            cp ".audit/$name/$target" ".audit/$target"
+          done
+      - name: Apply locked setup migration against isolated real DB copy (zero network, zero Telegram)
+        env:
+          LS_DB: .audit/long_short_v31_analyst.db
+          LS_LIVE_DB: .audit/long_short_v31_live_pool.db
+          LS_SETUP_LEDGER_OBSERVE: "1"
+          TELEGRAM_BOT_TOKEN: ""
+          LS_LIVE_RUN_SECONDS: "0"
+        run: |
+          python - <<'PY'
+          import json,os,sqlite3
+          import long_short_live_pool as lp
+          p=os.environ["LS_LIVE_DB"]
+          with sqlite3.connect(p) as con:
+              old_events=con.execute("SELECT COUNT(*) FROM events").fetchone()[0]
+              old_sent=con.execute("SELECT COUNT(*) FROM events WHERE stage_to='TRIGGERED' AND telegram_status='SENT'").fetchone()[0]
+              old_watch=con.execute("SELECT COUNT(*) FROM watch_state").fetchone()[0]
+          lp.init_db()
+          items=lp.load_watchlist()
+          lp.sync_watchlist(items)
+          with sqlite3.connect(p) as con:
+              count=con.execute("SELECT COUNT(*) FROM setups").fetchone()[0]
+              active=con.execute("SELECT COUNT(*) FROM setups WHERE state='ACTIVE'").fetchone()[0]
+              out=con.execute("SELECT COUNT(*) FROM setup_outcomes").fetchone()[0]
+              observed=con.execute("SELECT COUNT(*) FROM setup_events").fetchone()[0]
+              state_count=con.execute("SELECT COUNT(*) FROM watch_state").fetchone()[0]
+              events=con.execute("SELECT COUNT(*) FROM events").fetchone()[0]
+              sent=con.execute("SELECT COUNT(*) FROM events WHERE stage_to='TRIGGERED' AND telegram_status='SENT'").fetchone()[0]
+              integrity=con.execute("PRAGMA integrity_check").fetchone()[0]
+          print("REAL_DB_SETUP_SMOKE",json.dumps({"watch_before":old_watch,"watch_after":state_count,
+                "items":len(items),"setups":count,"setup_events":observed,
+                "active":active,"setup_outcomes":out,"legacy_events_before":old_events,
+                "legacy_events_after":events,"sent_before":old_sent,"sent_after":sent,
+                "integrity":integrity},sort_keys=True))
+          assert integrity=="ok"
+          assert old_events==events
+          assert old_sent==sent
+          assert active==0 and out==0
+          PY
+      - name: Test all setup ledgers and path labels again
+        run: |
+          python tests/test_long_short_setup_lifecycle.py
+          python tests/test_long_short_setup_outcomes.py
+          python tests/test_long_short_setup_bridge.py
