@@ -40,6 +40,7 @@ jobs:
           python tests/test_long_short_structure_gate_v2.py
           python tests/test_long_short_trade_only_delivery.py
           python tests/test_long_short_observational_telegram.py
+          python -m unittest -v tests.test_long_short_telegram_delivery_integrity tests.test_long_short_delivered_direction_audit
           python tests/test_long_short_live_window_coverage.py
           python tests/test_long_short_v3_core.py
           python tests/test_long_short_direction_engine.py
@@ -101,6 +102,7 @@ jobs:
           # Radar-only messages and old pending messages are suppressed separately.
           LS_TELEGRAM_TRADE_ONLY: "0"
           LS_SIMPLE_NOTIFY_STALE_AFTER: "600"
+          LS_TELEGRAM_CLOSED_CANDLE_MAX_AGE_SECONDS: "75"
           LS_TELEGRAM_RUNTIME_NOTICES: "0"
           LS_OUTCOME_TELEGRAM: "0"
           LS_LIVE_FETCH_WORKERS: "6"
@@ -129,6 +131,20 @@ jobs:
           LS_VALIDATION_HUMAN_DELAY_SECONDS: "30"
           LS_WATCH_CONTROL_MAX_EPISODES: "24"
         run: python -u long_short_outcome_tracker_v21.py
+
+      - name: Audit DELIVERED Long/Short directions and price source
+        if: always()
+        run: |
+          python -u long_short_delivered_direction_audit.py \
+            --live-db long_short_v31_live_pool.db \
+            --analyst-db long_short_v31_analyst.db \
+            --out long_short_delivered_direction_audit.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: long-short-delivered-direction-audit
+          path: long_short_delivered_direction_audit.json
+          retention-days: 30
 
       - name: Upload live-pool state
         if: always()

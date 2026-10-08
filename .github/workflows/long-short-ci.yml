@@ -47,6 +47,7 @@ jobs:
           python -m unittest -v tests.test_long_short_room_v32_shadow tests.test_long_short_v32_room_report
           python tests/test_long_short_trade_only_delivery.py
           python tests/test_long_short_observational_telegram.py
+          python -m unittest -v tests.test_long_short_telegram_delivery_integrity tests.test_long_short_delivered_direction_audit
           python -m unittest -v tests.test_long_short_v32_shadow tests.test_long_short_crowding_shadow
 
       - name: Live public derivatives smoke test
