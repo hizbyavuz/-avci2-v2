@@ -15,6 +15,9 @@ from datetime import datetime,timezone
 
 from long_short_v4_native_pipeline import SOURCE, initialize
 from long_short_v4_paper_math import path_result
+from long_short_v4_structure import (
+    oi_engine,resample_complete_5m,previous_utc_day_week_levels,swing_zones
+)
 
 VERSION="LS_V4_FEATURES_V1_2026_10_08"
 CONFIG={"min_history_5m":21,"max_bar_age_ms":450000,
@@ -173,6 +176,30 @@ def feature_at(c,symbol,close_ms):
     liq=c.execute("""SELECT SUM(notional),COUNT(*) FROM liquidations
       WHERE symbol=? AND event_ms>? AND event_ms<=?""",
       (symbol,close_ms-900000,close_ms)).fetchone()
+    liq_sides=c.execute("""SELECT side,SUM(notional) FROM liquidations
+      WHERE symbol=? AND event_ms>? AND event_ms<=? GROUP BY side""",
+      (symbol,close_ms-900000,close_ms)).fetchall()
+    book=c.execute("""SELECT spread_bps FROM book_top WHERE symbol=?
+      AND event_ms>? AND event_ms<=? ORDER BY event_ms DESC LIMIT 200""",
+      (symbol,close_ms-900000,close_ms)).fetchall()
+    taker=c.execute("""SELECT SUM(signed_quote),COUNT(*) FROM taker_trades
+      WHERE symbol=? AND event_ms>? AND event_ms<=?""",
+      (symbol,close_ms-900000,close_ms)).fetchone()
+    historical=c.execute("""SELECT * FROM closed_klines
+      WHERE symbol=? AND interval='5m' AND close_ms<=? AND source=?
+      ORDER BY open_ms DESC LIMIT 2300""",
+      (symbol,close_ms,SOURCE)).fetchall()[::-1]
+    previous_levels=previous_utc_day_week_levels(historical,close_ms)
+    derived_htf={
+      str(m):resample_complete_5m(historical,m)[-1:]
+      for m in (15,60,240)
+    }
+    zones=swing_zones(historical[-121:],float(rows[-1]["close"])*float(_atr(rows) or 0)/100
+                      if rows else None)
+    price_1h_change=(100*(float(rows[-1]["close"])/float(rows[-13]["close"])-1)
+                     if len(rows)>=13 and float(rows[-13]["close"])>0 and
+                        contiguous(rows[-13:],300000) else None)
+    interpreted_oi=oi_engine(price_1h_change,ext[1] if ext else None)
     # Snapshot liquidations may undercount during collector gaps.
     available_1m="MISSING_1M_PATH" not in reasons
     usable=bool(available_1m and len(rows)==21 and contiguous(rows,300000)
@@ -190,6 +217,18 @@ def feature_at(c,symbol,close_ms):
         "external_oi_provider":str(ext[0]) if ext else None,
         "btc_regime":_btc_regime(c,close_ms),
         "binance_native_oi_available":False,
+        "external_oi_price_interpretation_research_only":interpreted_oi,
+        "external_oi_not_same_venue":ext is not None,
+        "price_change_1h_pct":price_1h_change,
+        "previous_completed_utc_day_week":previous_levels,
+        "closed_derived_htf_last_15m_1h_4h":derived_htf,
+        "equal_high_low_zones":zones,
+        "observed_liquidation_by_side_15m_usd":{str(a):float(b or 0) for a,b in liq_sides},
+        "observed_taker_delta_15m_quote":taker[0] if taker else None,
+        "observed_taker_event_count_15m":int(taker[1] or 0) if taker else 0,
+        "top_of_book_median_spread_bps":statistics.median(float(x[0]) for x in book) if book else None,
+        "book_depth_l2_available":False,
+        "settlement_funding_history_calibrated":False,
         "signal_authorized":False,
         "quality_reasons":reasons,
         "source":SOURCE,"closed_candle_only":True,
