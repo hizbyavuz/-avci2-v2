@@ -31,7 +31,7 @@ jobs:
       - name: Compile Long/Short modules
         run: |
           python -m py_compile             long_short_data_router.py             long_short_direction_engine.py             long_short_v3_core.py             long_short_analyst.py             long_short_live_pool.py             long_short_reversal_live.py             long_short_simple_notify.py             long_short_validation.py \
-            long_short_live_validation.py long_short_outcome_prices.py long_short_outcome_tracker_v21.py
+            long_short_live_validation.py long_short_outcome_prices.py long_short_outcome_tracker_v21.py long_short_v32_shadow.py long_short_crowding_shadow.py
 
       - name: Run Long/Short unit tests
         run: |
@@ -44,6 +44,7 @@ jobs:
           python tests/test_long_short_outcome_v21.py
           python tests/test_long_short_outcome_venue_451.py
           python tests/test_long_short_v21_integration.py
+          python -m unittest -v tests.test_long_short_v32_shadow tests.test_long_short_crowding_shadow
 
       - name: Live public derivatives smoke test
         run: |

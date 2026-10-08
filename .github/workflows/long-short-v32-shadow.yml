@@ -7,7 +7,9 @@ on:
   push:
     paths:
       - "long_short_v32_shadow.py"
+      - "long_short_crowding_shadow.py"
       - "tests/test_long_short_v32_shadow.py"
+      - "tests/test_long_short_crowding_shadow.py"
       - ".github/workflows/long-short-v32-shadow.yml"
   schedule:
     - cron: "*/10 * * * *"
@@ -63,8 +65,8 @@ jobs:
 
       - name: Verify shadow isolation
         run: |
-          python -m py_compile long_short_v32_shadow.py tests/test_long_short_v32_shadow.py
-          python -m unittest -v tests.test_long_short_v32_shadow
+          python -m py_compile long_short_v32_shadow.py long_short_crowding_shadow.py tests/test_long_short_v32_shadow.py tests/test_long_short_crowding_shadow.py
+          python -m unittest -v tests.test_long_short_v32_shadow tests.test_long_short_crowding_shadow
 
       - name: Observe both hypotheses and label due outcomes
         env:
