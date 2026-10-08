@@ -39,6 +39,7 @@ jobs:
           python -m json.tool LONG_SHORT_V3_FROZEN_CONFIG.json >/dev/null
           python tests/test_long_short_structure_gate_v2.py
           python tests/test_long_short_trade_only_delivery.py
+          python tests/test_long_short_observational_telegram.py
           python tests/test_long_short_live_window_coverage.py
           python tests/test_long_short_v3_core.py
           python tests/test_long_short_direction_engine.py
@@ -95,8 +96,11 @@ jobs:
           LS_DB: "long_short_v31_analyst.db"
           LS_LIVE_DB: "long_short_v31_live_pool.db"
           LS_SIMPLE_NOTIFY_DB: "long_short_v31_notify.db"
-          # User-facing alerts only after qualified TRIGGERED; no radar/watch/status spam.
-          LS_TELEGRAM_TRADE_ONLY: "1"
+          # Explicit observational messages: APPROACHING/qualified EARLY/CLOSE_CONFIRMED.
+          # Frozen TRIGGERED gate, entry, execution, and core decisions stay unchanged.
+          # Radar-only messages and old pending messages are suppressed separately.
+          LS_TELEGRAM_TRADE_ONLY: "0"
+          LS_SIMPLE_NOTIFY_STALE_AFTER: "600"
           LS_TELEGRAM_RUNTIME_NOTICES: "0"
           LS_OUTCOME_TELEGRAM: "0"
           LS_LIVE_FETCH_WORKERS: "6"
