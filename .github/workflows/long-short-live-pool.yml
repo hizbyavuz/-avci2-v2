@@ -147,6 +147,16 @@ jobs:
           path: long_short_delivered_direction_audit.json
           retention-days: 30
 
+      - name: Report independent V3.2 LONG SHORT coverage
+        if: always()
+        run: python -u long_short_dual_v32_report.py --db long_short_v31_live_pool.db --out long_short_dual_v32_health.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: long-short-dual-v32-health
+          path: long_short_dual_v32_health.json
+          retention-days: 14
+
       - name: Upload live-pool state
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
