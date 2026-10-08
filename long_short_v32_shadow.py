@@ -18,6 +18,8 @@ from datetime import datetime, timezone
 
 import requests
 
+import long_short_crowding_shadow as crowding
+
 ANALYST_DB = os.getenv("LS_DB", "long_short_v31_analyst.db")
 SHADOW_DB = os.getenv("LS_V32_SHADOW_DB", "long_short_v32_shadow.db")
 VERSION = "LS_V3_2_DUAL_HYPOTHESIS_SHADOW_2026-10-07"
@@ -140,6 +142,7 @@ def micro_features(rows5, taker_available=True):
     vols = [float(r[5]) for r in rows5]
 
     px = closes[-1]
+    change15 = 100.0 * (px / closes[-4] - 1.0) if closes[-4] > 0 else None
     support = float(levels["support"])
     resistance = float(levels["resistance"])
     tol = 0.0005
@@ -177,6 +180,7 @@ def micro_features(rows5, taker_available=True):
 
     return {
         "price": px,
+        "price_change_15m_pct": change15,
         "support": support,
         "resistance": resistance,
         "dist_support_pct": ((px / support) - 1.0) * 100.0 if support else None,
@@ -319,6 +323,7 @@ def init_db():
         )""")
         con.execute("CREATE INDEX IF NOT EXISTS ix_v32_shadow_time ON shadow_snapshots(observed_at_utc)")
         con.execute("CREATE INDEX IF NOT EXISTS ix_v32_shadow_symbol ON shadow_snapshots(symbol,observed_at_utc)")
+    crowding.init_db(SHADOW_DB)
 
 def load_latest_analyses():
     if not os.path.exists(ANALYST_DB):
@@ -397,6 +402,7 @@ def insert_snapshot(a):
                 VALUES({','.join('?' for _ in db_cols)})""",
             data,
         )
+    crowding.observe(SHADOW_DB, a, payload, m, source)
 
 def fetch_current_price(symbol):
     for base in BINANCE_FUTURES:
@@ -496,6 +502,7 @@ def summary():
 def main():
     init_db()
     label_due()
+    crowding.label_due(SHADOW_DB)
     rows = load_latest_analyses()
     errors = 0
     for a in rows:
@@ -505,7 +512,9 @@ def main():
             errors += 1
             print("SHADOW_SYMBOL_ERROR", a.get("symbol"), type(exc).__name__, str(exc)[:160])
     label_due()
+    crowding.label_due(SHADOW_DB)
     summary()
+    crowding.summary(SHADOW_DB)
     if rows and errors == len(rows):
         raise SystemExit("all V3.2 shadow observations failed")
 
