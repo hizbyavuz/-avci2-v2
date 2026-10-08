@@ -15,6 +15,7 @@ on:
       - "LONG_SHORT_V3_FROZEN_CONFIG.json"
       - "tests/test_long_short_v3_core.py"
       - "tests/test_long_short_*.py"
+      - "tests/test_watch_alert_tracking_v21.py"
 
 permissions:
   contents: read
