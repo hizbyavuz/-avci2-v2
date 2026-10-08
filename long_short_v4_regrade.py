@@ -52,21 +52,23 @@ def calculate_one(ev,horizon,now):
     except (KeyError,TypeError,ValueError):
         return fail("MISSING_LEVEL_OR_TIMESTAMP")
     execution=max(sent,condition)+timedelta(seconds=30)
-    until=execution+timedelta(minutes=horizon)
+    # Only fully observable one-minute bars count after the human reaction delay.
+    first_full=int((execution.timestamp()*1000+59999)//60000)*60000
+    entry_start=datetime.fromtimestamp(first_full/1000,timezone.utc)
+    until=entry_start+timedelta(minutes=horizon)
     if now<until+timedelta(minutes=2):return {"status":"NOT_MATURED"}
     try:
-        series=historical_1m(ev["symbol"],execution,until,
+        series=historical_1m(ev["symbol"],entry_start,until,
           requested_source=source,allow_fallback=False,source_inferred=False,
           fetch_binance=_binance_spot if source=="BINANCE_SPOT" else None)
         if not getattr(series,"venue_matched",False):
             return fail("PRICE_VENUE_MISMATCH")
-        if not has_full_horizon(series,execution,until):
+        if not has_full_horizon(series,entry_start,until):
             return fail("INCOMPLETE_1M_HISTORY")
-        selected=[r for r in series if execution.timestamp()*1000-60000<int(r[0])<until.timestamp()*1000]
+        selected=[r for r in series if first_full<=int(r[0])<until.timestamp()*1000]
         if not selected:return fail("NO_1M_BARS")
         # For a 30s human delay, the first candle may partly predate entry.
         # Use the first *entire* 1m candle after execution, with no lookahead.
-        first_full=int((execution.timestamp()*1000+59999)//60000)*60000
         selected=[r for r in selected if int(r[0])>=first_full]
         if not selected:return fail("NO_FULL_ENTRY_CANDLE")
         # No substitute entry fill: open of first executable complete 1m candle.
@@ -103,14 +105,21 @@ def regrade(live_db,research_db,limit=100):
                 exists=out.execute("""SELECT 1 FROM paper_regrades
                    WHERE cohort=? AND event_key=? AND horizon_min=? AND label_version=?""",
                    ("TELEGRAM_SENT",key,h,LABEL_VERSION)).fetchone()
-                if exists:continue
+                if exists and out.execute("""SELECT status FROM paper_regrades
+                     WHERE cohort=? AND event_key=? AND horizon_min=? AND label_version=?""",
+                     ("TELEGRAM_SENT",key,h,LABEL_VERSION)).fetchone()[0]=="LABELED":continue
                 result=calculate_one(ev,h,now)
                 if result["status"]=="NOT_MATURED":continue
                 # Keep unresolved data issues explicit, NEVER count as losses.
                 source=recorded_source(json.loads(ev["payload_json"] or "{}"))
-                out.execute("""INSERT OR IGNORE INTO paper_regrades
+                out.execute("""INSERT INTO paper_regrades
                   (cohort,event_key,horizon_min,label_version,direction,price_source,
-                   source_venue_matched,status,result_json) VALUES(?,?,?,?,?,?,?,?,?)""",
+                   source_venue_matched,status,result_json) VALUES(?,?,?,?,?,?,?,?,?)
+                  ON CONFLICT(cohort,event_key,horizon_min,label_version)
+                  DO UPDATE SET status=excluded.status,result_json=excluded.result_json,
+                    price_source=excluded.price_source,
+                    source_venue_matched=excluded.source_venue_matched
+                  WHERE paper_regrades.status!='LABELED'""",
                    ("TELEGRAM_SENT",key,h,LABEL_VERSION,ev["direction"],source,
                     int(bool(result.get("source_venue_matched"))),
                     result["status"],json.dumps(result,separators=(",",":"))))
