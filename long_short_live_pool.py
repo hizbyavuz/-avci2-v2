@@ -507,7 +507,33 @@ def load_watchlist():
             -(abs(float(x.get("day_change_pct") or 0.0)) if x.get("radar_only") else float(x.get("discovery_rank") or 0.0)),
             str(x.get("symbol") or ""),
         ))
-        return out[:MAX_WATCH]
+        # Preserve all frozen signal/structure gates. Only prevent a one-sided
+        # ranked list from crowding out already-qualified opposite-side setups.
+        # No synthetic candidates and no forced LONG/SHORT signal.
+        selected=out[:MAX_WATCH]
+        if MAX_WATCH>1:
+            reserve=max(1,MAX_WATCH//4)
+            for side in ("LONG","SHORT"):
+                eligible=[x for x in out if x.get("direction")==side and not x.get("radar_only")]
+                present=sum(1 for x in selected if x.get("direction")==side and not x.get("radar_only"))
+                for candidate in eligible:
+                    if present>=min(reserve,len(eligible)):
+                        break
+                    if candidate in selected:
+                        continue
+                    # Only displace a surplus candidate from the other side,
+                    # never a protected qualified setup of this side.
+                    victim=next((x for x in reversed(selected)
+                        if x.get("direction")!=side
+                        and sum(1 for y in selected if y.get("direction")==x.get("direction")
+                                and not y.get("radar_only"))>reserve),None)
+                    if victim is None:
+                        victim=next((x for x in reversed(selected) if x.get("radar_only")),None)
+                    if victim is None:
+                        break
+                    selected[selected.index(victim)]=candidate
+                    present+=1
+        return selected
 
 def _close_open_watch_episode(con,symbol,reason,last_price=None):
     ts=now_iso()
