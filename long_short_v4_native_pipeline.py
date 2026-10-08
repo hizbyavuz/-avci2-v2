@@ -235,6 +235,10 @@ def observe(db, symbols, seconds):
         received=accepted=0
         deadline=time.monotonic()+seconds
         while time.monotonic()<deadline or not q.empty():
+            # Shut down producers at the deadline; otherwise a busy market
+            # could keep the queue perpetually non-empty.
+            if time.monotonic()>=deadline and not stop.is_set():
+                stop.set()
             try:
                 route,stream,obj,ts=q.get(timeout=0.3)
             except queue.Empty:
