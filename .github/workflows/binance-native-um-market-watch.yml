@@ -1,0 +1,51 @@
+name: Binance Native USD-M Futures Market Observer
+on:
+  pull_request:
+    paths:
+      - 'binance_native_um_market_watch.py'
+      - 'tests/test_binance_native_um_market_watch.py'
+      - '.github/workflows/binance-native-um-market-watch.yml'
+  workflow_dispatch:
+  schedule:
+    - cron: '*/5 * * * *'
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: binance-native-um-market-watch
+  cancel-in-progress: false
+jobs:
+  observe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12'
+      - run: python -m pip install --disable-pip-version-check websocket-client==1.8.0
+      - run: python -m unittest -v tests.test_binance_native_um_market_watch
+      - name: Restore state from main only
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          run_id=$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?name=binance-native-um-market-state&per_page=100" --jq '[.artifacts[] | select(.expired == false and .workflow_run.head_branch == "main")] | sort_by(.created_at) | reverse | .[0].workflow_run.id // empty')
+          if test -n "$run_id"; then
+            gh run download "$run_id" --name binance-native-um-market-state --dir .previous || true
+            if test -f .previous/native_um_market_watch_state.json; then cp .previous/native_um_market_watch_state.json .; fi
+          fi
+      - name: Observe native USD-M futures without trading
+        env:
+          RUN_SECONDS: ${{ github.event_name == 'pull_request' && '12' || '90' }}
+        run: python -u binance_native_um_market_watch.py --seconds "$RUN_SECONDS"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: binance-native-um-market-state
+          path: native_um_market_watch_state.json
+          retention-days: 7
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: binance-native-um-market-report
+          path: native_um_market_watch_report.json
+          retention-days: 7
