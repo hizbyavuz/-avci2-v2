@@ -35,7 +35,7 @@ jobs:
 
       - name: Compile and test V3 production layer
         run: |
-          python -m py_compile long_short_analyst.py long_short_direction_engine.py long_short_v3_core.py long_short_live_pool.py long_short_simple_notify.py long_short_outcome_tracker_v21.py
+          python -m py_compile long_short_analyst.py long_short_direction_engine.py long_short_v3_core.py long_short_live_pool.py long_short_simple_notify.py long_short_outcome_tracker_v21.py long_short_outcome_prices.py
           python -m json.tool LONG_SHORT_V3_FROZEN_CONFIG.json >/dev/null
           python tests/test_long_short_structure_gate_v2.py
           python tests/test_long_short_trade_only_delivery.py
@@ -43,6 +43,7 @@ jobs:
           python tests/test_long_short_v3_core.py
           python tests/test_long_short_direction_engine.py
           python tests/test_long_short_outcome_v21.py
+          python tests/test_long_short_outcome_venue_451.py
           python tests/test_long_short_v21_integration.py
           python tests/test_watch_alert_tracking_v21.py
           python tests/test_approaching_alert_v21.py
@@ -122,6 +123,7 @@ jobs:
           LS_SIMPLE_NOTIFY_DB: "long_short_v31_notify.db"
           LS_VALIDATION_MIN_SLIPPAGE_BPS_PER_SIDE: "10"
           LS_VALIDATION_HUMAN_DELAY_SECONDS: "30"
+          LS_WATCH_CONTROL_MAX_EPISODES: "24"
         run: python -u long_short_outcome_tracker_v21.py
 
       - name: Upload live-pool state
