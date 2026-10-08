@@ -31,7 +31,7 @@ jobs:
       - name: Compile Long/Short modules
         run: |
           python -m py_compile             long_short_data_router.py             long_short_direction_engine.py             long_short_v3_core.py             long_short_analyst.py             long_short_live_pool.py             long_short_reversal_live.py             long_short_simple_notify.py             long_short_validation.py \
-            long_short_live_validation.py
+            long_short_live_validation.py long_short_outcome_prices.py long_short_outcome_tracker_v21.py
 
       - name: Run Long/Short unit tests
         run: |
@@ -42,6 +42,7 @@ jobs:
           python tests/test_long_short_v3_core.py
           python tests/test_long_short_direction_engine.py
           python tests/test_long_short_outcome_v21.py
+          python tests/test_long_short_outcome_venue_451.py
           python tests/test_long_short_v21_integration.py
 
       - name: Live public derivatives smoke test
@@ -76,4 +77,17 @@ jobs:
           }, ensure_ascii=False))
           if gate.get("quality") != "FULL":
               raise SystemExit("Gate fallback smoke test is not FULL: " + repr(gate))
+          PY
+
+      - name: Gate 1m historical price source smoke test
+        run: |
+          python - <<'PY'
+          from datetime import datetime,timedelta,timezone
+          from long_short_outcome_prices import historical_1m,has_full_horizon
+          end=datetime.now(timezone.utc).replace(second=0,microsecond=0)-timedelta(minutes=3)
+          start=end-timedelta(minutes=15)
+          data=historical_1m("BTCUSDT",start,end,requested_source="GATE_FUTURES",allow_fallback=False)
+          print("GATE_HISTORICAL_PRICE",len(data),data.source,data.venue_matched)
+          if data.source!="GATE_FUTURES" or not data.venue_matched or not has_full_horizon(data,start,end):
+              raise SystemExit("Gate historical 1m smoke failed")
           PY

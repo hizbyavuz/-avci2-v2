@@ -25,10 +25,11 @@ from datetime import datetime, timedelta, timezone
 
 import requests
 from binance_notify import resolve_chat_id
+from long_short_outcome_prices import historical_1m, has_full_horizon
 
 DB=os.getenv("LS_LIVE_DB","long_short_live_pool.db")
 NOTIFY_DB=os.getenv("LS_SIMPLE_NOTIFY_DB","long_short_simple_notify.db")
-VERSION="LS_OUTCOME_V3_1_2026-10-07"
+VERSION="LS_OUTCOME_V3_1_VENUE_AUDIT_2026-10-08"
 HORIZONS=(15,60,180)
 FEE_BPS_PER_SIDE=float(os.getenv("LS_FEE_BPS_PER_SIDE","5"))
 MIN_SLIPPAGE_BPS_PER_SIDE=float(os.getenv("LS_VALIDATION_MIN_SLIPPAGE_BPS_PER_SIDE","10"))
@@ -37,6 +38,8 @@ STALE_DELAY_SECONDS=float(os.getenv("LS_STALE_ALERT_DELAY_SECONDS","60"))
 MISSED_CLOSE_DELAY_SECONDS=float(os.getenv("LS_MISSED_CLOSE_DELAY_SECONDS","90"))
 BASES=("https://data-api.binance.vision","https://api.binance.com")
 TELEGRAM_LIMIT=4096
+BINANCE_SPOT_451_BLOCKED=False
+WATCH_CONTROL_MAX_EPISODES=int(os.getenv('LS_WATCH_CONTROL_MAX_EPISODES','24'))
 
 
 def now_iso():
@@ -49,37 +52,71 @@ def _dt(x):
 
 
 def _get(path,params):
+    """Binance Spot only; venue-fallback is handled explicitly by outcome_prices."""
+    global BINANCE_SPOT_451_BLOCKED
+    if BINANCE_SPOT_451_BLOCKED:
+        raise RuntimeError("Binance Spot blocked (451 cached for this runner)")
     last=None
+    blocked=0
     for base in BASES:
         try:
             r=requests.get(base+path,params=params,timeout=12,
                            headers={"User-Agent":"lsa-outcome-v3"})
             r.raise_for_status()
             return r.json()
+        except requests.HTTPError as exc:
+            last=exc
+            if exc.response is not None and exc.response.status_code==451:
+                blocked+=1
         except Exception as exc:
             last=exc
+    if blocked==len(BASES):
+        BINANCE_SPOT_451_BLOCKED=True
     raise last or RuntimeError("spot data unavailable")
 
 
-def _rows_1m(symbol,start,end):
-    rows=[]
-    cursor=int(start.timestamp()*1000)
-    end_ms=int(end.timestamp()*1000)
-    while cursor<end_ms and len(rows)<2000:
-        chunk=_get("/api/v3/klines",{
-            "symbol":symbol,"interval":"1m","startTime":cursor,"endTime":end_ms,
-            "limit":1000,
-        })
-        if not chunk:
-            break
-        rows.extend(chunk)
-        nxt=int(chunk[-1][6])+1
-        if nxt<=cursor:
-            break
-        cursor=nxt
-        if len(chunk)<1000:
-            break
-    return rows
+def _preferred_source(payload):
+    # Exact source of the triggering live 1m/5m chart, not the venue used
+    # for OI/funding. Historic events have no chart source and are flagged
+    # inferred instead of being invented as verified Gate Futures outcomes.
+    value=str(payload.get("_live_price_source") or "")
+    if value in ("BINANCE_SPOT","GATE_FUTURES","BYBIT_LINEAR"):
+        return value,False
+    return "BINANCE_SPOT",True
+
+
+def _rows_1m(symbol,start,end,preferred_source="BINANCE_SPOT",
+             source_inferred=True,allow_fallback=None):
+    if allow_fallback is None:
+        # Never replace an explicitly Gate/Bybit-priced chart with another
+        # market. A blocked Binance Spot chart can use a separately labeled
+        # cross-venue proxy rather than losing the outcome entirely.
+        allow_fallback=preferred_source=="BINANCE_SPOT"
+    return historical_1m(
+        symbol,start,end,requested_source=preferred_source,
+        source_inferred=source_inferred,allow_fallback=allow_fallback,
+        fetch_binance=_get
+    )
+
+
+def _market_rows(symbol,start,end,payload):
+    requested,inferred=_preferred_source(payload)
+    return _rows_1m(symbol,start,end,preferred_source=requested,
+                    source_inferred=inferred)
+
+
+def _source_tag(rows):
+    return (str(getattr(rows,"source","TEST_OR_UNKNOWN")),
+            int(bool(getattr(rows,"venue_matched",False))),
+            int(bool(getattr(rows,"source_inferred",True))))
+
+
+def _persist_source(con,table,where,values,rows):
+    source,matched,inferred=_source_tag(rows)
+    con.execute(f"""UPDATE {table}
+                SET price_source=?,price_source_matched=?,price_source_inferred=?
+                WHERE {where}""",(source,matched,inferred,*values))
+
 
 
 def _payload(row):
@@ -321,6 +358,18 @@ def init_db(con):
         evaluated_at_utc TEXT NOT NULL,
         PRIMARY KEY(event_id,horizon_min)
     )""")
+    # Additive provenance migration; old rows stay explicitly legacy-proxy.
+    # Never overwrite their past outcomes or backfill guessed source identifiers.
+    for table in ("delivered_signal_outcomes","shadow_blocked_outcomes",
+                  "delivered_watch_outcomes","watch_no_confirm_outcomes"):
+        existing={r[1] for r in con.execute(f"PRAGMA table_info({table})")}
+        for name,typ,default in (
+            ("price_source","TEXT","'LEGACY_BINANCE_SPOT_PROXY'"),
+            ("price_source_matched","INTEGER","0"),
+            ("price_source_inferred","INTEGER","1"),
+        ):
+            if name not in existing:
+                con.execute(f"ALTER TABLE {table} ADD COLUMN {name} {typ} DEFAULT {default}")
     con.execute("""CREATE TABLE IF NOT EXISTS outcome_runtime(
         key TEXT PRIMARY KEY,value TEXT NOT NULL,updated_at_utc TEXT NOT NULL
     )""")
@@ -358,8 +407,17 @@ def evaluate_delivered(con):
         if now<execute+timedelta(minutes=min(HORIZONS)+2):
             continue
         try:
-            all_rows=_rows_1m(ev["symbol"],execute,max_end)
-            btc_rows=_rows_1m("BTCUSDT",execute,max_end) if ev["symbol"]!="BTCUSDT" else all_rows
+            all_rows=_market_rows(ev["symbol"],execute,max_end,payload)
+            # Beta comparison must use the same actual price provider. A
+            # missing BTC benchmark may NOT be treated as zero BTC return.
+            try:
+                btc_rows=(_rows_1m("BTCUSDT",execute,max_end,
+                                  preferred_source=getattr(all_rows,"source","BINANCE_SPOT"),
+                                  allow_fallback=False)
+                          if ev["symbol"]!="BTCUSDT" else all_rows)
+            except Exception as btc_exc:
+                btc_rows=[]
+                print("outcome benchmark unavailable",ev["symbol"],type(btc_exc).__name__,str(btc_exc)[:120])
         except Exception as exc:
             print("outcome fetch error",ev["symbol"],type(exc).__name__,str(exc)[:120])
             continue
@@ -381,6 +439,9 @@ def evaluate_delivered(con):
                 continue
             cutoff=execute+timedelta(minutes=h)
             rows=[r for r in all_rows if datetime.fromtimestamp(int(r[0])/1000,tz=timezone.utc)<cutoff]
+            if not has_full_horizon(all_rows,execute,cutoff):
+                print("outcome data incomplete",ev["symbol"],h,getattr(all_rows,"source","UNKNOWN"))
+                continue
             if not rows:
                 continue
             endpoint=float(rows[-1][4])
@@ -403,11 +464,12 @@ def evaluate_delivered(con):
             mae_r=mae/risk_pct if risk_pct>0 else None
             correct=1 if net>0 else 0
             btc_cut=[r for r in btc_rows if datetime.fromtimestamp(int(r[0])/1000,tz=timezone.utc)<cutoff]
-            btc_ret=0.0
-            if btc_cut:
+            btc_ret=None
+            if btc_cut and has_full_horizon(btc_rows,execute,cutoff):
                 btc_entry=float(btc_cut[0][1]); btc_end=float(btc_cut[-1][4])
-                btc_ret=(btc_end/btc_entry-1.0)*100.0 if btc_entry else 0.0
-            beta_adjusted=net-beta*btc_ret
+                if btc_entry:
+                    btc_ret=(btc_end/btc_entry-1.0)*100.0
+            beta_adjusted=(net-beta*btc_ret) if btc_ret is not None else None
             con.execute("""INSERT INTO delivered_signal_outcomes(
                 event_id,version,symbol,direction,stage_name,data_cohort,
                 condition_time_utc,telegram_sent_time_utc,execution_time_utc,
@@ -430,6 +492,8 @@ def evaluate_delivered(con):
              1 if mfe>=3 else 0,1 if mfe>=5 else 0,1 if mfe>=7 else 0,
              1 if mfe>=10 else 0,1 if mfe>=15 else 0,correct,now_iso(),
              setup_type,signal_path,cluster_id,trade_success,realized_exit,beta,btc_ret,beta_adjusted))
+            _persist_source(con,"delivered_signal_outcomes",
+                            "event_id=? AND horizon_min=?",(ev["id"],h),all_rows)
             added+=1
     return added
 
@@ -456,7 +520,8 @@ def evaluate_shadow_blocked(con):
         if now<execute+timedelta(minutes=min(HORIZONS)+2):
             continue
         try:
-            rows_all=_rows_1m(ev["symbol"],execute,execute+timedelta(minutes=max(HORIZONS)+2))
+            rows_all=_market_rows(ev["symbol"],execute,
+                                  execute+timedelta(minutes=max(HORIZONS)+2),payload)
         except Exception as exc:
             print("shadow blocked fetch error",ev["symbol"],type(exc).__name__,str(exc)[:120])
             continue
@@ -475,6 +540,8 @@ def evaluate_shadow_blocked(con):
                 continue
             cutoff=execute+timedelta(minutes=h)
             rows=[r for r in rows_all if datetime.fromtimestamp(int(r[0])/1000,tz=timezone.utc)<cutoff]
+            if not has_full_horizon(rows_all,execute,cutoff):
+                continue
             if not rows:
                 continue
             endpoint=float(rows[-1][4])
@@ -501,6 +568,8 @@ def evaluate_shadow_blocked(con):
             (ev["id"],VERSION,ev["symbol"],direction,ev["stage_to"],event_time.isoformat(),
              execute.isoformat(),entry,inv,t1,t2,min_cost_pct,h,endpoint,net,mfe,mae,first,
              1 if net>0 else 0,now_iso()))
+            _persist_source(con,"shadow_blocked_outcomes",
+                            "event_id=? AND horizon_min=?",(ev["id"],h),rows_all)
             added+=1
     return added
 
@@ -540,7 +609,8 @@ def evaluate_watch_alerts(con):
         if now<execute+timedelta(minutes=min(HORIZONS)+2):
             continue
         try:
-            rows_all=_rows_1m(a["symbol"],execute,execute+timedelta(minutes=max(HORIZONS)+2))
+            rows_all=_market_rows(a["symbol"],execute,
+                                  execute+timedelta(minutes=max(HORIZONS)+2),payload)
         except Exception as exc:
             print("watch outcome fetch error",a["symbol"],type(exc).__name__,str(exc)[:120])
             continue
@@ -561,6 +631,8 @@ def evaluate_watch_alerts(con):
                 continue
             cutoff=execute+timedelta(minutes=h)
             rows=[r for r in rows_all if datetime.fromtimestamp(int(r[0])/1000,tz=timezone.utc)<cutoff]
+            if not has_full_horizon(rows_all,execute,cutoff):
+                continue
             if not rows:
                 continue
             endpoint=float(rows[-1][4])
@@ -587,26 +659,35 @@ def evaluate_watch_alerts(con):
              float(payload.get("trigger_level") or a["level"] or 0.0),stop,t1,t2,
              execute.isoformat(),entry,cost_pct,h,endpoint,gross,net,mfe,mae,first,
              1 if net>0 else 0,now_iso()))
+            _persist_source(con,"delivered_watch_outcomes",
+                            "fingerprint=? AND sent_at_epoch=? AND horizon_min=?",
+                            (a["fingerprint"],float(a["sent_at_epoch"]),h),rows_all)
             added+=1
     return added
 
 
 def watch_report(con):
     out=[]
-    cohorts=[r[0] for r in con.execute("SELECT DISTINCT COALESCE(data_cohort,'UNKNOWN') FROM delivered_watch_outcomes").fetchall()]
-    for cohort in cohorts:
+    cohorts=con.execute("""SELECT DISTINCT COALESCE(data_cohort,'UNKNOWN'),
+        COALESCE(price_source,'UNKNOWN'),COALESCE(price_source_matched,0)
+        FROM delivered_watch_outcomes""").fetchall()
+    for cohort,source,matched in cohorts:
+        label=f"{cohort}@{source}[same_chart={matched}]"
         for h in HORIZONS:
             rows=con.execute("""SELECT direction_correct,net_return_pct,first_barrier
                                 FROM delivered_watch_outcomes
-                                WHERE COALESCE(data_cohort,'UNKNOWN')=? AND horizon_min=?""",
-                             (cohort,h)).fetchall()
+                                WHERE COALESCE(data_cohort,'UNKNOWN')=?
+                                AND COALESCE(price_source,'UNKNOWN')=?
+                                AND COALESCE(price_source_matched,0)=?
+                                AND horizon_min=?""",
+                             (cohort,source,matched,h)).fetchall()
             if not rows:
                 continue
             correct=sum(int(r[0] or 0) for r in rows)
             avg=statistics.fmean([float(r[1]) for r in rows if r[1] is not None])
             tp1=sum(1 for r in rows if r[2]=="TP1")
             stop=sum(1 for r in rows if r[2]=="STOP")
-            out.append((cohort,h,len(rows),correct,100.0*correct/len(rows),avg,tp1,stop))
+            out.append((label,h,len(rows),correct,100.0*correct/len(rows),avg,tp1,stop))
     return out
 
 
@@ -621,6 +702,11 @@ def evaluate_no_confirm(con):
           AND start_price>0
         ORDER BY id""").fetchall()
     now=datetime.now(timezone.utc)
+    # Limit old watch-control backfills per workflow to avoid repeated 451
+    # storms / starving live tracking. Rotate through episodes each run.
+    if len(eps)>WATCH_CONTROL_MAX_EPISODES and WATCH_CONTROL_MAX_EPISODES>0:
+        idx=(int(now.timestamp()//300)*WATCH_CONTROL_MAX_EPISODES)%len(eps)
+        eps=(eps[idx:]+eps[:idx])[:WATCH_CONTROL_MAX_EPISODES]
     added=0
     for ep in eps:
         start=_dt(ep["started_at_utc"])
@@ -635,7 +721,8 @@ def evaluate_no_confirm(con):
             except Exception as exc:
                 print("watch control fetch error",ep["symbol"],type(exc).__name__,str(exc)[:120])
                 continue
-            if not rows:
+            if not has_full_horizon(rows,start,start+timedelta(minutes=h)):
+                print("watch control data incomplete",ep["symbol"],h)
                 continue
             entry=float(ep["start_price"])
             endpoint=float(rows[-1][4])
@@ -653,6 +740,8 @@ def evaluate_no_confirm(con):
             ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (ep["id"],VERSION,ep["symbol"],direction,ep["started_at_utc"],ep["ended_at_utc"],
              ep["data_cohort"],entry,h,endpoint,gross,mfe,mae,1 if gross>0 else 0,now_iso()))
+            _persist_source(con,"watch_no_confirm_outcomes",
+                            "watch_episode_id=? AND horizon_min=?",(ep["id"],h),rows)
             added+=1
     return added
 
@@ -672,18 +761,22 @@ def _percentile(xs,p):
 
 def report(con):
     now=now_iso()
-    cohorts=[r[0] for r in con.execute("SELECT DISTINCT data_cohort FROM delivered_signal_outcomes").fetchall()]
-    if not cohorts:
-        cohorts=[]
+    cohorts=con.execute("""SELECT DISTINCT data_cohort,
+        COALESCE(price_source,'UNKNOWN'),COALESCE(price_source_matched,0)
+        FROM delivered_signal_outcomes""").fetchall()
     out=[]
     for stage in ("CLOSE_CONFIRMED","TRIGGERED"):
-        for cohort in cohorts:
+        for cohort,source,matched in cohorts:
+            label=f"{cohort}@{source}[same_chart={matched}]"
             for h in HORIZONS:
                 rows=con.execute("""SELECT direction_correct,r_multiple,net_return_pct,
                     first_barrier,delivery_delay_seconds
                     FROM delivered_signal_outcomes
-                    WHERE stage_name=? AND data_cohort=? AND horizon_min=?""",
-                    (stage,cohort,h)).fetchall()
+                    WHERE stage_name=? AND data_cohort=?
+                      AND COALESCE(price_source,'UNKNOWN')=?
+                      AND COALESCE(price_source_matched,0)=?
+                      AND horizon_min=?""",
+                    (stage,cohort,source,matched,h)).fetchall()
                 if not rows:
                     continue
                 correct=sum(int(r[0] or 0) for r in rows)
@@ -702,8 +795,8 @@ def report(con):
                     correct,wrong,timeout,win_rate,expectancy_r,avg_net_pct,
                     p50_delay_seconds,p95_delay_seconds
                 ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-                (now,VERSION,stage,cohort,h,len(rows),correct,wrong,timeout,wr,exp,avg,p50,p95))
-                out.append((stage,cohort,h,len(rows),correct,wins,wrong,timeout,wr,exp,avg,p50,p95))
+                (now,VERSION,stage,label,h,len(rows),correct,wrong,timeout,wr,exp,avg,p50,p95))
+                out.append((stage,label,h,len(rows),correct,wins,wrong,timeout,wr,exp,avg,p50,p95))
     return out
 
 
@@ -769,6 +862,11 @@ def main():
         print(f"{stage} {cohort} {h}m n={n} correct={correct}/{n} TP1={tp1} STOP={stop} timeout={timeout} win={wr:.1f}% exp={es} net={ns} p95={d95}")
     for cohort,h,n,correct,wr,avg,tp1,stop in wrows:
         print(f"WATCH {cohort} {h}m n={n} correct={correct}/{n} win={wr:.1f}% net={avg:+.3f}% TP1={tp1} STOP={stop}")
+    with sqlite3.connect(DB) as check:
+        for source,matched,n in check.execute("""SELECT price_source,
+            price_source_matched,COUNT(*) FROM delivered_signal_outcomes
+            GROUP BY price_source,price_source_matched"""):
+            print("OUTCOME_SOURCE_COHORT",source,"same_chart_venue=",bool(matched),"rows=",n)
     try:
         _send_daily_summary(rows,wrows)
     except Exception as exc:
