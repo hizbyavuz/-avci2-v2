@@ -49,9 +49,10 @@ jobs:
 
       - name: Compile frozen V3 state-machine layer
         run: |
-          python -m py_compile long_short_analyst.py long_short_direction_engine.py long_short_v3_core.py long_short_live_pool.py long_short_simple_notify.py long_short_outcome_tracker_v21.py
+          python -m py_compile long_short_analyst.py long_short_direction_engine.py long_short_v3_core.py long_short_live_pool.py long_short_simple_notify.py long_short_outcome_tracker_v21.py long_short_room_v32_shadow.py long_short_v32_room_report.py
           python -m json.tool LONG_SHORT_V3_FROZEN_CONFIG.json >/dev/null
           python tests/test_long_short_structure_gate_v2.py
+          python -m unittest -v tests.test_long_short_room_v32_shadow tests.test_long_short_v32_room_report
           python tests/test_long_short_trade_only_delivery.py
           python tests/test_long_short_live_window_coverage.py
           python tests/test_long_short_v3_core.py
@@ -95,6 +96,19 @@ jobs:
           LS_STRUCTURE_MIN_BODY_RATIO: "0.45"
           LS_STRUCTURE_MAX_REJECTION_WICK: "0.35"
         run: python -u long_short_analyst.py
+
+      # Observational only. Frozen V3.1 gating and live Telegram decisions
+      # remain unchanged; record whether V3.1 rejects overlapping own zones.
+      - name: Compare frozen V3.1 and corrected V3.2 distinct-room geometry
+        run: |
+          python -u long_short_v32_room_report.py \
+            --db long_short_v31_analyst.db \
+            --out long_short_v32_room_shadow_report.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: long-short-v32-room-shadow-report
+          path: long_short_v32_room_shadow_report.json
+          retention-days: 14
 
       # Persist the fresh analyst DB before starting the near-live watcher.
       # This keeps Telegram monitoring independent from the slower validation/sync work.
