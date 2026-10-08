@@ -44,6 +44,7 @@ jobs:
           python tests/test_long_short_outcome_v21.py
           python tests/test_long_short_outcome_venue_451.py
           python tests/test_long_short_v21_integration.py
+          python -m unittest -v tests.test_long_short_room_v32_shadow tests.test_long_short_v32_room_report
           python tests/test_long_short_trade_only_delivery.py
           python tests/test_long_short_observational_telegram.py
           python -m unittest -v tests.test_long_short_v32_shadow tests.test_long_short_crowding_shadow
