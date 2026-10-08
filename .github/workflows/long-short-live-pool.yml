@@ -44,6 +44,7 @@ jobs:
           python tests/test_long_short_live_window_coverage.py
           python tests/test_long_short_v3_core.py
           python tests/test_long_short_direction_engine.py
+          python -m unittest -v tests.test_long_short_dual_v32
           python tests/test_long_short_outcome_v21.py
           python tests/test_long_short_outcome_venue_451.py
           python tests/test_long_short_v21_integration.py
