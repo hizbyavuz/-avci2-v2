@@ -23,6 +23,7 @@ import requests
 from binance_notify import resolve_chat_id, load_cached_chat_id, save_cached_chat_id
 from long_short_simple_notify import classify_move, format_alert, queue_alert, claim_ready_alert, ack_claimed_alert, retry_claimed_alert
 from long_short_telegram_delivery_integrity import policy as telegram_integrity_policy
+from long_short_dual_v32 import init as init_dual_v32, sync as sync_dual_v32, advance as advance_dual_v32
 from long_short_data_router import multi_venue_perp_klines, multi_venue_perp_universe
 
 ANALYST_DB=os.getenv("LS_DB","long_short_analyst.db")
@@ -1336,13 +1337,37 @@ def loop_once():
     with sqlite3.connect(LIVE_DB) as con:
         con.row_factory=sqlite3.Row
         rows=con.execute("SELECT * FROM watch_state ORDER BY analyst_confidence DESC").fetchall()
+        # V3.2 tracks both LONG and SHORT from the same snapshot. It is
+        # independent of the frozen single-direction state and sends NO extra
+        # Telegram or trade signal.
+        init_dual_v32(con)
         # Fetch external market snapshots concurrently; DB state writes and
         # Telegram sends remain serialized and deterministic in watchlist order.
         with ThreadPoolExecutor(max_workers=LIVE_FETCH_WORKERS) as workers:
             snapshots={r["symbol"]:workers.submit(market_snapshot,r["symbol"]) for r in rows}
+            existing=set(snapshots)
+            all_dual=[r[0] for r in con.execute(
+                "SELECT DISTINCT symbol FROM dual_side_v32 WHERE active=1 ORDER BY symbol")]
+            unseen=[sym for sym in all_dual if sym not in existing]
+            # Rotate eight extra symbols per poll. Never double-fetch a symbol
+            # and never expand frozen live pool or its trade recommendations.
+            offset=(int(time.time()/max(1,POLL_SECONDS))*8)%len(unseen) if unseen else 0
+            extra_syms=(unseen+unseen)[offset:offset+8] if unseen else []
+            dual_extra={sym:workers.submit(market_snapshot,sym) for sym in extra_syms}
             for row in rows:
                 try:
                     price,closed,closed_candle_time,early=snapshots[row["symbol"]].result()
+                    try:
+                        dual_changes=advance_dual_v32(con,row["symbol"],
+                            (price,closed,closed_candle_time,early),now_iso(),
+                            live_structure_confirmation)
+                        for change in dual_changes:
+                            print("V32_DUAL_SIDE",change["symbol"],change["direction"],
+                                  change["from"],"->",change["to"],
+                                  "authorized",change["authorized"],flush=True)
+                    except Exception as de:
+                        print("V32_DUAL_DATA_ISSUE",row["symbol"],
+                              type(de).__name__,str(de)[:180],flush=True)
                     old=row["stage"]
                     structure_quality=live_structure_confirmation(row,closed,early)
                     new=next_stage(row,price,closed,structure_quality)
@@ -1591,6 +1616,18 @@ def loop_once():
                         con.commit()
                 except Exception as exc:
                     print("live error",row["symbol"],type(exc).__name__,str(exc)[:120])
+            for dsym,dfuture in dual_extra.items():
+                try:
+                    dsnap=dfuture.result()
+                    dual_changes=advance_dual_v32(con,dsym,dsnap,now_iso(),
+                                                  live_structure_confirmation)
+                    for change in dual_changes:
+                        print("V32_DUAL_SIDE",change["symbol"],change["direction"],
+                              change["from"],"->",change["to"],
+                              "authorized",change["authorized"],flush=True)
+                except Exception as de:
+                    print("V32_DUAL_DATA_ISSUE",dsym,
+                          type(de).__name__,str(de)[:180],flush=True)
 
     # Retain old pending observational alerts in DB; never release them to Telegram.
     ready=None if TELEGRAM_TRADE_ONLY else claim_ready_alert()
@@ -1628,6 +1665,13 @@ def main():
             print("Telegram chat cache prime failed",type(exc).__name__,str(exc)[:160])
     items=load_watchlist()
     sync_watchlist(items)
+    try:
+        with sqlite3.connect(LIVE_DB) as dc:
+            dc.row_factory=sqlite3.Row
+            dual_result=sync_dual_v32(dc,ANALYST_DB,now_iso())
+            print("V32_DUAL_SYNC",json.dumps(dual_result,ensure_ascii=False),flush=True)
+    except Exception as de:
+        print("V32_DUAL_SYNC_FAILURE",type(de).__name__,str(de)[:180],flush=True)
     if token and TELEGRAM_RUNTIME_NOTICES and not TELEGRAM_TRADE_ONLY:
         deployment_notice=send_recovery_notice_once(len(items))
         if not deployment_notice:
