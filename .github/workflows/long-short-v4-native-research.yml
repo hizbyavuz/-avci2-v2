@@ -1,0 +1,121 @@
+name: Long Short V4 Native Research (NO TRADES)
+on:
+  workflow_dispatch: {}
+  schedule:
+    - cron: '3,8,13,18,23,28,33,38,43,48,53,58 * * * *'
+  push:
+    branches: [main]
+    paths:
+      - 'long_short_v4_*.py'
+      - 'tests/test_long_short_v4_research.py'
+      - '.github/workflows/long-short-v4-native-research.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: long-short-v4-native-research
+  cancel-in-progress: false
+
+jobs:
+  observe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12'
+      - name: Install read-only public market dependencies
+        run: python -m pip install --disable-pip-version-check requests==2.32.5 websocket-client==1.8.0
+      - name: Test V4 math, provenance and parsing (no external connections)
+        run: |
+          python -m py_compile long_short_v4_paper_math.py long_short_v4_native_pipeline.py long_short_v4_research.py long_short_v4_regrade.py long_short_v4_audit.py
+          python -m unittest -v tests.test_long_short_v4_research
+      - name: Restore latest append-only V4 state
+        if: github.event_name != 'pull_request'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p .v4-restore
+          run_id=$(gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts?name=long-short-v4-research-db&per_page=100" --jq '[.artifacts[] | select(.expired == false and .workflow_run.head_branch == "main")] | sort_by(.created_at) | reverse | .[0].workflow_run.id // empty')
+          if test -n "$run_id"; then
+            gh run download "$run_id" --name long-short-v4-research-db --dir .v4-restore || true
+            if test -f .v4-restore/long_short_v4_native.db; then cp .v4-restore/long_short_v4_native.db .; fi
+          fi
+      - name: Restore V3.1 analyst state READ ONLY
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p .v4-analyst
+          run_id=$(gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts?name=long-short-v31-analyst-state&per_page=100" --jq '[.artifacts[] | select(.expired == false and .workflow_run.head_branch == "main")] | sort_by(.created_at) | reverse | .[0].workflow_run.id // empty')
+          if test -n "$run_id"; then
+            gh run download "$run_id" --name long-short-v31-analyst-state --dir .v4-analyst || true
+          fi
+      - name: Restore V3.1 live outcome state READ ONLY
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p .v4-live
+          run_id=$(gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts?name=long-short-v31-live-pool-state&per_page=100" --jq '[.artifacts[] | select(.expired == false and .workflow_run.head_branch == "main")] | sort_by(.created_at) | reverse | .[0].workflow_run.id // empty')
+          if test -n "$run_id"; then
+            gh run download "$run_id" --name long-short-v31-live-pool-state --dir .v4-live || true
+          fi
+      - name: Collect native USD-M WebSocket research events
+        env:
+          LS_V4_SECONDS: ${{ github.event_name == 'push' && '15' || '90' }}
+        run: |
+          python -u long_short_v4_native_pipeline.py \
+            --db long_short_v4_native.db \
+            --analyst-db .v4-analyst/long_short_v31_analyst.db \
+            --symbols BTCUSDT,ETHUSDT,SOLUSDT,BNBUSDT \
+            --seconds "$LS_V4_SECONDS" \
+            --report long_short_v4_collection.json
+      - name: Build V4 closed-candle feature snapshots
+        if: always()
+        run: |
+          if test -f long_short_v4_native.db; then
+            python -u long_short_v4_research.py \
+              --db long_short_v4_native.db \
+              --analyst-db .v4-analyst/long_short_v31_analyst.db \
+              --out long_short_v4_features_report.json
+          fi
+      - name: Regrade a bounded batch of delivered V3 signals (research only)
+        if: always()
+        continue-on-error: true
+        run: |
+          if test -f long_short_v4_native.db && test -f .v4-live/long_short_v31_live_pool.db; then
+            python -u long_short_v4_regrade.py \
+              --db long_short_v4_native.db \
+              --live-db .v4-live/long_short_v31_live_pool.db \
+              --limit 8 --out long_short_v4_regrades.json
+          fi
+      - name: Produce V4 audit and explicit unresolved issues
+        if: always()
+        run: |
+          python -u long_short_v4_audit.py --db long_short_v4_native.db --out long_short_v4_audit.json
+      - name: Persist V4 append-only database only (separate from V3 state)
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: long-short-v4-research-db
+          path: long_short_v4_native.db
+          retention-days: 14
+          if-no-files-found: warn
+          compression-level: 6
+      - name: Persist V4 collection, feature, regrade and health reports
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: long-short-v4-research-reports
+          path: |
+            long_short_v4_collection.json
+            long_short_v4_features_report.json
+            long_short_v4_regrades.json
+            long_short_v4_audit.json
+          retention-days: 14
+          if-no-files-found: warn
