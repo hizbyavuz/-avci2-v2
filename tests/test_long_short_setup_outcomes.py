@@ -149,5 +149,55 @@ class OutcomeUnitTests(unittest.TestCase):
             self.assertEqual(rows[0]["conclusion"],"INCONCLUSIVE")
 
 
+    def test_13_due_engine_reuses_exact_chart_venue(self):
+        from long_short_outcome_prices import PriceSeries
+        with sqlite3.connect(":memory:") as db:
+            life.init_schema(db)
+            d={"symbol":"ETHUSDT","direction":"LONG","setup_type":"BREAKOUT",
+               "trigger_level":100,"retest_low":99.8,"retest_high":100.2,
+               "invalidation":98,"tp1":103,"tp2":106,
+               "source_scan":T,"regime_at_create":"DOWN",
+               "price_source":"GATE_FUTURES","config_hash":"a"*64}
+            sid,_=life.create_candidate(db,d,T)
+            life.transition(db,sid,"WATCH",T)
+            life.transition(db,sid,"CONFIRMED",T+timedelta(minutes=2))
+            when=T+timedelta(minutes=10)
+            life.transition(db,sid,"ACTIVE",when,observed_price=100,
+                final_telegram_event_id=99,final_telegram_sent_at=when)
+            requested=[]
+            def fetch(symbol,start,end,**kwargs):
+                requested.append((symbol,kwargs))
+                self.assertEqual(kwargs["requested_source"],"GATE_FUTURES")
+                self.assertFalse(kwargs["allow_fallback"])
+                return PriceSeries(flat(start,15), "GATE_FUTURES","GATE_FUTURES")
+            self.assertEqual(out.evaluate_due(db,T+timedelta(minutes=27),history_fetch=fetch),1)
+            self.assertEqual(out.evaluate_due(db,T+timedelta(minutes=27),history_fetch=fetch),0)
+            matched,source,status=db.execute(
+                "SELECT same_chart_venue,price_source,outcome_status FROM setup_outcomes"
+            ).fetchone()
+            self.assertEqual((matched,source,status),(1,"GATE_FUTURES","TIMEOUT"))
+            self.assertEqual(len(requested),2) # ETH and BTC benchmark
+
+    def test_14_due_engine_logs_missing_market_as_null_data_gap(self):
+        with sqlite3.connect(":memory:") as db:
+            life.init_schema(db)
+            d={"symbol":"ETHUSDT","direction":"LONG","setup_type":"BREAKOUT",
+               "trigger_level":100,"retest_low":99.8,"retest_high":100.2,
+               "invalidation":98,"tp1":103,"tp2":106,
+               "source_scan":T,"regime_at_create":"DOWN",
+               "price_source":"GATE_FUTURES","config_hash":"a"*64}
+            sid,_=life.create_candidate(db,d,T)
+            life.transition(db,sid,"WATCH",T)
+            life.transition(db,sid,"CONFIRMED",T+timedelta(minutes=2))
+            when=T+timedelta(minutes=10)
+            life.transition(db,sid,"ACTIVE",when,observed_price=100,
+                final_telegram_event_id=99,final_telegram_sent_at=when)
+            def broken(*_a,**_kw):raise RuntimeError("Provider unavailable")
+            self.assertEqual(out.evaluate_due(db,T+timedelta(minutes=27),history_fetch=broken),1)
+            status,net=db.execute("SELECT outcome_status,net_return_pct FROM setup_outcomes").fetchone()
+            self.assertEqual(status,"DATA_GAP")
+            self.assertIsNone(net)
+
+
 if __name__=="__main__":
     unittest.main()
