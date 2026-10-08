@@ -112,6 +112,9 @@ def init_schema(con):
         net_return_pct REAL,
         net_return_2x_cost_pct REAL,
         cost_pct REAL,
+        risk_pct REAL,
+        net_r REAL,
+        net_r_2x_cost REAL,
         mfe_pct REAL,
         mae_pct REAL,
         btc_excess_return_pct REAL,
@@ -125,6 +128,10 @@ def init_schema(con):
         measured_at TEXT NOT NULL,
         PRIMARY KEY(setup_id,horizon_min)
     )""")
+    cols={r[1] for r in con.execute("PRAGMA table_info(setup_outcomes)")}
+    for col in ("risk_pct","net_r","net_r_2x_cost"):
+        if col not in cols:
+            con.execute(f"ALTER TABLE setup_outcomes ADD COLUMN {col} REAL")
     # Database-level protection is stronger than an application convention.
     con.execute("""CREATE TRIGGER IF NOT EXISTS trg_setup_levels_immutable
         BEFORE UPDATE OF setup_id,symbol,direction,setup_type,trigger_level,retest_low,
