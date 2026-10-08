@@ -7,6 +7,8 @@ import json, os, sqlite3, time
 DB=os.getenv("LS_SIMPLE_NOTIFY_DB","long_short_simple_notify.db")
 COOLDOWN_SECONDS=int(os.getenv("LS_SIMPLE_NOTIFY_COOLDOWN","3600"))
 GLOBAL_GAP_SECONDS=int(os.getenv("LS_SIMPLE_NOTIFY_GLOBAL_GAP","1200"))
+# Old watch ideas may no longer be valid; never release a restored stale queue.
+STALE_AFTER_SECONDS=int(os.getenv("LS_SIMPLE_NOTIFY_STALE_AFTER","600"))
 CORE_STABLE_BASES={x.strip().upper() for x in os.getenv("LS_CORE_STABLE_BASES","BTC,ETH,BNB,SOL,XRP,LINK,ADA,AVAX,LTC,BCH").split(",") if x.strip()}
 FAST_FRESH_MIN_PCT=float(os.getenv("LS_FAST_FRESH_MIN_PCT","5.0"))
 FAST_EXTENDED_MIN_PCT=float(os.getenv("LS_FAST_EXTENDED_MIN_PCT","10.0"))
@@ -99,6 +101,10 @@ def claim_ready_alert():
     con=sqlite3.connect(DB)
     try:
         con.execute("BEGIN IMMEDIATE")
+        # Drop old pending observations before selecting one for the user.
+        # Keeps a restored pre-trade-only backlog from becoming misleading alerts.
+        con.execute("DELETE FROM pending_alerts WHERE updated_at_epoch < ?",
+                    (now-max(30,STALE_AFTER_SECONDS),))
         row=con.execute("SELECT value FROM scheduler_state WHERE key='next_allowed_epoch'").fetchone()
         if row and now<float(row[0]):
             con.commit()
