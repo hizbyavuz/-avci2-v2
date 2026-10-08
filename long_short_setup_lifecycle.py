@@ -139,15 +139,15 @@ def init_schema(con):
         BEGIN SELECT RAISE(ABORT,'setup events cannot be deleted'); END""")
 
 
+def _query_one(con,sql,params=()):
+    cur=con.execute(sql,params)
+    row=cur.fetchone()
+    return dict(zip((x[0] for x in cur.description),row)) if row is not None else None
+
+
 def _active_for(con,symbol):
-    return con.execute("""SELECT * FROM setups WHERE symbol=?
-        AND state IN ('CANDIDATE','WATCH','CONFIRMED','ACTIVE','TP1')""",(symbol,)).fetchone()
-
-
-def _asdict(row):
-    if row is None:return None
-    if isinstance(row,dict):return row
-    return dict(row)
+    return _query_one(con,"""SELECT * FROM setups WHERE symbol=?
+        AND state IN ('CANDIDATE','WATCH','CONFIRMED','ACTIVE','TP1')""",(symbol,))
 
 
 def _validate(candidate):
@@ -183,7 +183,7 @@ def create_candidate(con,candidate,at):
     if not symbol:
         raise ValueError("empty symbol")
     at=iso(at)
-    existing=_asdict(_active_for(con,symbol))
+    existing=_active_for(con,symbol)
     if existing:
         if existing["direction"]==direction:
             return existing["setup_id"],False
@@ -219,10 +219,9 @@ def transition(con,setup_id,to_state,at,*,observed_price=None,reason=None,
     init_schema(con)
     if to_state not in STATES:
         raise ValueError("invalid state")
-    row=con.execute("SELECT * FROM setups WHERE setup_id=?",(setup_id,)).fetchone()
+    row=_query_one(con,"SELECT * FROM setups WHERE setup_id=?",(setup_id,))
     if row is None:
         raise KeyError(setup_id)
-    row=_asdict(row)
     current=row["state"]
     if current==to_state:
         return False
@@ -270,7 +269,7 @@ def transition(con,setup_id,to_state,at,*,observed_price=None,reason=None,
 
 def actionable_setup_for_symbol(con,symbol):
     init_schema(con)
-    return _asdict(_active_for(con,symbol))
+    return _active_for(con,symbol)
 
 
 def market_cluster(at):
@@ -279,7 +278,7 @@ def market_cluster(at):
 
 def independence_key(con,setup_id):
     """Coin+direction within 2h: one event; 15m market wave: one cluster."""
-    row=_asdict(con.execute("SELECT * FROM setups WHERE setup_id=?",(setup_id,)).fetchone())
+    row=_query_one(con,"SELECT * FROM setups WHERE setup_id=?",(setup_id,))
     if row is None:raise KeyError(setup_id)
     at=row["active_at"]
     if not at or row["final_telegram_event_id"] is None:
