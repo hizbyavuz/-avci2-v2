@@ -117,7 +117,6 @@ def label_path(setup,bars,horizon_min,*,btc_bars=None,price_source=None,
     exit_at=None
     highs=[];lows=[]
     for t,opening,high,low,close in records:
-        highs.append(high);lows.append(low)
         # Opening gap is worse than theoretical stop; never fill at imaginary SL.
         if side=="LONG":
             stop_hit=(opening<=sl or low<=sl)
@@ -130,8 +129,17 @@ def label_path(setup,bars,horizon_min,*,btc_bars=None,price_source=None,
         # STOP FIRST if both barriers are inside the same 1m candle.
         if stop_hit:
             first_barrier="STOP";exit_price=gap_exit
+            # After a stop-first event no part of the remaining candle is
+            # executable. Do not use its later favorable wick for MFE.
+            highs.append(max(opening,exit_price))
+            lows.append(min(opening,exit_price))
         elif tp_hit:
             first_barrier="TP1";exit_price=tp1
+            # Favorable extreme is capped at the first exit target.
+            highs.append(min(high,tp1) if side=="LONG" else high)
+            lows.append(max(low,tp1) if side=="SHORT" else low)
+        else:
+            highs.append(high);lows.append(low)
         if first_barrier:
             first_time=iso(datetime.fromtimestamp(t/1000,tz=timezone.utc))
             exit_at=first_time
