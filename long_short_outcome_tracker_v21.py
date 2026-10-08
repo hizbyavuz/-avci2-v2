@@ -442,10 +442,6 @@ def evaluate_delivered(con):
             if not has_full_horizon(all_rows,execute,cutoff):
                 print("outcome data incomplete",ev["symbol"],h,getattr(all_rows,"source","UNKNOWN"))
                 continue
-            if not has_full_horizon(rows_all,execute,cutoff):
-                continue
-            if not has_full_horizon(rows_all,execute,cutoff):
-                continue
             if not rows:
                 continue
             endpoint=float(rows[-1][4])
@@ -544,6 +540,8 @@ def evaluate_shadow_blocked(con):
                 continue
             cutoff=execute+timedelta(minutes=h)
             rows=[r for r in rows_all if datetime.fromtimestamp(int(r[0])/1000,tz=timezone.utc)<cutoff]
+            if not has_full_horizon(rows_all,execute,cutoff):
+                continue
             if not rows:
                 continue
             endpoint=float(rows[-1][4])
@@ -633,6 +631,8 @@ def evaluate_watch_alerts(con):
                 continue
             cutoff=execute+timedelta(minutes=h)
             rows=[r for r in rows_all if datetime.fromtimestamp(int(r[0])/1000,tz=timezone.utc)<cutoff]
+            if not has_full_horizon(rows_all,execute,cutoff):
+                continue
             if not rows:
                 continue
             endpoint=float(rows[-1][4])
