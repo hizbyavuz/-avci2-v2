@@ -37,3 +37,35 @@ class DeliveryIntegrityTests(unittest.TestCase):
 
     def test_non_trade_observation_not_modified_by_guard(self):
         self.assertTrue(policy("APPROACHING",self.now.isoformat(),None)["allowed"])
+
+
+class DeliveredWatchCancellationTests(unittest.TestCase):
+    def test_only_current_seen_setup_can_get_cancellation(self):
+        import sqlite3
+        import tempfile
+        from pathlib import Path
+        from unittest.mock import patch
+        import long_short_live_pool as pool
+        now=datetime(2026,10,8,7,30,tzinfo=timezone.utc)
+        with tempfile.TemporaryDirectory() as td:
+            db=Path(td)/"notify.db"
+            with sqlite3.connect(db) as con:
+                con.execute("CREATE TABLE sent_alerts(symbol TEXT,direction TEXT,level REAL,sent_at_epoch REAL)")
+                con.execute("INSERT INTO sent_alerts VALUES(?,?,?,?)",
+                            ("TESTUSDT","LONG",101.0,now.timestamp()-40))
+            with sqlite3.connect(":memory:") as con:
+                con.execute("""CREATE TABLE events(symbol TEXT,direction TEXT,
+                             event_time_utc TEXT,stage_to TEXT,telegram_status TEXT)""")
+                r={"symbol":"TESTUSDT","direction":"LONG","trigger_level":101.0,
+                   "setup_locked_at_utc":(now-timedelta(minutes=2)).isoformat()}
+                with patch.object(pool,"NOTIFY_DB",str(db)):
+                    self.assertTrue(pool._has_sent_confirmation_for_this_setup(con,r))
+                    other=dict(r,trigger_level=110.0)
+                    self.assertFalse(pool._has_sent_confirmation_for_this_setup(con,other))
+                    with sqlite3.connect(db) as nc:
+                        nc.execute("DELETE FROM sent_alerts")
+                    self.assertFalse(pool._has_sent_confirmation_for_this_setup(con,r))
+                    con.execute("INSERT INTO events VALUES(?,?,?,?,?)",
+                               ("TESTUSDT","LONG",(now-timedelta(seconds=15)).isoformat(),
+                                "CLOSE_CONFIRMED","SENT"))
+                    self.assertTrue(pool._has_sent_confirmation_for_this_setup(con,r))
