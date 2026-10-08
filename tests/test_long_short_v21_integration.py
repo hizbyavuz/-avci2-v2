@@ -123,7 +123,7 @@ class V21IntegrationTests(unittest.TestCase):
                     else:
                         o,h,l,c=101.4,102.2,101.0,102.0
                     rows.append([ts,str(o),str(h),str(l),str(c),"0",ts+59999])
-                ot._rows_1m=lambda symbol,start,end: rows
+                ot._rows_1m=lambda symbol,start,end,**_kwargs: rows
 
                 with sqlite3.connect(tmp.name) as con:
                     ot.init_db(con)
