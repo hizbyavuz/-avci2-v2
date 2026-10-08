@@ -5,10 +5,11 @@ This guards what reaches the user's phone, NOT the frozen direction or entry
 algorithm. All suppressed state transitions remain recorded for validation.
 """
 from __future__ import annotations
+import os
 from datetime import datetime,timezone
 
 VERSION="LS_TELEGRAM_TIME_INTEGRITY_2026_10_08_V1"
-MAX_CLOSED_CANDLE_AGE_SECONDS=75
+MAX_CLOSED_CANDLE_AGE_SECONDS=int(os.getenv("LS_TELEGRAM_CLOSED_CANDLE_MAX_AGE_SECONDS","75"))
 
 def _utc(value):
     if not value:raise ValueError("MISSING_TIMESTAMP")
