@@ -86,7 +86,7 @@ def _preferred_source(payload):
 
 
 def _rows_1m(symbol,start,end,preferred_source="BINANCE_SPOT",
-             source_inferred=False,allow_fallback=None):
+             source_inferred=True,allow_fallback=None):
     if allow_fallback is None:
         # Never replace an explicitly Gate/Bybit-priced chart with another
         # market. A blocked Binance Spot chart can use a separately labeled
