@@ -218,15 +218,30 @@ def primary_report(con):
         independent={}
         for cl,ik,status,net,stress in rows:
             independent.setdefault(cl,[]).append((ik,status,net,stress))
-        completed=[r for rows2 in independent.values() for r in rows2 if r[2] is not None]
+        # One coin+direction event per 2h, then one equal-weight independent
+        # 15m market wave. Correlated multi-coin bursts never dominate an edge
+        # estimate merely because they produced more alerts.
+        cluster_nets=[]
+        cluster_stress=[]
+        for wave in independent.values():
+            unique={}
+            for ik,status,net,stress in wave:
+                if ik not in unique:
+                    unique[ik]=(status,net,stress)
+            n=[x[1] for x in unique.values() if x[1] is not None]
+            s=[x[2] for x in unique.values() if x[2] is not None]
+            if n:
+                cluster_nets.append(sum(n)/len(n))
+            if s:
+                cluster_stress.append(sum(s)/len(s))
         result.append({
             "direction":side,"regime":regime,"horizon_min":h,
             "raw_final_events":len(rows),
             "unique_market_clusters":len(independent),
             "unique_coin_direction_events":len({v[0] for arr in independent.values() for v in arr}),
             "data_gap":sum(x[2]=="DATA_GAP" for x in rows),
-            "average_net_pct":(sum(v[2] for v in completed)/len(completed)) if completed else None,
-            "average_2x_cost_net_pct":(sum(v[3] for v in completed)/len(completed)) if completed else None,
+            "average_net_pct":(sum(cluster_nets)/len(cluster_nets)) if cluster_nets else None,
+            "average_2x_cost_net_pct":(sum(cluster_stress)/len(cluster_stress)) if cluster_stress else None,
             "conclusion":"INCONCLUSIVE" if len(independent)<100 else "REQUIRES_CLUSTER_CI_REVIEW",
         })
     return result
@@ -243,11 +258,12 @@ def evaluate_due(con,as_of=None,*,max_setups=20,history_fetch=None):
     init_schema(con)
     at=utc(as_of or datetime.now(timezone.utc))
     fetch=history_fetch or historical_1m
-    rows=con.execute("""SELECT setup_id,active_at,symbol,price_source
-        FROM setups WHERE active_at IS NOT NULL
-          AND final_telegram_event_id IS NOT NULL
-          AND final_telegram_sent_at IS NOT NULL
-        ORDER BY active_at LIMIT ?""",(max(1,int(max_setups)),)).fetchall()
+    rows=con.execute("""SELECT s.setup_id,s.active_at,s.symbol,s.price_source
+        FROM setups s WHERE s.active_at IS NOT NULL
+          AND s.final_telegram_event_id IS NOT NULL
+          AND s.final_telegram_sent_at IS NOT NULL
+          AND (SELECT COUNT(*) FROM setup_outcomes o WHERE o.setup_id=s.setup_id)<3
+        ORDER BY s.active_at LIMIT ?""",(max(1,int(max_setups)),)).fetchall()
     written=0
     for sid,entered,symbol,source in rows:
         started=utc(entered)
