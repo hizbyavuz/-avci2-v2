@@ -46,11 +46,13 @@ def choose_symbols(argument, analyst_db=None, limit=MAX_DEEP_SYMBOLS):
     return list(dict.fromkeys(s for s in symbols if SYMBOL_RE.fullmatch(s)))[:limit]
 
 def streams_for(symbols):
-    market=["!ticker@arr","!markPrice@arr","!forceOrder@arr"]
+    # Per-symbol liquidation snapshots: the official futures spec guarantees
+    # symbol@forceOrder; never assume a global liquidation feed exists.
+    market=["!ticker@arr","!markPrice@arr"]
     public=[]
     for s in symbols:
         x=s.lower()
-        market.extend([x+"@kline_1m",x+"@kline_5m",x+"@aggTrade"])
+        market.extend([x+"@kline_1m",x+"@kline_5m",x+"@aggTrade",x+"@forceOrder"])
         public.append(x+"@bookTicker")
     return market,public
 
