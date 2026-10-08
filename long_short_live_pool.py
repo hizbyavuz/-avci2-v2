@@ -23,6 +23,8 @@ import requests
 from binance_notify import resolve_chat_id, load_cached_chat_id, save_cached_chat_id
 from long_short_simple_notify import classify_move, format_alert, queue_alert, claim_ready_alert, ack_claimed_alert, retry_claimed_alert
 from long_short_data_router import multi_venue_perp_klines, multi_venue_perp_universe
+from long_short_setup_lifecycle import init_schema as init_locked_setup_schema
+from long_short_setup_bridge import observe_candidate as ledger_observe_candidate, observe_live_stage as ledger_live_stage, retire_from_watchlist as ledger_retire
 
 ANALYST_DB=os.getenv("LS_DB","long_short_analyst.db")
 LIVE_DB=os.getenv("LS_LIVE_DB","long_short_live_pool.db")
@@ -34,6 +36,7 @@ ALIGN_GRACE_SECONDS=float(os.getenv("LS_ALIGN_GRACE_SECONDS","4"))
 MAX_WATCH=int(os.getenv("LS_LIVE_MAX_WATCH","12"))
 # Delivery policy only: frozen direction/structure/execution thresholds remain unchanged.
 TELEGRAM_TRADE_ONLY=os.getenv("LS_TELEGRAM_TRADE_ONLY","1").strip().lower() in ("1","true","yes","on")
+SETUP_LEDGER_OBSERVE=os.getenv("LS_SETUP_LEDGER_OBSERVE","1").strip().lower() in ("1","true","yes","on")
 TELEGRAM_RUNTIME_NOTICES=os.getenv("LS_TELEGRAM_RUNTIME_NOTICES","0").strip().lower() in ("1","true","yes","on")
 LIVE_FETCH_WORKERS=max(1,min(12,int(os.getenv("LS_LIVE_FETCH_WORKERS","6"))))
 APPROACH_PCT=float(os.getenv("LS_LIVE_APPROACH_PCT","0.25"))
@@ -306,6 +309,8 @@ def init_db():
         )""")
         con.execute("""CREATE INDEX IF NOT EXISTS ix_watch_episodes_open
                        ON watch_episodes(symbol,ended_at_utc)""")
+        if SETUP_LEDGER_OBSERVE:
+            init_locked_setup_schema(con)
 
 def load_watchlist():
     if not os.path.exists(ANALYST_DB):
@@ -526,6 +531,18 @@ def _open_watch_episode(con,x):
      x["data_cohort"],x["structure_gate_version"],x.get("reference_price")))
 
 
+def _ledger_safe(action, *args, **kwargs):
+    if not SETUP_LEDGER_OBSERVE:
+        return None
+    try:
+        return action(*args, **kwargs)
+    except Exception as exc:
+        # An observer error may NEVER alter live V3.1 trade safety decisions.
+        print("SETUP_LEDGER_DATA_ISSUE",getattr(action,"__name__","unknown"),
+              type(exc).__name__,str(exc)[:180],flush=True)
+        return None
+
+
 def sync_watchlist(items):
     """Synchronize analyst observations without moving an active setup's goalposts.
 
@@ -563,7 +580,7 @@ def sync_watchlist(items):
                 not old
                 or (new_actionable and old_radar)
                 or (new_actionable and direction_changed)
-                or (new_actionable and (not old_radar) and old_setup_type!=new_setup_type)
+                # Same-direction setup-type refresh cannot move locked levels.
             )
 
             if reset:
@@ -595,6 +612,8 @@ def sync_watchlist(items):
                  x["htf_direction"],x["htf_score"],json.dumps(x["htf_reasons"],ensure_ascii=False),
                  x["structure_gate_version"],json.dumps(x["structure_gate"],ensure_ascii=False),
                  1 if new_actionable else 0,seen_at,x["scan_time"] if new_actionable else None,seen_at,seen_at))
+                if not new_radar:
+                    _ledger_safe(ledger_observe_candidate,con,x,seen_at)
                 continue
 
             # Radar-to-radar is observational, so its moving level may refresh.
@@ -627,6 +646,8 @@ def sync_watchlist(items):
                  json.dumps(x["htf_reasons"],ensure_ascii=False),
                  1 if new_actionable else 0,seen_at,1 if new_actionable else 0,
                  x["scan_time"],seen_at,seen_at,x["symbol"]))
+            if not new_radar:
+                _ledger_safe(ledger_observe_candidate,con,x,seen_at)
 
         # Missing for one analyst cycle is not an invalidation. Pause it first:
         # no confirmation while absent, but preserve the locked setup for a short
@@ -645,6 +666,7 @@ def sync_watchlist(items):
             (seen_at,float(WATCHLIST_GRACE_SECONDS))).fetchall()
         for r in stale:
             _close_open_watch_episode(con,r["symbol"],"WATCHLIST_GRACE_EXPIRED",r["last_price"])
+            _ledger_safe(ledger_retire,con,r["symbol"],"WATCHLIST_GRACE_EXPIRED",seen_at)
             con.execute("DELETE FROM watch_state WHERE symbol=?",(r["symbol"],))
 
 def _ema(values,period=7):
@@ -1529,6 +1551,8 @@ def loop_once():
                             (observed_time,row["symbol"],row["direction"],old,new,price,closed,
                              condition_time,sent_time,telegram_status,telegram_error,delay,
                              json.dumps(event_payload,ensure_ascii=False)))
+                        _ledger_safe(ledger_live_stage,con,row["symbol"],old,new,observed_time,
+                                     price,telegram_status=telegram_status)
                         con.commit()
                     else:
                         con.execute("UPDATE watch_state SET last_price=?,last_closed_5m=?,last_update_utc=? WHERE symbol=?",
