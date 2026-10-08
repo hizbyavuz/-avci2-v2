@@ -1,5 +1,10 @@
 name: Long Short Motion Coverage Audit
 on:
+  pull_request:
+    paths:
+      - 'long_short_motion_coverage_audit.py'
+      - 'tests/test_long_short_motion_coverage_audit.py'
+      - '.github/workflows/long-short-motion-coverage-audit.yml'
   workflow_dispatch:
   schedule:
     - cron: "13,43 * * * *"
