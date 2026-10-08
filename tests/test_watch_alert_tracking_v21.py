@@ -71,7 +71,7 @@ class WatchAlertTrackingTests(unittest.TestCase):
                     else:
                         o,h,l,c=101.5,102.2,101.1,102.0
                     rows.append([ts,str(o),str(h),str(l),str(c),"0",ts+59999])
-                ot._rows_1m=lambda symbol,start,end: rows
+                ot._rows_1m=lambda symbol,start,end,**_kwargs: rows
 
                 with sqlite3.connect(live) as con:
                     ot.init_db(con)
