@@ -1,0 +1,17 @@
+[Unit]
+Description=Long/Short V4 closed-candle research feature builder
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=tradeobserver
+Group=tradeobserver
+WorkingDirectory=/srv/avci
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/srv/avci/.venv/bin/python -u /srv/avci/long_short_v4_research.py --db /var/lib/avci/long_short_v4_native.db --analyst-db /var/lib/avci/long_short_v31_analyst.db --out /var/lib/avci/v4_features.json
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/avci
+PrivateTmp=true
+PrivateDevices=true
+UMask=0077
