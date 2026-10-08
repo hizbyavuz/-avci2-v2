@@ -26,6 +26,7 @@ from datetime import datetime, timedelta, timezone
 import requests
 from binance_notify import resolve_chat_id
 from long_short_outcome_prices import historical_1m, has_full_horizon
+from long_short_setup_outcomes import evaluate_due as evaluate_locked_setups, primary_report as locked_primary_report
 
 DB=os.getenv("LS_LIVE_DB","long_short_live_pool.db")
 NOTIFY_DB=os.getenv("LS_SIMPLE_NOTIFY_DB","long_short_simple_notify.db")
@@ -850,10 +851,17 @@ def main():
         s=evaluate_shadow_blocked(con)
         w=evaluate_watch_alerts(con)
         b=evaluate_no_confirm(con)
+        # New primary cohort: only delivered ACTIVE entries with retest fills.
+        # Legacy CLOSE_CONFIRMED/TRIGGERED reports remain for historical audit,
+        # but may NOT be presented as proof of an executable ACTIVE entry.
+        locked_added=evaluate_locked_setups(con,max_setups=3)
+        locked_rows=locked_primary_report(con)
         rows=report(con)
         wrows=watch_report(con)
         con.commit()
-    print("V3_1_OUTCOMES delivered_added=",a,"shadow_blocked_added=",s,"watch_alerts_added=",w,"watch_controls_added=",b)
+    print("SETUP_ACTIVE_PRIMARY added=",locked_added,"groups=",len(locked_rows),
+          "report=",json.dumps(locked_rows,ensure_ascii=False),flush=True)
+    print("V3_1_LEGACY_PROXY_OUTCOMES delivered_added=",a,"shadow_blocked_added=",s,"watch_alerts_added=",w,"watch_controls_added=",b)
     for r in rows:
         stage,cohort,h,n,correct,tp1,stop,timeout,wr,exp,avg,p50,p95=r
         es="-" if exp is None else f"{exp:+.3f}R"
