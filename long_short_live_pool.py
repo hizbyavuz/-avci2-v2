@@ -1100,7 +1100,7 @@ def queue_approaching_alert(row,price,structure_quality=None):
 
 
 def _has_sent_confirmation_for_this_setup(con,row):
-    """Avoid orphaned 'idea cancelled' Telegram notices for unseen setups."""
+    """Only cancel setups that this user previously saw in Telegram."""
     try:
         locked=(row["setup_locked_at_utc"] or "") if "setup_locked_at_utc" in row.keys() else ""
         if not locked:
@@ -1109,8 +1109,24 @@ def _has_sent_confirmation_for_this_setup(con,row):
             AND event_time_utc >= ? AND stage_to IN ('CLOSE_CONFIRMED','TRIGGERED')
             AND telegram_status='SENT' LIMIT 1""",
             (row["symbol"],row["direction"],locked)).fetchone()
-        return bool(earlier)
-    except (sqlite3.Error,KeyError,ValueError,TypeError):
+        if earlier:
+            return True
+        # The shared anti-spam queue also sends user-visible WATCH alerts.
+        # A cancellation for a delivered exact setup is useful, unlike a
+        # cancellation for a setup the user never received.
+        if not os.path.isfile(NOTIFY_DB):
+            return False
+        start=datetime.fromisoformat(locked.replace("Z","+00:00"))
+        if start.tzinfo is None:
+            start=start.replace(tzinfo=timezone.utc)
+        with sqlite3.connect("file:"+os.path.abspath(NOTIFY_DB)+"?mode=ro",uri=True) as nc:
+            notices=nc.execute("""SELECT level FROM sent_alerts
+                WHERE symbol=? AND direction=? AND sent_at_epoch >= ?""",
+                (row["symbol"],row["direction"],start.timestamp())).fetchall()
+        trigger=float(row["trigger_level"])
+        return any(abs(float(x[0])-trigger)<=max(abs(trigger)*1e-8,1e-10)
+                   for x in notices)
+    except (sqlite3.Error,KeyError,ValueError,TypeError,OverflowError):
         return False
 
 
