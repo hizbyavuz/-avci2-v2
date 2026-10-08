@@ -22,6 +22,7 @@ from datetime import datetime, timedelta, timezone
 import requests
 from binance_notify import resolve_chat_id, load_cached_chat_id, save_cached_chat_id
 from long_short_simple_notify import classify_move, format_alert, queue_alert, claim_ready_alert, ack_claimed_alert, retry_claimed_alert
+from long_short_telegram_delivery_integrity import policy as telegram_integrity_policy
 from long_short_data_router import multi_venue_perp_klines, multi_venue_perp_universe
 
 ANALYST_DB=os.getenv("LS_DB","long_short_analyst.db")
@@ -1098,6 +1099,21 @@ def queue_approaching_alert(row,price,structure_quality=None):
     return queue_alert(sym,d,level,msg,priority,payload=payload)
 
 
+def _has_sent_confirmation_for_this_setup(con,row):
+    """Avoid orphaned 'idea cancelled' Telegram notices for unseen setups."""
+    try:
+        locked=(row["setup_locked_at_utc"] or "") if "setup_locked_at_utc" in row.keys() else ""
+        if not locked:
+            return False
+        earlier=con.execute("""SELECT 1 FROM events WHERE symbol=? AND direction=?
+            AND event_time_utc >= ? AND stage_to IN ('CLOSE_CONFIRMED','TRIGGERED')
+            AND telegram_status='SENT' LIMIT 1""",
+            (row["symbol"],row["direction"],locked)).fetchone()
+        return bool(earlier)
+    except (sqlite3.Error,KeyError,ValueError,TypeError):
+        return False
+
+
 def message_for(row,stage,price,closed):
     sym=row["symbol"]; d=row["direction"]
     trig=float(row["trigger_level"]); rl=float(row["retest_low"]); rh=float(row["retest_high"])
@@ -1465,6 +1481,23 @@ def loop_once():
                         # is the most honest timestamp available without websocket trades.
                         condition_time = closed_candle_time if new=="CLOSE_CONFIRMED" else observed_time
                         msg=message_for(row,new,price,closed)
+                        # A 5m confirmation that reaches the user's phone 3-4
+                        # minutes after its CLOSED candle is stale research, not
+                        # an actionable alert. Do not erase the V3.1 stage or
+                        # silently rewrite historical outcomes.
+                        prior_seen=(_has_sent_confirmation_for_this_setup(con,row)
+                                    if new=="INVALIDATED" else False)
+                        delivery_guard=(telegram_integrity_policy(
+                            new,observed_time,closed_candle_time,prior_visible=prior_seen)
+                            if msg else None)
+                        suppression_reason=None
+                        if msg and not delivery_guard["allowed"]:
+                            suppression_reason=delivery_guard["reason"]
+                            msg=None
+                            print("TELEGRAM_SUPPRESSED",row["symbol"],new,
+                                  suppression_reason,
+                                  delivery_guard.get("closed_candle_age_seconds"),
+                                  flush=True)
 
                         con.execute("""UPDATE watch_state SET stage=?,last_price=?,last_closed_5m=?,last_update_utc=?,
                                        close_confirmed_time=CASE WHEN ?='CLOSE_CONFIRMED' THEN ? ELSE close_confirmed_time END,
@@ -1497,12 +1530,17 @@ def loop_once():
 
                         sent_time=None
                         delay=None
-                        telegram_status="NOT_APPLICABLE" if not msg else "PENDING"
+                        telegram_status=("SUPPRESSED" if suppression_reason
+                                         else "NOT_APPLICABLE" if not msg else "PENDING")
                         telegram_error=None
                         event_payload=dict(row)
                         event_payload["_live_structure_quality"]=structure_quality
                         event_payload["_live_price_source"]=str(early.get("live_price_source") or "UNKNOWN")
                         event_payload["_live_alert_version"]=STRUCTURE_GATE_VERSION
+                        if delivery_guard is not None:
+                            event_payload["_telegram_delivery_policy"]=delivery_guard
+                        if suppression_reason:
+                            event_payload["_telegram_suppression_reason"]=suppression_reason
                         if msg:
                             print(msg)
                             try:
