@@ -1,0 +1,33 @@
+name: Long Short Motion Coverage Audit
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "13,43 * * * *"
+permissions:
+  contents: read
+  actions: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.12"
+      - run: python -m unittest -v tests.test_long_short_motion_coverage_audit
+      - name: Restore previous analyst archive
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          run_id=$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?name=long-short-v31-analyst-state&per_page=100" --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | reverse | .[0].workflow_run.id // empty')
+          if test -n "$run_id"; then
+            gh run download "$run_id" --name long-short-v31-analyst-state --dir .coverage-state
+          fi
+      - name: Read-only 60 minute coverage
+        run: python long_short_motion_coverage_audit.py --db .coverage-state/long_short_v31_analyst.db --minutes 60
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: long-short-motion-coverage-audit
+          path: long_short_motion_coverage_audit.json
+          retention-days: 30
