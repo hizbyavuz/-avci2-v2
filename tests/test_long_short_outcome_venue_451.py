@@ -2,9 +2,12 @@ import os
 import sqlite3
 import tempfile
 import unittest
+import sys
+from pathlib import Path
 from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 import long_short_outcome_prices as p
 import long_short_outcome_tracker_v21 as ot
 
