@@ -96,11 +96,15 @@ def label_path(setup,bars,horizon_min,*,btc_bars=None,price_source=None,
     tp1=float(setup["tp1"])
     costs=(2.0*(float(fee_bps_per_side)+float(slippage_bps_per_side)))/100.0
     if costs<0:raise ValueError("negative fee/slippage")
+    risk_pct=abs(entry-sl)/entry*100.0
+    if risk_pct<=0:
+        raise ValueError("invalidation equals entry")
     base={
         "outcome_status":"DATA_GAP","first_barrier":None,"first_barrier_time":None,
         "start_at":iso(entry_time),"horizon_end_at":iso(end),"exit_at":None,
         "entry_price":entry,"exit_price":None,"gross_return_pct":None,
         "net_return_pct":None,"net_return_2x_cost_pct":None,"cost_pct":costs,
+        "risk_pct":risk_pct,"net_r":None,"net_r_2x_cost":None,
         "mfe_pct":None,"mae_pct":None,"btc_excess_return_pct":None,
         "btc_return_pct":None,"time_in_trade_seconds":None,
         "price_source":source,"same_chart_venue":int(bool(same_chart_venue)),
@@ -164,6 +168,8 @@ def label_path(setup,bars,horizon_min,*,btc_bars=None,price_source=None,
         "gross_return_pct":gross,
         "net_return_pct":net,
         "net_return_2x_cost_pct":gross-2.0*costs,
+        "net_r":net/risk_pct,
+        "net_r_2x_cost":(gross-2.0*costs)/risk_pct,
         "mfe_pct":mfe,
         "mae_pct":mae,
         "time_in_trade_seconds":(utc(exit_at)-entry_time).total_seconds(),
