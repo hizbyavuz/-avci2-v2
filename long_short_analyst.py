@@ -25,6 +25,7 @@ from binance_notify import resolve_chat_id
 from long_short_data_router import multi_venue_derivatives, multi_venue_perp_universe, multi_venue_perp_klines
 from long_short_v3_core import V3_VERSION, discovery_rank as v3_discovery_rank, beta_residual_3h, decide_setup as v3_decide_setup
 from long_short_direction_engine import DIRECTION_ENGINE_VERSION, decide_direction as production_decide_direction
+from long_short_room_v32_shadow import from_analyst_snapshots as v32_room_shadow
 
 FUTURES_BASES = (
     "https://fapi.binance.com",
@@ -1643,6 +1644,24 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
         setup_plan["setup_type"]="BREAKOUT"
 
     structure_gate=build_structure_gate(preferred_direction,price,setup_plan,k5,k15,k30,k1h,k4h)
+    # Research-only: candidate's own trigger zone must not be counted as the
+    # next distinct obstacle. Entry must clear the outer edge of that zone.
+    # Frozen V3.1 'structure_gate' remains EXACTLY as it was.
+    try:
+        v32_room_diagnostic=v32_room_shadow(
+            preferred_direction,
+            setup_plan["trigger_level"],setup_plan["invalidation"],setup_plan["target1"],
+            structure_gate.get("trigger_zone"),
+            k5,k15,k30,k1h,k4h,price,_timeframe_zones,
+            structure_required_room_pct(),structure_min_round_trip_cost_pct(),
+            STRUCTURE_MIN_NET_T1_R,
+        )
+    except Exception as exc:
+        v32_room_diagnostic={
+            "valid":False,"research_only":True,
+            "reason":"SHADOW_CALCULATION_ERROR:"+type(exc).__name__,
+        }
+
 
     # Direction and entry timing are deliberately separate:
     # - direction engine chooses LONG/SHORT from combined evidence;
@@ -1664,6 +1683,7 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
         "discovery_rank":float((pre or {}).get("rank") or 0.0),
         "chart":chart,"setup_plan":setup_plan,"reversal_plan":reversal_plan,
         "htf_gate":htf_gate,"structure_gate":structure_gate,
+        "v32_distinct_room_shadow":v32_room_diagnostic,
         "live_alert_version":STRUCTURE_GATE_VERSION,
         "t1":t1,"t5":t5,"t15":t15,"t1h":t1h,"t4h":t4h,
         "oi":oi,"funding_pct":funding,"taker_ratio":taker,
