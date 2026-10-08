@@ -36,6 +36,7 @@ def setup(c):
        source_payload_json TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS ext_oi_by_symbol ON external_derivatives(symbol,observed_ms);
+    CREATE UNIQUE INDEX IF NOT EXISTS ext_oi_dedupe ON external_derivatives(symbol,observed_ms,provider);
     CREATE TABLE IF NOT EXISTS feature_snapshots(
        symbol TEXT NOT NULL, close_ms INTEGER NOT NULL, version TEXT NOT NULL,
        config_hash TEXT NOT NULL, price_source TEXT NOT NULL,
@@ -124,7 +125,7 @@ def extract_external_derivatives(c,analyst_db):
                 if not bool(bundle.get("source_consistent")):continue
                 oi=bundle.get("oi_change_1h")
                 if oi is None:continue
-                c.execute("""INSERT INTO external_derivatives
+                c.execute("""INSERT OR IGNORE INTO external_derivatives
                 (symbol,observed_ms,provider,oi_change_1h,oi_now,funding_pct,
                  taker_ratio,long_short_ratio,source_consistent,source_age_seconds,source_payload_json)
                 VALUES(?,?,?,?,?,?,?,?,?,?,?)""",
@@ -176,7 +177,7 @@ def feature_at(c,symbol,close_ms):
     available_1m="MISSING_1M_PATH" not in reasons
     usable=bool(available_1m and len(rows)==21 and contiguous(rows,300000)
                 and mark is not None)
-    native_full=bool(usable and ext is None) # "fully_native" means no outside-OI; not signal ready
+    native_full=False # Binance-native OI remains unavailable; never call this fully native
     feat={
         "price":price,"volume_ratio":vm,"atr_pct":_atr(rows),"taker_buy_share":share,
         "vwap_5m20":_vwap(rows[-20:]),"highest_20":high,"lowest_20":low,
