@@ -668,20 +668,26 @@ def evaluate_watch_alerts(con):
 
 def watch_report(con):
     out=[]
-    cohorts=[r[0] for r in con.execute("SELECT DISTINCT COALESCE(data_cohort,'UNKNOWN') FROM delivered_watch_outcomes").fetchall()]
-    for cohort in cohorts:
+    cohorts=con.execute("""SELECT DISTINCT COALESCE(data_cohort,'UNKNOWN'),
+        COALESCE(price_source,'UNKNOWN'),COALESCE(price_source_matched,0)
+        FROM delivered_watch_outcomes""").fetchall()
+    for cohort,source,matched in cohorts:
+        label=f"{cohort}@{source}[same_chart={matched}]"
         for h in HORIZONS:
             rows=con.execute("""SELECT direction_correct,net_return_pct,first_barrier
                                 FROM delivered_watch_outcomes
-                                WHERE COALESCE(data_cohort,'UNKNOWN')=? AND horizon_min=?""",
-                             (cohort,h)).fetchall()
+                                WHERE COALESCE(data_cohort,'UNKNOWN')=?
+                                AND COALESCE(price_source,'UNKNOWN')=?
+                                AND COALESCE(price_source_matched,0)=?
+                                AND horizon_min=?""",
+                             (cohort,source,matched,h)).fetchall()
             if not rows:
                 continue
             correct=sum(int(r[0] or 0) for r in rows)
             avg=statistics.fmean([float(r[1]) for r in rows if r[1] is not None])
             tp1=sum(1 for r in rows if r[2]=="TP1")
             stop=sum(1 for r in rows if r[2]=="STOP")
-            out.append((cohort,h,len(rows),correct,100.0*correct/len(rows),avg,tp1,stop))
+            out.append((label,h,len(rows),correct,100.0*correct/len(rows),avg,tp1,stop))
     return out
 
 
@@ -755,18 +761,22 @@ def _percentile(xs,p):
 
 def report(con):
     now=now_iso()
-    cohorts=[r[0] for r in con.execute("SELECT DISTINCT data_cohort FROM delivered_signal_outcomes").fetchall()]
-    if not cohorts:
-        cohorts=[]
+    cohorts=con.execute("""SELECT DISTINCT data_cohort,
+        COALESCE(price_source,'UNKNOWN'),COALESCE(price_source_matched,0)
+        FROM delivered_signal_outcomes""").fetchall()
     out=[]
     for stage in ("CLOSE_CONFIRMED","TRIGGERED"):
-        for cohort in cohorts:
+        for cohort,source,matched in cohorts:
+            label=f"{cohort}@{source}[same_chart={matched}]"
             for h in HORIZONS:
                 rows=con.execute("""SELECT direction_correct,r_multiple,net_return_pct,
                     first_barrier,delivery_delay_seconds
                     FROM delivered_signal_outcomes
-                    WHERE stage_name=? AND data_cohort=? AND horizon_min=?""",
-                    (stage,cohort,h)).fetchall()
+                    WHERE stage_name=? AND data_cohort=?
+                      AND COALESCE(price_source,'UNKNOWN')=?
+                      AND COALESCE(price_source_matched,0)=?
+                      AND horizon_min=?""",
+                    (stage,cohort,source,matched,h)).fetchall()
                 if not rows:
                     continue
                 correct=sum(int(r[0] or 0) for r in rows)
@@ -785,8 +795,8 @@ def report(con):
                     correct,wrong,timeout,win_rate,expectancy_r,avg_net_pct,
                     p50_delay_seconds,p95_delay_seconds
                 ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-                (now,VERSION,stage,cohort,h,len(rows),correct,wrong,timeout,wr,exp,avg,p50,p95))
-                out.append((stage,cohort,h,len(rows),correct,wins,wrong,timeout,wr,exp,avg,p50,p95))
+                (now,VERSION,stage,label,h,len(rows),correct,wrong,timeout,wr,exp,avg,p50,p95))
+                out.append((stage,label,h,len(rows),correct,wins,wrong,timeout,wr,exp,avg,p50,p95))
     return out
 
 
