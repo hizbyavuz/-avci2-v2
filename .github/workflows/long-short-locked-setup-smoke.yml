@@ -52,6 +52,9 @@ jobs:
               old_watch=con.execute("SELECT COUNT(*) FROM watch_state").fetchone()[0]
           lp.init_db()
           items=lp.load_watchlist()
+          print("REAL_DB_WATCHLIST",json.dumps({"total":len(items),
+            "actionable":sum(not i.get("radar_only") for i in items),
+            "radar":sum(bool(i.get("radar_only")) for i in items)}))
           lp.sync_watchlist(items)
           with sqlite3.connect(p) as con:
               count=con.execute("SELECT COUNT(*) FROM setups").fetchone()[0]
@@ -71,6 +74,23 @@ jobs:
           assert old_events==events
           assert old_sent==sent
           assert active==0 and out==0
+          # Deterministic synthetic admission IN THE ISOLATED COPY only; if
+          # the real snapshot has zero actionable items this still verifies
+          # the actual SQLite migration and insert path, without fabrication.
+          from datetime import datetime,timezone
+          import long_short_setup_bridge as bridge
+          dt=datetime.now(timezone.utc).isoformat()
+          synthetic={"symbol":"SMOKEONLYUSDT","direction":"LONG",
+            "setup_type":"BREAKOUT","trigger_level":100.0,
+            "retest_low":99.8,"retest_high":100.2,"invalidation":98.0,
+            "target1":103.0,"target2":106.0,"scan_time":dt,
+            "structure_gate":{},"radar_only":False}
+          with sqlite3.connect(p) as con:
+              sid=bridge.observe_candidate(con,synthetic,dt)
+              assert sid
+              assert con.execute("SELECT state FROM setups WHERE setup_id=?",(sid,)).fetchone()[0]=="WATCH"
+              assert con.execute("SELECT COUNT(*) FROM setup_outcomes").fetchone()[0]==0
+          print("REAL_DB_SYNTHETIC_INSERT_OK (isolated DB only)")
           PY
       - name: Test all setup ledgers and path labels again
         run: |
