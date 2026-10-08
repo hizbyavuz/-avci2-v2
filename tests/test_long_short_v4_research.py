@@ -5,6 +5,10 @@ import unittest
 from long_short_v4_paper_math import linear_return_pct, path_result
 from long_short_v4_native_pipeline import initialize,ingest,choose_symbols,SOURCE
 from long_short_v4_research import setup,feature_at,contiguous
+from long_short_v4_structure import (
+    oi_engine,resample_complete_5m,previous_utc_day_week_levels,
+    swing_zones,robust_signal_calibration
+)
 
 def bar(t,op=100,hi=101,lo=99,cl=100,source="BINANCE_SPOT"):
     return dict(open_ms=t,open=op,high=hi,low=lo,close=cl,closed=True,source=source)
@@ -85,6 +89,29 @@ class NativeIngestTests(unittest.TestCase):
         self.assertFalse(f["binance_native_oi_available"])
         self.assertFalse(f["signal_authorized"])
         self.assertIn("MISSING_1M_PATH",f["quality_reasons"])
+
+class StructureTests(unittest.TestCase):
+    def test_oi_engine_is_observation_not_signal(self):
+        self.assertEqual(oi_engine(1,-2),"PRICE_UP_OI_DOWN_SHORT_COVER")
+        self.assertEqual(oi_engine(-1,2),"PRICE_DOWN_OI_UP_NEW_SHORT_RISK")
+        self.assertEqual(oi_engine(2,None),"UNKNOWN")
+    def test_complete_15m_aggregation_requires_three_closed_5m(self):
+        rows=[{"open_ms":j*300000,"open":100,"high":102,"low":98,
+               "close":101,"volume":10,"source":SOURCE}
+               for j in range(3)]
+        self.assertEqual(len(resample_complete_5m(rows,15)),1)
+        self.assertEqual(resample_complete_5m(rows[:2],15),[])
+        rows[1]["open_ms"]=123
+        self.assertEqual(resample_complete_5m(rows,15),[])
+    def test_missing_day_week_not_fabricated(self):
+        x=previous_utc_day_week_levels([],1_700_000_000_000)
+        self.assertIsNone(x["previous_day"]["high"])
+        self.assertIsNone(x["previous_week"]["low"])
+    def test_calibration_requires_independent_episodes(self):
+        e=[{"episode_id":"same_wave","net_r":1} for _ in range(500)]
+        result=robust_signal_calibration(e)
+        self.assertEqual(result["independent_episodes"],1)
+        self.assertFalse(result["edge_proven"])
 
 if __name__=="__main__":
     unittest.main()
