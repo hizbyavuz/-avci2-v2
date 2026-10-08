@@ -1109,7 +1109,7 @@ def message_for(row,stage,price,closed):
     # Only one Telegram alert at a *trade-qualified* transition. Earlier
     # radar/watch/early/close-confirmed/invalidation stages stay in events DB.
     # This is a presentation policy, never a weaker signal or execution gate.
-    if TELEGRAM_TRADE_ONLY:
+    if TELEGRAM_TRADE_ONLY or stage=="TRIGGERED":
         if stage!="TRIGGERED":
             return None
         data_mode=(row["data_mode"] or "UNKNOWN") if "data_mode" in row.keys() else "UNKNOWN"
@@ -1146,7 +1146,8 @@ def message_for(row,stage,price,closed):
                 f"Şimdi beklenen: {next_step}.\n"
                 f"🛡️ SL: {fmtp(inv)}\n"
                 f"🎯 TP1: {fmtp(t1)}\n"
-                f"🎯 TP2: {fmtp(t2)}")
+                f"🎯 TP2: {fmtp(t2)}\n"
+                "⚠️ İlk mum teyidi; henüz işlem sinyali değil.")
 
     if stage=="RETESTING":
         # Retest itself is recorded but not messaged; the next actionable state
@@ -1337,11 +1338,11 @@ def loop_once():
                             estate="CHASE"
                     if estate!=old_early:
                         emsg=None
-                        if estate in ("PENDING","EARLY_LONG","EARLY_SHORT","CHASE"):
+                        if estate in ("EARLY_LONG","EARLY_SHORT"):
                             level=float(row["trigger_level"])
                             day_change=float(emetrics.get("day_change_pct") or 0.0)
                             mclass=classify_move(row["symbol"],day_change)
-                            if not TELEGRAM_TRADE_ONLY and mclass!="FAST_QUIET":
+                            if not TELEGRAM_TRADE_ONLY:
                                 queued_msg=format_alert(row["symbol"],row["direction"],level,mclass,day_change,price,
                                                         row["invalidation"],row["target1"],row["target2"])
                                 priority=4 if mclass=="FAST_FRESH" else 3 if mclass=="STABLE" else 2
@@ -1455,7 +1456,7 @@ def loop_once():
 
                         # APPROACHING is a user-facing watch state. Previously it was
                         # stored in DB but never queued to Telegram.
-                        if new=="APPROACHING" and not TELEGRAM_TRADE_ONLY:
+                        if new=="APPROACHING" and not TELEGRAM_TRADE_ONLY and not _row_is_radar(row):
                             queued=queue_approaching_alert(row,price,structure_quality)
                             if queued:
                                 print(f"WATCH_ALERT_QUEUED {row['symbol']} {row['direction']} {float(row['trigger_level'])}",flush=True)
