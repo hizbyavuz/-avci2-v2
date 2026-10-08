@@ -3,6 +3,8 @@ on:
   pull_request:
     paths:
       - 'binance_native_um_market_watch.py'
+      - 'long_short_native_early_bridge.py'
+      - 'tests/test_long_short_native_early_bridge.py'
       - 'tests/test_binance_native_um_market_watch.py'
       - '.github/workflows/binance-native-um-market-watch.yml'
   workflow_dispatch:
@@ -24,7 +26,7 @@ jobs:
         with:
           python-version: '3.12'
       - run: python -m pip install --disable-pip-version-check websocket-client==1.8.0
-      - run: python -m unittest -v tests.test_binance_native_um_market_watch
+      - run: python -m unittest -v tests.test_binance_native_um_market_watch tests.test_long_short_native_early_bridge
       - name: Restore state from main only
         if: github.ref == 'refs/heads/main'
         env:
@@ -39,6 +41,28 @@ jobs:
         env:
           RUN_SECONDS: ${{ github.event_name == 'pull_request' && '12' || '90' }}
         run: python -u binance_native_um_market_watch.py --seconds "$RUN_SECONDS"
+      - name: Restore latest main-branch analyst state for read-only comparison
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p .analyst-bridge
+          run_id=$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?name=long-short-v31-analyst-state&per_page=100" --jq '[.artifacts[] | select(.expired == false and .workflow_run.head_branch == "main")] | sort_by(.created_at) | reverse | .[0].workflow_run.id // empty')
+          if test -n "$run_id"; then
+            gh run download "$run_id" --name long-short-v31-analyst-state --dir .analyst-bridge || true
+          fi
+      - name: Connect native Futures price observations to analyst coverage (research only)
+        run: |
+          python -u long_short_native_early_bridge.py \
+            --state native_um_market_watch_state.json \
+            --market-report native_um_market_watch_report.json \
+            --analyst-db .analyst-bridge/long_short_v31_analyst.db \
+            --out long_short_native_early_observations.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: long-short-native-early-observations
+          path: long_short_native_early_observations.json
+          retention-days: 7
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: binance-native-um-market-state
