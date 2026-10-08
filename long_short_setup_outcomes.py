@@ -230,3 +230,56 @@ def primary_report(con):
             "conclusion":"INCONCLUSIVE" if len(independent)<100 else "REQUIRES_CLUSTER_CI_REVIEW",
         })
     return result
+
+
+def evaluate_due(con,as_of=None,*,max_setups=20,history_fetch=None):
+    """Append matured ACTIVE-only labels; never manufacture a final trade.
+
+    Historical 1m candles must come from the setup's declared chart venue.
+    No silent provider swaps. If the provider is unavailable or has gaps, a
+    DATA_GAP row with NULL return is retained. Existing labels are immutable.
+    """
+    from long_short_outcome_prices import historical_1m
+    init_schema(con)
+    at=utc(as_of or datetime.now(timezone.utc))
+    fetch=history_fetch or historical_1m
+    rows=con.execute("""SELECT setup_id,active_at,symbol,price_source
+        FROM setups WHERE active_at IS NOT NULL
+          AND final_telegram_event_id IS NOT NULL
+          AND final_telegram_sent_at IS NOT NULL
+        ORDER BY active_at LIMIT ?""",(max(1,int(max_setups)),)).fetchall()
+    written=0
+    for sid,entered,symbol,source in rows:
+        started=utc(entered)
+        for h in HORIZONS:
+            cutoff=started+timedelta(minutes=h)
+            if at<cutoff+timedelta(minutes=2):
+                continue
+            if con.execute("SELECT 1 FROM setup_outcomes WHERE setup_id=? AND horizon_min=?",
+                           (sid,h)).fetchone():
+                continue
+            market=[]
+            btc=None
+            chart_venue_ok=False
+            if source in ("GATE_FUTURES","BYBIT_LINEAR","BINANCE_SPOT"):
+                try:
+                    market=fetch(symbol,started,cutoff,
+                                 requested_source=source,allow_fallback=False)
+                    chart_venue_ok=(getattr(market,"source",None)==source and
+                                    getattr(market,"venue_matched",False))
+                    if symbol=="BTCUSDT":
+                        btc=market
+                    elif chart_venue_ok:
+                        try:
+                            btc=fetch("BTCUSDT",started,cutoff,
+                                      requested_source=source,allow_fallback=False)
+                        except Exception:
+                            btc=None
+                except Exception as exc:
+                    print("SETUP_DATA_GAP",symbol,source,h,type(exc).__name__,
+                          str(exc)[:120],flush=True)
+            if write_outcome(con,sid,h,market,btc_bars=btc,
+                             price_source=source,same_chart_venue=chart_venue_ok,
+                             now=at):
+                written+=1
+    return written
