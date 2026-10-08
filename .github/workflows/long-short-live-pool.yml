@@ -39,6 +39,7 @@ jobs:
           python -m json.tool LONG_SHORT_V3_FROZEN_CONFIG.json >/dev/null
           python tests/test_long_short_structure_gate_v2.py
           python tests/test_long_short_trade_only_delivery.py
+          python tests/test_long_short_observational_telegram.py
           python tests/test_long_short_live_window_coverage.py
           python tests/test_long_short_v3_core.py
           python tests/test_long_short_direction_engine.py
