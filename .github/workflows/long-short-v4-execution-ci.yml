@@ -1,0 +1,33 @@
+name: Long Short V4 Testnet Execution Safety
+on:
+  pull_request:
+    paths:
+      - 'long_short_v4_execution_gate.py'
+      - 'long_short_v4_demo_adapter.py'
+      - 'tests/test_long_short_v4_execution.py'
+      - '.github/workflows/long-short-v4-execution-ci.yml'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  offline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12'
+      - run: python -m pip install --disable-pip-version-check requests==2.32.5
+      - name: Compile execution and market research
+        run: |
+          python -m py_compile long_short_v4_execution_gate.py long_short_v4_demo_adapter.py
+          python -m py_compile long_short_v4_native_pipeline.py long_short_v4_research.py long_short_v4_paper_math.py
+      - name: Offline autonomous execution safety tests (never contacts exchange)
+        env:
+          LS_V4_TESTNET_SEND: 'NO'
+        run: |
+          python -m unittest -v tests.test_long_short_v4_execution
+          python -m unittest -v tests.test_long_short_v4_research

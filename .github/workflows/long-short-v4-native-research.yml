@@ -100,6 +100,16 @@ jobs:
               --live-db .v4-live/long_short_v31_live_pool.db \
               --limit 8 --out long_short_v4_regrades.json
           fi
+      - name: V4 account-safe preflight of actually delivered V3 signals
+        if: always() && github.event_name != 'pull_request'
+        continue-on-error: true
+        run: |
+          if test -f long_short_v4_native.db && test -f .v4-live/long_short_v31_live_pool.db; then
+            python -u long_short_v4_auto_paper_preflight.py \
+              --native-db long_short_v4_native.db \
+              --live-db .v4-live/long_short_v31_live_pool.db \
+              --report long_short_v4_auto_paper_preflight.json
+          fi
       - name: Produce V4 audit and explicit unresolved issues
         if: always() && github.event_name != 'pull_request'
         run: |
@@ -123,5 +133,6 @@ jobs:
             long_short_v4_features_report.json
             long_short_v4_regrades.json
             long_short_v4_audit.json
+            long_short_v4_auto_paper_preflight.json
           retention-days: 14
           if-no-files-found: warn
