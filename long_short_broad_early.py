@@ -42,7 +42,9 @@ def observe(preselected, selected):
                     "atr_pct_5m": t5["atr_pct"], "structure_15m": structure,
                     "near_high_5m": near_high, "near_low_5m": near_low,
                     "closed_candle_only": True, "observer_version": "EARLY_OBSERVER_V1",
-                }, ensure_ascii=False, default=str) + "\n")
+                }
+                observations.append(item)
+                out.write(json.dumps(item, ensure_ascii=False, default=str) + "\n")
             except Exception as exc:
                 print("EARLY_OBSERVER_ROW_ERROR", x.get("symbol"), type(exc).__name__, str(exc)[:100], flush=True)
     print("BROAD_EARLY_OBSERVER", json.dumps({"total": len(preselected), "deep": len(selected), "directions": counts, "file": str(path)}), flush=True)
