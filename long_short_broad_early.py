@@ -14,7 +14,8 @@ def observe(preselected, selected):
     selected_symbols = {x["symbol"] for x in selected}
     path = Path(os.getenv("LS_STATE_DIR") or os.getenv("RAILWAY_VOLUME_MOUNT_PATH") or ".long-short-state") / "broad_early_observations.jsonl"
     path.parent.mkdir(parents=True, exist_ok=True)
-    counts = {"LONG": 0, "SHORT": 0, "NONE": 0}\n    observations = []
+    counts = {"LONG": 0, "SHORT": 0, "NONE": 0}
+    observations = []
     ts = datetime.now(timezone.utc).isoformat()
     with path.open("a", encoding="utf-8") as out:
         for x in preselected:
