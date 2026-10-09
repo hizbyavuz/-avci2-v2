@@ -1284,8 +1284,13 @@ def send_telegram(msg):
                             json={"chat_id":chat,"text":msg[:TELEGRAM_LIMIT],"disable_web_page_preview":True},
                             timeout=10)
             r.raise_for_status()
+            body=r.json()
+            if not body.get("ok") or not (body.get("result") or {}).get("message_id"):
+                raise RuntimeError("Telegram API did not acknowledge message delivery")
+            print("TELEGRAM_SEND_ACCEPTED",json.dumps({"message_id":body["result"]["message_id"],"time":now_iso()},ensure_ascii=False),flush=True)
             return now_iso()
         except Exception as exc:
+            print("TELEGRAM_SEND_RETRY",attempt+1,type(exc).__name__,str(exc)[:150],flush=True)
             last=exc
             if attempt<2:
                 time.sleep(2.0*(attempt+1))
@@ -1843,7 +1848,7 @@ def main():
     try:
         with sqlite3.connect(NOTIFY_DB,timeout=10) as con:
             con.execute("CREATE TABLE IF NOT EXISTS runtime_settings (key TEXT PRIMARY KEY,value TEXT NOT NULL,updated_at TEXT NOT NULL)")
-            key="telegram_delivery_smoke_2026_10_09_v1"
+            key="telegram_delivery_smoke_2026_10_09_v2"
             already=con.execute("SELECT value FROM runtime_settings WHERE key=?",(key,)).fetchone()
         if not already:
             try:
