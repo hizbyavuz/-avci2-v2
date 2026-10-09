@@ -1178,7 +1178,7 @@ def audit_30m_coverage(ts, all_eligible):
             con.execute("""INSERT OR IGNORE INTO opportunity_price_snapshots
                 (scan_time_utc,symbol,price) VALUES(?,?,?)""",(ts,sym,float(price)))
         con.execute("""DELETE FROM opportunity_price_snapshots
-            WHERE scan_time_utc<?""",(now-timedelta(days=10)).isoformat(),))
+            WHERE scan_time_utc<?""",((now-timedelta(days=10)).isoformat(),))
         con.commit()
     print("OPPORTUNITY_30M_AUDIT",json.dumps({"movers_3pct":moves,
           "coverage":count,"universe":len(all_eligible)},ensure_ascii=False),flush=True)
