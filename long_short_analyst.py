@@ -49,7 +49,7 @@ MAX_SYMBOLS = int(os.getenv("LS_MAX_SYMBOLS", "80"))
 REQUEST_TIMEOUT = 12
 TELEGRAM_LIMIT = 4096
 VERSION = DIRECTION_ENGINE_VERSION
-PRESELECT_MAX = int(os.getenv("LS_PRESELECT_MAX", "12"))
+PRESELECT_MAX = int(os.getenv("LS_PRESELECT_MAX", "24"))
 UNIVERSE_MOVER_SHARE = float(os.getenv("LS_UNIVERSE_MOVER_SHARE", "0.75"))
 PREFILTER_WORKERS = int(os.getenv("LS_PREFILTER_WORKERS", "6"))
 DEEP_WORKERS = int(os.getenv("LS_DEEP_WORKERS", "6"))
@@ -2265,6 +2265,21 @@ def main():
     shortlist=select_deep_shortlist(preselected,PRESELECT_MAX)
     print("FAST_PREFILTER",len(uni),"->",len(shortlist),
           ",".join(x["symbol"] for x in shortlist))
+    # Observability only: record why each prefiltered symbol did not reach deep analysis.
+    # Do not weaken execution, derivative, structure or Telegram gates.
+    deep_symbols={x["symbol"] for x in shortlist}
+    for candidate in preselected:
+        if candidate["symbol"] in deep_symbols:
+            continue
+        meta=candidate.get("discovery_meta") or {}
+        actionable=(
+            float(candidate.get("quote_volume") or 0.0)>=MIN_24H_QUOTE_VOL
+            and bool(meta.get("binance_spot_member"))
+            and not bool(meta.get("external_only_unverified"))
+        )
+        reason="DEEP_CAPACITY" if actionable else "RESEARCH_ONLY_OR_LIQUIDITY"
+        print("DEEP_SHORTLIST_EXCLUDED",ts,candidate["symbol"],reason,
+              "rank=",candidate.get("rank"),"day_change=",candidate.get("day_change"))
     save_universe_observations(ts,preselected,shortlist)
 
     # Stage 2: full deterministic model only on the strongest shortlist.
