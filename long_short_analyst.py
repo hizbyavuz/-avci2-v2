@@ -1105,6 +1105,8 @@ def universe():
                     "research_only":True,"metadata":DISCOVERY_META.get(sym,{})},
                     ensure_ascii=False,default=str)+"\n")
         print("FULL_UNIVERSE_RESEARCH",len(all_eligible),flush=True)
+        from long_short_full_universe_forward import track as track_full_universe
+        track_full_universe(all_eligible)
     except Exception as exc:
         print("FULL_UNIVERSE_RESEARCH_ERROR",type(exc).__name__,str(exc)[:160],flush=True)
     cap=max(1,int(MAX_SYMBOLS))
