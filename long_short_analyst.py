@@ -2424,10 +2424,19 @@ def main():
                        "DEEP_ERROR" if a is None else
                        "MODEL_"+str(a.status))
                 counts[stage]=counts.get(stage,0)+1
+                payload=(a.payload or {}) if a else {}
+                shadow=payload.get("v3_hard_gate_shadow") or {}
+                decision=payload.get("direction_engine") or {}
                 details={"research_only":True,"discovery":x.get("v3_discovery"),
+                         "discovery_meta":x.get("discovery_meta"),
                          "risks":a.risks[:6] if a else [],
                          "long_score":a.long_score if a else None,
-                         "short_score":a.short_score if a else None}
+                         "short_score":a.short_score if a else None,
+                         "shadow_gate":shadow,"production_direction":decision,
+                         "derivatives_ready":payload.get("derivatives_ready"),
+                         "spot_flow":payload.get("spot_flow"),
+                         "t15":x.get("t15"),
+                         "t5":x.get("t5")}
                 con.execute("INSERT OR REPLACE INTO opportunity_funnel VALUES(?,?,?,?,?,?)",
                             (ts,sym,stage,float(x.get("rank") or 0),
                              float(x["t5"].get("price") or 0),
