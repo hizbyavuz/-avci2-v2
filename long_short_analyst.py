@@ -1155,7 +1155,14 @@ def select_deep_shortlist(preselected, limit=PRESELECT_MAX):
         (actionable if can_execute else research).append(x)
     actionable.sort(key=rank_key)
     research.sort(key=rank_key)
-    return (actionable+research)[:n]
+    selected=(actionable+research)[:n]
+    # Observability only: no changes to frozen ranking or execution gates.
+    try:
+        from long_short_shortlist_audit import record_shortlist
+        record_shortlist(preselected, selected, limit=n, volume_floor=MIN_24H_QUOTE_VOL)
+    except Exception as exc:
+        print("SHORTLIST_AUDIT_IMPORT_ERROR",type(exc).__name__,str(exc)[:120],flush=True)
+    return selected
 
 
 def build_htf_gate(symbol, t4h):
