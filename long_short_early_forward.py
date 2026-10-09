@@ -39,7 +39,7 @@ def track(observations):
                 price = float(item["price"])
                 direction = str(item["direction"])
                 state = str(item["state"])
-                if price <= 0 or direction not in ("LONG", "SHORT") or state != "EARLY_WATCH":
+                if price <= 0:
                     continue
                 # Resolve only earlier observations, using first eligible subsequent scan
                 # within the 10-minute window after each target horizon.
@@ -55,6 +55,8 @@ def track(observations):
                     signed = (price / old_price - 1.0) * 100.0 * (1 if old_dir == "LONG" else -1)
                     db.execute("INSERT OR IGNORE INTO outcomes VALUES (?,?,?,?,?)",
                                (oid, horizon, now, price, signed))
+                if direction not in ("LONG", "SHORT") or state != "EARLY_WATCH":
+                    continue
                 db.execute("""INSERT OR IGNORE INTO observations
                     (ts,symbol,direction,state,price,deep_selected,meta_json)
                     VALUES (?,?,?,?,?,?,?)""",
@@ -71,7 +73,11 @@ def track(observations):
         print("EARLY_FORWARD_SUMMARY", json.dumps({
             "horizons": [{"minutes":h,"resolved":n,"mean_signed_pct":avg,
                           "positive":positive} for h,n,avg,positive in counts],
-            "pending": db.execute("SELECT COUNT(*) FROM observations").fetchone()[0],
+            "pending": db.execute("""SELECT COUNT(*) FROM observations o WHERE EXISTS (
+                SELECT 1 FROM (SELECT 15 AS h UNION ALL SELECT 30 UNION ALL SELECT 60 UNION ALL SELECT 180) q
+                LEFT JOIN outcomes z ON z.observation_id=o.id AND z.horizon_min=q.h
+                WHERE z.observation_id IS NULL AND o.ts+(q.h+?)*60>=?)""",
+                (MAX_LAG_MIN, now)).fetchone()[0],
             "database": str(root / "early_forward_outcomes.sqlite")
         }), flush=True)
     finally:
