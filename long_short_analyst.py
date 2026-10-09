@@ -2410,6 +2410,32 @@ def main():
         order={x["symbol"]:i for i,x in enumerate(shortlist)}
         results.sort(key=lambda x:order.get(x.symbol,9999))
 
+    # Read-only opportunity funnel: record why each scanned coin did not reach a trade plan.
+    try:
+        selected={x["symbol"] for x in shortlist}
+        deep={a.symbol:a for a in results}
+        counts={}
+        with sqlite3.connect(DB,timeout=15) as con:
+            con.execute("CREATE TABLE IF NOT EXISTS opportunity_funnel(scan_time_utc TEXT,symbol TEXT,stage TEXT,rank REAL,price REAL,detail_json TEXT,PRIMARY KEY(scan_time_utc,symbol))")
+            for x in preselected:
+                sym=x["symbol"]
+                a=deep.get(sym)
+                stage=("NOT_SELECTED" if sym not in selected else
+                       "DEEP_ERROR" if a is None else
+                       "MODEL_"+str(a.status))
+                counts[stage]=counts.get(stage,0)+1
+                details={"research_only":True,"discovery":x.get("v3_discovery"),
+                         "risks":a.risks[:6] if a else [],
+                         "long_score":a.long_score if a else None,
+                         "short_score":a.short_score if a else None}
+                con.execute("INSERT OR REPLACE INTO opportunity_funnel VALUES(?,?,?,?,?,?)",
+                            (ts,sym,stage,float(x.get("rank") or 0),
+                             float(x["t5"].get("price") or 0),
+                             json.dumps(details,ensure_ascii=False,default=str)))
+            con.commit()
+        print("OPPORTUNITY_FUNNEL",json.dumps(counts,ensure_ascii=False),flush=True)
+    except Exception as exc:
+        print("OPPORTUNITY_FUNNEL_ERROR",type(exc).__name__,str(exc)[:160],flush=True)
     save_scan(ts,regime,len(uni),results)
     send_health_once(results)
     perf=performance_summary()
