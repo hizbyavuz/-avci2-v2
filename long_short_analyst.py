@@ -2280,7 +2280,13 @@ def main():
     print("FAST_PREFILTER",len(uni),"->",len(shortlist),
           ",".join(x["symbol"] for x in shortlist))
     save_universe_observations(ts,preselected,shortlist)
-    # Read-only early-pattern observations for all prefiltered symbols.\n    try:\n        from long_short_broad_early import observe as observe_broad_early\n        observe_broad_early(preselected, shortlist)\n    except Exception as exc:\n        print("BROAD_EARLY_OBSERVER_ERROR", type(exc).__name__, str(exc)[:160], flush=True)\n
+    # Read-only early-pattern observations for all prefiltered symbols.
+    try:
+        from long_short_broad_early import observe as observe_broad_early
+        observe_broad_early(preselected, shortlist)
+    except Exception as exc:
+        print('BROAD_EARLY_OBSERVER_ERROR', type(exc).__name__, str(exc)[:160], flush=True)
+
     # Stage 2: full deterministic model only on the strongest shortlist.
     results=[]
     if shortlist:
