@@ -23,3 +23,18 @@
 ## Bilinen mevcut gözlem
 
 Son denetlenen canlı taramalarda 30 preselected, 24 deep; OPPORTUNITY_FUNNEL 23 NO_TRADE / 1 WAIT / 6 NOT_SELECTED veya 24 NO_TRADE / 6 NOT_SELECTED. CONFIRMED_TRADE_SUMMARY completed=0. Bunlar kaçırma oranı değildir.
+
+## Ek protokol düzeltmesi — bağımsız inceleme sonrası (2026-10-10)
+
+Bu bölüm önceki taslağın **yerini alan açıklayıcı ek** niteliğindedir. İlk sürüm saklıdır; veri analizine henüz başlanmadığı için sonuçlara göre eşik değiştirme yapılmamıştır.
+
+- **Üç zaman:** `t0` (ilk uygun 60m referans kapanışı), `t_hit` (60m içinde ±%8'e ilk erişen **1m kapanışı**), `t_onset` (t_hit öncesi, önceden sabitlenecek lookback içindeki son yerel dip/tepe). Onset yalnız **geriye dönük betimleyici etiket**, canlı tahmin sinyali değildir. Aşama ölçümü t0, onset ve t_hit referanslarına göre ayrı; her aşamada o ana dek gerçekleşen fiyat hareketi ve kalan mesafe ile raporlanır. Onset lookback ve eşit ekstremum bağ kuralı kod yazılmadan sabitlenmelidir.
+- **Olay birleştirme:** Yalnız aynı sembol+yön ve **önceki olayın t_hit zamanından önce başlayan** pencereler birleştirilebilir. En fazla 60m başlangıç penceresi kullanılır; daha sonraki yeni pencereler ayrı olaydır. Zincirleme birleşme yasak.
+- **Fiyat:** Ana olay 1m **close-to-close** ±%8; high/low iğne olayları ayrı tanısal tabaka, ana sayıya karıştırılmaz. t0'dan t_hit'e ≤2 dakika sürenler `FAST_SHOCK` olarak ayrı raporlanır, otomatik olarak kaçırma hatası sayılmaz.
+- **Piyasa kümeleri:** BTC ile eşzamanlı hareketleri `market_time_cluster` ve BTC rejimiyle grupla; güven aralığı/örneklem yorumları coinlerin bağımsız olduğunu varsaymaz. 72s raporu betimleyicidir.
+- **Kapsam:** Geçmişteki 24h hacim, Spot üyeliği ve kontrat doğrulamasıyla işlem yapılabilirlik sınıfı `IN_SCOPE` / `DESIGN_EXCLUDED` / `UNKNOWN_SCOPE`. Tasarım gereği dışlananlar ana kaçırma oranının paydasına alınmaz, ayrı sayılır.
+- **Kontroller:** `NEAR_MISS` 60m mutlak close-to-close hareket %4–%8'in altında; `RANDOM_NON_EVENT` %4'ün altında. Zaman, likidite, yaş ve BTC rejimiyle eşleştir; seed=20261010. 1:1 vaka-kontrol örneğiyle precision veya genel evren prevalansı iddia edilmez. Tam evren üzerinden gerçek taban oranı ayrıca hesaplanırsa raporlanabilir.
+- **Gerçek tarama:** Aşama durumu yalnız olaydan önce gerçekleşmiş gerçek scan timestamp'lerine oturtulur. Yeniden hesaplanan teorik t0 havuz üyeliği `IDEALIZED_REPLAY` olarak ayrı etiketlenir. Her aşamada `SCAN_NOT_RUN`, `LOG_MISSING`, `DATA_FAILURE` ayrı sonuçlardır.
+- **Her sert engel:** İlk görülen neden değil; tüm score/edge/hard-gate bayrakları, veri kaynağı, veri yaşı, kullanılan kapalı mum timestamp'i, sonuç ve Telegram API mesaj kimliği ile zamanının snapshot'ta bulunup bulunmadığı denetlenir. Yoksa `UNMEASURABLE`.
+- **Ölçüm ayrımı:** Gönderim anındaki yönlü brüt getiri ile işlem girişinden sonraki net getiri ayrı; SHORT = (entry-exit)/entry * 100 tanımı, maliyet/stop-first ve sabit ufuklar ayrı raporlanır. Paper ve live outcome çözücüleri tek başarı havuzunda karıştırılmaz.
+- **Teknik kabul:** (1) sembol bazlı funnel + çıktı değişmezliği, (2) Telegram idempotency defteri ve sabit chat kontrolü, (3) giriş/çıkış ve maliyet sözleşmesi, (4) alternatif türev kaynak uyumluluğu, (5) bağımsız missed-mover analizi, (6) yedi günlük sağlıklı çalışma. Bu maddeler tamamlanmadan 'motor bitmiş' denmez. Kod/konfigürasyon değişiklikleri ayrıca onay ve sürümleme gerektirir.
