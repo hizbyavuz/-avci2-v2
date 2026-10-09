@@ -1844,6 +1844,7 @@ def main():
         except Exception as exc:
             print("Telegram chat cache prime failed",type(exc).__name__,str(exc)[:160])
     # Delivery-only smoke test, once per persistent deployment version.
+    print("TELEGRAM_SMOKE_CHECK_START", flush=True)
     # Never marks a trade setup or changes any frozen signal thresholds.
     try:
         with sqlite3.connect(NOTIFY_DB,timeout=10) as con:
