@@ -1094,6 +1094,11 @@ def universe():
     # lightweight 24h snapshot, even when not selected for candle analysis.
     all_eligible=sorted(eligible,key=lambda z:(-float(z[1]),str(z[0])))
     try:
+        audit_30m_coverage(now_iso(),all_eligible)
+    except Exception as exc:
+        print("OPPORTUNITY_30M_AUDIT_ERROR",type(exc).__name__,str(exc)[:180],flush=True)
+
+    try:
         from pathlib import Path
         state=Path(os.getenv("LS_STATE_DIR") or os.getenv("RAILWAY_VOLUME_MOUNT_PATH") or ".long-short-state")
         state.mkdir(parents=True,exist_ok=True)
@@ -1128,6 +1133,55 @@ def universe():
     print("ROTATING_PREFILTER",len(all_eligible),"->",len(rotated),
           "slot",slot,"start",start,flush=True)
     return rotated
+
+
+def audit_30m_coverage(ts, all_eligible):
+    """Research-only 30-minute opportunity coverage audit.
+
+    Compares full-universe ticker snapshots with the scan selection history.
+    Does not infer actual executable returns or modify trading decisions.
+    """
+    now=datetime.fromisoformat(ts)
+    previous=(now-timedelta(minutes=30)).isoformat()
+    count={"NOT_PREFILTERED":0,"PREFILTERED_NOT_DEEP":0,
+           "DEEP_ANALYZED":0,"PREFILTER_DATA_MISSING":0}
+    moves=0
+    with sqlite3.connect(DB,timeout=15) as con:
+        for sym,qv,price,ch in all_eligible:
+            if float(price)<=0: continue
+            prior=con.execute("""SELECT scan_time_utc,price FROM opportunity_price_snapshots
+                WHERE symbol=? AND scan_time_utc<=? ORDER BY scan_time_utc DESC LIMIT 1""",
+                (sym,previous)).fetchone()
+            if prior and float(prior[1])>0:
+                move=(float(price)/float(prior[1])-1)*100
+                if abs(move)>=3:
+                    moves+=1
+                    observed=con.execute("""SELECT shortlisted FROM universe_observations
+                        WHERE symbol=? AND scan_time_utc>? AND scan_time_utc<=?
+                        ORDER BY shortlisted DESC LIMIT 1""",
+                        (sym,prior[0],ts)).fetchone()
+                    if observed is None:
+                        classification="NOT_PREFILTERED"
+                    elif not observed[0]:
+                        classification="PREFILTERED_NOT_DEEP"
+                    else:
+                        analyzed=con.execute("""SELECT 1 FROM analyses
+                            WHERE symbol=? AND scan_time_utc>? AND scan_time_utc<=?
+                            LIMIT 1""",(sym,prior[0],ts)).fetchone()
+                        classification="DEEP_ANALYZED" if analyzed else "PREFILTER_DATA_MISSING"
+                    count[classification]+=1
+                    con.execute("""INSERT OR IGNORE INTO opportunity_30m_audit
+                        (scan_time_utc,symbol,prior_time_utc,prior_price,current_price,
+                         move_pct,classification,detail) VALUES(?,?,?,?,?,?,?,?)""",
+                        (ts,sym,prior[0],float(prior[1]),float(price),move,
+                         classification,"absolute 30m ticker movement >=3%; observational"))
+            con.execute("""INSERT OR IGNORE INTO opportunity_price_snapshots
+                (scan_time_utc,symbol,price) VALUES(?,?,?)""",(ts,sym,float(price)))
+        con.execute("""DELETE FROM opportunity_price_snapshots
+            WHERE scan_time_utc<?""",(now-timedelta(days=10)).isoformat(),))
+        con.commit()
+    print("OPPORTUNITY_30M_AUDIT",json.dumps({"movers_3pct":moves,
+          "coverage":count,"universe":len(all_eligible)},ensure_ascii=False),flush=True)
 
 
 def fetch_htf_cached(symbol, interval, limit=220):
@@ -1884,6 +1938,17 @@ def init_db():
             breakdown20 INTEGER,
             payload_json TEXT,
             PRIMARY KEY(scan_time_utc,symbol)
+        )""")
+        con.execute("""CREATE TABLE IF NOT EXISTS opportunity_30m_audit(
+            scan_time_utc TEXT NOT NULL,symbol TEXT NOT NULL,
+            prior_time_utc TEXT NOT NULL,prior_price REAL NOT NULL,
+            current_price REAL NOT NULL,move_pct REAL NOT NULL,
+            classification TEXT NOT NULL,detail TEXT NOT NULL,
+            PRIMARY KEY(scan_time_utc,symbol)
+        )""")
+        con.execute("""CREATE TABLE IF NOT EXISTS opportunity_price_snapshots(
+            scan_time_utc TEXT NOT NULL,symbol TEXT NOT NULL,
+            price REAL NOT NULL,PRIMARY KEY(scan_time_utc,symbol)
         )""")
         con.execute("""CREATE TABLE IF NOT EXISTS data_health(
             scan_time_utc TEXT NOT NULL,
