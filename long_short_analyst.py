@@ -1715,7 +1715,8 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
         long_short_ratio=float(ls or 1.0),spot_flow=spot_flow,residual=residual,
     )
 
-    # Diagnostic only: never affects direction, ranking, or eligibility.
+    # The legacy V3 shadow gate is NOT the production veto. Keep its audit
+    # distinct to avoid diagnosing spot-flow shadow disagreements as live blocks.
     try:
         from long_short_gate_audit import record_setup_gates
         record_setup_gates(symbol, v3_hard_gate_shadow)
@@ -1732,6 +1733,16 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
         residual=residual,
         phase=str(v3_hard_gate_shadow.get("phase") or "NONE"),
     )
+
+    print("PRODUCTION_DIRECTION_AUDIT",json.dumps({
+        "symbol":symbol,"direction":v3.get("direction"),
+        "eligible":v3.get("eligible"),"hard_blockers":v3.get("hard_blockers"),
+        "best_score":v3.get("best_score"),"edge":v3.get("edge"),
+        "shadow_veto":v3_hard_gate_shadow.get("veto"),
+        "data_mode":DATA_MODE,
+        "venue_verified":bool(discovery_meta.get("binance_native_verified")),
+        "source":discovery_meta.get("source"),
+    },ensure_ascii=False,default=str),flush=True)
 
     preferred_direction=v3.get("direction") if v3.get("direction") in ("LONG","SHORT") else ("LONG" if long>short else "SHORT")
 
