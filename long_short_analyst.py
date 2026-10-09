@@ -2380,7 +2380,7 @@ def main():
     # roughly half the slots for raw volume leaders, which systematically pushed
     # BTC/ETH/other mega-liquidity names into the live pool even when faster
     # mid/small-cap perpetuals had stronger current setups.
-    shortlist=select_deep_shortlist(preselected,PRESELECT_MAX)
+    shortlist=select_deep_shortlist(preselected,len(preselected))
     print("FAST_PREFILTER",len(uni),"->",len(shortlist),
           ",".join(x["symbol"] for x in shortlist))
     save_universe_observations(ts,preselected,shortlist)
@@ -2391,7 +2391,7 @@ def main():
     except Exception as exc:
         print('BROAD_EARLY_OBSERVER_ERROR', type(exc).__name__, str(exc)[:160], flush=True)
 
-    # Stage 2: full deterministic model only on the strongest shortlist.
+    # Stage 2: bounded-concurrency deep scan of every successfully prefiltered symbol.\n    # No arbitrary candidate-count cutoff; data-health and frozen execution gates still apply.
     results=[]
     if shortlist:
         workers=max(1,min(DEEP_WORKERS,len(shortlist)))
