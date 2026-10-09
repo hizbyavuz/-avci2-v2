@@ -286,6 +286,17 @@ def init_db():
             if name not in event_cols:
                 con.execute(f"ALTER TABLE events ADD COLUMN {name} {typ}")
 
+        con.execute("""CREATE TABLE IF NOT EXISTS confirmed_trade_outcomes(
+            event_id INTEGER PRIMARY KEY,
+            symbol TEXT NOT NULL,direction TEXT NOT NULL,
+            entry_time_utc TEXT NOT NULL,entry_price REAL NOT NULL,
+            stop_price REAL NOT NULL,tp1_price REAL NOT NULL,tp2_price REAL,
+            result TEXT NOT NULL,exit_time_utc TEXT,exit_price REAL,
+            gross_return_pct REAL,net_return_pct REAL,
+            tp2_touched INTEGER NOT NULL DEFAULT 0,
+            candle_count INTEGER NOT NULL,venue TEXT NOT NULL,
+            evaluated_at_utc TEXT NOT NULL,detail TEXT
+        )""")
         con.execute("""CREATE TABLE IF NOT EXISTS signal_forward(
             event_id INTEGER NOT NULL,horizon_min INTEGER NOT NULL,
             observed_at_utc TEXT NOT NULL,observed_price REAL NOT NULL,
@@ -1393,6 +1404,100 @@ def record_confirmed_forward(con,symbol,price,observed_time):
         print("CONFIRMED_FORWARD_RECORDED",symbol,count,flush=True)
 
 
+def resolve_confirmed_trade_outcomes():
+    """Immutable, cost-aware 1m path labels for delivered TRIGGERED alerts.
+
+    Runs separately from active watchlist: rotated-out coins still resolve.
+    Unavailable/ambiguous market data is recorded as DATA_FAILURE, not a loss.
+    """
+    now=datetime.now(timezone.utc)
+    with sqlite3.connect(LIVE_DB,timeout=15) as con:
+        con.row_factory=sqlite3.Row
+        rows=con.execute("""SELECT e.* FROM events e
+            LEFT JOIN confirmed_trade_outcomes o ON o.event_id=e.id
+            WHERE e.stage_to='TRIGGERED' AND e.telegram_status='SENT'
+              AND e.telegram_sent_time_utc IS NOT NULL AND e.price>0
+              AND o.event_id IS NULL ORDER BY e.id LIMIT 25""").fetchall()
+        for ev in rows:
+            start=datetime.fromisoformat(ev["telegram_sent_time_utc"])
+            if (now-start).total_seconds()<180*60:
+                continue
+            try:
+                payload=json.loads(ev["payload_json"] or "{}")
+                entry=float(ev["price"])
+                stop=float(payload.get("invalidation") or 0)
+                tp1=float(payload.get("target1") or 0)
+                tp2=float(payload.get("target2") or 0)
+                direction=ev["direction"]
+                if min(entry,stop,tp1)<=0 or (direction=="LONG" and not (stop<entry<tp1)) or (direction=="SHORT" and not (tp1<entry<stop)):
+                    raise ValueError("invalid immutable entry/stop/target")
+                venue=str(payload.get("_live_price_source") or "UNKNOWN")
+                if venue=="BINANCE_SPOT":
+                    candles=spot_get("/api/v3/klines",{"symbol":ev["symbol"],"interval":"1m",
+                        "startTime":int(start.timestamp()*1000),"limit":240})
+                elif venue in ("GATE_FUTURES","BYBIT_LINEAR"):
+                    feed=multi_venue_perp_klines(ev["symbol"],"1m",240)
+                    if feed.get("provider")!=venue:
+                        raise ValueError("venue mismatch")
+                    candles=feed.get("rows") or []
+                else:
+                    raise ValueError("unknown signal execution venue")
+                # Only closed 1m bars after Telegram delivery; avoid intrabar
+                # look-ahead. Require every minute to be present.
+                begin=math.ceil(start.timestamp()/60)*60
+                bars={}
+                for c in candles:
+                    ts=int(float(c[0])/1000)
+                    if begin<=ts<begin+180*60 and ts+60<=now.timestamp():
+                        bars[ts]=c
+                expected=[begin+i*60 for i in range(180)]
+                if any(ts not in bars for ts in expected):
+                    raise ValueError("missing 1m path candles")
+                result="TIMEOUT";exit_price=float(bars[expected[-1]][4])
+                exit_time=datetime.fromtimestamp(expected[-1]+60,tz=timezone.utc).isoformat()
+                tp2_touched=0
+                for ts in expected:
+                    c=bars[ts];high=float(c[2]);low=float(c[3])
+                    hit_stop=low<=stop if direction=="LONG" else high>=stop
+                    hit_tp1=high>=tp1 if direction=="LONG" else low<=tp1
+                    if (high>=tp2 if direction=="LONG" else low<=tp2) and tp2>0:
+                        tp2_touched=1
+                    # Frozen same-bar STOP_FIRST rule.
+                    if hit_stop or hit_tp1:
+                        result="STOP" if hit_stop else "TP1"
+                        exit_price=stop if hit_stop else tp1
+                        exit_time=datetime.fromtimestamp(ts+60,tz=timezone.utc).isoformat()
+                        break
+                gross=(exit_price/entry-1)*100*(1 if direction=="LONG" else -1)
+                # Frozen costs: fee 5bps + minimum slippage 10bps per side.
+                net=gross-2*(5+10)/100
+                con.execute("""INSERT OR IGNORE INTO confirmed_trade_outcomes(
+                    event_id,symbol,direction,entry_time_utc,entry_price,stop_price,
+                    tp1_price,tp2_price,result,exit_time_utc,exit_price,
+                    gross_return_pct,net_return_pct,tp2_touched,candle_count,
+                    venue,evaluated_at_utc,detail) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                    (ev["id"],ev["symbol"],direction,start.isoformat(),entry,stop,tp1,tp2,
+                     result,exit_time,exit_price,gross,net,tp2_touched,180,
+                     venue,now.isoformat(),"STOP_FIRST; costs=30bps roundtrip; 1m path"))
+                con.commit()
+                print("CONFIRMED_TRADE_OUTCOME",ev["symbol"],direction,result,
+                      round(net,4),"event",ev["id"],flush=True)
+            except Exception as exc:
+                # Preserve unresolved event for future retry; never fabricate outcome.
+                print("CONFIRMED_OUTCOME_PENDING_DATA",ev["symbol"],ev["id"],
+                      type(exc).__name__,str(exc)[:140],flush=True)
+        counts=con.execute("""SELECT result,COUNT(*) FROM confirmed_trade_outcomes
+                             GROUP BY result""").fetchall()
+        pending=con.execute("""SELECT COUNT(*) FROM events e
+            LEFT JOIN confirmed_trade_outcomes o ON o.event_id=e.id
+            WHERE e.stage_to='TRIGGERED' AND e.telegram_status='SENT'
+              AND o.event_id IS NULL""").fetchone()[0]
+        print("CONFIRMED_TRADE_SUMMARY",json.dumps({
+            "completed":sum(int(x[1]) for x in counts),
+            "by_result":{x[0]:x[1] for x in counts},
+            "pending":pending,"target_sample":100},ensure_ascii=False),flush=True)
+
+
 def loop_once():
     with sqlite3.connect(LIVE_DB) as con:
         con.row_factory=sqlite3.Row
@@ -1689,6 +1794,15 @@ def loop_once():
                 except Exception as de:
                     print("V32_DUAL_DATA_ISSUE",dsym,
                           type(de).__name__,str(de)[:180],flush=True)
+
+    # Run once per 5m UTC bucket, even when the original coin left the live pool.
+    bucket=int(time.time()//300)
+    if getattr(resolve_confirmed_trade_outcomes,"_bucket",None)!=bucket:
+        resolve_confirmed_trade_outcomes._bucket=bucket
+        try:
+            resolve_confirmed_trade_outcomes()
+        except Exception as exc:
+            print("CONFIRMED_OUTCOME_WORKER_ERROR",type(exc).__name__,str(exc)[:160],flush=True)
 
     # Retain old pending observational alerts in DB; never release them to Telegram.
     ready=None if TELEGRAM_TRADE_ONLY else claim_ready_alert()
