@@ -1841,8 +1841,9 @@ def main():
     if token:
         try:
             resolve_live_chat_id(token,configured)
+            print("TELEGRAM_CHAT_RESOLVED",flush=True)
         except Exception as exc:
-            print("Telegram chat cache prime failed",type(exc).__name__,str(exc)[:160])
+            print("TELEGRAM_CHAT_RESOLVE_FAILED",type(exc).__name__,str(exc)[:160],flush=True)
     # Delivery-only smoke test, once per persistent deployment version.
     print("TELEGRAM_SMOKE_CHECK_START", flush=True)
     # Never marks a trade setup or changes any frozen signal thresholds.
