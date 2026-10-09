@@ -49,7 +49,7 @@ MAX_SYMBOLS = int(os.getenv("LS_MAX_SYMBOLS", "80"))
 REQUEST_TIMEOUT = 12
 TELEGRAM_LIMIT = 4096
 VERSION = DIRECTION_ENGINE_VERSION
-PRESELECT_MAX = max(24, int(os.getenv("LS_PRESELECT_MAX", "12")))
+PRESELECT_MAX = max(12, min(24, int(os.getenv("LS_PRESELECT_MAX", "24"))))
 UNIVERSE_MOVER_SHARE = float(os.getenv("LS_UNIVERSE_MOVER_SHARE", "0.75"))
 PREFILTER_WORKERS = int(os.getenv("LS_PREFILTER_WORKERS", "6"))
 DEEP_WORKERS = int(os.getenv("LS_DEEP_WORKERS", "6"))
@@ -2380,7 +2380,7 @@ def main():
     # roughly half the slots for raw volume leaders, which systematically pushed
     # BTC/ETH/other mega-liquidity names into the live pool even when faster
     # mid/small-cap perpetuals had stronger current setups.
-    shortlist=select_deep_shortlist(preselected,len(preselected))
+    shortlist=select_deep_shortlist(preselected,PRESELECT_MAX)
     print("FAST_PREFILTER",len(uni),"->",len(shortlist),
           ",".join(x["symbol"] for x in shortlist))
     save_universe_observations(ts,preselected,shortlist)
