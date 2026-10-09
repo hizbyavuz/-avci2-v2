@@ -2357,6 +2357,10 @@ def send_telegram(msg):
         json={"chat_id":chat,"text":msg,"disable_web_page_preview":True},
         timeout=REQUEST_TIMEOUT)
     r.raise_for_status()
+    payload=r.json()
+    if not payload.get("ok"):
+        raise RuntimeError("Telegram API did not confirm delivery")
+    print("TELEGRAM_DELIVERY_CONFIRMED", "chat_id_present="+str(bool(chat)), flush=True)
 
 
 def main():
