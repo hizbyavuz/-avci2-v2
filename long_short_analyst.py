@@ -2309,7 +2309,10 @@ def resolve_telegram_chat(token, configured=""):
     return resolve_chat_id(
         token,
         configured,
-        "binance_avci2.db",
+        os.path.join(
+            os.getenv("LS_STATE_DIR") or os.getenv("RAILWAY_VOLUME_MOUNT_PATH") or ".",
+            "long_short_telegram_chat_cache.db",
+        ),
         "Long/Short Telegram",
     )
 
