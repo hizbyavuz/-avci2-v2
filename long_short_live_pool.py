@@ -1850,8 +1850,10 @@ def main():
     try:
         with sqlite3.connect(NOTIFY_DB,timeout=10) as con:
             con.execute("CREATE TABLE IF NOT EXISTS runtime_settings (key TEXT PRIMARY KEY,value TEXT NOT NULL,updated_at TEXT NOT NULL)")
-            key="telegram_delivery_smoke_2026_10_09_v2"
+            key="telegram_delivery_smoke_2026_10_10_v3"
             already=con.execute("SELECT value FROM runtime_settings WHERE key=?",(key,)).fetchone()
+        if already:
+            print("TELEGRAM_DELIVERY_TEST_PREVIOUSLY_ACKNOWLEDGED",flush=True)
         if not already:
             try:
                 delivered=send_telegram("🧪 LONG/SHORT MOTOR BAĞLANTI TESTİ\nBu bir işlem sinyali değildir. Telegram teslimat kontrolü.")
