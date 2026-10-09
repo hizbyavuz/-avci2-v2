@@ -80,7 +80,11 @@ def configure_state_paths() -> Path:
     os.environ.setdefault("LS_REVERSAL_MAX_WATCH", "12")
 
     # Preserve the frozen V1.9 live universe unless explicitly versioned later.
+    # Keep the production default stable; allow an explicit operator override.
     os.environ.setdefault("LS_MAX_SYMBOLS", "30")
+    # Cap the second-stage preselection consistently with the requested
+    # deep-scan budget. This does not weaken any trade safety gates.
+    os.environ.setdefault("LS_PRESELECT_MAX", "24")
     os.environ.setdefault("LS_MIN_24H_QUOTE_VOL", "25000000")
     return sd
 
