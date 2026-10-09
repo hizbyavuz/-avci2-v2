@@ -98,7 +98,11 @@ class DiscoveryV23Tests(unittest.TestCase):
                 {"symbol":"LIQ1USDT","quote_volume":100_000_000,"last_price":1.0,"day_change_pct":1.0,"providers":["BYBIT_LINEAR","GATE_FUTURES"]},
                 {"symbol":"LIQ2USDT","quote_volume":90_000_000,"last_price":1.0,"day_change_pct":2.0,"providers":["BYBIT_LINEAR","GATE_FUTURES"]},
             ]
-            got=analyst.universe()
+            # Pin the 5-minute rotation slot so the test checks liquidity
+            # ordering rather than depending on the wall clock.
+            from unittest.mock import patch
+            with patch.object(analyst.time, "time", return_value=0):
+                got=analyst.universe()
             self.assertEqual([x[0] for x in got],["LIQ1USDT","LIQ2USDT"])
         finally:
             analyst.fget=old_fget
