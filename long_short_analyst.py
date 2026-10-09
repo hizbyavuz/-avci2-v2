@@ -1107,6 +1107,15 @@ def universe():
         print("FULL_UNIVERSE_RESEARCH",len(all_eligible),flush=True)
         from long_short_full_universe_forward import track as track_full_universe
         track_full_universe(all_eligible)
+        # Resolve previously observed early-watch signals even after a coin
+        # disappears from the rotating top-30 shortlist. Price-only rows
+        # never create new signals and do not affect trade eligibility.
+        from long_short_early_forward import track as track_early_forward
+        track_early_forward([
+            {"symbol":sym,"price":px,"direction":"NONE",
+             "state":"PRICE_ONLY","deep_selected":False}
+            for sym,qv,px,ch in all_eligible
+        ])
     except Exception as exc:
         print("FULL_UNIVERSE_RESEARCH_ERROR",type(exc).__name__,str(exc)[:160],flush=True)
     cap=max(1,int(MAX_SYMBOLS))
