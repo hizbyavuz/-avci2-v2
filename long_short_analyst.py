@@ -1088,7 +1088,35 @@ def universe():
     # were the main source of late/chase selection in V1/V2. Liquidity only
     # determines which symbols are cheap/safe enough to inspect; pre-move
     # compression/readiness is ranked later by v3_discovery_rank().
-    return sorted(eligible,key=lambda z:(-float(z[1]),str(z[0])))[:MAX_SYMBOLS]
+    # Research-only full eligible universe snapshot; no trade/Telegram effect.
+    # Rotate the limited candle-prefilter budget so the same 30 liquid symbols
+    # do not monopolize every scan. Every eligible symbol is included in the
+    # lightweight 24h snapshot, even when not selected for candle analysis.
+    all_eligible=sorted(eligible,key=lambda z:(-float(z[1]),str(z[0])))
+    try:
+        from pathlib import Path
+        state=Path(os.getenv("LS_STATE_DIR") or os.getenv("RAILWAY_VOLUME_MOUNT_PATH") or ".long-short-state")
+        state.mkdir(parents=True,exist_ok=True)
+        stamp=now_iso()
+        with (state/"full_universe_research.jsonl").open("a",encoding="utf-8") as out:
+            for sym,qv,px,ch in all_eligible:
+                out.write(json.dumps({"timestamp_utc":stamp,"symbol":sym,
+                    "quote_volume_24h":qv,"price":px,"change_24h_pct":ch,
+                    "research_only":True,"metadata":DISCOVERY_META.get(sym,{})},
+                    ensure_ascii=False,default=str)+"\n")
+        print("FULL_UNIVERSE_RESEARCH",len(all_eligible),flush=True)
+    except Exception as exc:
+        print("FULL_UNIVERSE_RESEARCH_ERROR",type(exc).__name__,str(exc)[:160],flush=True)
+    cap=max(1,int(MAX_SYMBOLS))
+    if len(all_eligible)<=cap:
+        return all_eligible
+    # Stable 5-minute UTC slots rotate the light candle-analysis window.
+    slot=int(time.time()//300)
+    start=(slot*cap)%len(all_eligible)
+    rotated=(all_eligible+all_eligible)[start:start+cap]
+    print("ROTATING_PREFILTER",len(all_eligible),"->",len(rotated),
+          "slot",slot,"start",start,flush=True)
+    return rotated
 
 
 def fetch_htf_cached(symbol, interval, limit=220):
