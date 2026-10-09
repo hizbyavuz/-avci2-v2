@@ -1622,7 +1622,7 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
         long_short_ratio=float(ls or 1.0),spot_flow=spot_flow,residual=residual,
     )
 
-    v3=production_decide_direction(
+    # Diagnostic only: never affects direction, ranking, or eligibility.\n    try:\n        from long_short_gate_audit import record_setup_gates\n        record_setup_gates(symbol, v3_hard_gate_shadow)\n    except Exception as exc:\n        print("SIGNAL_GATE_AUDIT_IMPORT_ERROR", type(exc).__name__, str(exc)[:120], flush=True)\n\n    v3=production_decide_direction(
         long_score=long,
         short_score=short,
         deriv_ready=deriv_ready,
