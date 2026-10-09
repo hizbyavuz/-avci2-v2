@@ -386,6 +386,25 @@ def loop_once():
 def main():
     init_db()
     items=load_plans()
+    # Reversal snapshot() uses Binance SPOT candles only. Verify symbols
+    # against the actual Spot exchange catalog before admitting a plan.
+    # Futures-only symbols stay in analyst research, not this Spot watcher.
+    try:
+        exchange=get("/api/v3/exchangeInfo")
+        spot_symbols={str(x.get("symbol")) for x in exchange.get("symbols",[])
+                      if x.get("status")=="TRADING" and
+                      ("SPOT" in x.get("permissions",[]) or
+                       x.get("isSpotTradingAllowed") is True)}
+        if not spot_symbols:
+            raise ValueError("empty Spot catalog")
+        before=len(items)
+        items=[x for x in items if x["symbol"] in spot_symbols]
+        print("REVERSAL_SPOT_UNIVERSE",json.dumps({"eligible":len(items),
+              "excluded":before-len(items)},ensure_ascii=False),flush=True)
+    except Exception as exc:
+        # Fail closed rather than treating a Futures-only ticker as Spot.
+        print("REVERSAL_SPOT_CATALOG_UNAVAILABLE",type(exc).__name__,str(exc)[:160],flush=True)
+        return
     sync(items)
     now=time.time()
     hard_end=now+RUN_SECONDS
