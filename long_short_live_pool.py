@@ -1689,6 +1689,23 @@ def main():
             resolve_live_chat_id(token,configured)
         except Exception as exc:
             print("Telegram chat cache prime failed",type(exc).__name__,str(exc)[:160])
+    # Delivery-only smoke test, once per persistent deployment version.
+    # Never marks a trade setup or changes any frozen signal thresholds.
+    try:
+        with sqlite3.connect(NOTIFY_DB,timeout=10) as con:
+            con.execute("CREATE TABLE IF NOT EXISTS runtime_settings (key TEXT PRIMARY KEY,value TEXT NOT NULL,updated_at TEXT NOT NULL)")
+            key="telegram_delivery_smoke_2026_10_09_v1"
+            already=con.execute("SELECT value FROM runtime_settings WHERE key=?",(key,)).fetchone()
+        if not already:
+            try:
+                delivered=send_telegram("🧪 LONG/SHORT MOTOR BAĞLANTI TESTİ\nBu bir işlem sinyali değildir. Telegram teslimat kontrolü.")
+                with sqlite3.connect(NOTIFY_DB,timeout=10) as con:
+                    con.execute("INSERT OR REPLACE INTO runtime_settings(key,value,updated_at) VALUES (?,?,?)",(key,str(delivered),now_iso()))
+                print("TELEGRAM_DELIVERY_TEST_OK",str(delivered),flush=True)
+            except Exception as exc:
+                print("TELEGRAM_DELIVERY_TEST_FAILED",type(exc).__name__,str(exc)[:200],flush=True)
+    except Exception as exc:
+        print("TELEGRAM_DELIVERY_TEST_SETUP_ERROR",type(exc).__name__,str(exc)[:200],flush=True)
     items=load_watchlist()
     sync_watchlist(items)
     try:
