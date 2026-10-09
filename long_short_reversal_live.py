@@ -314,12 +314,19 @@ def send(text):
                     timeout=10)
     r.raise_for_status()
 
+# Spot-only snapshot source: derivatives-only tickers must not be retried as Spot.
+# Keep their setups in the database; mark the observation unavailable rather
+# than inventing a price or a successful reversal outcome.
+_SPOT_UNAVAILABLE=set()
+
 def loop_once():
     with sqlite3.connect(DB) as con:
         con.row_factory=sqlite3.Row
         rows=con.execute("SELECT * FROM watch_state ORDER BY score DESC").fetchall()
         cache={}
         for r in rows:
+            if r["symbol"] in _SPOT_UNAVAILABLE:
+                continue
             try:
                 if r["symbol"] not in cache:
                     cache[r["symbol"]]=snapshot(r["symbol"])
@@ -352,8 +359,17 @@ def loop_once():
                         last_closed_1m=?,last_update_utc=? WHERE symbol=?""",
                         (s["price"],s["closed5_close"],s["closed1_close"],ts,r["symbol"]))
                     con.commit()
+            except requests.HTTPError as exc:
+                # Binance Spot returns 400 for symbols available only on Futures.
+                # Never substitute a different venue's candle into a Spot setup.
+                status=getattr(getattr(exc,"response",None),"status_code",None)
+                if status in (400,404):
+                    _SPOT_UNAVAILABLE.add(r["symbol"])
+                    print("REVERSAL_DATA_UNAVAILABLE",r["symbol"],"SPOT_SYMBOL_UNAVAILABLE",status,flush=True)
+                else:
+                    print("reversal live error",r["symbol"],type(exc).__name__,str(exc)[:160],flush=True)
             except Exception as exc:
-                print("reversal live error",r["symbol"],type(exc).__name__,str(exc)[:160])
+                print("reversal live error",r["symbol"],type(exc).__name__,str(exc)[:160],flush=True)
 
     if REVERSAL_TELEGRAM:
         ready=claim_ready_alert()
