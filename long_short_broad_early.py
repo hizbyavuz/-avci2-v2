@@ -48,4 +48,9 @@ def observe(preselected, selected):
             except Exception as exc:
                 print("EARLY_OBSERVER_ROW_ERROR", x.get("symbol"), type(exc).__name__, str(exc)[:100], flush=True)
     print("BROAD_EARLY_OBSERVER", json.dumps({"total": len(preselected), "deep": len(selected), "directions": counts, "file": str(path)}), flush=True)
-\n    try:\n        from long_short_early_forward import track\n        track(observations)\n    except Exception as exc:\n        print("EARLY_FORWARD_TRACK_ERROR", type(exc).__name__, str(exc)[:160], flush=True)\n
+
+    try:
+        from long_short_early_forward import track
+        track(observations)
+    except Exception as exc:
+        print('EARLY_FORWARD_TRACK_ERROR', type(exc).__name__, str(exc)[:160], flush=True)
