@@ -286,6 +286,13 @@ def init_db():
             if name not in event_cols:
                 con.execute(f"ALTER TABLE events ADD COLUMN {name} {typ}")
 
+        con.execute("""CREATE TABLE IF NOT EXISTS signal_forward(
+            event_id INTEGER NOT NULL,horizon_min INTEGER NOT NULL,
+            observed_at_utc TEXT NOT NULL,observed_price REAL NOT NULL,
+            signed_return_pct REAL NOT NULL,
+            PRIMARY KEY(event_id,horizon_min))""")
+        con.execute("""CREATE INDEX IF NOT EXISTS ix_events_forward
+            ON events(symbol,stage_to,event_time_utc)""")
         con.execute("""CREATE TABLE IF NOT EXISTS watch_episodes(
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             symbol TEXT NOT NULL,
@@ -1359,6 +1366,33 @@ def cluster_trigger_allowed(con,direction,observed_time,max_per_cluster=2):
     return int(n)<int(max_per_cluster),int(n)
 
 
+def record_confirmed_forward(con,symbol,price,observed_time):
+    """Record price-only forward returns for delivered confirmed signals.
+    These are not executable TP/SL or net-PnL labels.
+    """
+    now=datetime.fromisoformat(observed_time)
+    pending=con.execute("""SELECT id,direction,price,telegram_sent_time_utc
+        FROM events WHERE symbol=? AND stage_to='TRIGGERED'
+          AND telegram_status='SENT' AND price>0
+          AND telegram_sent_time_utc IS NOT NULL
+          AND event_time_utc>=?""",
+        (symbol,(now-timedelta(hours=4)).isoformat())).fetchall()
+    count=0
+    for eid,direction,entry,delivery in pending:
+        elapsed=(now-datetime.fromisoformat(delivery)).total_seconds()/60.0
+        for horizon in (15,30,60,180):
+            if horizon<=elapsed<=horizon+10:
+                ret=(float(price)/float(entry)-1)*100
+                if direction=='SHORT': ret=-ret
+                cur=con.execute("""INSERT OR IGNORE INTO signal_forward
+                    (event_id,horizon_min,observed_at_utc,observed_price,signed_return_pct)
+                    VALUES(?,?,?,?,?)""",(eid,horizon,observed_time,float(price),ret))
+                count+=cur.rowcount
+    if count:
+        con.commit()
+        print("CONFIRMED_FORWARD_RECORDED",symbol,count,flush=True)
+
+
 def loop_once():
     with sqlite3.connect(LIVE_DB) as con:
         con.row_factory=sqlite3.Row
@@ -1383,6 +1417,7 @@ def loop_once():
             for row in rows:
                 try:
                     price,closed,closed_candle_time,early=snapshots[row["symbol"]].result()
+                    record_confirmed_forward(con,row["symbol"],price,now_iso())
                     try:
                         dual_changes=advance_dual_v32(con,row["symbol"],
                             (price,closed,closed_candle_time,early),now_iso(),
