@@ -15,7 +15,7 @@ class ObservationalForwardTests(unittest.TestCase):
                 con.executemany("INSERT INTO events VALUES(?,?,?,?,?,?,?)",[
                     (1,"AAAUSDT","LONG","APPROACHING",t,100.0,'{"_live_price_source":"BINANCE_SPOT"}'),
                     (2,"BBBUSDT","SHORT","CLOSE_CONFIRMED",t,100.0,'{"_live_price_source":"BINANCE_SPOT"}')])
-            def fetch(sym,start,horizons):
+            def fetch(sym,start,horizons,venue):
                 base=datetime.fromisoformat(start)
                 price=101 if sym=="AAAUSDT" else 99
                 return {h:((base+timedelta(minutes=h)).isoformat(),price) for h in horizons}
