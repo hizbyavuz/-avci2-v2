@@ -10,11 +10,11 @@ class ObservationalForwardTests(unittest.TestCase):
         with tempfile.NamedTemporaryFile(suffix=".db") as f:
             with sqlite3.connect(f.name) as con:
                 con.execute("""CREATE TABLE events(id INTEGER PRIMARY KEY,symbol TEXT,
-                    direction TEXT,stage_to TEXT,event_time_utc TEXT,price REAL)""")
+                    direction TEXT,stage_to TEXT,event_time_utc TEXT,price REAL,payload_json TEXT)""")
                 t=(now-timedelta(hours=4)).isoformat()
-                con.executemany("INSERT INTO events VALUES(?,?,?,?,?,?)",[
-                    (1,"AAAUSDT","LONG","APPROACHING",t,100.0),
-                    (2,"BBBUSDT","SHORT","CLOSE_CONFIRMED",t,100.0)])
+                con.executemany("INSERT INTO events VALUES(?,?,?,?,?,?,?)",[
+                    (1,"AAAUSDT","LONG","APPROACHING",t,100.0,'{"_live_price_source":"BINANCE_SPOT"}'),
+                    (2,"BBBUSDT","SHORT","CLOSE_CONFIRMED",t,100.0,'{"_live_price_source":"BINANCE_SPOT"}')])
             def fetch(sym,start,horizons):
                 base=datetime.fromisoformat(start)
                 price=101 if sym=="AAAUSDT" else 99
@@ -33,8 +33,8 @@ class ObservationalForwardTests(unittest.TestCase):
         with tempfile.NamedTemporaryFile(suffix=".db") as f:
             with sqlite3.connect(f.name) as con:
                 con.execute("""CREATE TABLE events(id INTEGER PRIMARY KEY,symbol TEXT,
-                    direction TEXT,stage_to TEXT,event_time_utc TEXT,price REAL)""")
-                con.execute("INSERT INTO events VALUES(1,'AAAUSDT','LONG','APPROACHING',?,100)",
+                    direction TEXT,stage_to TEXT,event_time_utc TEXT,price REAL,payload_json TEXT)""")
+                con.execute("INSERT INTO events VALUES(1,'AAAUSDT','LONG','APPROACHING',?,100,'{\"_live_price_source\":\"BINANCE_SPOT\"}')",
                     ((now-timedelta(hours=4)).isoformat(),))
             r=resolve_observational_forward(f.name,lambda *args:{},now)
             self.assertEqual(r["inserted"],0)
