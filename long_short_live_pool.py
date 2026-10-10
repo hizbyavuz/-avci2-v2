@@ -441,7 +441,9 @@ def load_watchlist():
                 thresholds=structure_gate.get("thresholds") or {}
                 min_net_r=float(thresholds.get("min_net_t1_r") or 1.0)
                 required_room_pct=float(structure_gate.get("required_room_pct") or 0.0)
-                effective_net_r=((reward_pct-min_cost_pct)/risk_pct) if risk_pct>0 else None
+                from long_short_r_math import trade_net_r
+                net_r_outcome=trade_net_r(plan["direction"],live_trigger,invalidation,target1,min_cost_pct)
+                effective_net_r=net_r_outcome["net_r"] if net_r_outcome["ok"] else None
                 effective_levels_ok=bool(
                     level_order_ok
                     and reward_pct>=required_room_pct
