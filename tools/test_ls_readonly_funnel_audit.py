@@ -10,6 +10,19 @@ from pathlib import Path
 SCRIPT = Path(__file__).with_name("ls_readonly_funnel_audit.py")
 
 class AuditTest(unittest.TestCase):
+    def test_paused_watch_diagnostics_snapshot_precedes_mutation(self):
+        """Prevent the previous bug: reading active setups after they were paused."""
+        source = (SCRIPT.parent.parent / "long_short_live_pool.py").read_text(encoding="utf-8")
+        start = source.index("def sync_watchlist(items):")
+        end = source.index("\\ndef _ema(", start) if "\\ndef _ema(" in source[start:] else source.index("\ndef _ema(", start)
+        body = source[start:end]
+        self.assertIn("active_at_start=", body)
+        self.assertIn("paused_absent=", body)
+        self.assertIn("paused_radar=", body)
+        self.assertIn("downgraded_to_radar_only", body)
+        self.assertLess(body.index("active_at_start="), body.index("for x in items:"))
+        self.assertLess(body.index("paused_absent="), body.index("UPDATE watch_state SET analyst_active=0,last_update_utc=?"))
+
     def test_synthetic_funnel_and_no_db_changes(self):
         with tempfile.TemporaryDirectory() as td:
             state = Path(td) / "state"
