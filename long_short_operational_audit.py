@@ -47,6 +47,37 @@ def audit_db(path):
                 out["active_stage_counts"]=dict(con.execute("SELECT stage,COUNT(*) FROM watch_state GROUP BY stage").fetchall())
             if "analyst_active" in cols:
                 out["active_analyst_watch_count"]=con.execute("SELECT COUNT(*) FROM watch_state WHERE analyst_active=1").fetchone()[0]
+        if "analyses" in names:
+            cols=[r[1] for r in con.execute("PRAGMA table_info(analyses)")]
+            if all(k in cols for k in ("scan_time_utc","status","payload_json")):
+                latest=con.execute("SELECT MAX(scan_time_utc) FROM analyses").fetchone()[0]
+                out["latest_scan_time_utc"]=latest
+                if latest:
+                    latest_rows=con.execute("SELECT status,payload_json FROM analyses WHERE scan_time_utc=?",(latest,)).fetchall()
+                    rejection={}
+                    status_counts={}
+                    for status,payload in latest_rows:
+                        status=str(status or "UNKNOWN")
+                        status_counts[status]=status_counts.get(status,0)+1
+                        try:
+                            p=json.loads(payload or "{}")
+                            plan=p.get("setup_plan") or {}
+                            gate=p.get("structure_gate") or {}
+                            v3=p.get("v3") or {}
+                            reasons=[]
+                            if status not in ("WAIT","LONG","SHORT"): reasons.append("analyst_status_"+status)
+                            if not p.get("derivatives_ready"): reasons.append("derivatives_unavailable")
+                            if not plan.get("trigger_level"): reasons.append("missing_trigger_level")
+                            if not gate.get("version"): reasons.append("missing_structure_gate")
+                            if not v3.get("eligible",False): reasons.append("v3_not_eligible")
+                            if not gate.get("qualified_precheck"): reasons.append("structure_precheck_not_qualified")
+                            for reason in reasons:
+                                rejection[reason]=rejection.get(reason,0)+1
+                        except (TypeError,ValueError,AttributeError):
+                            rejection["payload_unreadable"]=rejection.get("payload_unreadable",0)+1
+                    out["latest_scan_status_counts"]=status_counts
+                    out["latest_scan_rejection_indicators"]=rejection
+                    out["latest_scan_sample_size"]=len(latest_rows)
         if "paper_events" in names:
             cols=[r[1] for r in con.execute("PRAGMA table_info(paper_events)")]
             if "data_cohort" in cols:
