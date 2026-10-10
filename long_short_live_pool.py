@@ -1822,13 +1822,14 @@ def loop_once():
         try:
             with sqlite3.connect(LIVE_DB,timeout=15) as audit_con:
                 stage_rows=audit_con.execute(
-                    """SELECT stage_to,COALESCE(telegram_status,'UNSENT'),COUNT(*)
+                    """SELECT stage_to,COALESCE(telegram_status,'UNSENT'),
+                              COUNT(*),COUNT(DISTINCT symbol)
                        FROM events WHERE event_time_utc>=?
                        GROUP BY stage_to,COALESCE(telegram_status,'UNSENT')""",
                     ((datetime.now(timezone.utc)-timedelta(hours=24)).isoformat(),)
                 ).fetchall()
             print("LIVE_STAGE_FUNNEL_24H",json.dumps(
-                [{"stage":s,"telegram_status":t,"count":n} for s,t,n in stage_rows],
+                [{"stage":s,"telegram_status":t,"transitions":n,"unique_symbols":u} for s,t,n,u in stage_rows],
                 ensure_ascii=False),flush=True)
         except Exception as exc:
             print("LIVE_STAGE_FUNNEL_ERROR",type(exc).__name__,str(exc)[:140],flush=True)
