@@ -460,6 +460,17 @@ def load_watchlist():
                     else (structure_gate.get("room_ok") and structure_gate.get("rr_ok"))
                 )
                 if not radar_only and (not effective_levels_ok or not structure_precheck_ok):
+                    print("LIVE_ADMISSION_REJECT "+json.dumps({
+                        "symbol":str(r["symbol"]),"direction":str(plan["direction"]),
+                        "scan_time":str(scan["ts"]),
+                        "effective_levels_ok":bool(effective_levels_ok),
+                        "structure_precheck_ok":bool(structure_precheck_ok),
+                        "level_order_ok":bool(level_order_ok),
+                        "reward_pct":round(reward_pct,5),
+                        "required_room_pct":round(required_room_pct,5),
+                        "effective_net_r":round(effective_net_r,5) if effective_net_r is not None else None,
+                        "min_net_r":min_net_r,
+                    },separators=(",",":")),flush=True)
                     continue
 
                 stored_gate=dict(structure_gate)
@@ -519,6 +530,13 @@ def load_watchlist():
         # ranked list from crowding out already-qualified opposite-side setups.
         # No synthetic candidates and no forced LONG/SHORT signal.
         selected=out[:MAX_WATCH]
+        if len(out)>MAX_WATCH:
+            print("LIVE_WATCH_CAPACITY "+json.dumps({
+                "scan_time":str(scan["ts"]),"qualified_count":len(out),
+                "max_watch":MAX_WATCH,
+                "omitted":[{"symbol":x["symbol"],"direction":x["direction"],
+                            "radar_only":x["radar_only"]} for x in out[MAX_WATCH:]]
+            },separators=(",",":")),flush=True)
         if MAX_WATCH>1:
             reserve=max(1,MAX_WATCH//4)
             for side in ("LONG","SHORT"):
@@ -682,6 +700,15 @@ def sync_watchlist(items):
                  1 if new_actionable else 0,seen_at,1 if new_actionable else 0,
                  x["scan_time"],seen_at,seen_at,x["symbol"]))
 
+        # Diagnostic only: report previously active setups dropped by top-K churn.
+        active_before=con.execute("SELECT symbol,direction,stage FROM watch_state WHERE analyst_active=1").fetchall()
+        newly_paused=[{"symbol":r["symbol"],"direction":r["direction"],"stage":r["stage"]}
+                      for r in active_before if r["symbol"] not in keep]
+        if newly_paused:
+            print("LIVE_WATCH_PAUSED "+json.dumps({
+                "at_utc":seen_at,"reason":"absent_from_latest_selected_watchlist",
+                "setups":newly_paused
+            },separators=(",",":")),flush=True)
         # Missing for one analyst cycle is not an invalidation. Pause it first:
         # no confirmation while absent, but preserve the locked setup for a short
         # grace window so top-K churn cannot erase a nearly confirmed idea.
