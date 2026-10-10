@@ -43,6 +43,14 @@ class AuditTest(unittest.TestCase):
             self.assertEqual(before,{p.name:p.read_bytes() for p in (analyst,live)})
             Path("/tmp/ls_funnel_synthetic_test.json").unlink(missing_ok=True)
 
+    def test_missing_databases_are_rejected(self):
+        with tempfile.TemporaryDirectory() as td:
+            result = subprocess.run([sys.executable,"-I",str(SCRIPT),
+                "--state-dir",td,"--since","2026-10-10T11:09:00+00:00",
+                "--out","/tmp/ls_funnel_missing_test.json"],capture_output=True,text=True)
+            self.assertNotEqual(result.returncode,0)
+            self.assertIn("Missing database",result.stderr)
+
     def test_reject_state_dir_output(self):
         with tempfile.TemporaryDirectory() as td:
             state = Path(td)
