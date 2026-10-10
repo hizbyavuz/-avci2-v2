@@ -10,7 +10,8 @@ from pathlib import Path
 def connect(path):
     if not path.is_file():
         return None
-    con = sqlite3.connect(path.resolve().as_uri() + "?mode=ro&immutable=1", uri=True)
+    con = sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True)
+    con.execute("PRAGMA query_only=ON")
     con.row_factory = sqlite3.Row
     return con
 
@@ -100,14 +101,17 @@ def main():
             "since":args.since,"read_only":True,
             "note":"Diagnostic counts only; not validated production admission or trade performance"}
     try:
-        a=scan(analyst,"analyses","scan_time_utc",args.since)
-        report["analyst"] = summarize_analyses(a) if isinstance(a,list) else a
-        v=scan(live,"events","event_time_utc",args.since)
-        report["live"] = summarize_live(v) if isinstance(v,list) else v
+        for label,con,table,time_col,fn in (("analyst",analyst,"analyses","scan_time_utc",summarize_analyses),("live",live,"events","event_time_utc",summarize_live)):
+            try:
+                rows=scan(con,table,time_col,args.since)
+                report[label]=fn(rows) if isinstance(rows,list) else rows
+            except (sqlite3.Error,KeyError,TypeError,ValueError) as exc:
+                report[label]={"status":"error","error":type(exc).__name__,"detail":str(exc)[:200]}
     finally:
         for con in (analyst,live):
             if con: con.close()
-    out.parent.mkdir(parents=True,exist_ok=True)
+    if out.parent != Path("/tmp"):
+        parser.error("Output must be directly under /tmp")
     out.write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding="utf-8")
     print(json.dumps(report,ensure_ascii=False,indent=2))
 if __name__=="__main__":
