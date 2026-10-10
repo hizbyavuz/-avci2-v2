@@ -161,6 +161,7 @@ def main():
                 "read_only":True,"source":"RAILWAY_EXPORTED_LOGS_ONLY",
                 "database_inspected":False,
                 "trade_performance_measured":False,
+                "since_filter_applied":False,
                 "paused_watch_logs":pause_report}
         out.write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding="utf-8")
         print(json.dumps(report,ensure_ascii=False,indent=2))
@@ -211,8 +212,8 @@ def main():
     report["incomplete_sections"]=list(failed)
     # Do not imply that zero confirmed outcomes measures signal precision.
     outcomes=report.get("confirmed_outcomes",{})
-    if isinstance(outcomes,dict) and outcomes.get("outcomes")==0:
-        report["performance_interpretation"]="INSUFFICIENT_CONFIRMED_OUTCOMES"
+    if not isinstance(outcomes,dict) or not isinstance(outcomes.get("outcomes"),int) or outcomes["outcomes"]==0:
+        report["performance_interpretation"]="INSUFFICIENT_OR_UNAVAILABLE_CONFIRMED_OUTCOMES"
     else:
         report["performance_interpretation"]="DESCRIPTIVE_ONLY_NOT_A_VALIDATED_HIT_RATE"
     out.write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding="utf-8")
