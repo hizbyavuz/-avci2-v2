@@ -120,8 +120,12 @@ def fget(path: str, params: dict | None = None):
         "/fapi/v1/depth": "/api/v3/depth",
     }
 
-    # Once the runner is confirmed geo-blocked from Binance Futures, do not
-    # waste time retrying five Futures hosts on every symbol.
+    # Once HTTP 451 confirms a location restriction, never retry a native
+    # Futures-only endpoint on another Binance hostname in this process.
+    # Fail closed: spot candles must never masquerade as Futures derivatives.
+    if DATA_MODE=="BINANCE_SPOT_GRAPH_ONLY" and path not in spot_map:
+        raise requests.HTTPError("Binance Futures HTTP 451: native endpoint unavailable; no spot equivalent")
+    # Supported spot endpoints remain explicitly research-only.
     if DATA_MODE=="BINANCE_SPOT_GRAPH_ONLY" and path in spot_map:
         for base in SPOT_BASES:
             try:
