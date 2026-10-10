@@ -98,6 +98,39 @@ def audit_db(path):
                             actionable_rejections["payload_unreadable"]=actionable_rejections.get("payload_unreadable",0)+1
                     out["actionable_count"]=actionable_count
                     out["actionable_rejection_indicators"]=actionable_rejections
+                    # Reproduce the first admission gates of load_watchlist, in order.
+                    # This is diagnostic only; it never admits or rejects trades.
+                    admission={}
+                    for status,payload in latest_rows:
+                        try:
+                            p=json.loads(payload or "{}")
+                            plan=p.get("setup_plan") or {}
+                            sg=p.get("structure_gate") or {}
+                            v3=p.get("v3") or {}
+                            st=str(status or "")
+                            day_move=abs(float(p.get("day_change_pct") or 0))
+                            if not plan.get("direction") or plan.get("trigger_level") is None:
+                                reason="missing_plan"
+                            elif not sg.get("version"):
+                                reason="missing_structure_version"
+                            elif sg.get("direction")!=plan.get("direction"):
+                                reason="direction_mismatch"
+                            elif str(plan.get("setup_type") or v3.get("setup_type") or "BREAKOUT")=="BREAKOUT" and not sg.get("trigger_zone"):
+                                reason="missing_trigger_zone"
+                            elif st not in ("WAIT","LONG","SHORT"):
+                                reason="radar_or_no_trade"
+                            elif ("v3" in p) and not bool(v3.get("eligible")):
+                                reason="v3_ineligible"
+                            elif not p.get("derivatives_ready"):
+                                reason="derivatives_unavailable"
+                            elif not bool(sg.get("qualified_precheck") if str(plan.get("setup_type") or v3.get("setup_type") or "BREAKOUT")=="BREAKOUT" else (sg.get("room_ok") and sg.get("rr_ok"))):
+                                reason="structure_precheck_failed"
+                            else:
+                                reason="passed_initial_admission_checks"
+                            admission[reason]=admission.get(reason,0)+1
+                        except (ValueError,TypeError,AttributeError):
+                            admission["unreadable_payload"]=admission.get("unreadable_payload",0)+1
+                    out["latest_scan_first_admission_gate"]=admission
         if "paper_events" in names:
             cols=[r[1] for r in con.execute("PRAGMA table_info(paper_events)")]
             if "data_cohort" in cols:
