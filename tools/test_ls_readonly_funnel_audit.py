@@ -19,6 +19,7 @@ class AuditTest(unittest.TestCase):
         self.assertIn("active_at_start=", body)
         self.assertIn("paused_absent=", body)
         self.assertIn("paused_radar=", body)
+        self.assertIn("actionable_now=", body)
         self.assertIn("downgraded_to_radar_only", body)
         self.assertLess(body.index("active_at_start="), body.index("for x in items:"))
         self.assertLess(body.index("paused_absent="), body.index("UPDATE watch_state SET analyst_active=0,last_update_utc=?"))
