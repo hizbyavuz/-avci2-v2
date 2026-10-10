@@ -1,0 +1,28 @@
+name: Offline Long Short Audit Checks
+on:
+  pull_request:
+    paths:
+      - 'audits/**'
+      - 'long_short_telegram_delivery_integrity.py'
+      - 'long_short_live_pool.py'
+      - 'long_short_analyst.py'
+      - '.github/workflows/offline-long-short-audit.yml'
+  workflow_dispatch:
+jobs:
+  offline-audit:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Compile changed modules without importing services
+        run: |
+          python -m py_compile long_short_analyst.py long_short_live_pool.py long_short_telegram_delivery_integrity.py audits/*.py
+      - name: Run offline audit contract tests
+        env:
+          PYTHONPATH: .
+        run: |
+          python -m unittest discover -s audits -p 'test_*.py' -v
