@@ -147,6 +147,14 @@ def live_execution_gate(row,price,proxy):
     # Keep it for research, but never turn it into a futures trade approval.
     if proxy.get("source") != "BINANCE_FUTURES_BOOK":
         return {"qualified":False,"reason":"futures_execution_venue_unverified","proxy":proxy}
+    # A Binance futures book cannot approve a mixed-venue chart/derivatives setup.
+    data_mode=str(row["data_mode"] or "UNKNOWN") if "data_mode" in row.keys() else "UNKNOWN"
+    deriv_provider=str(row["derivatives_provider"] or "UNKNOWN") if "derivatives_provider" in row.keys() else "UNKNOWN"
+    if data_mode != "BINANCE_FUTURES" or not deriv_provider.upper().startswith("BINANCE"):
+        return {"qualified":False,"reason":"mixed_venue_execution_unverified",
+                "chart_venue":data_mode,"deriv_venue":deriv_provider,
+                "book_venue":proxy.get("source"),"decision_venue":"BINANCE_FUTURES",
+                "proxy":proxy}
     size=str(int(float(proxy.get("notional_usdt") or EXECUTION_PROXY_NOTIONAL)))
     costs=(proxy.get("costs") or {}).get(size) or {}
     def finite_nonneg(x):
