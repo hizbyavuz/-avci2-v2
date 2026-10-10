@@ -27,6 +27,18 @@ def audit_db(path):
             if not name.replace("_","").isalnum(): continue
             try: out["tables"][name]=con.execute('SELECT COUNT(*) FROM "'+name+'"').fetchone()[0]
             except sqlite3.Error: out["tables"][name]=None
+        if "primary_events" in names:
+            cols=[r[1] for r in con.execute("PRAGMA table_info(primary_events)")]
+            if "data_cohort" in cols:
+                out["cohorts"]=dict(con.execute("SELECT data_cohort,COUNT(*) FROM primary_events GROUP BY data_cohort").fetchall())
+                out["primary_count"]=out["cohorts"].get(PRIMARY,0)
+                out["independent_episodes"]=con.execute("SELECT COUNT(DISTINCT episode_id) FROM primary_events WHERE data_cohort=?", (PRIMARY,)).fetchone()[0]
+        if "events" in names:
+            cols=[r[1] for r in con.execute("PRAGMA table_info(events)")]
+            if "stage_to" in cols:
+                out["triggered_count"]=con.execute("SELECT COUNT(*) FROM events WHERE stage_to='TRIGGERED'").fetchone()[0]
+                if "telegram_sent_time_utc" in cols:
+                    out["triggered_delivered"]=con.execute("SELECT COUNT(*) FROM events WHERE stage_to='TRIGGERED' AND telegram_sent_time_utc IS NOT NULL").fetchone()[0]
         if "paper_events" in names:
             cols=[r[1] for r in con.execute("PRAGMA table_info(paper_events)")]
             if "data_cohort" in cols:
