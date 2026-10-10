@@ -143,6 +143,10 @@ def live_execution_gate(row,price,proxy):
     """Fail closed if the trigger-time executable cost destroys net T1 R."""
     if not proxy or not proxy.get("available"):
         return {"qualified":False,"reason":"execution_proxy_unavailable"}
+    # A spot order book is not proof of executable futures liquidity.
+    # Keep it for research, but never turn it into a futures trade approval.
+    if proxy.get("source") != "BINANCE_FUTURES_BOOK":
+        return {"qualified":False,"reason":"futures_execution_venue_unverified","proxy":proxy}
     size=str(int(float(proxy.get("notional_usdt") or EXECUTION_PROXY_NOTIONAL)))
     costs=(proxy.get("costs") or {}).get(size) or {}
     def finite_nonneg(x):
