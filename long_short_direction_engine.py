@@ -13,6 +13,7 @@ This module never places orders.
 from __future__ import annotations
 
 from typing import Any
+import math
 
 DIRECTION_ENGINE_VERSION = "LS_DIRECTION_EVIDENCE_V1_2026-10-07"
 MIN_DIRECTION_SCORE = 42.0
@@ -22,7 +23,10 @@ MAX_RESIDUAL_BONUS = 4.0
 
 
 def _clamp(x: float, lo: float = 0.0, hi: float = 100.0) -> float:
-    return max(lo, min(hi, float(x)))
+    value = float(x)
+    if not math.isfinite(value):
+        return lo
+    return max(lo, min(hi, value))
 
 
 def decide_direction(
@@ -45,13 +49,25 @@ def decide_direction(
     A disagreeing soft feature can reduce the edge, but cannot erase seven
     agreeing features by itself.
     """
-    l=float(long_score or 0.0)
-    s=float(short_score or 0.0)
+    def finite_score(value):
+        try:
+            parsed = float(value)
+            return parsed if math.isfinite(parsed) else None
+        except (TypeError, ValueError, OverflowError):
+            return None
+
+    original_l = finite_score(long_score)
+    original_s = finite_score(short_score)
+    invalid_score = original_l is None or original_s is None
+    l = original_l if original_l is not None else 0.0
+    s = original_s if original_s is not None else 0.0
     evidence=[]
 
     sf=spot_flow or {}
     if bool(sf.get("available")) and sf.get("delta_share") is not None:
-        delta=float(sf.get("delta_share") or 0.0)
+        delta=finite_score(sf.get("delta_share"))
+        if delta is None:
+            delta=0.0
         bonus=min(MAX_SPOT_FLOW_BONUS, abs(delta)*10.0)
         if delta>0.02:
             l+=bonus
@@ -63,8 +79,8 @@ def decide_direction(
             evidence.append({"name":"spot_flow","side":"NEUTRAL","strength":0.0,"value":delta})
 
     rr=residual or {}
-    residual3=float(rr.get("residual_3h_pct") or 0.0)
-    if residual3:
+    residual3=finite_score(rr.get("residual_3h_pct"))
+    if residual3 is not None and abs(residual3)>0.02:
         bonus=min(MAX_RESIDUAL_BONUS, abs(residual3)*4.0)
         if residual3>0:
             l+=bonus
@@ -89,6 +105,8 @@ def decide_direction(
         hard_blockers.append("liquidity_floor")
     if bool(external_only_unverified):
         hard_blockers.append("unverified_external_only")
+    if invalid_score:
+        hard_blockers.append("score_not_finite")
 
     eligible=bool(direction!="NONE" and not hard_blockers)
     # Explicit diagnostics: a healthy but directionless market is not a data outage.
