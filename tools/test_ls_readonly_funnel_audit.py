@@ -10,6 +10,22 @@ from pathlib import Path
 SCRIPT = Path(__file__).with_name("ls_readonly_funnel_audit.py")
 
 class AuditTest(unittest.TestCase):
+    def test_legacy_null_last_seen_preserved_before_pause_timestamp_refresh(self):
+        source=(SCRIPT.parent.parent / "long_short_live_pool.py").read_text(encoding="utf-8")
+        start=source.index("def sync_watchlist(items):")
+        end=source.index("\\ndef _ema(",start) if "\\ndef _ema(" in source[start:] else source.index("\ndef _ema(",start)
+        body=source[start:end]
+        self.assertEqual(body.count("last_seen_watchlist_utc=COALESCE(last_seen_watchlist_utc,last_update_utc)"),2)
+        with sqlite3.connect(":memory:") as db:
+            db.execute("CREATE TABLE watch_state(symbol TEXT,analyst_active INTEGER,last_seen_watchlist_utc TEXT,last_update_utc TEXT)")
+            db.execute("INSERT INTO watch_state VALUES('LEGACY',1,NULL,'2026-10-10T10:00:00Z')")
+            db.execute("""UPDATE watch_state SET analyst_active=0,
+                         last_seen_watchlist_utc=COALESCE(last_seen_watchlist_utc,last_update_utc),
+                         last_update_utc=? WHERE symbol NOT IN (?)""",
+                       ("2026-10-10T12:00:00Z","OTHER"))
+            row=db.execute("SELECT last_seen_watchlist_utc,last_update_utc FROM watch_state").fetchone()
+            self.assertEqual(row,("2026-10-10T10:00:00Z","2026-10-10T12:00:00Z"))
+
     def test_paused_watch_diagnostics_snapshot_precedes_mutation(self):
         """Prevent the previous bug: reading active setups after they were paused."""
         source = (SCRIPT.parent.parent / "long_short_live_pool.py").read_text(encoding="utf-8")
