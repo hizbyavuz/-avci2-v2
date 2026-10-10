@@ -2591,6 +2591,7 @@ def main():
         # Explicitly separate eligibility from setup readiness: no hard blocker
         # does NOT imply that a valid LONG/SHORT setup exists.
         decision_counts=Counter()
+        decision_reason_counts=Counter()
         unblocked_samples=[]
         for item in preselected:
             sym=item["symbol"]
@@ -2605,6 +2606,8 @@ def main():
             if blockers or analysis.status!="NO_TRADE":
                 continue
             decision_counts[str(direction.get("direction") or "NONE")[:24]]+=1
+            for reason in (direction.get("decision_reasons") or ["unspecified_model_decision"]):
+                decision_reason_counts[str(reason)[:80]]+=1
             if len(unblocked_samples)<8:
                 unblocked_samples.append({
                     "symbol":sym,"status":analysis.status,
@@ -2613,10 +2616,13 @@ def main():
                     "best_score":direction.get("best_score"),
                     "edge":direction.get("edge"),
                     "shadow_veto":(payload.get("v3_hard_gate_shadow") or {}).get("veto"),
+                    "decision_reasons":direction.get("decision_reasons"),
+                    "thresholds":direction.get("thresholds"),
                 })
         print("NO_TRADE_WITHOUT_HARD_BLOCKER",json.dumps({
             "count":sum(decision_counts.values()),
             "directions":decision_counts.most_common(),
+            "decision_reasons":decision_reason_counts.most_common(),
             "samples":unblocked_samples,
         },ensure_ascii=False,default=str),flush=True)
         print("OPPORTUNITY_BLOCKER_SUMMARY",json.dumps({
