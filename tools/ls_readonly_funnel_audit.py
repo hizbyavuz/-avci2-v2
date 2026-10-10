@@ -104,8 +104,13 @@ def main():
         datetime.fromisoformat(args.since.replace("Z","+00:00"))
     except ValueError:
         parser.error("--since must be ISO datetime")
-    analyst=connect(state/"long_short_analyst.db")
-    live=connect(state/"long_short_live_pool.db")
+    analyst_path=state/"long_short_analyst.db"
+    live_path=state/"long_short_live_pool.db"
+    missing=[str(p) for p in (analyst_path,live_path) if not p.is_file()]
+    if missing:
+        parser.error("Missing database(s): "+", ".join(missing))
+    analyst=connect(analyst_path)
+    live=connect(live_path)
     report={"generated_utc":datetime.now(timezone.utc).isoformat(),
             "since":args.since,"read_only":True,
             "note":"Diagnostic counts only; not validated production admission or trade performance"}
@@ -121,6 +126,9 @@ def main():
             if con: con.close()
     if out.parent != Path("/tmp"):
         parser.error("Output must be directly under /tmp")
+    failed={k:v for k,v in report.items() if isinstance(v,dict) and v.get("status") in ("error","missing_table","missing_time_column")}
+    report["audit_complete"]=not bool(failed)
+    report["incomplete_sections"]=list(failed)
     out.write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding="utf-8")
     print(json.dumps(report,ensure_ascii=False,indent=2))
 if __name__=="__main__":
