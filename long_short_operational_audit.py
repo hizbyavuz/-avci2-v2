@@ -63,7 +63,10 @@ def main():
     if STATE.is_dir():
         result["databases"]=[audit_db(p) for p in sorted(STATE.glob("*.db"))]
     else: result["error"]="STATE_DIRECTORY_MISSING"
+    research=next((x for x in result["databases"] if x.get("file")=="long_short_research.db"),{})
+    live=next((x for x in result["databases"] if x.get("file")=="long_short_live_pool.db"),{})
+    result["signal_health"]={"native_primary_events":research.get("primary_count",0),"triggered_events":live.get("triggered_count",0),"triggered_delivered":live.get("triggered_delivered",0),"assessment":"NO_NATIVE_PRIMARY_EVIDENCE" if not research.get("primary_count",0) else "REVIEW_PRIMARY_STATISTICS"}
     print("LS_AUDIT "+json.dumps(result,ensure_ascii=False,sort_keys=True))
-    return 0 if all(x.get("integrity")=="ok" for x in result["databases"]) else 2
+    return 0 if result["databases"] and all(x.get("integrity")=="ok" for x in result["databases"]) else 2
 
 if __name__=="__main__": raise SystemExit(main())
