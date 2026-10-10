@@ -1538,6 +1538,7 @@ def loop_once():
         # independent of the frozen single-direction state and sends NO extra
         # Telegram or trade signal.
         init_dual_v32(con)
+        con.commit()  # Release schema/init write locks before external HTTP requests.
         # Fetch external market snapshots concurrently; DB state writes and
         # Telegram sends remain serialized and deterministic in watchlist order.
         with ThreadPoolExecutor(max_workers=LIVE_FETCH_WORKERS) as workers:
@@ -1566,6 +1567,7 @@ def loop_once():
                     except Exception as de:
                         print("V32_DUAL_DATA_ISSUE",row["symbol"],
                               type(de).__name__,str(de)[:180],flush=True)
+                    con.commit()  # Release dual-side writes before any alert/network work.
                     old=row["stage"]
                     structure_quality=live_structure_confirmation(row,closed,early)
                     new=next_stage(row,price,closed,structure_quality)
@@ -1821,6 +1823,7 @@ def loop_once():
                     dsnap=dfuture.result()
                     dual_changes=advance_dual_v32(con,dsym,dsnap,now_iso(),
                                                   live_structure_confirmation)
+                    con.commit()  # Do not retain write locks across next network result.
                     for change in dual_changes:
                         print("V32_DUAL_SIDE",change["symbol"],change["direction"],
                               change["from"],"->",change["to"],
