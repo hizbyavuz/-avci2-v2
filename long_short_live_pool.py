@@ -1473,6 +1473,18 @@ def resolve_confirmed_trade_outcomes():
                 expected=[begin+i*60 for i in range(180)]
                 if any(ts not in bars for ts in expected):
                     raise ValueError("missing 1m path candles")
+                # Fill all fixed forward horizons from the immutable signal-time
+                # candle path, including symbols already rotated out of watch_state.
+                for horizon in (15,30,60,180):
+                    sample_ts=begin+(horizon-1)*60
+                    sample_close=float(bars[sample_ts][4])
+                    signed=(sample_close/entry-1.0)*100.0*(1 if direction=="LONG" else -1)
+                    con.execute("""INSERT OR IGNORE INTO signal_forward
+                        (event_id,horizon_min,observed_at_utc,observed_price,signed_return_pct)
+                        VALUES(?,?,?,?,?)""",
+                        (ev["id"],horizon,
+                         datetime.fromtimestamp(sample_ts+60,tz=timezone.utc).isoformat(),
+                         sample_close,signed))
                 result="TIMEOUT";exit_price=float(bars[expected[-1]][4])
                 exit_time=datetime.fromtimestamp(expected[-1]+60,tz=timezone.utc).isoformat()
                 tp2_touched=0
