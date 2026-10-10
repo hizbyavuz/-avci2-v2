@@ -2509,6 +2509,37 @@ def main():
                              json.dumps(details,ensure_ascii=False,default=str)))
             con.commit()
         print("OPPORTUNITY_FUNNEL",json.dumps(counts,ensure_ascii=False),flush=True)
+        # Aggregate diagnostic only. Never changes trade eligibility or exposes tokens.
+        from collections import Counter
+        blocker_counts=Counter()
+        risk_counts=Counter()
+        derivatives_counts=Counter()
+        for item in preselected:
+            sym=item["symbol"]
+            if sym not in selected:
+                continue
+            analysis=deep.get(sym)
+            if analysis is None:
+                blocker_counts["DEEP_ERROR"]+=1
+                continue
+            payload=(analysis.payload or {})
+            direction=payload.get("direction_engine") or {}
+            shadow=payload.get("v3_hard_gate_shadow") or {}
+            for value in (direction.get("hard_blockers") or []):
+                if isinstance(value,str):
+                    blocker_counts[value[:80]]+=1
+            for value in (analysis.risks or [])[:6]:
+                if isinstance(value,str):
+                    risk_counts[value[:80]]+=1
+            derivatives_counts[str(payload.get("derivatives_ready"))[:20]]+=1
+            if not direction.get("hard_blockers") and analysis.status=="NO_TRADE":
+                blocker_counts["NO_EXPLICIT_HARD_BLOCKER"]+=1
+        print("OPPORTUNITY_BLOCKER_SUMMARY",json.dumps({
+            "scope":"deep_selected","selected":len(selected),
+            "hard_blockers":blocker_counts.most_common(15),
+            "risks":risk_counts.most_common(15),
+            "derivatives_ready":derivatives_counts.most_common(8),
+        },ensure_ascii=False,default=str),flush=True)
     except Exception as exc:
         print("OPPORTUNITY_FUNNEL_ERROR",type(exc).__name__,str(exc)[:160],flush=True)
     save_scan(ts,regime,len(uni),results)
