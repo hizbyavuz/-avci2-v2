@@ -1340,6 +1340,13 @@ def retry_failed_telegram_events(limit=10):
                 payload=json.loads(ev["payload_json"] or "{}")
                 msg=payload.get("_telegram_message")
                 if not msg:
+                    con.execute("UPDATE events SET telegram_status='STALE',telegram_error='missing_delivery_payload' WHERE id=?",(ev["id"],))
+                    con.commit()
+                    continue
+                attempts=int(payload.get("_telegram_retry_attempts") or 0)
+                if attempts>=2:
+                    con.execute("UPDATE events SET telegram_status='STALE',telegram_error='retry_limit_reached' WHERE id=?",(ev["id"],))
+                    con.commit()
                     continue
                 # Do not send obsolete trading ideas hours later.
                 event_time=datetime.fromisoformat(str(ev["condition_time_utc"]).replace("Z","+00:00"))
@@ -1351,7 +1358,9 @@ def retry_failed_telegram_events(limit=10):
                     continue
                 # Mark in-flight durably before attempting delivery. On a
                 # crash, ambiguous PENDING is NOT retried automatically.
-                con.execute("UPDATE events SET telegram_status='PENDING',telegram_error=NULL WHERE id=?",(ev["id"],))
+                payload["_telegram_retry_attempts"]=attempts+1
+                con.execute("UPDATE events SET telegram_status='PENDING',telegram_error=NULL,payload_json=? WHERE id=?",
+                            (json.dumps(payload,ensure_ascii=False),ev["id"]))
                 con.commit()
                 sent=send_telegram(msg)
                 con.execute("UPDATE events SET telegram_status='SENT',telegram_sent_time_utc=?,telegram_error=NULL WHERE id=?",(sent,ev["id"]))
