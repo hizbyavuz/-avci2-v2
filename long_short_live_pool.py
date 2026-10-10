@@ -1859,6 +1859,26 @@ def loop_once():
             print("LIVE_STAGE_BY_CURRENT_ACTIONABILITY_24H",json.dumps(
                 [{"stage":stage,"current_analyst_active":active,"transitions":n,"unique_symbols":u}
                  for stage,active,n,u in cohorts],ensure_ascii=False),flush=True)
+            with sqlite3.connect(LIVE_DB,timeout=15) as audit_con:
+                snapshots=audit_con.execute(
+                    """SELECT stage_to,payload_json FROM events
+                       WHERE event_time_utc>=? AND stage_to IN
+                       ('WATCH','APPROACHING','CLOSE_CONFIRMED','RETESTING','TRIGGERED')""",
+                    ((datetime.now(timezone.utc)-timedelta(hours=24)).isoformat(),)
+                ).fetchall()
+            event_counts={}
+            for stage,raw in snapshots:
+                try:
+                    payload=json.loads(raw or "{}")
+                    active=payload.get("_analyst_active_at_event","historical_unknown")
+                    radar=payload.get("_radar_only_at_event","historical_unknown")
+                    key=(stage,str(active),str(radar))
+                    event_counts[key]=event_counts.get(key,0)+1
+                except (ValueError,TypeError):
+                    continue
+            print("LIVE_STAGE_EVENT_TIME_COHORT_24H",json.dumps(
+                [{"stage":k[0],"active_at_event":k[1],"radar_at_event":k[2],"transitions":v}
+                 for k,v in sorted(event_counts.items())],ensure_ascii=False),flush=True)
 
         except Exception as exc:
             print("LIVE_STAGE_FUNNEL_ERROR",type(exc).__name__,str(exc)[:140],flush=True)
