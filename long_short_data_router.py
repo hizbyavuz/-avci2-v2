@@ -887,7 +887,6 @@ def bybit_linear_paper_snapshot(symbol: str, interval: str = "5m",
         return {"qualified": False, "reason": "bybit_orderbook_unavailable",
                 "venue": "BYBIT_LINEAR", "symbol": symbol, "book": book}
     last_close = float(closed[-1][4])
-    mid = None
     spread = book.get("spread_bps")
     if spread is None or not math.isfinite(float(spread)):
         return {"qualified": False, "reason": "invalid_bybit_spread",
