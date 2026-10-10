@@ -1806,6 +1806,23 @@ def loop_once():
                             event_payload["_telegram_delivery_policy"]=delivery_guard
                         if suppression_reason:
                             event_payload["_telegram_suppression_reason"]=suppression_reason
+                        if new=="TRIGGERED":
+                            event_payload["_trigger_execution_proxy"]=trigger_proxy
+                            event_payload["_trigger_execution_gate"]=execution_check
+                        if msg:
+                            event_payload["_telegram_message"]=msg[:TELEGRAM_LIMIT]
+
+                        # Persist the event BEFORE any network request. A process
+                        # crash must never erase a failed or pending delivery.
+                        cursor=con.execute("""INSERT INTO events(
+                            event_time_utc,symbol,direction,stage_from,stage_to,price,closed_5m,
+                            condition_time_utc,telegram_sent_time_utc,telegram_status,telegram_error,delay_seconds,payload_json
+                        ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                            (observed_time,row["symbol"],row["direction"],old,new,price,closed,
+                             condition_time,None,telegram_status,None,None,
+                             json.dumps(event_payload,ensure_ascii=False)))
+                        event_id=cursor.lastrowid
+                        con.commit()
                         if msg:
                             print(msg)
                             try:
@@ -1822,18 +1839,10 @@ def loop_once():
                                     delay=None
                                 if delay is not None:
                                     print(f"ALERT_DELAY {row['symbol']} {new}: {delay:.1f}s")
-                        if new=="TRIGGERED":
-                            event_payload["_trigger_execution_proxy"]=trigger_proxy
-                            event_payload["_trigger_execution_gate"]=execution_check
-
-                        con.execute("""INSERT INTO events(
-                            event_time_utc,symbol,direction,stage_from,stage_to,price,closed_5m,
-                            condition_time_utc,telegram_sent_time_utc,telegram_status,telegram_error,delay_seconds,payload_json
-                        ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-                            (observed_time,row["symbol"],row["direction"],old,new,price,closed,
-                             condition_time,sent_time,telegram_status,telegram_error,delay,
-                             json.dumps(event_payload,ensure_ascii=False)))
-                        con.commit()
+                            con.execute("""UPDATE events SET telegram_sent_time_utc=?,
+                                telegram_status=?,telegram_error=?,delay_seconds=?
+                                WHERE id=?""",(sent_time,telegram_status,telegram_error,delay,event_id))
+                            con.commit()
                     else:
                         con.execute("UPDATE watch_state SET last_price=?,last_closed_5m=?,last_update_utc=? WHERE symbol=?",
                                     (price,closed,observed_time,row["symbol"]))
