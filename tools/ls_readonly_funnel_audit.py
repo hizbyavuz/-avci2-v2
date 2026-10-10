@@ -150,6 +150,12 @@ def main():
     failed={k:v for k,v in report.items() if isinstance(v,dict) and v.get("status") in ("error","missing_table","missing_time_column")}
     report["audit_complete"]=not bool(failed)
     report["incomplete_sections"]=list(failed)
+    # Do not imply that zero confirmed outcomes measures signal precision.
+    outcomes=report.get("confirmed_outcomes",{})
+    if isinstance(outcomes,dict) and outcomes.get("outcomes")==0:
+        report["performance_interpretation"]="INSUFFICIENT_CONFIRMED_OUTCOMES"
+    else:
+        report["performance_interpretation"]="DESCRIPTIVE_ONLY_NOT_A_VALIDATED_HIT_RATE"
     out.write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding="utf-8")
     print(json.dumps(report,ensure_ascii=False,indent=2))
 if __name__=="__main__":
