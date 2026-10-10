@@ -741,10 +741,14 @@ def sync_watchlist(items):
         # grace window so top-K churn cannot erase a nearly confirmed idea.
         if keep:
             q=",".join("?" for _ in keep)
-            con.execute(f"""UPDATE watch_state SET analyst_active=0,last_update_utc=?
+            con.execute(f"""UPDATE watch_state SET analyst_active=0,
+                            last_seen_watchlist_utc=COALESCE(last_seen_watchlist_utc,last_update_utc),
+                            last_update_utc=?
                             WHERE symbol NOT IN ({q})""",(seen_at,*tuple(keep)))
         else:
-            con.execute("UPDATE watch_state SET analyst_active=0,last_update_utc=?",(seen_at,))
+            con.execute("UPDATE watch_state SET analyst_active=0,
+                            last_seen_watchlist_utc=COALESCE(last_seen_watchlist_utc,last_update_utc),
+                            last_update_utc=?",(seen_at,))
 
         # Truly stale paused setups are retired; they cannot live forever.
         stale=con.execute("""SELECT symbol,last_price FROM watch_state
