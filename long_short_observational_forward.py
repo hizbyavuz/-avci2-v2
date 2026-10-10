@@ -90,5 +90,30 @@ def resolve_observational_forward(db_path, fetch_prices, now=None, limit=30):
                    AVG(signed_return_pct) FROM observational_forward
                    GROUP BY stage,horizon_min ORDER BY stage,horizon_min""")]
         result={"inserted":inserted,"data_issues":errors,"summary":summary}
+        # Distinguish the first measurement rollout from historical backfill.
+        # Count one observation per coin/direction/stage/UTC day/horizon,
+        # so repeated alerts cannot masquerade as independent wins.
+        rollout_start="2026-10-10T15:20:19.532+00:00"
+        cohort_rows=con.execute("""WITH ranked AS (
+            SELECT o.*, ROW_NUMBER() OVER (
+                PARTITION BY symbol,direction,stage,horizon_min,
+                             substr(event_time_utc,1,10)
+                ORDER BY event_time_utc,event_id) AS rn
+            FROM observational_forward o WHERE event_time_utc>=?
+        )
+        SELECT stage,horizon_min,COUNT(*),COUNT(DISTINCT symbol),
+               SUM(CASE WHEN signed_return_pct>0 THEN 1 ELSE 0 END),
+               SUM(CASE WHEN signed_return_pct<0 THEN 1 ELSE 0 END),
+               AVG(signed_return_pct)
+        FROM ranked WHERE rn=1
+        GROUP BY stage,horizon_min ORDER BY stage,horizon_min""",
+            (rollout_start,)).fetchall()
+        cohort=[{"stage":row[0],"horizon_min":row[1],
+                 "dedup_events":row[2],"unique_symbols":row[3],
+                 "correct":row[4],"wrong":row[5],
+                 "avg_signed_pct":row[6]} for row in cohort_rows]
+        print("OBS_FORWARD_POST_ROLLOUT_DEDUP",json.dumps({
+            "rollout_start_utc":rollout_start,"grouping":"first symbol/direction/stage/UTC-day/horizon",
+            "summary":cohort},ensure_ascii=False),flush=True)
         print("OBS_FORWARD_SUMMARY",json.dumps(result,ensure_ascii=False),flush=True)
         return result
