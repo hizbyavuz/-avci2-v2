@@ -1126,12 +1126,26 @@ def universe():
     cap=max(1,int(MAX_SYMBOLS))
     if len(all_eligible)<=cap:
         return all_eligible
-    # Stable 5-minute UTC slots rotate the light candle-analysis window.
+    # Preserve the frozen liquidity/venue gates, but prevent a rotation slot
+    # from containing only research-only symbols when actionable ones exist.
+    # Both cohorts still rotate; the deep shortlist ranks by readiness later.
     slot=int(time.time()//300)
-    start=(slot*cap)%len(all_eligible)
-    rotated=(all_eligible+all_eligible)[start:start+cap]
+    actionable=[row for row in all_eligible if
+                float(row[1])>=MIN_24H_QUOTE_VOL
+                and bool((DISCOVERY_META.get(row[0]) or {}).get("binance_spot_member"))
+                and not bool((DISCOVERY_META.get(row[0]) or {}).get("external_only_unverified"))]
+    research=[row for row in all_eligible if row not in actionable]
+    def rotate(rows,n):
+        if not rows or n<=0: return []
+        start=(slot*n)%len(rows)
+        return (rows+rows)[start:start+min(n,len(rows))]
+    actionable_slots=min(cap,len(actionable))
+    selected_actionable=rotate(actionable,actionable_slots)
+    selected_research=rotate(research,cap-len(selected_actionable))
+    rotated=selected_actionable+selected_research
     print("ROTATING_PREFILTER",len(all_eligible),"->",len(rotated),
-          "slot",slot,"start",start,flush=True)
+          "slot",slot,"actionable",len(selected_actionable),
+          "research",len(selected_research),flush=True)
     return rotated
 
 
