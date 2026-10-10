@@ -92,10 +92,19 @@ def summarize_paused_watch_log(lines, since=None):
             setups=payload["setups"]
             if not isinstance(setups,list):
                 raise ValueError("setups must be a list")
+            # Validate the entire message before counting any setup.
+            # Otherwise a malformed second setup leaves a phantom first event.
+            validated=[]
             for setup in setups:
-                symbol=str(setup["symbol"])
-                stage=str(setup["stage"])
-                direction=str(setup["direction"])
+                if not isinstance(setup,dict):
+                    raise ValueError("setup must be an object")
+                symbol=setup["symbol"]
+                stage=setup["stage"]
+                direction=setup["direction"]
+                if not all(isinstance(v,str) and v.strip() for v in (symbol,stage,direction)):
+                    raise ValueError("setup fields must be non-empty strings")
+                validated.append((symbol,stage,direction))
+            for symbol,stage,direction in validated:
                 counts[(reason,stage)]+=1
                 symbols.setdefault(reason,set()).add((symbol,direction))
         except (ValueError,TypeError,KeyError):
