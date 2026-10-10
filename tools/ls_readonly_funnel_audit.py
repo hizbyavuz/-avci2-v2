@@ -123,6 +123,8 @@ def main():
     analyst=connect(analyst_path)
     live=connect(live_path)
     report={"generated_utc":datetime.now(timezone.utc).isoformat(),
+            "watch_state_scope":"CURRENT_SNAPSHOT_NOT_SINCE_FILTERED",
+            "episodes_scope":"EPISODES_STARTED_SINCE_ONLY",
             "since":args.since,"read_only":True,
             "note":"Diagnostic counts only; not validated production admission or trade performance"}
     try:
