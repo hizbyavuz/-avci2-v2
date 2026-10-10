@@ -602,6 +602,24 @@ def sync_watchlist(items):
                 or (new_actionable and (not old_radar) and old_setup_type!=new_setup_type)
             )
 
+            # A terminal episode must not permanently monopolize this symbol.
+            # Re-arm only after the original setup has aged out, preserving
+            # all historical events and the closed episode for evaluation.
+            if old and new_actionable and not reset:
+                terminal = str(old["stage"]) in (
+                    "INVALIDATED", "EXECUTION_BLOCKED", "CLUSTER_BLOCKED", "TRIGGERED", "TIMEOUT"
+                )
+                locked = old["setup_locked_at_utc"] or old["last_update_utc"]
+                try:
+                    locked_dt = datetime.fromisoformat(str(locked).replace("Z", "+00:00"))
+                    if locked_dt.tzinfo is None:
+                        locked_dt = locked_dt.replace(tzinfo=timezone.utc)
+                    age_seconds = (datetime.now(timezone.utc) - locked_dt).total_seconds()
+                except (TypeError, ValueError):
+                    age_seconds = 0.0
+                if terminal and age_seconds >= float(SETUP_MAX_AGE_SECONDS):
+                    reset = True
+
             if reset:
                 if old:
                     if direction_changed:
