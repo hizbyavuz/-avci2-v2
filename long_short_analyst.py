@@ -2423,8 +2423,20 @@ def main():
                              "UNOBSERVED" if audit_pre_item is None else
                              "DEEP_SELECTED" if audit_symbol in audit_selected else
                              "NOT_SHORTLISTED")
+                audit_meta=(audit_pre_item or {}).get("discovery_meta") or {}
+                audit_blockers=[]
+                if audit_pre_item is not None:
+                    if float(audit_volume or 0)<MIN_24H_QUOTE_VOL:
+                        audit_blockers.append("BELOW_EXECUTION_VOLUME_FLOOR")
+                    if not audit_meta.get("binance_spot_member"):
+                        audit_blockers.append("NO_BINANCE_SPOT_MEMBERSHIP")
+                    if audit_meta.get("external_only_unverified"):
+                        audit_blockers.append("EXTERNAL_ONLY_UNVERIFIED")
+                    if audit_stage=="NOT_SHORTLISTED":
+                        audit_blockers.append("DEEP_CAPACITY_NOT_SELECTED")
                 audit_detail={"prefilter_failure":audit_failure,
-                              "discovery_meta":(audit_pre_item or {}).get("discovery_meta"),
+                              "discovery_meta":audit_meta,
+                              "selection_blockers":audit_blockers,
                               "discovery":(audit_pre_item or {}).get("v3_discovery")}
                 audit_con.execute("""INSERT OR REPLACE INTO full_universe_stage_audit
                     (scan_time_utc,symbol,stage,quote_volume,day_change_pct,rank,shortlisted,detail_json)
