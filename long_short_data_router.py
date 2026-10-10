@@ -731,7 +731,7 @@ def multi_venue_perp_universe() -> list[dict[str, Any]]:
     )
 
 
-def multi_venue_perp_klines(symbol: str, interval: str, limit: int = 220) -> dict[str, Any]:
+def multi_venue_perp_klines(symbol: str, interval: str, limit: int = 220, *, start_ms: int | None = None, provider: str | None = None) -> dict[str, Any]:
     """Return normalized perpetual candles from Bybit, then Gate.
 
     Rows follow Binance-kline positions used by long_short_analyst.parse_klines:
@@ -758,7 +758,10 @@ def multi_venue_perp_klines(symbol: str, interval: str, limit: int = 220) -> dic
         raise ValueError(f"unsupported interval: {interval}")
 
     errors = []
-    try:
+    if provider not in (None, "BYBIT_LINEAR", "GATE_FUTURES"):
+        raise ValueError("unsupported historical venue")
+    if provider in (None, "BYBIT_LINEAR"):
+      try:
         x = _bybit(
             "/v5/market/kline",
             {
@@ -766,6 +769,7 @@ def multi_venue_perp_klines(symbol: str, interval: str, limit: int = 220) -> dic
                 "symbol": symbol,
                 "interval": bybit_interval[interval],
                 "limit": min(int(limit), 1000),
+                **({"start": int(start_ms), "end": int(start_ms) + min(int(limit),1000)*interval_ms[interval]-1} if start_ms is not None else {}),
             },
         )
         raw = list(x["result"].get("list") or [])
@@ -783,10 +787,11 @@ def multi_venue_perp_klines(symbol: str, interval: str, limit: int = 220) -> dic
         rows.sort(key=lambda r: int(r[0]))
         if rows:
             return {"provider": "BYBIT_LINEAR", "rows": rows}
-    except Exception as exc:
+      except Exception as exc:
         errors.append("bybit:" + type(exc).__name__ + ":" + str(exc)[:100])
 
-    try:
+    if provider in (None, "GATE_FUTURES"):
+      try:
         base = symbol[:-4] if symbol.endswith("USDT") else symbol
         contract = f"{base}_USDT"
         raw = _gate(
@@ -795,6 +800,7 @@ def multi_venue_perp_klines(symbol: str, interval: str, limit: int = 220) -> dic
                 "contract": contract,
                 "interval": gate_interval[interval],
                 "limit": min(int(limit), 2000),
+                **({"from": int(start_ms)//1000, "to": (int(start_ms)+min(int(limit),2000)*interval_ms[interval]-1)//1000} if start_ms is not None else {}),
             },
         )
         rows = []
@@ -812,7 +818,7 @@ def multi_venue_perp_klines(symbol: str, interval: str, limit: int = 220) -> dic
         rows.sort(key=lambda r: int(r[0]))
         if rows:
             return {"provider": "GATE_FUTURES", "rows": rows}
-    except Exception as exc:
+      except Exception as exc:
         errors.append("gate:" + type(exc).__name__ + ":" + str(exc)[:100])
 
     raise RuntimeError(f"{symbol} {interval}: no external perp candles; " + " | ".join(errors))
