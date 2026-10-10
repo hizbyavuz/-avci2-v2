@@ -159,29 +159,19 @@ def live_execution_gate(row,price,proxy):
     entry_slip=max(EXECUTION_MIN_SLIPPAGE_BPS_PER_SIDE,buy if direction=="LONG" else sell)
     exit_slip=max(EXECUTION_MIN_SLIPPAGE_BPS_PER_SIDE,sell if direction=="LONG" else buy)
     total_cost_pct=(2.0*EXECUTION_FEE_BPS_PER_SIDE+entry_slip+exit_slip)/100.0
-    inv=float(row["invalidation"] or 0.0)
-    t1=float(row["target1"] or 0.0)
-    entry=float(price)
-    if direction=="LONG":
-        geometry=bool(inv<entry<t1)
-        reward=(t1/entry-1.0)*100.0 if geometry else -999.0
-        risk=(entry/inv-1.0)*100.0 if geometry and inv>0 else 0.0
-    else:
-        geometry=bool(t1<entry<inv)
-        reward=(entry/t1-1.0)*100.0 if geometry and t1>0 else -999.0
-        risk=(inv/entry-1.0)*100.0 if geometry else 0.0
-    net_r=((reward-total_cost_pct)/risk) if risk>0 else None
-    qualified=bool(geometry and net_r is not None and net_r>=EXECUTION_MIN_NET_T1_R)
+    from long_short_r_math import trade_net_r
+    metrics = trade_net_r(direction, price, row["invalidation"], row["target1"], total_cost_pct)
+    qualified = bool(metrics["ok"] and metrics["net_r"] >= EXECUTION_MIN_NET_T1_R)
     return {
-        "qualified":qualified,
-        "reason":"ok" if qualified else "trigger_time_net_r_failed",
-        "entry_slippage_bps":entry_slip,
-        "exit_slippage_bps":exit_slip,
-        "round_trip_cost_pct":total_cost_pct,
-        "risk_pct":risk,
-        "reward_pct":reward,
-        "net_t1_r":net_r,
-        "proxy":proxy,
+        "qualified": qualified,
+        "reason": "ok" if qualified else (metrics["reason"] if not metrics["ok"] else "trigger_time_net_r_failed"),
+        "entry_slippage_bps": entry_slip,
+        "exit_slippage_bps": exit_slip,
+        "round_trip_cost_pct": total_cost_pct,
+        "risk_pct": metrics["risk_pct"],
+        "reward_pct": metrics["reward_pct"],
+        "net_t1_r": metrics["net_r"],
+        "proxy": proxy,
     }
 
 
