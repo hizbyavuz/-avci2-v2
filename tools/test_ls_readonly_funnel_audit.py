@@ -67,6 +67,23 @@ class AuditTest(unittest.TestCase):
             self.assertEqual(before,{p.name:p.read_bytes() for p in (analyst,live)})
             Path("/tmp/ls_funnel_synthetic_test.json").unlink(missing_ok=True)
 
+    def test_pause_log_breakdown_is_not_trade_performance(self):
+        with tempfile.TemporaryDirectory() as td:
+            log = Path(td) / "railway.log"
+            log.write_text(
+                'LIVE_WATCH_PAUSED {"reason":"absent_from_latest_selected_watchlist","setups":[{"symbol":"ENAUSDT","direction":"LONG","stage":"WATCH"}]}\\n'
+                'LIVE_WATCH_PAUSED {"reason":"downgraded_to_radar_only","setups":[{"symbol":"MAGICUSDT","direction":"SHORT","stage":"APPROACHING"}]}\\n'
+                'LIVE_WATCH_PAUSED not-json\\n',encoding="utf-8")
+            import importlib.util
+            spec=importlib.util.spec_from_file_location("audit_module",SCRIPT)
+            module=importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            result=module.summarize_paused_watch_log(log.read_text().splitlines())
+            self.assertEqual(result["pause_events_by_reason_stage"]["absent_from_latest_selected_watchlist/WATCH"],1)
+            self.assertEqual(result["pause_events_by_reason_stage"]["downgraded_to_radar_only/APPROACHING"],1)
+            self.assertEqual(result["malformed_messages"],1)
+            self.assertIn("not missed trades",result["warning"])
+
     def test_missing_databases_are_rejected(self):
         with tempfile.TemporaryDirectory() as td:
             result = subprocess.run([sys.executable,"-I",str(SCRIPT),
