@@ -903,4 +903,11 @@ if __name__ == "__main__":
     import sys
 
     sym = (sys.argv[1] if len(sys.argv) > 1 else "BTCUSDT").upper()
-    print(json.dumps(multi_venue_derivatives(sym), ensure_ascii=False, indent=2))
+    mode = sys.argv[2] if len(sys.argv) > 2 else "derivatives"
+    if mode == "bybit-paper":
+        output = bybit_linear_paper_snapshot(sym)
+    elif mode == "derivatives":
+        output = multi_venue_derivatives(sym)
+    else:
+        raise SystemExit("mode must be derivatives or bybit-paper")
+    print(json.dumps(output, ensure_ascii=False, indent=2))
