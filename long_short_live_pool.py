@@ -193,7 +193,7 @@ def fmtp(x):
     return f"{x:.8f}".rstrip("0")
 
 def init_db():
-    with sqlite3.connect(LIVE_DB) as con:
+    with sqlite3.connect(LIVE_DB,timeout=30) as con:
         con.execute("""CREATE TABLE IF NOT EXISTS watch_state(
             symbol TEXT PRIMARY KEY,
             direction TEXT NOT NULL,
@@ -330,7 +330,7 @@ def init_db():
 def load_watchlist():
     if not os.path.exists(ANALYST_DB):
         return []
-    with sqlite3.connect(ANALYST_DB) as con:
+    with sqlite3.connect(ANALYST_DB,timeout=30) as con:
         con.row_factory=sqlite3.Row
         scan=con.execute("SELECT MAX(scan_time_utc) AS ts FROM analyses").fetchone()
         if not scan or not scan["ts"]:
@@ -583,7 +583,7 @@ def sync_watchlist(items):
       rewrite it or confirm a trade.
     """
     seen_at=now_iso()
-    with sqlite3.connect(LIVE_DB) as con:
+    with sqlite3.connect(LIVE_DB,timeout=30) as con:
         con.row_factory=sqlite3.Row
         keep={x["symbol"] for x in items}
 
@@ -1360,7 +1360,7 @@ def send_health_if_due(watch_count=0):
                 except Exception:
                     pass
         counts={"WATCH":0,"APPROACHING":0,"CLOSE_CONFIRMED":0,"RETESTING":0,"TRIGGERED":0}
-        with sqlite3.connect(LIVE_DB) as con:
+        with sqlite3.connect(LIVE_DB,timeout=30) as con:
             for stage,n in con.execute("SELECT stage,COUNT(*) FROM watch_state GROUP BY stage").fetchall():
                 counts[str(stage)]=int(n)
         msg=(
@@ -1531,7 +1531,7 @@ def resolve_confirmed_trade_outcomes():
 
 
 def loop_once():
-    with sqlite3.connect(LIVE_DB) as con:
+    with sqlite3.connect(LIVE_DB,timeout=30) as con:
         con.row_factory=sqlite3.Row
         rows=con.execute("SELECT * FROM watch_state ORDER BY analyst_confidence DESC").fetchall()
         # V3.2 tracks both LONG and SHORT from the same snapshot. It is
@@ -1962,7 +1962,7 @@ def main():
     items=load_watchlist()
     sync_watchlist(items)
     try:
-        with sqlite3.connect(LIVE_DB) as dc:
+        with sqlite3.connect(LIVE_DB,timeout=30) as dc:
             dc.row_factory=sqlite3.Row
             dual_result=sync_dual_v32(dc,ANALYST_DB,now_iso())
             print("V32_DUAL_SYNC",json.dumps(dual_result,ensure_ascii=False),flush=True)
