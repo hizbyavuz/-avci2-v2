@@ -84,6 +84,22 @@ class AuditTest(unittest.TestCase):
             self.assertEqual(result["malformed_messages"],1)
             self.assertIn("not missed trades",result["warning"])
 
+    def test_log_only_without_database(self):
+        with tempfile.TemporaryDirectory() as td:
+            log=Path(td)/"railway.log"
+            log.write_text('LIVE_WATCH_PAUSED {"reason":"absent_from_latest_selected_watchlist","setups":[{"symbol":"ENAUSDT","direction":"LONG","stage":"WATCH"}]}\\n',encoding="utf-8")
+            result=subprocess.run([sys.executable,"-I",str(SCRIPT),
+                "--state-dir",str(Path(td)/"missing_state"),
+                "--since","2026-10-10T11:09:00+00:00",
+                "--railway-log-file",str(log),"--log-only",
+                "--out","/tmp/ls_funnel_log_only_test.json"],capture_output=True,text=True)
+            self.assertEqual(result.returncode,0,result.stderr)
+            report=json.loads(result.stdout)
+            self.assertFalse(report["database_inspected"])
+            self.assertFalse(report["trade_performance_measured"])
+            self.assertEqual(report["paused_watch_logs"]["pause_events_by_reason_stage"]["absent_from_latest_selected_watchlist/WATCH"],1)
+            Path("/tmp/ls_funnel_log_only_test.json").unlink(missing_ok=True)
+
     def test_missing_databases_are_rejected(self):
         with tempfile.TemporaryDirectory() as td:
             result = subprocess.run([sys.executable,"-I",str(SCRIPT),
