@@ -1323,6 +1323,47 @@ def send_telegram(msg):
                 time.sleep(2.0*(attempt+1))
     raise last or RuntimeError("Telegram send failed")
 
+def retry_failed_telegram_events(limit=10):
+    """Retry persisted failed deliveries; avoid retrying ambiguous PENDING sends.
+
+    Telegram has no idempotency key: retrying PENDING after a crash may
+    duplicate an acknowledged message. Those require manual reconciliation.
+    """
+    delivered=0
+    with sqlite3.connect(LIVE_DB,timeout=15) as con:
+        con.row_factory=sqlite3.Row
+        rows=con.execute("""SELECT id,payload_json,condition_time_utc FROM events
+            WHERE telegram_status='FAILED'
+            ORDER BY id LIMIT ?""",(int(limit),)).fetchall()
+        for ev in rows:
+            try:
+                payload=json.loads(ev["payload_json"] or "{}")
+                msg=payload.get("_telegram_message")
+                if not msg:
+                    continue
+                # Do not send obsolete trading ideas hours later.
+                event_time=datetime.fromisoformat(str(ev["condition_time_utc"]).replace("Z","+00:00"))
+                if event_time.tzinfo is None:
+                    event_time=event_time.replace(tzinfo=timezone.utc)
+                if (datetime.now(timezone.utc)-event_time).total_seconds()>900:
+                    con.execute("UPDATE events SET telegram_status='STALE',telegram_error='retry_window_expired' WHERE id=?",(ev["id"],))
+                    con.commit()
+                    continue
+                # Mark in-flight durably before attempting delivery. On a
+                # crash, ambiguous PENDING is NOT retried automatically.
+                con.execute("UPDATE events SET telegram_status='PENDING',telegram_error=NULL WHERE id=?",(ev["id"],))
+                con.commit()
+                sent=send_telegram(msg)
+                con.execute("UPDATE events SET telegram_status='SENT',telegram_sent_time_utc=?,telegram_error=NULL WHERE id=?",(sent,ev["id"]))
+                con.commit()
+                delivered+=1
+            except Exception as exc:
+                con.execute("UPDATE events SET telegram_status='FAILED',telegram_error=? WHERE id=?",
+                            ((type(exc).__name__+":"+str(exc))[:180],ev["id"]))
+                con.commit()
+    return delivered
+
+
 def send_recovery_notice_once(watch_count=0):
     """Send one deployment confirmation after the repaired runtime actually starts.
 
