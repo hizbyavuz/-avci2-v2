@@ -39,6 +39,14 @@ def audit_db(path):
                 out["triggered_count"]=con.execute("SELECT COUNT(*) FROM events WHERE stage_to='TRIGGERED'").fetchone()[0]
                 if "telegram_sent_time_utc" in cols:
                     out["triggered_delivered"]=con.execute("SELECT COUNT(*) FROM events WHERE stage_to='TRIGGERED' AND telegram_sent_time_utc IS NOT NULL").fetchone()[0]
+        if "events" in names and "stage_to" in [r[1] for r in con.execute("PRAGMA table_info(events)")]:
+            out["stage_funnel"]=dict(con.execute("SELECT stage_to,COUNT(*) FROM events GROUP BY stage_to").fetchall())
+        if "watch_state" in names:
+            cols=[r[1] for r in con.execute("PRAGMA table_info(watch_state)")]
+            if "stage" in cols:
+                out["active_stage_counts"]=dict(con.execute("SELECT stage,COUNT(*) FROM watch_state GROUP BY stage").fetchall())
+            if "analyst_active" in cols:
+                out["active_analyst_watch_count"]=con.execute("SELECT COUNT(*) FROM watch_state WHERE analyst_active=1").fetchone()[0]
         if "paper_events" in names:
             cols=[r[1] for r in con.execute("PRAGMA table_info(paper_events)")]
             if "data_cohort" in cols:
