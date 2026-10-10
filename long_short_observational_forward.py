@@ -94,6 +94,30 @@ def resolve_observational_forward(db_path, fetch_prices, now=None, limit=30):
         # Count one observation per coin/direction/stage/UTC day/horizon,
         # so repeated alerts cannot masquerade as independent wins.
         rollout_start="2026-10-10T11:09:00+00:00"  # 14:09 Europe/Istanbul
+        # Diagnose empty cohorts without assuming that no raw events were saved.
+        raw_since=con.execute("""SELECT COUNT(*),COUNT(DISTINCT symbol),
+            MIN(event_time_utc),MAX(event_time_utc)
+            FROM events WHERE julianday(event_time_utc)>=julianday(?)""",
+            (rollout_start,)).fetchone()
+        eligible_since=con.execute(f"""SELECT COUNT(*),COUNT(DISTINCT e.symbol)
+            FROM events e WHERE julianday(e.event_time_utc)>=julianday(?)
+              AND e.stage_to IN ({placeholders}) AND e.price>0
+              AND e.direction IN ('LONG','SHORT')
+              AND json_valid(e.payload_json)
+              AND json_extract(e.payload_json,'$._live_price_source')
+                  IN ('BINANCE_SPOT','GATE_FUTURES','BYBIT_LINEAR')""",
+            (rollout_start,*STAGES)).fetchone()
+        observed_since=con.execute("""SELECT COUNT(DISTINCT event_id),COUNT(*)
+            FROM observational_forward WHERE julianday(event_time_utc)>=julianday(?)""",
+            (rollout_start,)).fetchone()
+        print("OBS_FORWARD_SINCE_1409_DIAGNOSTIC",json.dumps({
+            "raw_events":raw_since[0],"raw_symbols":raw_since[1],
+            "first_raw_utc":raw_since[2],"last_raw_utc":raw_since[3],
+            "eligible_events":eligible_since[0],"eligible_symbols":eligible_since[1],
+            "observed_events":observed_since[0],"observed_horizons":observed_since[1],
+            "eligible_unobserved_events":eligible_since[0]-observed_since[0],
+            "interpretation":"raw=0 means no events saved in window; eligible=0 means none passed observation criteria; eligible>observed means pending/unresolved"
+        },ensure_ascii=False),flush=True)
         cohort_rows=con.execute("""WITH ranked AS (
             SELECT o.*, ROW_NUMBER() OVER (
                 PARTITION BY symbol,direction,stage,horizon_min,
