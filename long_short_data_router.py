@@ -872,6 +872,33 @@ def bybit_linear_execution_book(symbol: str, notional_usdt: float = 500.0) -> di
     }
 
 
+def bybit_linear_paper_snapshot(symbol: str, interval: str = "5m",
+                                limit: int = 120, notional_usdt: float = 500.0) -> dict[str, Any]:
+    """One-venue, read-only paper observation. No trading approval."""
+    candles = multi_venue_perp_klines(symbol, interval, limit, provider="BYBIT_LINEAR")
+    rows = candles["rows"]
+    now_ms = int(time.time() * 1000)
+    closed = [r for r in rows if int(r[6]) < now_ms - 250]
+    if len(closed) < 20:
+        return {"qualified": False, "reason": "insufficient_closed_bybit_candles",
+                "venue": "BYBIT_LINEAR", "symbol": symbol}
+    book = bybit_linear_execution_book(symbol, notional_usdt)
+    if not book.get("available"):
+        return {"qualified": False, "reason": "bybit_orderbook_unavailable",
+                "venue": "BYBIT_LINEAR", "symbol": symbol, "book": book}
+    last_close = float(closed[-1][4])
+    mid = None
+    spread = book.get("spread_bps")
+    if spread is None or not math.isfinite(float(spread)):
+        return {"qualified": False, "reason": "invalid_bybit_spread",
+                "venue": "BYBIT_LINEAR", "symbol": symbol}
+    return {"qualified": False, "reason": "research_only_no_directional_confirmation",
+            "venue": "BYBIT_LINEAR", "symbol": symbol,
+            "chart_venue": "BYBIT_LINEAR", "book_venue": book["provider"],
+            "closed_candle_count": len(closed), "last_closed_price": last_close,
+            "last_closed_at_ms": int(closed[-1][6]), "book": book}
+
+
 if __name__ == "__main__":
     import json
     import sys
