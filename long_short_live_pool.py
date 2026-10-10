@@ -1456,7 +1456,7 @@ def resolve_confirmed_trade_outcomes():
                     candles=spot_get("/api/v3/klines",{"symbol":ev["symbol"],"interval":"1m",
                         "startTime":int(start.timestamp()*1000),"limit":240})
                 elif venue in ("GATE_FUTURES","BYBIT_LINEAR"):
-                    feed=multi_venue_perp_klines(ev["symbol"],"1m",240)
+                    feed=multi_venue_perp_klines(ev["symbol"],"1m",1000)
                     if feed.get("provider")!=venue:
                         raise ValueError("venue mismatch")
                     candles=feed.get("rows") or []
