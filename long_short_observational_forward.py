@@ -41,6 +41,8 @@ def resolve_observational_forward(db_path, fetch_prices, now=None, limit=30):
             e.event_time_utc,e.price FROM events e
             WHERE e.stage_to IN ({placeholders}) AND e.price>0
               AND e.direction IN ('LONG','SHORT')
+              AND json_valid(e.payload_json)
+              AND json_extract(e.payload_json,'$._live_price_source')='BINANCE_SPOT'
               AND e.event_time_utc<=?
               AND (SELECT COUNT(*) FROM observational_forward o
                    WHERE o.event_id=e.id)<4
