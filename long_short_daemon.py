@@ -172,6 +172,16 @@ def research_loop() -> None:
         return
     while not STOP.is_set():
         rc_v2 = run_child("v2_shadow", "long_short_v2_shadow.py")
+        # Optional read-only venue health probe; never affects signal decisions.
+        if os.getenv("LS_BYBIT_PAPER_PROBE_ENABLED", "0") == "1":
+            rc_probe = subprocess.run(
+                [sys.executable, "-u", str(ROOT / "long_short_data_router.py"),
+                 "BTCUSDT", "bybit-paper"],
+                cwd=str(ROOT), env=os.environ.copy(), timeout=45,
+                capture_output=True, text=True, check=False,
+            )
+            print("[daemon] BYBIT_PAPER_PROBE rc=" + str(rc_probe.returncode) +
+                  " output=" + (rc_probe.stdout or rc_probe.stderr)[-1200:], flush=True)
         rc_val = run_child("research_validation", "long_short_research_validation.py")
         set_status("research_cycle", state="DONE", v2_rc=rc_v2, validation_rc=rc_val)
         if STOP.wait(RESEARCH_INTERVAL):
