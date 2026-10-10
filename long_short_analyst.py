@@ -141,6 +141,13 @@ def fget(path: str, params: dict | None = None):
                 base + path, params=params or {}, timeout=REQUEST_TIMEOUT,
                 headers={"User-Agent": "long-short-analyst/1.1"},
             )
+            if r.status_code == 451:
+                # Geo/legal restriction: other Binance Futures hostnames do not
+                # grant permission. Do not keep retrying them for each request.
+                last = requests.HTTPError("Binance Futures HTTP 451: location restricted")
+                DATA_MODE = "BINANCE_SPOT_GRAPH_ONLY"
+                print("BINANCE_FUTURES_451_RESTRICTED: native futures disabled; fallback is research-only", flush=True)
+                break
             r.raise_for_status()
             body = r.json()
             DATA_MODE = "BINANCE_FUTURES"
