@@ -1815,6 +1815,24 @@ def loop_once():
                     print("V32_DUAL_DATA_ISSUE",dsym,
                           type(de).__name__,str(de)[:180],flush=True)
 
+    # Observability only: count transition outcomes without changing signal gates.
+    audit_bucket=int(time.time()//300)
+    if getattr(loop_once,"_stage_audit_bucket",None)!=audit_bucket:
+        loop_once._stage_audit_bucket=audit_bucket
+        try:
+            with sqlite3.connect(LIVE_DB,timeout=15) as audit_con:
+                stage_rows=audit_con.execute(
+                    """SELECT stage_to,COALESCE(telegram_status,'UNSENT'),COUNT(*)
+                       FROM events WHERE event_time_utc>=?
+                       GROUP BY stage_to,COALESCE(telegram_status,'UNSENT')""",
+                    ((datetime.now(timezone.utc)-timedelta(hours=24)).isoformat(),)
+                ).fetchall()
+            print("LIVE_STAGE_FUNNEL_24H",json.dumps(
+                [{"stage":s,"telegram_status":t,"count":n} for s,t,n in stage_rows],
+                ensure_ascii=False),flush=True)
+        except Exception as exc:
+            print("LIVE_STAGE_FUNNEL_ERROR",type(exc).__name__,str(exc)[:140],flush=True)
+
     # Run once per 5m UTC bucket, even when the original coin left the live pool.
     bucket=int(time.time()//300)
     if getattr(resolve_confirmed_trade_outcomes,"_bucket",None)!=bucket:
