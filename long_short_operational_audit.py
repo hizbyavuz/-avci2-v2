@@ -78,6 +78,26 @@ def audit_db(path):
                     out["latest_scan_status_counts"]=status_counts
                     out["latest_scan_rejection_indicators"]=rejection
                     out["latest_scan_sample_size"]=len(latest_rows)
+                    actionable_rejections={}
+                    actionable_count=0
+                    for status,payload in latest_rows:
+                        if status not in ("WAIT","LONG","SHORT"):
+                            continue
+                        actionable_count+=1
+                        try:
+                            p=json.loads(payload or "{}")
+                            checks={
+                                "derivatives_unavailable":not bool(p.get("derivatives_ready")),
+                                "v3_not_eligible":not bool((p.get("v3") or {}).get("eligible")),
+                                "structure_precheck_not_qualified":not bool((p.get("structure_gate") or {}).get("qualified_precheck")),
+                            }
+                            for key,failed in checks.items():
+                                if failed:
+                                    actionable_rejections[key]=actionable_rejections.get(key,0)+1
+                        except (ValueError,TypeError,AttributeError):
+                            actionable_rejections["payload_unreadable"]=actionable_rejections.get("payload_unreadable",0)+1
+                    out["actionable_count"]=actionable_count
+                    out["actionable_rejection_indicators"]=actionable_rejections
         if "paper_events" in names:
             cols=[r[1] for r in con.execute("PRAGMA table_info(paper_events)")]
             if "data_cohort" in cols:
