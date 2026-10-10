@@ -1492,7 +1492,19 @@ def resolve_confirmed_trade_outcomes():
                         break
                 gross=(exit_price/entry-1)*100*(1 if direction=="LONG" else -1)
                 # Frozen costs: fee 5bps + minimum slippage 10bps per side.
-                net=gross-2*(5+10)/100
+                # Use actual observed execution costs when present; otherwise
+                # retain the frozen conservative 10bps minimum per side.
+                execution=payload.get("trigger_execution_gate") or {}
+                def valid_slip(value):
+                    try:
+                        v=float(value)
+                        return v if math.isfinite(v) and v>=0 else 10.0
+                    except (TypeError, ValueError, OverflowError):
+                        return 10.0
+                entry_slip=max(10.0,valid_slip(execution.get("entry_slippage_bps")))
+                exit_slip=max(10.0,valid_slip(execution.get("exit_slippage_bps")))
+                cost_bps=2*5+entry_slip+exit_slip
+                net=gross-cost_bps/100.0
                 con.execute("""INSERT OR IGNORE INTO confirmed_trade_outcomes(
                     event_id,symbol,direction,entry_time_utc,entry_price,stop_price,
                     tp1_price,tp2_price,result,exit_time_utc,exit_price,
@@ -1500,7 +1512,7 @@ def resolve_confirmed_trade_outcomes():
                     venue,evaluated_at_utc,detail) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                     (ev["id"],ev["symbol"],direction,start.isoformat(),entry,stop,tp1,tp2,
                      result,exit_time,exit_price,gross,net,tp2_touched,180,
-                     venue,now.isoformat(),"STOP_FIRST; costs=30bps roundtrip; 1m path"))
+                     venue,now.isoformat(),f"STOP_FIRST; costs={cost_bps:.3f}bps roundtrip; 1m path"))
                 con.commit()
                 print("CONFIRMED_TRADE_OUTCOME",ev["symbol"],direction,result,
                       round(net,4),"event",ev["id"],flush=True)
