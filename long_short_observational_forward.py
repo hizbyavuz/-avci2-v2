@@ -139,6 +139,25 @@ def resolve_observational_forward(db_path, fetch_prices, now=None, limit=30):
                  "dedup_events":row[2],"unique_symbols":row[3],
                  "correct":row[4],"wrong":row[5],
                  "avg_signed_pct":row[6]} for row in cohort_rows]
+        direction_rows=con.execute("""WITH ranked AS (
+            SELECT o.*, ROW_NUMBER() OVER (
+                PARTITION BY symbol,direction,stage,horizon_min,date(event_time_utc)
+                ORDER BY event_time_utc,event_id) AS rn
+            FROM observational_forward o WHERE julianday(event_time_utc)>=julianday(?)
+        )
+        SELECT direction,stage,horizon_min,COUNT(*),
+               SUM(CASE WHEN signed_return_pct>0 THEN 1 ELSE 0 END),
+               SUM(CASE WHEN signed_return_pct<0 THEN 1 ELSE 0 END),
+               SUM(CASE WHEN signed_return_pct=0 THEN 1 ELSE 0 END),
+               AVG(signed_return_pct)
+        FROM ranked WHERE rn=1
+        GROUP BY direction,stage,horizon_min
+        ORDER BY direction,stage,horizon_min""",(rollout_start,)).fetchall()
+        print("OBS_FORWARD_SINCE_1409_BY_DIRECTION",json.dumps([
+            {"direction":row[0],"stage":row[1],"horizon_min":row[2],
+             "dedup_events":row[3],"correct":row[4],"wrong":row[5],
+             "flat":row[6],"avg_signed_pct":row[7]} for row in direction_rows
+        ],ensure_ascii=False),flush=True)
         print("OBS_FORWARD_SINCE_1409_DEDUP",json.dumps({
             "start_utc":rollout_start,"start_turkey":"2026-10-10 14:09","grouping":"first symbol/direction/stage/UTC-day/horizon",
             "summary":cohort},ensure_ascii=False),flush=True)
