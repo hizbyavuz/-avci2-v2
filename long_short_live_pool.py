@@ -536,7 +536,8 @@ def load_watchlist():
                     "discovery_rank":float(p.get("discovery_rank") or 0.0),
                     "scan_time":scan["ts"],
                 })
-            except Exception:
+            except Exception as exc:
+                print("LIVE_WATCHLIST_ROW_ERROR "+json.dumps({"symbol":str(r["symbol"]),"scan_time":str(scan["ts"]),"error_type":type(exc).__name__,"error":str(exc)[:300]},separators=(",",":")),flush=True)
                 continue
         # Keep real WAIT/LONG/SHORT candidates first. Fill remaining capacity with
         # the fastest radar-only movers, not with mega-cap names by confidence.
