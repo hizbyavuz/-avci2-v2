@@ -799,8 +799,7 @@ def multi_venue_perp_klines(symbol: str, interval: str, limit: int = 220, *, sta
             {
                 "contract": contract,
                 "interval": gate_interval[interval],
-                "limit": min(int(limit), 2000),
-                **({"from": int(start_ms)//1000, "to": (int(start_ms)+min(int(limit),2000)*interval_ms[interval]-1)//1000} if start_ms is not None else {}),
+                **({"from": int(start_ms)//1000, "to": (int(start_ms)+min(int(limit),2000)*interval_ms[interval]-1)//1000} if start_ms is not None else {"limit": min(int(limit), 2000)}),
             },
         )
         rows = []
