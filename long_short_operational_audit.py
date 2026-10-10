@@ -70,7 +70,7 @@ def audit_db(path):
                             if not plan.get("trigger_level"): reasons.append("missing_trigger_level")
                             if not gate.get("version"): reasons.append("missing_structure_gate")
                             if not v3.get("eligible",False): reasons.append("v3_not_eligible")
-                            if not gate.get("qualified_precheck"): reasons.append("structure_precheck_not_qualified")
+                            if not bool(gate.get("qualified_precheck") if str(plan.get("setup_type") or v3.get("setup_type") or "BREAKOUT")=="BREAKOUT" else (gate.get("room_ok") and gate.get("rr_ok"))): reasons.append("structure_precheck_not_qualified")
                             for reason in reasons:
                                 rejection[reason]=rejection.get(reason,0)+1
                         except (TypeError,ValueError,AttributeError):
@@ -89,7 +89,7 @@ def audit_db(path):
                             checks={
                                 "derivatives_unavailable":not bool(p.get("derivatives_ready")),
                                 "v3_not_eligible":not bool((p.get("v3") or {}).get("eligible")),
-                                "structure_precheck_not_qualified":not bool((p.get("structure_gate") or {}).get("qualified_precheck")),
+                                "structure_precheck_not_qualified":not bool(((p.get("structure_gate") or {}).get("qualified_precheck")) if str((p.get("setup_plan") or {}).get("setup_type") or (p.get("v3") or {}).get("setup_type") or "BREAKOUT")=="BREAKOUT" else ((p.get("structure_gate") or {}).get("room_ok") and (p.get("structure_gate") or {}).get("rr_ok"))),
                             }
                             for key,failed in checks.items():
                                 if failed:
