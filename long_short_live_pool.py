@@ -1276,11 +1276,13 @@ def send_telegram(msg):
     configured=(os.getenv("TELEGRAM_CHAT_ID") or "").strip()
     if not token:
         raise RuntimeError("TELEGRAM_BOT_TOKEN missing: alert was not delivered")
+    expected_chat=(os.getenv("LS_TELEGRAM_EXPECTED_CHAT_ID") or "").strip()
+    if configured and expected_chat and configured!=expected_chat:
+        raise RuntimeError("TELEGRAM_CHAT_MISMATCH_PRE_SEND")
     last=None
     for attempt in range(3):
         try:
             chat=resolve_live_chat_id(token,configured)
-            expected_chat=(os.getenv("LS_TELEGRAM_EXPECTED_CHAT_ID") or "").strip()
             if expected_chat and str(chat)!=expected_chat:
                 raise RuntimeError("TELEGRAM_CHAT_MISMATCH_PRE_SEND")
             r=requests.post(f"https://api.telegram.org/bot{token}/sendMessage",
@@ -1303,7 +1305,7 @@ def send_telegram(msg):
         except Exception as exc:
             print("TELEGRAM_SEND_RETRY",attempt+1,type(exc).__name__,str(exc)[:150],flush=True)
             last=exc
-            if str(exc).startswith("TELEGRAM_ACK_"):
+            if str(exc).startswith(("TELEGRAM_ACK_", "TELEGRAM_CHAT_MISMATCH_PRE_SEND")):
                 break  # API acknowledged message_id; retry could duplicate delivery.
             if attempt<2:
                 time.sleep(2.0*(attempt+1))
