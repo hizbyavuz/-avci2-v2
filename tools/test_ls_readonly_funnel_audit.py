@@ -102,6 +102,25 @@ class AuditTest(unittest.TestCase):
             self.assertEqual(report["paused_watch_logs"]["excluded_missing_timestamp"],0)
             Path("/tmp/ls_funnel_log_only_test.json").unlink(missing_ok=True)
 
+    def test_pause_log_since_boundary_and_missing_timestamps(self):
+        import importlib.util
+        spec=importlib.util.spec_from_file_location("audit_module",SCRIPT)
+        module=importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        def line(stamp):
+            ts=(',"at_utc":"'+stamp+'"') if stamp is not None else ''
+            return ('LIVE_WATCH_PAUSED {"reason":"absent_from_latest_selected_watchlist"'
+                    +ts+',"setups":[{"symbol":"ENAUSDT","direction":"LONG","stage":"WATCH"}]}')
+        report=module.summarize_paused_watch_log([
+            line("2026-10-10T11:08:59Z"),
+            line("2026-10-10T11:09:00Z"),
+            line(None),
+            line("2026-10-10T11:10:00Z"),
+        ],"2026-10-10T11:09:00+00:00")
+        self.assertEqual(report["pause_events_by_reason_stage"]["absent_from_latest_selected_watchlist/WATCH"],2)
+        self.assertEqual(report["excluded_before_since"],1)
+        self.assertEqual(report["excluded_missing_timestamp"],1)
+
     def test_missing_databases_are_rejected(self):
         with tempfile.TemporaryDirectory() as td:
             result = subprocess.run([sys.executable,"-I",str(SCRIPT),
