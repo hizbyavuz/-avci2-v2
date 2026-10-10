@@ -1516,7 +1516,7 @@ def resolve_confirmed_trade_outcomes():
                 # Frozen costs: fee 5bps + minimum slippage 10bps per side.
                 # Use actual observed execution costs when present; otherwise
                 # retain the frozen conservative 10bps minimum per side.
-                execution=payload.get("trigger_execution_gate") or {}
+                execution=payload.get("_trigger_execution_gate") or {}
                 def valid_slip(value):
                     try:
                         v=float(value)
