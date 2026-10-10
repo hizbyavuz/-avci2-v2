@@ -124,6 +124,20 @@ class AuditTest(unittest.TestCase):
         self.assertEqual(report["excluded_before_since"],1)
         self.assertEqual(report["excluded_missing_timestamp"],1)
 
+    def test_malformed_multi_setup_message_does_not_partially_count(self):
+        import importlib.util
+        spec=importlib.util.spec_from_file_location("audit_module",SCRIPT)
+        module=importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        lines=[
+            'LIVE_WATCH_PAUSED {"at_utc":"2026-10-10T11:10:00Z","reason":"absent","setups":[{"symbol":"ENAUSDT","direction":"LONG","stage":"WATCH"},{"symbol":"MAGICUSDT","direction":"SHORT"}]}',
+            'LIVE_WATCH_PAUSED {"at_utc":"2026-10-10T11:11:00Z","reason":"absent","setups":[{"symbol":"SOLUSDT","direction":"LONG","stage":"WATCH"}]}'
+        ]
+        report=module.summarize_paused_watch_log(lines,"2026-10-10T11:09:00Z")
+        self.assertEqual(report["malformed_messages"],1)
+        self.assertEqual(report["pause_events_by_reason_stage"],{"absent/WATCH":1})
+        self.assertEqual(report["unique_symbol_directions_by_reason"],{"absent":1})
+
     def test_missing_databases_are_rejected(self):
         with tempfile.TemporaryDirectory() as td:
             result = subprocess.run([sys.executable,"-I",str(SCRIPT),
