@@ -21,6 +21,9 @@ class AuditTest(unittest.TestCase):
         self.assertIn("paused_radar=", body)
         self.assertIn("actionable_now=", body)
         self.assertIn("downgraded_to_radar_only", body)
+        self.assertIn("LIVE_WATCH_EXPIRED ", body)
+        self.assertIn('"reason":"WATCHLIST_GRACE_EXPIRED"', body)
+        self.assertLess(body.index("LIVE_WATCH_EXPIRED "), body.index('con.execute("DELETE FROM watch_state WHERE symbol=?"'))
         self.assertLess(body.index("active_at_start="), body.index("for x in items:"))
         self.assertLess(body.index("paused_absent="), body.index("UPDATE watch_state SET analyst_active=0,last_update_utc=?"))
 
