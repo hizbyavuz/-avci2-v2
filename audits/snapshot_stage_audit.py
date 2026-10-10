@@ -20,7 +20,7 @@ def main():
     a = p.parse_args()
     uri = "file:" + __import__("pathlib").Path(a.snapshot).resolve().as_posix() + "?mode=ro&immutable=1"
     db = sqlite3.connect(uri, uri=True)
-    names = ["universe_observations", "opportunity_funnel", "scans", "live_pool_events", "telegram_delivery_ledger"]
+    names = ["full_universe_stage_audit", "universe_observations", "opportunity_funnel", "scans", "live_pool_events", "telegram_delivery_ledger"]
     report = {"read_only": True, "tables": {}, "limitations": []}
     for name in names:
         if not has_table(db, name):
@@ -28,6 +28,16 @@ def main():
             continue
         n = db.execute(f"SELECT COUNT(*) FROM {name}").fetchone()[0]
         report["tables"][name] = {"exists": True, "rows": n, "columns": sorted(cols(db, name))}
+    if has_table(db, "full_universe_stage_audit"):
+        report["full_universe_stages"] = dict(db.execute(
+            "SELECT stage, COUNT(*) FROM full_universe_stage_audit GROUP BY stage").fetchall())
+        if has_table(db, "opportunity_funnel"):
+            report["universe_vs_funnel"] = db.execute("""
+                SELECT COUNT(*), SUM(CASE WHEN f.symbol IS NOT NULL THEN 1 ELSE 0 END)
+                FROM full_universe_stage_audit u
+                LEFT JOIN opportunity_funnel f
+                ON f.scan_time_utc=u.scan_time_utc AND f.symbol=u.symbol
+            """).fetchone()
     if has_table(db, "opportunity_funnel"):
         report["funnel_stages"] = dict(db.execute(
             "SELECT stage, COUNT(*) FROM opportunity_funnel GROUP BY stage").fetchall())
