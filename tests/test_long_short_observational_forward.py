@@ -1,3 +1,6 @@
+import io
+import json
+from contextlib import redirect_stdout
 import sqlite3
 import tempfile
 import unittest
@@ -46,6 +49,30 @@ class ObservationalForwardTests(unittest.TestCase):
             self.assertEqual(result["inserted"],8)
             with sqlite3.connect(f.name) as con:
                 self.assertEqual(con.execute("SELECT COUNT(*) FROM observational_forward").fetchone()[0],8)
+
+    def test_since_1409_dedup_report(self):
+        now=datetime(2026,10,10,20,0,tzinfo=timezone.utc)
+        with tempfile.NamedTemporaryFile(suffix=".db") as f:
+            with sqlite3.connect(f.name) as con:
+                con.execute("""CREATE TABLE events(id INTEGER PRIMARY KEY,symbol TEXT,
+                    direction TEXT,stage_to TEXT,event_time_utc TEXT,price REAL,payload_json TEXT)""")
+                for i,minute in enumerate((8,10,11),1):
+                    con.execute("INSERT INTO events VALUES(?,?,?,?,?,?,?)",
+                        (i,"AAAUSDT","LONG","APPROACHING",
+                         datetime(2026,10,10,11,minute,tzinfo=timezone.utc).isoformat(),
+                         100.0,'{"_live_price_source":"BINANCE_SPOT"}'))
+            def fetch(sym,start,horizons,venue):
+                base=datetime.fromisoformat(start)
+                return {h:((base+timedelta(minutes=h)).isoformat(),101.0) for h in horizons}
+            output=io.StringIO()
+            with redirect_stdout(output):
+                resolve_observational_forward(f.name,fetch,now)
+            line=next(x for x in output.getvalue().splitlines()
+                      if x.startswith("OBS_FORWARD_SINCE_1409_DEDUP "))
+            report=json.loads(line.split(" ",1)[1])
+            self.assertEqual(report["start_turkey"],"2026-10-10 14:09")
+            self.assertEqual(len(report["summary"]),4)
+            self.assertTrue(all(row["dedup_events"]==1 for row in report["summary"]))
 
     def test_missing_prices_remain_pending(self):
         now=datetime(2026,10,10,16,0,tzinfo=timezone.utc)
