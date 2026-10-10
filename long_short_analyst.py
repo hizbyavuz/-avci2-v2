@@ -314,7 +314,7 @@ def parse_klines(rows):
         "close": [float(r[4]) for r in rows],
         "volume": [float(r[7]) for r in rows],
         "trades": [float(r[8]) if r[8] is not None else None for r in rows],
-        "taker_buy_quote": [float(r[10]) for r in rows],
+        "taker_buy_quote": [float(r[10]) if r[10] is not None else None for r in rows],
         "raw": rows,
     }
 
