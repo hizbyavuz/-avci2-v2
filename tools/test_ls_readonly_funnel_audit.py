@@ -18,13 +18,21 @@ class AuditTest(unittest.TestCase):
         self.assertEqual(body.count("last_seen_watchlist_utc=COALESCE(last_seen_watchlist_utc,last_update_utc)"),2)
         with sqlite3.connect(":memory:") as db:
             db.execute("CREATE TABLE watch_state(symbol TEXT,analyst_active INTEGER,last_seen_watchlist_utc TEXT,last_update_utc TEXT)")
-            db.execute("INSERT INTO watch_state VALUES('LEGACY',1,NULL,'2026-10-10T10:00:00Z')")
+            db.executemany("INSERT INTO watch_state VALUES(?,?,?,?)",[
+                ("LEGACY",1,None,"2026-10-10T10:00:00Z"),
+                ("CURRENT",1,"2026-10-10T11:00:00Z","2026-10-10T11:05:00Z")])
             db.execute("""UPDATE watch_state SET analyst_active=0,
                          last_seen_watchlist_utc=COALESCE(last_seen_watchlist_utc,last_update_utc),
                          last_update_utc=? WHERE symbol NOT IN (?)""",
                        ("2026-10-10T12:00:00Z","OTHER"))
-            row=db.execute("SELECT last_seen_watchlist_utc,last_update_utc FROM watch_state").fetchone()
-            self.assertEqual(row,("2026-10-10T10:00:00Z","2026-10-10T12:00:00Z"))
+            rows=db.execute("SELECT symbol,last_seen_watchlist_utc,last_update_utc FROM watch_state ORDER BY symbol").fetchall()
+            self.assertEqual(rows,[
+                ("CURRENT","2026-10-10T11:00:00Z","2026-10-10T12:00:00Z"),
+                ("LEGACY","2026-10-10T10:00:00Z","2026-10-10T12:00:00Z")])
+            stale=db.execute("""SELECT symbol FROM watch_state WHERE
+                (julianday(?) - julianday(COALESCE(last_seen_watchlist_utc,last_update_utc)))*86400.0 > ?""",
+                ("2026-10-10T12:00:00Z",3600)).fetchall()
+            self.assertEqual(stale,[("LEGACY",)])
 
     def test_paused_watch_diagnostics_snapshot_precedes_mutation(self):
         """Prevent the previous bug: reading active setups after they were paused."""
