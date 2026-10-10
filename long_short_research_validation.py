@@ -297,6 +297,7 @@ def init_db(con: sqlite3.Connection):
         derivatives_provider TEXT,
         model_version TEXT,
         model_config_hash TEXT,
+        git_commit_sha TEXT,
         score INTEGER,
         entry_price REAL,
         exit_price REAL,
@@ -318,6 +319,7 @@ def init_db(con: sqlite3.Connection):
     pcols={r[1] for r in con.execute("PRAGMA table_info(primary_events)")}
     for name,typ in {
         "model_config_hash":"TEXT",
+        "git_commit_sha":"TEXT",
         "funding_cost_pct":"REAL",
         "barrier_outcome":"TEXT",
         "barrier_exit_price":"REAL",
@@ -537,16 +539,16 @@ def evaluate_primary(rcon: sqlite3.Connection, acon: sqlite3.Connection, lcon: s
                 """INSERT INTO primary_events(
                     source_event_id,symbol,direction,signal_time_utc,telegram_time_utc,
                     execution_time_utc,analyst_scan_time,data_cohort,derivatives_provider,
-                    model_version,model_config_hash,score,entry_price,exit_price,risk_pct,
+                    model_version,model_config_hash,git_commit_sha,score,entry_price,exit_price,risk_pct,
                     entry_slippage_bps,exit_slippage_bps,net_return_pct,r_multiple,
                     matched_control_r,delta_r,control_symbols_json,episode_id,
                     funding_cost_pct,barrier_outcome,barrier_exit_price,barrier_time_ms,
                     evaluated_at_utc
-                ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (
                     row["id"], row["symbol"], row["direction"], iso(condition_time), iso(telegram_time),
                     iso(execution_time), scan_time or None, cohort, provider,
-                    ctx.get("version"), ctx.get("frozen_config_hash"), ctx.get("score"), model["entry_price"], model["exit_price"],
+                    ctx.get("version"), ctx.get("frozen_config_hash"), os.getenv("RAILWAY_GIT_COMMIT_SHA") or os.getenv("LS_GIT_COMMIT_SHA") or "UNAVAILABLE", ctx.get("score"), model["entry_price"], model["exit_price"],
                     risk_pct, model["entry_slippage_bps"], model["exit_slippage_bps"],
                     model["net_return_pct"], model["r_multiple"], control_r, delta,
                     json.dumps([x["symbol"] for x in control_results], ensure_ascii=False),
