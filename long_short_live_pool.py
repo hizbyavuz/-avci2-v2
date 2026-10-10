@@ -175,6 +175,9 @@ def live_execution_gate(row,price,proxy):
         reward=(1.0-t1/entry)*100.0 if geometry and entry>0 else -999.0
         risk=(inv/entry-1.0)*100.0 if geometry else 0.0
     net_r=((reward-total_cost_pct)/risk) if risk>0 else None
+    # Observational only: record the cost-inclusive denominator definition
+    # without changing the frozen production gate or its threshold.
+    net_r_cost_inclusive=((reward-total_cost_pct)/(risk+total_cost_pct)) if risk>0 else None
     qualified=bool(geometry and net_r is not None and net_r>=EXECUTION_MIN_NET_T1_R)
     return {
         "qualified":qualified,
@@ -185,6 +188,9 @@ def live_execution_gate(row,price,proxy):
         "risk_pct":risk,
         "reward_pct":reward,
         "net_t1_r":net_r,
+        "net_t1_r_cost_inclusive_observation":net_r_cost_inclusive,
+        "decision_venue":"BINANCE_FUTURES",
+        "book_venue":str(proxy.get("source") or "UNKNOWN"),
         "proxy":proxy,
     }
 
