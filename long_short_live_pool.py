@@ -25,6 +25,7 @@ from long_short_simple_notify import classify_move, format_alert, queue_alert, c
 from long_short_telegram_delivery_integrity import policy as telegram_integrity_policy
 from long_short_dual_v32 import init as init_dual_v32, sync as sync_dual_v32, advance as advance_dual_v32
 from long_short_data_router import multi_venue_perp_klines, multi_venue_perp_universe
+from long_short_observational_forward import resolve_observational_forward
 
 ANALYST_DB=os.getenv("LS_DB","long_short_analyst.db")
 LIVE_DB=os.getenv("LS_LIVE_DB","long_short_live_pool.db")
@@ -159,29 +160,19 @@ def live_execution_gate(row,price,proxy):
     entry_slip=max(EXECUTION_MIN_SLIPPAGE_BPS_PER_SIDE,buy if direction=="LONG" else sell)
     exit_slip=max(EXECUTION_MIN_SLIPPAGE_BPS_PER_SIDE,sell if direction=="LONG" else buy)
     total_cost_pct=(2.0*EXECUTION_FEE_BPS_PER_SIDE+entry_slip+exit_slip)/100.0
-    inv=float(row["invalidation"] or 0.0)
-    t1=float(row["target1"] or 0.0)
-    entry=float(price)
-    if direction=="LONG":
-        geometry=bool(inv<entry<t1)
-        reward=(t1/entry-1.0)*100.0 if geometry else -999.0
-        risk=(entry/inv-1.0)*100.0 if geometry and inv>0 else 0.0
-    else:
-        geometry=bool(t1<entry<inv)
-        reward=(entry/t1-1.0)*100.0 if geometry and t1>0 else -999.0
-        risk=(inv/entry-1.0)*100.0 if geometry else 0.0
-    net_r=((reward-total_cost_pct)/risk) if risk>0 else None
-    qualified=bool(geometry and net_r is not None and net_r>=EXECUTION_MIN_NET_T1_R)
+    from long_short_r_math import trade_net_r
+    metrics = trade_net_r(direction, price, row["invalidation"], row["target1"], total_cost_pct)
+    qualified = bool(metrics["ok"] and metrics["net_r"] >= EXECUTION_MIN_NET_T1_R)
     return {
-        "qualified":qualified,
-        "reason":"ok" if qualified else "trigger_time_net_r_failed",
-        "entry_slippage_bps":entry_slip,
-        "exit_slippage_bps":exit_slip,
-        "round_trip_cost_pct":total_cost_pct,
-        "risk_pct":risk,
-        "reward_pct":reward,
-        "net_t1_r":net_r,
-        "proxy":proxy,
+        "qualified": qualified,
+        "reason": "ok" if qualified else (metrics["reason"] if not metrics["ok"] else "trigger_time_net_r_failed"),
+        "entry_slippage_bps": entry_slip,
+        "exit_slippage_bps": exit_slip,
+        "round_trip_cost_pct": total_cost_pct,
+        "risk_pct": metrics["risk_pct"],
+        "reward_pct": metrics["reward_pct"],
+        "net_t1_r": metrics["net_r"],
+        "proxy": proxy,
     }
 
 
@@ -451,7 +442,9 @@ def load_watchlist():
                 thresholds=structure_gate.get("thresholds") or {}
                 min_net_r=float(thresholds.get("min_net_t1_r") or 1.0)
                 required_room_pct=float(structure_gate.get("required_room_pct") or 0.0)
-                effective_net_r=((reward_pct-min_cost_pct)/risk_pct) if risk_pct>0 else None
+                from long_short_r_math import trade_net_r
+                net_r_outcome=trade_net_r(plan["direction"],live_trigger,invalidation,target1,min_cost_pct)
+                effective_net_r=net_r_outcome["net_r"] if net_r_outcome["ok"] else None
                 effective_levels_ok=bool(
                     level_order_ok
                     and reward_pct>=required_room_pct
@@ -470,6 +463,33 @@ def load_watchlist():
                     else (structure_gate.get("room_ok") and structure_gate.get("rr_ok"))
                 )
                 if not radar_only and (not effective_levels_ok or not structure_precheck_ok):
+                    print("LIVE_ADMISSION_REJECT "+json.dumps({
+                        "symbol":str(r["symbol"]),"direction":str(plan["direction"]),
+                        "scan_time":str(scan["ts"]),
+                        "effective_levels_ok":bool(effective_levels_ok),
+                        "structure_precheck_ok":bool(structure_precheck_ok),
+                        "setup_type":setup_type,
+                        "level_ok":bool(structure_gate.get("level_ok")),
+                        "level_touches":structure_gate.get("level_touches"),
+                        "timeframe_confluence":structure_gate.get("timeframe_confluence"),
+                        "level_strength":structure_gate.get("level_strength"),
+                        "room_ok":bool(structure_gate.get("room_ok")),
+                        "room_pct":structure_gate.get("room_pct"),
+                        "rr_ok":bool(structure_gate.get("rr_ok")),
+                        "structure_net_t1_r":structure_gate.get("net_t1_r"),
+                        "trigger_zone_present":bool(structure_gate.get("trigger_zone")),
+                        "precheck_reasons":[name for name,failed in (
+                            ("level_not_confirmed",setup_type=="BREAKOUT" and not structure_gate.get("level_ok")),
+                            ("obstacle_room_insufficient",not structure_gate.get("room_ok")),
+                            ("structure_net_r_insufficient",not structure_gate.get("rr_ok")),
+                            ("effective_levels_failed",not effective_levels_ok),
+                        ) if failed],
+                        "level_order_ok":bool(level_order_ok),
+                        "reward_pct":round(reward_pct,5),
+                        "required_room_pct":round(required_room_pct,5),
+                        "effective_net_r":round(effective_net_r,5) if effective_net_r is not None else None,
+                        "min_net_r":min_net_r,
+                    },separators=(",",":")),flush=True)
                     continue
 
                 stored_gate=dict(structure_gate)
@@ -516,7 +536,8 @@ def load_watchlist():
                     "discovery_rank":float(p.get("discovery_rank") or 0.0),
                     "scan_time":scan["ts"],
                 })
-            except Exception:
+            except Exception as exc:
+                print("LIVE_WATCHLIST_ROW_ERROR "+json.dumps({"symbol":str(r["symbol"]),"scan_time":str(scan["ts"]),"error_type":type(exc).__name__,"error":str(exc)[:300]},separators=(",",":")),flush=True)
                 continue
         # Keep real WAIT/LONG/SHORT candidates first. Fill remaining capacity with
         # the fastest radar-only movers, not with mega-cap names by confidence.
@@ -529,6 +550,13 @@ def load_watchlist():
         # ranked list from crowding out already-qualified opposite-side setups.
         # No synthetic candidates and no forced LONG/SHORT signal.
         selected=out[:MAX_WATCH]
+        if len(out)>MAX_WATCH:
+            print("LIVE_WATCH_CAPACITY "+json.dumps({
+                "scan_time":str(scan["ts"]),"qualified_count":len(out),
+                "max_watch":MAX_WATCH,
+                "omitted":[{"symbol":x["symbol"],"direction":x["direction"],
+                            "radar_only":x["radar_only"]} for x in out[MAX_WATCH:]]
+            },separators=(",",":")),flush=True)
         if MAX_WATCH>1:
             reserve=max(1,MAX_WATCH//4)
             for side in ("LONG","SHORT"):
@@ -612,6 +640,24 @@ def sync_watchlist(items):
                 or (new_actionable and (not old_radar) and old_setup_type!=new_setup_type)
             )
 
+            # A terminal episode must not permanently monopolize this symbol.
+            # Re-arm only after the original setup has aged out, preserving
+            # all historical events and the closed episode for evaluation.
+            if old and new_actionable and not reset:
+                terminal = str(old["stage"]) in (
+                    "INVALIDATED", "EXECUTION_BLOCKED", "CLUSTER_BLOCKED", "TRIGGERED", "TIMEOUT"
+                )
+                locked = old["setup_locked_at_utc"] or old["last_update_utc"]
+                try:
+                    locked_dt = datetime.fromisoformat(str(locked).replace("Z", "+00:00"))
+                    if locked_dt.tzinfo is None:
+                        locked_dt = locked_dt.replace(tzinfo=timezone.utc)
+                    age_seconds = (datetime.now(timezone.utc) - locked_dt).total_seconds()
+                except (TypeError, ValueError):
+                    age_seconds = 0.0
+                if terminal and age_seconds >= float(SETUP_MAX_AGE_SECONDS):
+                    reset = True
+
             if reset:
                 if old:
                     if direction_changed:
@@ -674,6 +720,15 @@ def sync_watchlist(items):
                  1 if new_actionable else 0,seen_at,1 if new_actionable else 0,
                  x["scan_time"],seen_at,seen_at,x["symbol"]))
 
+        # Diagnostic only: report previously active setups dropped by top-K churn.
+        active_before=con.execute("SELECT symbol,direction,stage FROM watch_state WHERE analyst_active=1").fetchall()
+        newly_paused=[{"symbol":r["symbol"],"direction":r["direction"],"stage":r["stage"]}
+                      for r in active_before if r["symbol"] not in keep]
+        if newly_paused:
+            print("LIVE_WATCH_PAUSED "+json.dumps({
+                "at_utc":seen_at,"reason":"absent_from_latest_selected_watchlist",
+                "setups":newly_paused
+            },separators=(",",":")),flush=True)
         # Missing for one analyst cycle is not an invalidation. Pause it first:
         # no confirmation while absent, but preserve the locked setup for a short
         # grace window so top-K churn cannot erase a nearly confirmed idea.
@@ -776,8 +831,11 @@ def market_snapshot(symbol):
     base=[float(x[7] or 0) for x in kl1[-12:-2]]
     vol_base=(sum(base)/len(base)) if base else 0.0
     vol_mult=qvol/vol_base if vol_base>0 else 1.0
-    taker_buy=float(forming[10] or 0)
-    taker_share=taker_buy/qvol if qvol>0 else 0.5
+    # External candles do not provide actual taker-buy volume.
+    # Never interpret a synthetic zero as a neutral 50/50 order flow.
+    taker_raw = forming[10] if price_source == "BINANCE_SPOT" else None
+    taker_buy = float(taker_raw) if taker_raw not in (None, "") else None
+    taker_share = taker_buy / qvol if taker_buy is not None and qvol > 0 else None
     atr1=_true_range(kl1[-16:])
 
     short_range_pct=((max(highs)-min(lows))/price*100.0) if highs and lows and price else 0.0
@@ -822,18 +880,19 @@ def early_observation(row,price,early):
     compression_ok=float(early["compression_pct"])<=EARLY_MAX_COMPRESSION_PCT
     vol_ok=float(early["vol_mult"])>=EARLY_MIN_VOLUME_MULT
     ema_slope=float(early["ema7_slope_pct"])
-    taker=float(early["taker_buy_share"])
+    taker_value=early.get("taker_buy_share")
+    taker=float(taker_value) if taker_value is not None else None
     atr1=float(early["atr1"] or 0.0)
 
     if d=="LONG":
         approach=(-EARLY_APPROACH_PCT)<=dist_pct
-        directional=(ema_slope>0 and taker>=EARLY_MIN_TAKER_SHARE)
+        directional=(ema_slope>0 and taker is not None and taker>=EARLY_MIN_TAKER_SHARE)
         started=price>=trig*(1.0-0.0005)
         extension=max(0.0,dist_pct)
         room=((t1/price-1.0)*100.0) if t1>price else 0.0
     else:
         approach=dist_pct<=EARLY_APPROACH_PCT
-        directional=(ema_slope<0 and taker<=(1.0-EARLY_MIN_TAKER_SHARE))
+        directional=(ema_slope<0 and taker is not None and taker<=(1.0-EARLY_MIN_TAKER_SHARE))
         started=price<=trig*(1.0+0.0005)
         extension=max(0.0,-dist_pct)
         room=((price/t1-1.0)*100.0) if 0<t1<price else 0.0
@@ -1311,6 +1370,56 @@ def send_telegram(msg):
                 time.sleep(2.0*(attempt+1))
     raise last or RuntimeError("Telegram send failed")
 
+def retry_failed_telegram_events(limit=10):
+    """Retry persisted failed deliveries; avoid retrying ambiguous PENDING sends.
+
+    Telegram has no idempotency key: retrying PENDING after a crash may
+    duplicate an acknowledged message. Those require manual reconciliation.
+    """
+    delivered=0
+    with sqlite3.connect(LIVE_DB,timeout=15) as con:
+        con.row_factory=sqlite3.Row
+        rows=con.execute("""SELECT id,payload_json,condition_time_utc FROM events
+            WHERE telegram_status='FAILED'
+            ORDER BY id LIMIT ?""",(int(limit),)).fetchall()
+        for ev in rows:
+            try:
+                payload=json.loads(ev["payload_json"] or "{}")
+                msg=payload.get("_telegram_message")
+                if not msg:
+                    con.execute("UPDATE events SET telegram_status='STALE',telegram_error='missing_delivery_payload' WHERE id=?",(ev["id"],))
+                    con.commit()
+                    continue
+                attempts=int(payload.get("_telegram_retry_attempts") or 0)
+                if attempts>=2:
+                    con.execute("UPDATE events SET telegram_status='STALE',telegram_error='retry_limit_reached' WHERE id=?",(ev["id"],))
+                    con.commit()
+                    continue
+                # Do not send obsolete trading ideas hours later.
+                event_time=datetime.fromisoformat(str(ev["condition_time_utc"]).replace("Z","+00:00"))
+                if event_time.tzinfo is None:
+                    event_time=event_time.replace(tzinfo=timezone.utc)
+                if (datetime.now(timezone.utc)-event_time).total_seconds()>900:
+                    con.execute("UPDATE events SET telegram_status='STALE',telegram_error='retry_window_expired' WHERE id=?",(ev["id"],))
+                    con.commit()
+                    continue
+                # Mark in-flight durably before attempting delivery. On a
+                # crash, ambiguous PENDING is NOT retried automatically.
+                payload["_telegram_retry_attempts"]=attempts+1
+                con.execute("UPDATE events SET telegram_status='PENDING',telegram_error=NULL,payload_json=? WHERE id=?",
+                            (json.dumps(payload,ensure_ascii=False),ev["id"]))
+                con.commit()
+                sent=send_telegram(msg)
+                con.execute("UPDATE events SET telegram_status='SENT',telegram_sent_time_utc=?,telegram_error=NULL WHERE id=?",(sent,ev["id"]))
+                con.commit()
+                delivered+=1
+            except Exception as exc:
+                con.execute("UPDATE events SET telegram_status='FAILED',telegram_error=? WHERE id=?",
+                            ((type(exc).__name__+":"+str(exc))[:180],ev["id"]))
+                con.commit()
+    return delivered
+
+
 def send_recovery_notice_once(watch_count=0):
     """Send one deployment confirmation after the repaired runtime actually starts.
 
@@ -1424,6 +1533,36 @@ def record_confirmed_forward(con,symbol,price,observed_time):
         print("CONFIRMED_FORWARD_RECORDED",symbol,count,flush=True)
 
 
+def _observational_closed_prices(symbol,event_time_utc,horizons,venue):
+    """Historical venue-matched 1m closes. No ticker substitution or future candles."""
+    start=datetime.fromisoformat(event_time_utc.replace("Z","+00:00"))
+    if start.tzinfo is None:
+        start=start.replace(tzinfo=timezone.utc)
+    begin=math.ceil(start.timestamp()/60)*60000
+    max_h=max(horizons)
+    if venue=="BINANCE_SPOT":
+        rows=spot_get("/api/v3/klines",{"symbol":symbol,"interval":"1m",
+            "startTime":begin,"limit":min(240,max_h+2)})
+    elif venue in ("GATE_FUTURES","BYBIT_LINEAR"):
+        feed=multi_venue_perp_klines(symbol,"1m",max_h+2,
+            start_ms=begin,provider=venue)
+        if feed.get("provider")!=venue:
+            raise ValueError("observation venue mismatch")
+        rows=feed.get("rows") or []
+    else:
+        raise ValueError("unsupported observation venue")
+    by_time={int(float(bar[0])):bar for bar in rows}
+    now_ms=int(time.time()*1000)
+    result={}
+    for h in horizons:
+        target=begin+(h-1)*60000
+        bar=by_time.get(target)
+        if bar is None or target+60000>now_ms:
+            continue
+        result[h]=(datetime.fromtimestamp((target+60000)/1000,tz=timezone.utc).isoformat(),float(bar[4]))
+    return result
+
+
 def resolve_confirmed_trade_outcomes():
     """Immutable, cost-aware 1m path labels for delivered TRIGGERED alerts.
 
@@ -1502,7 +1641,19 @@ def resolve_confirmed_trade_outcomes():
                         break
                 gross=(exit_price/entry-1)*100*(1 if direction=="LONG" else -1)
                 # Frozen costs: fee 5bps + minimum slippage 10bps per side.
-                net=gross-2*(5+10)/100
+                # Use actual observed execution costs when present; otherwise
+                # retain the frozen conservative 10bps minimum per side.
+                execution=payload.get("_trigger_execution_gate") or {}
+                def valid_slip(value):
+                    try:
+                        v=float(value)
+                        return v if math.isfinite(v) and v>=0 else 10.0
+                    except (TypeError, ValueError, OverflowError):
+                        return 10.0
+                entry_slip=max(10.0,valid_slip(execution.get("entry_slippage_bps")))
+                exit_slip=max(10.0,valid_slip(execution.get("exit_slippage_bps")))
+                cost_bps=2*5+entry_slip+exit_slip
+                net=gross-cost_bps/100.0
                 con.execute("""INSERT OR IGNORE INTO confirmed_trade_outcomes(
                     event_id,symbol,direction,entry_time_utc,entry_price,stop_price,
                     tp1_price,tp2_price,result,exit_time_utc,exit_price,
@@ -1510,7 +1661,7 @@ def resolve_confirmed_trade_outcomes():
                     venue,evaluated_at_utc,detail) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                     (ev["id"],ev["symbol"],direction,start.isoformat(),entry,stop,tp1,tp2,
                      result,exit_time,exit_price,gross,net,tp2_touched,180,
-                     venue,now.isoformat(),"STOP_FIRST; costs=30bps roundtrip; 1m path"))
+                     venue,now.isoformat(),f"STOP_FIRST; costs={cost_bps:.3f}bps roundtrip; 1m path"))
                 con.commit()
                 print("CONFIRMED_TRADE_OUTCOME",ev["symbol"],direction,result,
                       round(net,4),"event",ev["id"],flush=True)
@@ -1534,6 +1685,8 @@ def loop_once():
     with sqlite3.connect(LIVE_DB) as con:
         con.row_factory=sqlite3.Row
         rows=con.execute("SELECT * FROM watch_state ORDER BY analyst_confidence DESC").fetchall()
+        stage_gate_counts={}
+        stage_gate_samples={}
         # V3.2 tracks both LONG and SHORT from the same snapshot. It is
         # independent of the frozen single-direction state and sends NO extra
         # Telegram or trade signal.
@@ -1569,6 +1722,30 @@ def loop_once():
                     old=row["stage"]
                     structure_quality=live_structure_confirmation(row,closed,early)
                     new=next_stage(row,price,closed,structure_quality)
+                    # Shadow-only gate diagnostics; no changes to next_stage or delivery.
+                    if old in ("WATCH","APPROACHING","CLOSE_CONFIRMED","RETESTING"):
+                        if _row_is_radar(row):
+                            gate_reason="RADAR_ONLY"
+                        elif not _row_is_analyst_active(row):
+                            gate_reason="ANALYST_NOT_ACTIVE"
+                        elif new=="INVALIDATED":
+                            gate_reason="INVALIDATED"
+                        elif new=="EXECUTION_BLOCKED":
+                            gate_reason="EXECUTION_BLOCKED"
+                        elif new=="TRIGGERED":
+                            gate_reason="TRIGGER_CANDIDATE"
+                        elif old in ("WATCH","APPROACHING"):
+                            trig=float(row["trigger_level"])
+                            close_ok=(closed>trig) if row["direction"]=="LONG" else (closed<trig)
+                            gate_reason=("CLOSE_NOT_BEYOND_LEVEL" if not close_ok
+                                         else "STRUCTURE_NOT_QUALIFIED" if not structure_quality.get("qualified")
+                                         else "CLOSE_QUALIFIED")
+                        elif old=="CLOSE_CONFIRMED":
+                            gate_reason="WAIT_ACCEPTANCE_OR_RETEST"
+                        else:
+                            gate_reason="WAIT_RETEST_REENTRY"
+                        stage_gate_counts[gate_reason]=stage_gate_counts.get(gate_reason,0)+1
+                        stage_gate_samples.setdefault(gate_reason,set()).add(row["symbol"])
                     observed_time=now_iso()
 
                     # Separate observational early layer: never mutates frozen continuation stage.
@@ -1782,6 +1959,23 @@ def loop_once():
                             event_payload["_telegram_delivery_policy"]=delivery_guard
                         if suppression_reason:
                             event_payload["_telegram_suppression_reason"]=suppression_reason
+                        if new=="TRIGGERED":
+                            event_payload["_trigger_execution_proxy"]=trigger_proxy
+                            event_payload["_trigger_execution_gate"]=execution_check
+                        if msg:
+                            event_payload["_telegram_message"]=msg[:TELEGRAM_LIMIT]
+
+                        # Persist the event BEFORE any network request. A process
+                        # crash must never erase a failed or pending delivery.
+                        cursor=con.execute("""INSERT INTO events(
+                            event_time_utc,symbol,direction,stage_from,stage_to,price,closed_5m,
+                            condition_time_utc,telegram_sent_time_utc,telegram_status,telegram_error,delay_seconds,payload_json
+                        ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                            (observed_time,row["symbol"],row["direction"],old,new,price,closed,
+                             condition_time,None,telegram_status,None,None,
+                             json.dumps(event_payload,ensure_ascii=False)))
+                        event_id=cursor.lastrowid
+                        con.commit()
                         if msg:
                             print(msg)
                             try:
@@ -1798,18 +1992,10 @@ def loop_once():
                                     delay=None
                                 if delay is not None:
                                     print(f"ALERT_DELAY {row['symbol']} {new}: {delay:.1f}s")
-                        if new=="TRIGGERED":
-                            event_payload["_trigger_execution_proxy"]=trigger_proxy
-                            event_payload["_trigger_execution_gate"]=execution_check
-
-                        con.execute("""INSERT INTO events(
-                            event_time_utc,symbol,direction,stage_from,stage_to,price,closed_5m,
-                            condition_time_utc,telegram_sent_time_utc,telegram_status,telegram_error,delay_seconds,payload_json
-                        ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-                            (observed_time,row["symbol"],row["direction"],old,new,price,closed,
-                             condition_time,sent_time,telegram_status,telegram_error,delay,
-                             json.dumps(event_payload,ensure_ascii=False)))
-                        con.commit()
+                            con.execute("""UPDATE events SET telegram_sent_time_utc=?,
+                                telegram_status=?,telegram_error=?,delay_seconds=?
+                                WHERE id=?""",(sent_time,telegram_status,telegram_error,delay,event_id))
+                            con.commit()
                     else:
                         con.execute("UPDATE watch_state SET last_price=?,last_closed_5m=?,last_update_utc=? WHERE symbol=?",
                                     (price,closed,observed_time,row["symbol"]))
@@ -1828,6 +2014,13 @@ def loop_once():
                 except Exception as de:
                     print("V32_DUAL_DATA_ISSUE",dsym,
                           type(de).__name__,str(de)[:180],flush=True)
+
+    # One snapshot per poll, aggregated by reason; no persisted signal decisions.
+    if stage_gate_counts:
+        print("LIVE_STAGE_GATE_REASONS",json.dumps(
+            [{"reason":k,"poll_symbols":v,"unique_symbols":len(stage_gate_samples[k])}
+             for k,v in sorted(stage_gate_counts.items())],
+            ensure_ascii=False),flush=True)
 
     # Observability only: count transition outcomes without changing signal gates.
     audit_bucket=int(time.time()//300)
@@ -1904,6 +2097,14 @@ def loop_once():
         except Exception as exc:
             print("CONFIRMED_OUTCOME_WORKER_ERROR",type(exc).__name__,str(exc)[:160],flush=True)
 
+    # Observation-only forward evaluation; never blocks or modifies live signals.
+    if getattr(resolve_observational_forward,"_bucket",None)!=bucket:
+        resolve_observational_forward._bucket=bucket
+        try:
+            resolve_observational_forward(LIVE_DB,_observational_closed_prices)
+        except Exception as exc:
+            print("OBS_FORWARD_WORKER_ERROR",type(exc).__name__,str(exc)[:160],flush=True)
+
     # Retain old pending observational alerts in DB; never release them to Telegram.
     ready=None if TELEGRAM_TRADE_ONLY else claim_ready_alert()
     if ready:
@@ -1959,6 +2160,11 @@ def main():
                 print("TELEGRAM_DELIVERY_TEST_FAILED",type(exc).__name__,str(exc)[:200],flush=True)
     except Exception as exc:
         print("TELEGRAM_DELIVERY_TEST_SETUP_ERROR",type(exc).__name__,str(exc)[:200],flush=True)
+    try:
+        retried=retry_failed_telegram_events()
+        print("TELEGRAM_FAILED_RETRY",retried,flush=True)
+    except Exception as exc:
+        print("TELEGRAM_FAILED_RETRY_ERROR",type(exc).__name__,str(exc)[:160],flush=True)
     items=load_watchlist()
     sync_watchlist(items)
     try:
@@ -1979,8 +2185,15 @@ def main():
     print(f"Live pool started: {len(items)} symbols, poll={POLL_SECONDS}s, "
           f"full_window_seconds={RUN_SECONDS}, "
           f"until={datetime.fromtimestamp(end,tz=timezone.utc).isoformat()}",flush=True)
+    last_retry=time.monotonic()
     while time.time()<end:
         loop_once()
+        if time.monotonic()-last_retry>=60:
+            try:
+                retry_failed_telegram_events()
+            except Exception as exc:
+                print("TELEGRAM_FAILED_RETRY_ERROR",type(exc).__name__,str(exc)[:160],flush=True)
+            last_retry=time.monotonic()
         time.sleep(POLL_SECONDS)
 
 if __name__=="__main__":

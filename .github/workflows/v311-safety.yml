@@ -1,0 +1,23 @@
+name: V3.1.1 Safety Checks
+on:
+  push:
+    branches: [fix/v311-data-integrity-review]
+  pull_request:
+    paths:
+      - 'long_short_*.py'
+      - 'tests/**'
+      - '.github/workflows/v311-safety.yml'
+  workflow_dispatch:
+jobs:
+  safety:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Compile modules
+        run: python -m compileall -q long_short_analyst.py long_short_live_pool.py long_short_data_router.py long_short_direction_engine.py long_short_r_math.py
+      - name: Safety unit tests
+        run: python -m unittest discover -s tests -p 'test_v311_safety.py' -v

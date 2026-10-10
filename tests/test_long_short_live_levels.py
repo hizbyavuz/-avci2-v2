@@ -33,7 +33,7 @@ class LiveLevelConsistencyTests(unittest.TestCase):
                             "retest_low":11.5285,
                             "retest_high":11.54,
                             "invalidation":11.457842857142856,
-                            "target1":11.691,
+                            "target1":11.735,
                             "target2":11.768214285714286,
                         },
                         "htf_gate":{"direction":"LONG","score":6,"reasons":[]},
