@@ -613,6 +613,9 @@ def sync_watchlist(items):
     with sqlite3.connect(LIVE_DB) as con:
         con.row_factory=sqlite3.Row
         keep={x["symbol"] for x in items}
+        # Snapshot before per-item updates; otherwise radar downgrades disappear from diagnostics.
+        active_at_start={r["symbol"]:(r["direction"],r["stage"])
+                         for r in con.execute("SELECT symbol,direction,stage FROM watch_state WHERE analyst_active=1")}
 
         for x in items:
             old=con.execute("SELECT * FROM watch_state WHERE symbol=?",(x["symbol"],)).fetchone()
@@ -719,30 +722,47 @@ def sync_watchlist(items):
                  1 if new_actionable else 0,seen_at,1 if new_actionable else 0,
                  x["scan_time"],seen_at,seen_at,x["symbol"]))
 
-        # Diagnostic only: report previously active setups dropped by top-K churn.
-        active_before=con.execute("SELECT symbol,direction,stage FROM watch_state WHERE analyst_active=1").fetchall()
-        newly_paused=[{"symbol":r["symbol"],"direction":r["direction"],"stage":r["stage"]}
-                      for r in active_before if r["symbol"] not in keep]
-        if newly_paused:
-            print("LIVE_WATCH_PAUSED "+json.dumps({
-                "at_utc":seen_at,"reason":"absent_from_latest_selected_watchlist",
-                "setups":newly_paused
-            },separators=(",",":")),flush=True)
+        # Diagnostic only: distinguish top-K churn from an explicit radar downgrade.
+        paused_absent=[{"symbol":symbol,"direction":direction,"stage":stage}
+                       for symbol,(direction,stage) in active_at_start.items()
+                       if symbol not in keep]
+        actionable_now={x["symbol"] for x in items if not bool(x.get("radar_only"))}
+        paused_radar=[{"symbol":symbol,"direction":direction,"stage":stage}
+                      for symbol,(direction,stage) in active_at_start.items()
+                      if symbol in keep and symbol not in actionable_now]
+        for reason,paused in (("absent_from_latest_selected_watchlist",paused_absent),
+                              ("downgraded_to_radar_only",paused_radar)):
+            if paused:
+                print("LIVE_WATCH_PAUSED "+json.dumps({
+                    "at_utc":seen_at,"reason":reason,"setups":paused
+                },separators=(",",":")),flush=True)
         # Missing for one analyst cycle is not an invalidation. Pause it first:
         # no confirmation while absent, but preserve the locked setup for a short
         # grace window so top-K churn cannot erase a nearly confirmed idea.
         if keep:
             q=",".join("?" for _ in keep)
-            con.execute(f"""UPDATE watch_state SET analyst_active=0,last_update_utc=?
+            con.execute(f"""UPDATE watch_state SET analyst_active=0,
+                            last_seen_watchlist_utc=COALESCE(last_seen_watchlist_utc,last_update_utc),
+                            last_update_utc=?
                             WHERE symbol NOT IN ({q})""",(seen_at,*tuple(keep)))
         else:
-            con.execute("UPDATE watch_state SET analyst_active=0,last_update_utc=?",(seen_at,))
+            con.execute("""UPDATE watch_state SET analyst_active=0,
+                            last_seen_watchlist_utc=COALESCE(last_seen_watchlist_utc,last_update_utc),
+                            last_update_utc=?""",(seen_at,))
 
         # Truly stale paused setups are retired; they cannot live forever.
         stale=con.execute("""SELECT symbol,last_price FROM watch_state
             WHERE analyst_active=0
               AND (julianday(?) - julianday(COALESCE(last_seen_watchlist_utc,last_update_utc)))*86400.0 > ?""",
             (seen_at,float(WATCHLIST_GRACE_SECONDS))).fetchall()
+        if stale:
+            # Diagnostic only; expiry is not evidence of a missed profitable trade.
+            print("LIVE_WATCH_EXPIRED "+json.dumps({
+                "at_utc":seen_at,
+                "reason":"WATCHLIST_GRACE_EXPIRED",
+                "symbols":[r["symbol"] for r in stale],
+                "count":len(stale),
+            },separators=(",",":")),flush=True)
         for r in stale:
             _close_open_watch_episode(con,r["symbol"],"WATCHLIST_GRACE_EXPIRED",r["last_price"])
             con.execute("DELETE FROM watch_state WHERE symbol=?",(r["symbol"],))
