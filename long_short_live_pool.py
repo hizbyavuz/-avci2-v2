@@ -751,6 +751,14 @@ def sync_watchlist(items):
             WHERE analyst_active=0
               AND (julianday(?) - julianday(COALESCE(last_seen_watchlist_utc,last_update_utc)))*86400.0 > ?""",
             (seen_at,float(WATCHLIST_GRACE_SECONDS))).fetchall()
+        if stale:
+            # Diagnostic only; expiry is not evidence of a missed profitable trade.
+            print("LIVE_WATCH_EXPIRED "+json.dumps({
+                "at_utc":seen_at,
+                "reason":"WATCHLIST_GRACE_EXPIRED",
+                "symbols":[r["symbol"] for r in stale],
+                "count":len(stale),
+            },separators=(",",":")),flush=True)
         for r in stale:
             _close_open_watch_episode(con,r["symbol"],"WATCHLIST_GRACE_EXPIRED",r["last_price"])
             con.execute("DELETE FROM watch_state WHERE symbol=?",(r["symbol"],))
