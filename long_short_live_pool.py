@@ -1276,10 +1276,15 @@ def send_telegram(msg):
     configured=(os.getenv("TELEGRAM_CHAT_ID") or "").strip()
     if not token:
         raise RuntimeError("TELEGRAM_BOT_TOKEN missing: alert was not delivered")
+    expected_chat=(os.getenv("LS_TELEGRAM_EXPECTED_CHAT_ID") or "").strip()
+    if configured and expected_chat and configured!=expected_chat:
+        raise RuntimeError("TELEGRAM_CHAT_MISMATCH_PRE_SEND")
     last=None
     for attempt in range(3):
         try:
             chat=resolve_live_chat_id(token,configured)
+            if expected_chat and str(chat)!=expected_chat:
+                raise RuntimeError("TELEGRAM_CHAT_MISMATCH_PRE_SEND")
             r=requests.post(f"https://api.telegram.org/bot{token}/sendMessage",
                             json={"chat_id":chat,"text":msg[:TELEGRAM_LIMIT],"disable_web_page_preview":True},
                             timeout=10)
@@ -1287,11 +1292,21 @@ def send_telegram(msg):
             body=r.json()
             if not body.get("ok") or not (body.get("result") or {}).get("message_id"):
                 raise RuntimeError("Telegram API did not acknowledge message delivery")
+            receipt=body.get("result") or {}
+            # Optional strict chat pin: do not accept a receipt for another chat.
+            if expected_chat and str((receipt.get("chat") or {}).get("id"))!=expected_chat:
+                print("TELEGRAM_ACK_CHAT_MISMATCH_NO_RETRY",flush=True)
+                raise RuntimeError("TELEGRAM_ACK_CHAT_MISMATCH")
+            if receipt.get("date") is None:
+                print("TELEGRAM_ACK_MISSING_DATE_NO_RETRY",flush=True)
+                raise RuntimeError("TELEGRAM_ACK_MISSING_DATE")
             print("TELEGRAM_SEND_ACCEPTED",json.dumps({"message_id":body["result"]["message_id"],"time":now_iso()},ensure_ascii=False),flush=True)
             return now_iso()
         except Exception as exc:
             print("TELEGRAM_SEND_RETRY",attempt+1,type(exc).__name__,str(exc)[:150],flush=True)
             last=exc
+            if str(exc).startswith(("TELEGRAM_ACK_", "TELEGRAM_CHAT_MISMATCH_PRE_SEND")):
+                break  # API acknowledged message_id; retry could duplicate delivery.
             if attempt<2:
                 time.sleep(2.0*(attempt+1))
     raise last or RuntimeError("Telegram send failed")

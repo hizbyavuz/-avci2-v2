@@ -2377,6 +2377,7 @@ def main():
     # Stage 1: cheap broad scan. Keep Binance coverage wide without doing
     # expensive derivatives/HTF calls for every symbol.
     preselected=[]; errors=0
+    prefilter_failures={}
     if uni:
         workers=max(1,min(PREFILTER_WORKERS,len(uni)))
         with ThreadPoolExecutor(max_workers=workers,thread_name_prefix="ls-prefilter") as pool:
@@ -2390,6 +2391,7 @@ def main():
                     preselected.append(fut.result())
                 except Exception as e:
                     errors+=1
+                    prefilter_failures[symbol]={"error_type":type(e).__name__,"error_message":str(e)[:160]}
                     print(f"prefilter {symbol}: {type(e).__name__}: {e}")
     preselected.sort(key=lambda x:x["rank"], reverse=True)
     save_reversal_candidates(ts,preselected)
@@ -2402,6 +2404,52 @@ def main():
     print("FAST_PREFILTER",len(uni),"->",len(shortlist),
           ",".join(x["symbol"] for x in shortlist))
     save_universe_observations(ts,preselected,shortlist)
+    # Observation only: one row for every symbol returned by universe(), even if
+    # prefilter failed. Separate table; no change to production selection logic.
+    try:
+        with sqlite3.connect(DB,timeout=15) as audit_con:
+            audit_con.execute("""CREATE TABLE IF NOT EXISTS full_universe_stage_audit(
+                scan_time_utc TEXT NOT NULL, symbol TEXT NOT NULL,
+                stage TEXT NOT NULL, quote_volume REAL, day_change_pct REAL,
+                rank REAL, shortlisted INTEGER NOT NULL,
+                detail_json TEXT NOT NULL,
+                PRIMARY KEY(scan_time_utc,symbol))""")
+            audit_pre={x["symbol"]:x for x in preselected}
+            audit_selected={x["symbol"] for x in shortlist}
+            for audit_symbol,audit_volume,_,audit_change in uni:
+                audit_pre_item=audit_pre.get(audit_symbol)
+                audit_failure=prefilter_failures.get(audit_symbol)
+                audit_stage=("PREFILTER_ERROR" if audit_failure else
+                             "UNOBSERVED" if audit_pre_item is None else
+                             "DEEP_SELECTED" if audit_symbol in audit_selected else
+                             "NOT_SHORTLISTED")
+                audit_meta=(audit_pre_item or {}).get("discovery_meta") or {}
+                audit_blockers=[]
+                if audit_pre_item is not None:
+                    if float(audit_volume or 0)<MIN_24H_QUOTE_VOL:
+                        audit_blockers.append("BELOW_EXECUTION_VOLUME_FLOOR")
+                    if not audit_meta.get("binance_spot_member"):
+                        audit_blockers.append("NO_BINANCE_SPOT_MEMBERSHIP")
+                    if audit_meta.get("external_only_unverified"):
+                        audit_blockers.append("EXTERNAL_ONLY_UNVERIFIED")
+                    if audit_stage=="NOT_SHORTLISTED":
+                        audit_blockers.append("DEEP_CAPACITY_NOT_SELECTED")
+                audit_detail={"prefilter_failure":audit_failure,
+                              "discovery_meta":audit_meta,
+                              "selection_blockers":audit_blockers,
+                              "discovery":(audit_pre_item or {}).get("v3_discovery")}
+                audit_con.execute("""INSERT OR REPLACE INTO full_universe_stage_audit
+                    (scan_time_utc,symbol,stage,quote_volume,day_change_pct,rank,shortlisted,detail_json)
+                    VALUES(?,?,?,?,?,?,?,?)""",
+                    (ts,audit_symbol,audit_stage,float(audit_volume or 0),
+                     float(audit_change or 0),
+                     float(audit_pre_item.get("rank") or 0) if audit_pre_item else None,
+                     int(audit_symbol in audit_selected),
+                     json.dumps(audit_detail,ensure_ascii=False,default=str)))
+            audit_con.commit()
+        print("FULL_UNIVERSE_STAGE_AUDIT",len(uni),"prefilter_errors",len(prefilter_failures),flush=True)
+    except Exception as audit_exc:
+        print("FULL_UNIVERSE_STAGE_AUDIT_ERROR",type(audit_exc).__name__,str(audit_exc)[:160],flush=True)
     # Read-only early-pattern observations for all prefiltered symbols.
     try:
         from long_short_broad_early import observe as observe_broad_early
