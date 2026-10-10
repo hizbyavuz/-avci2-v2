@@ -1747,6 +1747,7 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
         spot_flow=spot_flow,
         residual=residual,
         phase=str(v3_hard_gate_shadow.get("phase") or "NONE"),
+        atr_pct=t15.get("atr_pct"),
     )
 
     print("PRODUCTION_DIRECTION_AUDIT",json.dumps({
