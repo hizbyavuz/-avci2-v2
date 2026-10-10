@@ -77,6 +77,8 @@ def summarize_paused_watch_log(lines, since=None):
             continue
         try:
             payload=json.loads(line.split("LIVE_WATCH_PAUSED ",1)[1])
+            if not isinstance(payload,dict):
+                raise ValueError("payload must be an object")
             if cutoff is not None:
                 stamp=payload.get("at_utc")
                 if not stamp:
@@ -88,7 +90,9 @@ def summarize_paused_watch_log(lines, since=None):
                 if event_time<cutoff:
                     before_since+=1
                     continue
-            reason=str(payload["reason"])
+            reason=payload["reason"]
+            if not isinstance(reason,str) or not reason.strip():
+                raise ValueError("reason must be a non-empty string")
             setups=payload["setups"]
             if not isinstance(setups,list):
                 raise ValueError("setups must be a list")
