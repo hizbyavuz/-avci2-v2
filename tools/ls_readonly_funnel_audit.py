@@ -66,9 +66,10 @@ def summarize_analyses(rows):
             "scans":len(per_scan), "rows_per_scan":dict(per_scan)}
 
 def summarize_live(rows):
-    stages, unique, reasons = Counter(), {}, Counter()
+    stages, unique, reasons, delivery = Counter(), {}, Counter(), Counter()
     for row in rows:
         stage = str(row["stage_to"])
+        delivery[(stage,str(row["telegram_status"]))] += 1
         stages[stage] += 1
         unique.setdefault(stage,set()).add(str(row["symbol"]))
         try:
@@ -76,10 +77,18 @@ def summarize_live(rows):
         except (ValueError,TypeError):
             p = {}
         if stage == "EXECUTION_BLOCKED":
-            reasons[str((p.get("_trigger_execution_gate") or {}).get("reason","UNKNOWN"))] += 1
+            reasons[str((p.get("_trigger_execution_gate") or {}).get("reason") or p.get("_execution_block_reason") or "UNKNOWN")] += 1
     return {"events":len(rows),"stage_transitions":dict(stages),
             "unique_symbols_per_stage":{k:len(v) for k,v in unique.items()},
-            "execution_block_reasons":dict(reasons)}
+            "execution_block_reasons":dict(reasons),
+            "telegram_status_by_stage":{"/".join(k):v for k,v in delivery.items()}}
+
+def summarize_episodes(rows):
+    return {"episodes":len(rows),"end_reasons":dict(Counter(str(r["end_reason"] or "OPEN") for r in rows)),
+            "max_stages":dict(Counter(str(r["max_stage"]) for r in rows))}
+
+def summarize_outcomes(rows):
+    return {"outcomes":len(rows),"results":dict(Counter(str(r["result"]) for r in rows))}
 
 def main():
     parser=argparse.ArgumentParser()
@@ -101,7 +110,7 @@ def main():
             "since":args.since,"read_only":True,
             "note":"Diagnostic counts only; not validated production admission or trade performance"}
     try:
-        for label,con,table,time_col,fn in (("analyst",analyst,"analyses","scan_time_utc",summarize_analyses),("live",live,"events","event_time_utc",summarize_live)):
+        for label,con,table,time_col,fn in (("analyst",analyst,"analyses","scan_time_utc",summarize_analyses),("live",live,"events","event_time_utc",summarize_live),("episodes",live,"watch_episodes","started_at_utc",summarize_episodes),("confirmed_outcomes",live,"confirmed_trade_outcomes","entry_time_utc",summarize_outcomes)):
             try:
                 rows=scan(con,table,time_col,args.since)
                 report[label]=fn(rows) if isinstance(rows,list) else rows
