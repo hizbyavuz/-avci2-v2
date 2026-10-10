@@ -1761,6 +1761,8 @@ def loop_once():
                                          else "NOT_APPLICABLE" if not msg else "PENDING")
                         telegram_error=None
                         event_payload=dict(row)
+                        event_payload["_analyst_active_at_event"]=bool(row["analyst_active"])
+                        event_payload["_radar_only_at_event"]=_row_is_radar(row)
                         event_payload["_live_structure_quality"]=structure_quality
                         event_payload["_live_price_source"]=str(early.get("live_price_source") or "UNKNOWN")
                         event_payload["_live_alert_version"]=STRUCTURE_GATE_VERSION
