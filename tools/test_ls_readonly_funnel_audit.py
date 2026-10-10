@@ -138,6 +138,19 @@ class AuditTest(unittest.TestCase):
         self.assertEqual(report["pause_events_by_reason_stage"],{"absent/WATCH":1})
         self.assertEqual(report["unique_symbol_directions_by_reason"],{"absent":1})
 
+    def test_non_object_pause_payload_is_skipped(self):
+        import importlib.util
+        spec=importlib.util.spec_from_file_location("audit_module",SCRIPT)
+        module=importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        report=module.summarize_paused_watch_log([
+            "LIVE_WATCH_PAUSED []",
+            "LIVE_WATCH_PAUSED null",
+            'LIVE_WATCH_PAUSED {"at_utc":"2026-10-10T11:10:00Z","reason":null,"setups":[]}',
+        ],"2026-10-10T11:09:00Z")
+        self.assertEqual(report["malformed_messages"],3)
+        self.assertEqual(report["pause_events_by_reason_stage"],{})
+
     def test_missing_databases_are_rejected(self):
         with tempfile.TemporaryDirectory() as td:
             result = subprocess.run([sys.executable,"-I",str(SCRIPT),
