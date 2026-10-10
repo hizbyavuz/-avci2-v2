@@ -64,16 +64,30 @@ def summarize_analyses(rows):
             "parse_warnings": dict(malformed),
             "scans": len(per_scan), "rows_per_scan": dict(per_scan)}
 
-def summarize_paused_watch_log(lines):
+def summarize_paused_watch_log(lines, since=None):
     """Parse LIVE_WATCH_PAUSED messages without assuming they are missed trades."""
     counts=Counter()
     symbols={}
     malformed=0
+    missing_timestamp=0
+    before_since=0
+    cutoff=datetime.fromisoformat(since.replace('Z','+00:00')) if since else None
     for line in lines:
         if "LIVE_WATCH_PAUSED " not in line:
             continue
         try:
             payload=json.loads(line.split("LIVE_WATCH_PAUSED ",1)[1])
+            if cutoff is not None:
+                stamp=payload.get("at_utc")
+                if not stamp:
+                    missing_timestamp+=1
+                    continue
+                event_time=datetime.fromisoformat(stamp.replace("Z","+00:00"))
+                if event_time.tzinfo is None:
+                    raise ValueError("timezone required")
+                if event_time<cutoff:
+                    before_since+=1
+                    continue
             reason=str(payload["reason"])
             setups=payload["setups"]
             if not isinstance(setups,list):
@@ -89,6 +103,8 @@ def summarize_paused_watch_log(lines):
     return {"pause_events_by_reason_stage":{"/".join(k):v for k,v in counts.items()},
             "unique_symbol_directions_by_reason":{k:len(v) for k,v in symbols.items()},
             "malformed_messages":malformed,
+            "excluded_missing_timestamp":missing_timestamp,
+            "excluded_before_since":before_since,
             "warning":"Pauses are not missed trades; requires post-pause price and eligibility checks"}
 
 def summarize_watch_state(rows):
@@ -141,7 +157,9 @@ def main():
     if out==state or state in out.parents:
         parser.error("Output must not be inside state volume")
     try:
-        datetime.fromisoformat(args.since.replace("Z","+00:00"))
+        parsed_since=datetime.fromisoformat(args.since.replace("Z","+00:00"))
+        if parsed_since.tzinfo is None:
+            raise ValueError("timezone required")
     except ValueError:
         parser.error("--since must be ISO datetime")
     if args.log_only:
@@ -154,14 +172,14 @@ def main():
             parser.error("Log input must not be inside state volume")
         try:
             pause_report=summarize_paused_watch_log(
-                logpath.read_text(encoding="utf-8").splitlines())
+                logpath.read_text(encoding="utf-8").splitlines(),args.since)
         except (OSError,UnicodeError) as exc:
             parser.error("Unable to read log file: "+type(exc).__name__)
         report={"generated_utc":datetime.now(timezone.utc).isoformat(),
                 "read_only":True,"source":"RAILWAY_EXPORTED_LOGS_ONLY",
                 "database_inspected":False,
                 "trade_performance_measured":False,
-                "since_filter_applied":False,
+                "since_filter_applied":True,
                 "paused_watch_logs":pause_report}
         out.write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding="utf-8")
         print(json.dumps(report,ensure_ascii=False,indent=2))
@@ -204,7 +222,7 @@ def main():
             if logpath==state or state in logpath.parents:
                 parser.error("Log input must not be inside state volume")
             report["paused_watch_logs"]=summarize_paused_watch_log(
-                logpath.read_text(encoding="utf-8").splitlines())
+                logpath.read_text(encoding="utf-8").splitlines(),args.since)
         except (OSError,UnicodeError) as exc:
             report["paused_watch_logs"]={"status":"error","error":type(exc).__name__}
     failed={k:v for k,v in report.items() if isinstance(v,dict) and v.get("status") in ("error","missing_table","missing_time_column")}
