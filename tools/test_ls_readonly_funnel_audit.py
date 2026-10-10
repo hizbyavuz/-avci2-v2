@@ -17,10 +17,10 @@ class AuditTest(unittest.TestCase):
             analyst = state / "long_short_analyst.db"
             live = state / "long_short_live_pool.db"
             with sqlite3.connect(analyst) as db:
-                db.execute("CREATE TABLE analyses(scan_time_utc TEXT,symbol TEXT,status TEXT,payload_json TEXT)")
-                db.execute("INSERT INTO analyses VALUES(?,?,?,?)", (
+                db.execute("CREATE TABLE analyses(scan_time_utc TEXT,symbol TEXT,status TEXT,payload_json TEXT,reasons_json TEXT,risks_json TEXT)")
+                db.execute("INSERT INTO analyses VALUES(?,?,?,?,?,?)", (
                     "2026-10-10T11:10:00+00:00","BTCUSDT","WAIT",
-                    json.dumps({"setup_plan":{"direction":"LONG","trigger_level":10},"derivatives_ready":True})))
+                    json.dumps({"setup_plan":{"direction":"LONG","trigger_level":10}}),json.dumps(["waiting_for_close"]),json.dumps(["wide_spread"])))
             with sqlite3.connect(live) as db:
                 db.execute("CREATE TABLE events(event_time_utc TEXT,symbol TEXT,stage_to TEXT,telegram_status TEXT,payload_json TEXT)")
                 db.execute("INSERT INTO events VALUES(?,?,?,?,?)", (
@@ -37,6 +37,8 @@ class AuditTest(unittest.TestCase):
             self.assertEqual(result.returncode,0,result.stderr)
             report = json.loads(result.stdout)
             self.assertEqual(report["analyst"]["rows"],1)
+            self.assertEqual(report["analyst"]["explicit_reasons"]["waiting_for_close"],1)
+            self.assertEqual(report["analyst"]["explicit_risks"]["wide_spread"],1)
             self.assertEqual(report["live"]["execution_block_reasons"]["trigger_time_net_r_failed"],1)
             self.assertEqual(report["episodes"]["end_reasons"]["TRIGGER_EXECUTION_GATE"],1)
             self.assertEqual(report["confirmed_outcomes"]["outcomes"],0)
