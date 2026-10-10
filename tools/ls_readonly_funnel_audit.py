@@ -64,6 +64,33 @@ def summarize_analyses(rows):
             "parse_warnings": dict(malformed),
             "scans": len(per_scan), "rows_per_scan": dict(per_scan)}
 
+def summarize_paused_watch_log(lines):
+    """Parse LIVE_WATCH_PAUSED messages without assuming they are missed trades."""
+    counts=Counter()
+    symbols={}
+    malformed=0
+    for line in lines:
+        if "LIVE_WATCH_PAUSED " not in line:
+            continue
+        try:
+            payload=json.loads(line.split("LIVE_WATCH_PAUSED ",1)[1])
+            reason=str(payload["reason"])
+            setups=payload["setups"]
+            if not isinstance(setups,list):
+                raise ValueError("setups must be a list")
+            for setup in setups:
+                symbol=str(setup["symbol"])
+                stage=str(setup["stage"])
+                direction=str(setup["direction"])
+                counts[(reason,stage)]+=1
+                symbols.setdefault(reason,set()).add((symbol,direction))
+        except (ValueError,TypeError,KeyError):
+            malformed+=1
+    return {"pause_events_by_reason_stage":{"/".join(k):v for k,v in counts.items()},
+            "unique_symbol_directions_by_reason":{k:len(v) for k,v in symbols.items()},
+            "malformed_messages":malformed,
+            "warning":"Pauses are not missed trades; requires post-pause price and eligibility checks"}
+
 def summarize_watch_state(rows):
     groups = Counter()
     for row in rows:
@@ -105,6 +132,7 @@ def main():
     parser=argparse.ArgumentParser()
     parser.add_argument("--state-dir",default="/app/.long-short-state")
     parser.add_argument("--since",required=True)
+    parser.add_argument("--railway-log-file",help="Optional local exported Railway log text; never fetched remotely")
     parser.add_argument("--out",default="/tmp/ls_funnel_audit.json")
     args=parser.parse_args()
     state=Path(args.state_dir).resolve()
@@ -147,6 +175,15 @@ def main():
             if con: con.close()
     if out.parent != Path("/tmp"):
         parser.error("Output must be directly under /tmp")
+    if args.railway_log_file:
+        try:
+            logpath=Path(args.railway_log_file).resolve()
+            if logpath==state or state in logpath.parents:
+                parser.error("Log input must not be inside state volume")
+            report["paused_watch_logs"]=summarize_paused_watch_log(
+                logpath.read_text(encoding="utf-8").splitlines())
+        except (OSError,UnicodeError) as exc:
+            report["paused_watch_logs"]={"status":"error","error":type(exc).__name__}
     failed={k:v for k,v in report.items() if isinstance(v,dict) and v.get("status") in ("error","missing_table","missing_time_column")}
     report["audit_complete"]=not bool(failed)
     report["incomplete_sections"]=list(failed)
