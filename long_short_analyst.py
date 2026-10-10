@@ -507,21 +507,11 @@ def structure_required_room_pct():
 
 
 def structure_net_t1_r(direction, trigger, invalidation, target1):
-    """Net Target-1 reward/risk using the exact user-facing stop/target levels."""
-    trigger=float(trigger or 0.0)
-    invalidation=float(invalidation or 0.0)
-    target1=float(target1 or 0.0)
-    if trigger<=0 or invalidation<=0 or target1<=0:
-        return None
-    risk_pct=abs(trigger-invalidation)/trigger*100.0
-    if risk_pct<=0:
-        return None
-    if direction=="LONG":
-        reward_pct=(target1/trigger-1.0)*100.0
-    else:
-        reward_pct=(trigger/target1-1.0)*100.0 if target1 else -999.0
-    net_reward_pct=reward_pct-structure_min_round_trip_cost_pct()
-    return net_reward_pct/risk_pct
+    """Unified net R, including round-trip costs in reward AND risk."""
+    from long_short_r_math import trade_net_r
+    outcome = trade_net_r(direction, trigger, invalidation, target1,
+                          structure_min_round_trip_cost_pct())
+    return outcome["net_r"] if outcome["ok"] else None
 
 
 def build_structure_gate(direction, price, setup_plan, k5, k15, k30, k1h, k4h=None):
