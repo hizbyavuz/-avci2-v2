@@ -784,8 +784,11 @@ def market_snapshot(symbol):
     base=[float(x[7] or 0) for x in kl1[-12:-2]]
     vol_base=(sum(base)/len(base)) if base else 0.0
     vol_mult=qvol/vol_base if vol_base>0 else 1.0
-    taker_buy=float(forming[10] or 0)
-    taker_share=taker_buy/qvol if qvol>0 else 0.5
+    # External candles do not provide actual taker-buy volume.
+    # Never interpret a synthetic zero as a neutral 50/50 order flow.
+    taker_raw = forming[10] if price_source == "BINANCE_SPOT" else None
+    taker_buy = float(taker_raw) if taker_raw not in (None, "") else None
+    taker_share = taker_buy / qvol if taker_buy is not None and qvol > 0 else None
     atr1=_true_range(kl1[-16:])
 
     short_range_pct=((max(highs)-min(lows))/price*100.0) if highs and lows and price else 0.0
@@ -830,18 +833,19 @@ def early_observation(row,price,early):
     compression_ok=float(early["compression_pct"])<=EARLY_MAX_COMPRESSION_PCT
     vol_ok=float(early["vol_mult"])>=EARLY_MIN_VOLUME_MULT
     ema_slope=float(early["ema7_slope_pct"])
-    taker=float(early["taker_buy_share"])
+    taker_value=early.get("taker_buy_share")
+    taker=float(taker_value) if taker_value is not None else None
     atr1=float(early["atr1"] or 0.0)
 
     if d=="LONG":
         approach=(-EARLY_APPROACH_PCT)<=dist_pct
-        directional=(ema_slope>0 and taker>=EARLY_MIN_TAKER_SHARE)
+        directional=(ema_slope>0 and taker is not None and taker>=EARLY_MIN_TAKER_SHARE)
         started=price>=trig*(1.0-0.0005)
         extension=max(0.0,dist_pct)
         room=((t1/price-1.0)*100.0) if t1>price else 0.0
     else:
         approach=dist_pct<=EARLY_APPROACH_PCT
-        directional=(ema_slope<0 and taker<=(1.0-EARLY_MIN_TAKER_SHARE))
+        directional=(ema_slope<0 and taker is not None and taker<=(1.0-EARLY_MIN_TAKER_SHARE))
         started=price<=trig*(1.0+0.0005)
         extension=max(0.0,-dist_pct)
         room=((price/t1-1.0)*100.0) if 0<t1<price else 0.0
