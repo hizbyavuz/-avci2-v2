@@ -1684,6 +1684,8 @@ def loop_once():
     with sqlite3.connect(LIVE_DB) as con:
         con.row_factory=sqlite3.Row
         rows=con.execute("SELECT * FROM watch_state ORDER BY analyst_confidence DESC").fetchall()
+        stage_gate_counts={}
+        stage_gate_samples={}
         # V3.2 tracks both LONG and SHORT from the same snapshot. It is
         # independent of the frozen single-direction state and sends NO extra
         # Telegram or trade signal.
@@ -1719,6 +1721,30 @@ def loop_once():
                     old=row["stage"]
                     structure_quality=live_structure_confirmation(row,closed,early)
                     new=next_stage(row,price,closed,structure_quality)
+                    # Shadow-only gate diagnostics; no changes to next_stage or delivery.
+                    if old in ("WATCH","APPROACHING","CLOSE_CONFIRMED","RETESTING"):
+                        if _row_is_radar(row):
+                            gate_reason="RADAR_ONLY"
+                        elif not _row_is_analyst_active(row):
+                            gate_reason="ANALYST_NOT_ACTIVE"
+                        elif new=="INVALIDATED":
+                            gate_reason="INVALIDATED"
+                        elif new=="EXECUTION_BLOCKED":
+                            gate_reason="EXECUTION_BLOCKED"
+                        elif new=="TRIGGERED":
+                            gate_reason="TRIGGER_CANDIDATE"
+                        elif old in ("WATCH","APPROACHING"):
+                            trig=float(row["trigger_level"])
+                            close_ok=(closed>trig) if row["direction"]=="LONG" else (closed<trig)
+                            gate_reason=("CLOSE_NOT_BEYOND_LEVEL" if not close_ok
+                                         else "STRUCTURE_NOT_QUALIFIED" if not structure_quality.get("qualified")
+                                         else "CLOSE_QUALIFIED")
+                        elif old=="CLOSE_CONFIRMED":
+                            gate_reason="WAIT_ACCEPTANCE_OR_RETEST"
+                        else:
+                            gate_reason="WAIT_RETEST_REENTRY"
+                        stage_gate_counts[gate_reason]=stage_gate_counts.get(gate_reason,0)+1
+                        stage_gate_samples.setdefault(gate_reason,set()).add(row["symbol"])
                     observed_time=now_iso()
 
                     # Separate observational early layer: never mutates frozen continuation stage.
@@ -1987,6 +2013,13 @@ def loop_once():
                 except Exception as de:
                     print("V32_DUAL_DATA_ISSUE",dsym,
                           type(de).__name__,str(de)[:180],flush=True)
+
+    # One snapshot per poll, aggregated by reason; no persisted signal decisions.
+    if stage_gate_counts:
+        print("LIVE_STAGE_GATE_REASONS",json.dumps(
+            [{"reason":k,"poll_symbols":v,"unique_symbols":len(stage_gate_samples[k])}
+             for k,v in sorted(stage_gate_counts.items())],
+            ensure_ascii=False),flush=True)
 
     # Observability only: count transition outcomes without changing signal gates.
     audit_bucket=int(time.time()//300)
