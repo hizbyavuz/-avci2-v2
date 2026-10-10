@@ -87,7 +87,7 @@ class AuditTest(unittest.TestCase):
     def test_log_only_without_database(self):
         with tempfile.TemporaryDirectory() as td:
             log=Path(td)/"railway.log"
-            log.write_text('LIVE_WATCH_PAUSED {"reason":"absent_from_latest_selected_watchlist","setups":[{"symbol":"ENAUSDT","direction":"LONG","stage":"WATCH"}]}\\n',encoding="utf-8")
+            log.write_text('LIVE_WATCH_PAUSED {"reason":"absent_from_latest_selected_watchlist","setups":[{"symbol":"ENAUSDT","direction":"LONG","stage":"WATCH"}]}\n',encoding="utf-8")
             result=subprocess.run([sys.executable,"-I",str(SCRIPT),
                 "--state-dir",str(Path(td)/"missing_state"),
                 "--since","2026-10-10T11:09:00+00:00",
