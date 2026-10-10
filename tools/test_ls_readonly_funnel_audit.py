@@ -60,6 +60,8 @@ class AuditTest(unittest.TestCase):
             self.assertEqual(report["episodes"]["end_reasons"]["TRIGGER_EXECUTION_GATE"],1)
             self.assertEqual(report["confirmed_outcomes"]["outcomes"],0)
             self.assertTrue(report["audit_complete"])
+            self.assertEqual(report["performance_interpretation"],"INSUFFICIENT_CONFIRMED_OUTCOMES")
+            self.assertEqual(report["watch_state_scope"],"CURRENT_SNAPSHOT_NOT_SINCE_FILTERED")
             self.assertEqual(report["watch_state"]["cohorts"]["ACTIONABLE_SETUP/PAUSED/WATCH"],1)
             self.assertEqual(report["watch_state"]["cohorts"]["RADAR/PAUSED/APPROACHING"],1)
             self.assertEqual(before,{p.name:p.read_bytes() for p in (analyst,live)})
