@@ -76,6 +76,11 @@ class ObservationalForwardTests(unittest.TestCase):
             self.assertEqual(diagnostic["eligible_events"],2)
             self.assertEqual(diagnostic["observed_events"],2)
             self.assertEqual(diagnostic["observed_horizons"],8)
+            directions=json.loads(next(x for x in output.getvalue().splitlines()
+                if x.startswith("OBS_FORWARD_SINCE_1409_BY_DIRECTION ")).split(" ",1)[1])
+            self.assertEqual(len(directions),4)
+            self.assertTrue(all(x["direction"]=="LONG" and x["dedup_events"]==1
+                                for x in directions))
             self.assertEqual(report["start_turkey"],"2026-10-10 14:09")
             self.assertEqual(len(report["summary"]),4)
             self.assertTrue(all(row["dedup_events"]==1 for row in report["summary"]))
