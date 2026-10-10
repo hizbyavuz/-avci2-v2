@@ -35,35 +35,34 @@ def scan(con, table, time_column, since):
     return list(rows)
 
 def summarize_analyses(rows):
-    statuses, reasons, admission, per_scan = Counter(), Counter(), Counter(), Counter()
+    """Count stored analyst statuses and explicit reasons, not inferred eligibility."""
+    statuses, reasons, risks, per_scan = Counter(), Counter(), Counter(), Counter()
+    malformed = Counter()
     for row in rows:
         statuses[str(row["status"])] += 1
         per_scan[str(row["scan_time_utc"])] += 1
-        try:
-            p = json.loads(row["payload_json"] or "{}")
-        except (ValueError, TypeError):
-            p = {}
-        plan = p.get("setup_plan") or {}
-        gate = p.get("structure_gate") or {}
-        v3 = p.get("v3") or {}
-        if not plan.get("direction") or plan.get("trigger_level") is None:
-            admission["NO_PLAN"] += 1
-        elif row["status"] == "NO_TRADE" and abs(float(p.get("day_change_pct") or 0)) >= 5:
-            admission["RADAR_CANDIDATE"] += 1
-        elif row["status"] not in ("WAIT", "LONG", "SHORT"):
-            admission["NOT_ACTIONABLE_STATUS"] += 1
-        else:
-            admission["POTENTIAL_ACTIONABLE_NOT_VERIFIED"] += 1
-        if not p.get("derivatives_ready"):
-            reasons["DERIVATIVES_NOT_READY"] += 1
-        if "v3" in p and not v3.get("eligible"):
-            reasons["V3_NOT_ELIGIBLE"] += 1
-        if not gate.get("qualified_precheck"):
-            reasons["PRECHECK_NOT_QUALIFIED"] += 1
-    return {"rows":len(rows), "statuses":dict(statuses),
-            "diagnostic_flags_not_exclusive":dict(reasons),
-            "rough_categories_not_production_admission":dict(admission),
-            "scans":len(per_scan), "rows_per_scan":dict(per_scan)}
+        for column, counter in (("reasons_json", reasons), ("risks_json", risks)):
+            if column not in row.keys():
+                malformed["missing_" + column] += 1
+                continue
+            try:
+                value = json.loads(row[column] or "[]")
+            except (ValueError, TypeError):
+                malformed["invalid_" + column] += 1
+                continue
+            if isinstance(value, list):
+                for item in value:
+                    counter[str(item)] += 1
+            elif isinstance(value, dict):
+                for key, val in value.items():
+                    if val:
+                        counter[str(key)] += 1
+            else:
+                malformed["unexpected_" + column] += 1
+    return {"rows": len(rows), "statuses": dict(statuses),
+            "explicit_reasons": dict(reasons), "explicit_risks": dict(risks),
+            "parse_warnings": dict(malformed),
+            "scans": len(per_scan), "rows_per_scan": dict(per_scan)}
 
 def summarize_live(rows):
     stages, unique, reasons, delivery = Counter(), {}, Counter(), Counter()
