@@ -1287,6 +1287,14 @@ def send_telegram(msg):
             body=r.json()
             if not body.get("ok") or not (body.get("result") or {}).get("message_id"):
                 raise RuntimeError("Telegram API did not acknowledge message delivery")
+            receipt=body.get("result") or {}
+            # Optional strict chat pin: do not accept a receipt for another chat.
+            expected_chat=(os.getenv("LS_TELEGRAM_EXPECTED_CHAT_ID") or "").strip()
+            if expected_chat and (str(chat)!=expected_chat or
+                                  str((receipt.get("chat") or {}).get("id"))!=expected_chat):
+                raise RuntimeError("TELEGRAM_CHAT_MISMATCH")
+            if receipt.get("date") is None:
+                raise RuntimeError("TELEGRAM_RECEIPT_MISSING_DATE")
             print("TELEGRAM_SEND_ACCEPTED",json.dumps({"message_id":body["result"]["message_id"],"time":now_iso()},ensure_ascii=False),flush=True)
             return now_iso()
         except Exception as exc:
