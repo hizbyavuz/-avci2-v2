@@ -823,6 +823,55 @@ def multi_venue_perp_klines(symbol: str, interval: str, limit: int = 220, *, sta
     raise RuntimeError(f"{symbol} {interval}: no external perp candles; " + " | ".join(errors))
 
 
+def bybit_linear_execution_book(symbol: str, notional_usdt: float = 500.0) -> dict[str, Any]:
+    """Research-only Bybit linear order-book snapshot; never authorizes trades."""
+    if notional_usdt <= 0:
+        raise ValueError("notional must be positive")
+    data = _bybit("/v5/market/orderbook", {
+        "category": "linear", "symbol": symbol, "limit": 50,
+    })
+    book = data.get("result") or {}
+    bids = book.get("b") or []
+    asks = book.get("a") or []
+    if not bids or not asks:
+        return {"provider": "BYBIT_LINEAR", "available": False}
+    bid = float(bids[0][0])
+    ask = float(asks[0][0])
+    if not (0 < bid <= ask):
+        return {"provider": "BYBIT_LINEAR", "available": False}
+    mid = (bid + ask) / 2
+    def walk(levels):
+        remaining = float(notional_usdt)
+        spent = 0.0
+        quantity = 0.0
+        for price_raw, quantity_raw in levels:
+            price = float(price_raw)
+            size = float(quantity_raw)
+            if price <= 0 or size <= 0:
+                continue
+            take = min(size, remaining / price)
+            quantity += take
+            spent += take * price
+            remaining -= take * price
+            if remaining <= 1e-8:
+                break
+        if remaining > notional_usdt * 0.001 or quantity <= 0:
+            return None
+        return spent / quantity
+    buy = walk(asks)
+    sell = walk(bids)
+    return {
+        "provider": "BYBIT_LINEAR",
+        "available": buy is not None and sell is not None,
+        "observed_at_utc": _now_iso(),
+        "notional_usdt": float(notional_usdt),
+        "spread_bps": (ask - bid) / mid * 10000,
+        "buy_bps": (buy / mid - 1) * 10000 if buy is not None else None,
+        "sell_bps": (1 - sell / mid) * 10000 if sell is not None else None,
+        "research_only": True,
+    }
+
+
 if __name__ == "__main__":
     import json
     import sys
