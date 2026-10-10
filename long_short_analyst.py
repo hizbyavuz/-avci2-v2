@@ -1751,6 +1751,7 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
     print("PRODUCTION_DIRECTION_AUDIT",json.dumps({
         "symbol":symbol,"direction":v3.get("direction"),
         "eligible":v3.get("eligible"),"hard_blockers":v3.get("hard_blockers"),
+        "decision_reasons":v3.get("decision_reasons"),
         "best_score":v3.get("best_score"),"edge":v3.get("edge"),
         "shadow_veto":v3_hard_gate_shadow.get("veto"),
         "data_mode":DATA_MODE,
