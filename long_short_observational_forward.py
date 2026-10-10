@@ -46,7 +46,10 @@ def resolve_observational_forward(db_path, fetch_prices, now=None, limit=30):
               AND e.event_time_utc<=?
               AND (SELECT COUNT(*) FROM observational_forward o
                    WHERE o.event_id=e.id)<4
-            ORDER BY e.id LIMIT ?""",
+            -- Process recent study cohort before old historical backfill.
+            -- Old events remain intact and resume after recent cohort is caught up.
+            ORDER BY CASE WHEN julianday(e.event_time_utc)>=julianday('2026-10-10T11:09:00+00:00')
+                          THEN 0 ELSE 1 END, e.id LIMIT ?""",
             (*STAGES,(now-timedelta(minutes=15)).isoformat(),limit)).fetchall()
         inserted=0; errors=0
         for ev in events:
