@@ -1831,6 +1831,20 @@ def loop_once():
             print("LIVE_STAGE_FUNNEL_24H",json.dumps(
                 [{"stage":s,"telegram_status":t,"transitions":n,"unique_symbols":u} for s,t,n,u in stage_rows],
                 ensure_ascii=False),flush=True)
+            with sqlite3.connect(LIVE_DB,timeout=15) as audit_con:
+                blocked=audit_con.execute(
+                    """SELECT payload_json FROM events
+                       WHERE stage_to='EXECUTION_BLOCKED' AND event_time_utc>=?""",
+                    ((datetime.now(timezone.utc)-timedelta(hours=24)).isoformat(),)
+                ).fetchall()
+            reasons={}
+            for (raw,) in blocked:
+                try:
+                    reason=str((json.loads(raw or "{}").get("_trigger_execution_gate") or {}).get("reason") or "unknown")
+                except (TypeError,ValueError):
+                    reason="invalid_payload"
+                reasons[reason]=reasons.get(reason,0)+1
+            print("LIVE_EXECUTION_BLOCK_REASONS_24H",json.dumps(reasons,ensure_ascii=False),flush=True)
         except Exception as exc:
             print("LIVE_STAGE_FUNNEL_ERROR",type(exc).__name__,str(exc)[:140],flush=True)
 
