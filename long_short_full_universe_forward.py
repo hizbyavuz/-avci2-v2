@@ -61,6 +61,25 @@ def track(rows, metadata=None):
             SUM(CASE WHEN return_pct>=10 THEN 1 ELSE 0 END),
             SUM(CASE WHEN return_pct<=-10 THEN 1 ELSE 0 END)
             FROM outcomes GROUP BY horizon ORDER BY horizon""").fetchall()
+        # Observational volume cohorts: show whether the frozen 25M threshold
+        # excludes subsequent large price moves. This is NOT a trading signal,
+        # directional prediction, or executable profit calculation.
+        cohort_rows=db.execute("""SELECT
+            CASE WHEN s.volume24 < 25000000 THEN '8M_TO_25M'
+                 ELSE '25M_PLUS' END AS volume_cohort,
+            o.horizon,COUNT(*),ROUND(AVG(o.return_pct),4),
+            SUM(CASE WHEN o.return_pct>=3 THEN 1 ELSE 0 END),
+            SUM(CASE WHEN o.return_pct<=-3 THEN 1 ELSE 0 END),
+            SUM(CASE WHEN o.return_pct>=5 THEN 1 ELSE 0 END),
+            SUM(CASE WHEN o.return_pct<=-5 THEN 1 ELSE 0 END)
+            FROM outcomes o JOIN snapshots s ON s.id=o.snapshot_id
+            GROUP BY volume_cohort,o.horizon
+            ORDER BY volume_cohort,o.horizon""").fetchall()
+        print("FULL_UNIVERSE_VOLUME_COHORT_AUDIT",json.dumps([
+            {"volume_cohort":x[0],"minutes":x[1],"resolved":x[2],
+             "avg_return_pct":x[3],"up_3":x[4],"down_3":x[5],
+             "up_5":x[6],"down_5":x[7]} for x in cohort_rows
+        ]),flush=True)
         pending=db.execute("""SELECT COUNT(*) FROM snapshots s
             WHERE EXISTS (SELECT 1 FROM
             (SELECT 15 h UNION ALL SELECT 30 UNION ALL SELECT 60 UNION ALL SELECT 180) h
