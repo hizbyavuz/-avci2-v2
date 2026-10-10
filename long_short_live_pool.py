@@ -1294,15 +1294,17 @@ def send_telegram(msg):
             # Optional strict chat pin: do not accept a receipt for another chat.
             if expected_chat and str((receipt.get("chat") or {}).get("id"))!=expected_chat:
                 print("TELEGRAM_ACK_CHAT_MISMATCH_NO_RETRY",flush=True)
-                return now_iso()  # Already accepted by Telegram: never send duplicate.
+                raise RuntimeError("TELEGRAM_ACK_CHAT_MISMATCH")
             if receipt.get("date") is None:
                 print("TELEGRAM_ACK_MISSING_DATE_NO_RETRY",flush=True)
-                return now_iso()  # Accepted message_id: do not resend on receipt metadata error.
+                raise RuntimeError("TELEGRAM_ACK_MISSING_DATE")
             print("TELEGRAM_SEND_ACCEPTED",json.dumps({"message_id":body["result"]["message_id"],"time":now_iso()},ensure_ascii=False),flush=True)
             return now_iso()
         except Exception as exc:
             print("TELEGRAM_SEND_RETRY",attempt+1,type(exc).__name__,str(exc)[:150],flush=True)
             last=exc
+            if str(exc).startswith("TELEGRAM_ACK_"):
+                break  # API acknowledged message_id; retry could duplicate delivery.
             if attempt<2:
                 time.sleep(2.0*(attempt+1))
     raise last or RuntimeError("Telegram send failed")
