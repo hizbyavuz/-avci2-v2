@@ -133,6 +133,7 @@ def main():
     parser.add_argument("--state-dir",default="/app/.long-short-state")
     parser.add_argument("--since",required=True)
     parser.add_argument("--railway-log-file",help="Optional local exported Railway log text; never fetched remotely")
+    parser.add_argument("--log-only",action="store_true",help="Analyze exported pause logs without requiring SQLite files")
     parser.add_argument("--out",default="/tmp/ls_funnel_audit.json")
     args=parser.parse_args()
     state=Path(args.state_dir).resolve()
@@ -143,6 +144,27 @@ def main():
         datetime.fromisoformat(args.since.replace("Z","+00:00"))
     except ValueError:
         parser.error("--since must be ISO datetime")
+    if args.log_only:
+        if not args.railway_log_file:
+            parser.error("--log-only requires --railway-log-file")
+        if out.parent != Path("/tmp"):
+            parser.error("Output must be directly under /tmp")
+        logpath=Path(args.railway_log_file).resolve()
+        if logpath==state or state in logpath.parents:
+            parser.error("Log input must not be inside state volume")
+        try:
+            pause_report=summarize_paused_watch_log(
+                logpath.read_text(encoding="utf-8").splitlines())
+        except (OSError,UnicodeError) as exc:
+            parser.error("Unable to read log file: "+type(exc).__name__)
+        report={"generated_utc":datetime.now(timezone.utc).isoformat(),
+                "read_only":True,"source":"RAILWAY_EXPORTED_LOGS_ONLY",
+                "database_inspected":False,
+                "trade_performance_measured":False,
+                "paused_watch_logs":pause_report}
+        out.write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding="utf-8")
+        print(json.dumps(report,ensure_ascii=False,indent=2))
+        return
     analyst_path=state/"long_short_analyst.db"
     live_path=state/"long_short_live_pool.db"
     missing=[str(p) for p in (analyst_path,live_path) if not p.is_file()]
