@@ -613,6 +613,9 @@ def sync_watchlist(items):
     with sqlite3.connect(LIVE_DB) as con:
         con.row_factory=sqlite3.Row
         keep={x["symbol"] for x in items}
+        # Snapshot before per-item updates; otherwise radar downgrades disappear from diagnostics.
+        active_at_start={r["symbol"]:(r["direction"],r["stage"])
+                         for r in con.execute("SELECT symbol,direction,stage FROM watch_state WHERE analyst_active=1")}
 
         for x in items:
             old=con.execute("SELECT * FROM watch_state WHERE symbol=?",(x["symbol"],)).fetchone()
@@ -719,15 +722,20 @@ def sync_watchlist(items):
                  1 if new_actionable else 0,seen_at,1 if new_actionable else 0,
                  x["scan_time"],seen_at,seen_at,x["symbol"]))
 
-        # Diagnostic only: report previously active setups dropped by top-K churn.
-        active_before=con.execute("SELECT symbol,direction,stage FROM watch_state WHERE analyst_active=1").fetchall()
-        newly_paused=[{"symbol":r["symbol"],"direction":r["direction"],"stage":r["stage"]}
-                      for r in active_before if r["symbol"] not in keep]
-        if newly_paused:
-            print("LIVE_WATCH_PAUSED "+json.dumps({
-                "at_utc":seen_at,"reason":"absent_from_latest_selected_watchlist",
-                "setups":newly_paused
-            },separators=(",",":")),flush=True)
+        # Diagnostic only: distinguish top-K churn from an explicit radar downgrade.
+        paused_absent=[{"symbol":symbol,"direction":direction,"stage":stage}
+                       for symbol,(direction,stage) in active_at_start.items()
+                       if symbol not in keep]
+        paused_radar=[{"symbol":symbol,"direction":direction,"stage":stage}
+                      for symbol,(direction,stage) in active_at_start.items()
+                      if symbol in keep and not any(
+                          x["symbol"]==symbol and not bool(x.get("radar_only")) for x in items)]
+        for reason,paused in (("absent_from_latest_selected_watchlist",paused_absent),
+                              ("downgraded_to_radar_only",paused_radar)):
+            if paused:
+                print("LIVE_WATCH_PAUSED "+json.dumps({
+                    "at_utc":seen_at,"reason":reason,"setups":paused
+                },separators=(",",":")),flush=True)
         # Missing for one analyst cycle is not an invalidation. Pause it first:
         # no confirmation while absent, but preserve the locked setup for a short
         # grace window so top-K churn cannot erase a nearly confirmed idea.
