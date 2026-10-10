@@ -38,6 +38,7 @@ RESEARCH_INITIAL_DELAY = int(os.getenv("LS_DAEMON_RESEARCH_INITIAL_DELAY_SECONDS
 RESTART_BACKOFF = float(os.getenv("LS_DAEMON_RESTART_BACKOFF_SECONDS", "5"))
 BOUNDARY_GRACE = float(os.getenv("LS_DAEMON_BOUNDARY_GRACE_SECONDS", "6"))
 HEARTBEAT_SECONDS = int(os.getenv("LS_DAEMON_HEARTBEAT_SECONDS", "60"))
+BACKUP_INTERVAL = int(os.getenv("LS_BACKUP_INTERVAL_SECONDS", "86400"))
 
 
 def now_iso() -> str:
@@ -177,6 +178,30 @@ def research_loop() -> None:
             return
 
 
+def backup_loop() -> None:
+    """Backup runs independently; failure never stops analysis or changes signals."""
+    if not os.getenv("LS_BACKUP_BUCKET"):
+        print("[daemon] BACKUP_NOT_CONFIGURED", flush=True)
+        return
+    while not STOP.is_set():
+        rc = run_child("daily_backup", "long_short_daily_backup.py")
+        if rc != 0:
+            print("[daemon] BACKUP_FAILED; retry in 1h", flush=True)
+            if STOP.wait(3600):
+                return
+        elif STOP.wait(BACKUP_INTERVAL):
+            return
+
+
+def audit_loop() -> None:
+    while not STOP.is_set():
+        rc = run_child("operational_audit", "long_short_operational_audit.py")
+        if rc != 0:
+            print("[daemon] AUDIT_WARNING; review integrity and cohort", flush=True)
+        if STOP.wait(3600):
+            return
+
+
 def heartbeat_loop(sd: Path) -> None:
     health_path = sd / "long_short_daemon_health.json"
     while not STOP.is_set():
@@ -232,6 +257,8 @@ def main() -> int:
         threading.Thread(target=watcher_loop, args=("reversal", "long_short_reversal_live.py"), name="reversal-loop", daemon=True),
         threading.Thread(target=research_loop, name="research-loop", daemon=True),
         threading.Thread(target=heartbeat_loop, args=(sd,), name="heartbeat-loop", daemon=True),
+        threading.Thread(target=backup_loop, name="backup-loop", daemon=True),
+        threading.Thread(target=audit_loop, name="audit-loop", daemon=True),
     ]
     for t in threads:
         t.start()
