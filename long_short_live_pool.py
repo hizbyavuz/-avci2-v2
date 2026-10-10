@@ -1532,15 +1532,24 @@ def record_confirmed_forward(con,symbol,price,observed_time):
         print("CONFIRMED_FORWARD_RECORDED",symbol,count,flush=True)
 
 
-def _observational_closed_prices(symbol,event_time_utc,horizons):
-    """Historical Binance Spot 1m closes. No ticker substitution or future candles."""
+def _observational_closed_prices(symbol,event_time_utc,horizons,venue):
+    """Historical venue-matched 1m closes. No ticker substitution or future candles."""
     start=datetime.fromisoformat(event_time_utc.replace("Z","+00:00"))
     if start.tzinfo is None:
         start=start.replace(tzinfo=timezone.utc)
     begin=math.ceil(start.timestamp()/60)*60000
     max_h=max(horizons)
-    rows=spot_get("/api/v3/klines",{"symbol":symbol,"interval":"1m",
-        "startTime":begin,"limit":min(240,max_h+2)})
+    if venue=="BINANCE_SPOT":
+        rows=spot_get("/api/v3/klines",{"symbol":symbol,"interval":"1m",
+            "startTime":begin,"limit":min(240,max_h+2)})
+    elif venue in ("GATE_FUTURES","BYBIT_LINEAR"):
+        feed=multi_venue_perp_klines(symbol,"1m",max_h+2,
+            start_ms=begin,provider=venue)
+        if feed.get("provider")!=venue:
+            raise ValueError("observation venue mismatch")
+        rows=feed.get("rows") or []
+    else:
+        raise ValueError("unsupported observation venue")
     by_time={int(float(bar[0])):bar for bar in rows}
     now_ms=int(time.time()*1000)
     result={}
