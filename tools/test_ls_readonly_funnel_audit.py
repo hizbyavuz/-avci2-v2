@@ -30,6 +30,9 @@ class AuditTest(unittest.TestCase):
                 db.execute("INSERT INTO watch_episodes VALUES(?,?,?)", (
                     "2026-10-10T11:10:00+00:00","TRIGGER_EXECUTION_GATE","EXECUTION_BLOCKED"))
                 db.execute("CREATE TABLE confirmed_trade_outcomes(entry_time_utc TEXT,result TEXT)")
+                db.execute("CREATE TABLE watch_state(stage TEXT,analyst_active INTEGER,structure_gate_json TEXT)")
+                db.execute("INSERT INTO watch_state VALUES(?,?,?)",("WATCH",0,json.dumps({"_radar_only":False})))
+                db.execute("INSERT INTO watch_state VALUES(?,?,?)",("APPROACHING",0,json.dumps({"_radar_only":True})))
             before = {p.name:p.read_bytes() for p in (analyst,live)}
             result = subprocess.run([sys.executable,"-I",str(SCRIPT),
                 "--state-dir",str(state),"--since","2026-10-10T11:09:00+00:00",
@@ -42,6 +45,9 @@ class AuditTest(unittest.TestCase):
             self.assertEqual(report["live"]["execution_block_reasons"]["trigger_time_net_r_failed"],1)
             self.assertEqual(report["episodes"]["end_reasons"]["TRIGGER_EXECUTION_GATE"],1)
             self.assertEqual(report["confirmed_outcomes"]["outcomes"],0)
+            self.assertTrue(report["audit_complete"])
+            self.assertEqual(report["watch_state"]["cohorts"]["ACTIONABLE_SETUP/PAUSED/WATCH"],1)
+            self.assertEqual(report["watch_state"]["cohorts"]["RADAR/PAUSED/APPROACHING"],1)
             self.assertEqual(before,{p.name:p.read_bytes() for p in (analyst,live)})
             Path("/tmp/ls_funnel_synthetic_test.json").unlink(missing_ok=True)
 
