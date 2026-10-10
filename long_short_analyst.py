@@ -1742,6 +1742,12 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
         "data_mode":DATA_MODE,
         "venue_verified":bool(discovery_meta.get("binance_native_verified")),
         "source":discovery_meta.get("source"),
+        "quote_volume_24h_usdt":round(pre_qv,2),
+        "minimum_quote_volume_24h_usdt":MIN_24H_QUOTE_VOL,
+        "quote_volume_provenance":discovery_meta.get("source"),
+        "binance_spot_member":bool(discovery_meta.get("binance_spot_member")),
+        "derivatives_ready":bool(deriv_ready),
+        "provider_count":discovery_meta.get("provider_count"),
     },ensure_ascii=False,default=str),flush=True)
 
     preferred_direction=v3.get("direction") if v3.get("direction") in ("LONG","SHORT") else ("LONG" if long>short else "SHORT")
