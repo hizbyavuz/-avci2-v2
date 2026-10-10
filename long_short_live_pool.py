@@ -1845,6 +1845,19 @@ def loop_once():
                     reason="invalid_payload"
                 reasons[reason]=reasons.get(reason,0)+1
             print("LIVE_EXECUTION_BLOCK_REASONS_24H",json.dumps(reasons,ensure_ascii=False),flush=True)
+            with sqlite3.connect(LIVE_DB,timeout=15) as audit_con:
+                cohorts=audit_con.execute(
+                    """SELECT e.stage_to,COALESCE(w.analyst_active,-1),
+                              COUNT(*),COUNT(DISTINCT e.symbol)
+                       FROM events e LEFT JOIN watch_state w ON w.symbol=e.symbol
+                       WHERE e.event_time_utc>=? AND e.stage_to IN ('WATCH','APPROACHING','CLOSE_CONFIRMED','RETESTING','TRIGGERED')
+                       GROUP BY e.stage_to,COALESCE(w.analyst_active,-1)""",
+                    ((datetime.now(timezone.utc)-timedelta(hours=24)).isoformat(),)
+                ).fetchall()
+            print("LIVE_STAGE_BY_CURRENT_ACTIONABILITY_24H",json.dumps(
+                [{"stage":stage,"current_analyst_active":active,"transitions":n,"unique_symbols":u}
+                 for stage,active,n,u in cohorts],ensure_ascii=False),flush=True)
+
         except Exception as exc:
             print("LIVE_STAGE_FUNNEL_ERROR",type(exc).__name__,str(exc)[:140],flush=True)
 
