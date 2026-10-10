@@ -902,11 +902,15 @@ def _book_vwap(rows, quote_notional, side):
 
 
 def _cached_multi_venue_derivatives(symbol):
+    # Never pin a transient missing/partial derivative bundle for the life of
+    # the daemon. Cache is only a short-lived per-symbol request deduplicator.
+    now=time.monotonic()
     cached=MULTI_DERIV_CACHE.get(symbol)
-    if cached is None:
-        cached=multi_venue_derivatives(symbol)
-        MULTI_DERIV_CACHE[symbol]=cached
-    return cached
+    if cached is not None and now-cached[0]<60:
+        return cached[1]
+    result=multi_venue_derivatives(symbol)
+    MULTI_DERIV_CACHE[symbol]=(time.monotonic(),result)
+    return result
 
 
 def fetch_depth_metrics(symbol):
