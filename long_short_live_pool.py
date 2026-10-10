@@ -726,10 +726,10 @@ def sync_watchlist(items):
         paused_absent=[{"symbol":symbol,"direction":direction,"stage":stage}
                        for symbol,(direction,stage) in active_at_start.items()
                        if symbol not in keep]
+        actionable_now={x["symbol"] for x in items if not bool(x.get("radar_only"))}
         paused_radar=[{"symbol":symbol,"direction":direction,"stage":stage}
                       for symbol,(direction,stage) in active_at_start.items()
-                      if symbol in keep and not any(
-                          x["symbol"]==symbol and not bool(x.get("radar_only")) for x in items)]
+                      if symbol in keep and symbol not in actionable_now]
         for reason,paused in (("absent_from_latest_selected_watchlist",paused_absent),
                               ("downgraded_to_radar_only",paused_radar)):
             if paused:
