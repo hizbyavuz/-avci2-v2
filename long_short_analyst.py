@@ -519,7 +519,7 @@ def structure_net_t1_r(direction, trigger, invalidation, target1):
     if direction=="LONG":
         reward_pct=(target1/trigger-1.0)*100.0
     else:
-        reward_pct=(trigger/target1-1.0)*100.0 if target1 else -999.0
+        reward_pct=(1.0-target1/trigger)*100.0
     net_reward_pct=reward_pct-structure_min_round_trip_cost_pct()
     return net_reward_pct/risk_pct
 
