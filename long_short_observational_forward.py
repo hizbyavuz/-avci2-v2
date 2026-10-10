@@ -27,7 +27,7 @@ def init_observational_forward(con):
         ON observational_forward(stage,horizon_min)""")
 
 def resolve_observational_forward(db_path, fetch_prices, now=None, limit=30):
-    """fetch_prices(symbol, event_time_utc, horizons) -> {horizon: (timestamp, price)}.
+    """fetch_prices(symbol, event_time_utc, horizons, venue) -> {horizon: (timestamp, price)}.
 
     Fetcher must provide venue-consistent historical *closed* prices, not current tickers.
     Missing prices remain pending; no fabricated zero-return observations.
@@ -42,7 +42,7 @@ def resolve_observational_forward(db_path, fetch_prices, now=None, limit=30):
             WHERE e.stage_to IN ({placeholders}) AND e.price>0
               AND e.direction IN ('LONG','SHORT')
               AND json_valid(e.payload_json)
-              AND json_extract(e.payload_json,'$._live_price_source')='BINANCE_SPOT'
+              AND json_extract(e.payload_json,'$._live_price_source') IN ('BINANCE_SPOT','GATE_FUTURES','BYBIT_LINEAR')
               AND e.event_time_utc<=?
               AND (SELECT COUNT(*) FROM observational_forward o
                    WHERE o.event_id=e.id)<4
@@ -58,7 +58,8 @@ def resolve_observational_forward(db_path, fetch_prices, now=None, limit=30):
                     "SELECT horizon_min FROM observational_forward WHERE event_id=?",(ev["id"],))}
                 due=[h for h in due if h not in existing]
                 if not due: continue
-                prices=fetch_prices(ev["symbol"],ev["event_time_utc"],due)
+                venue=json.loads(con.execute("SELECT payload_json FROM events WHERE id=?",(ev["id"],)).fetchone()[0])["_live_price_source"]
+                prices=fetch_prices(ev["symbol"],ev["event_time_utc"],due,venue)
                 for h in due:
                     if h not in prices: continue
                     stamp,price=prices[h]
