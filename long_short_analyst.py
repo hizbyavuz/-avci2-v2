@@ -1669,7 +1669,7 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
     external_only_unverified=bool(discovery_meta.get("external_only_unverified"))
     if not actionable_liquidity_ok:
         risks.append(
-            f"24s perp hacmi {pre_qv/1_000_000:.1f}M USDT; "
+            f"24s {discovery_meta.get('source') or 'UNKNOWN'} kaynak hacmi {pre_qv/1_000_000:.1f}M USDT; "
             f"işlem için minimum {MIN_24H_QUOTE_VOL/1_000_000:.0f}M, sadece radar"
         )
         status="NO_TRADE"
