@@ -2447,7 +2447,7 @@ def main():
                      int(audit_symbol in audit_selected),
                      json.dumps(audit_detail,ensure_ascii=False,default=str)))
             audit_con.commit()
-        print("FULL_UNIVERSE_STAGE_AUDIT",len(uni),"prefilter_errors",len(prefilter_failures),flush=True)
+        print("ROTATING_WINDOW_STAGE_AUDIT",json.dumps({"window_symbols":len(uni),"prefilter_errors":len(prefilter_failures),"scope":"rotating_window_only","not_full_perpetual_universe":True},ensure_ascii=False),flush=True)
     except Exception as audit_exc:
         print("FULL_UNIVERSE_STAGE_AUDIT_ERROR",type(audit_exc).__name__,str(audit_exc)[:160],flush=True)
     # Read-only early-pattern observations for all prefiltered symbols.
