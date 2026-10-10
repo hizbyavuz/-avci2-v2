@@ -90,16 +90,16 @@ def resolve_observational_forward(db_path, fetch_prices, now=None, limit=30):
                    AVG(signed_return_pct) FROM observational_forward
                    GROUP BY stage,horizon_min ORDER BY stage,horizon_min""")]
         result={"inserted":inserted,"data_issues":errors,"summary":summary}
-        # Distinguish the first measurement rollout from historical backfill.
+        # Audit all preserved observations since the user-requested 14:09 Turkey time.
         # Count one observation per coin/direction/stage/UTC day/horizon,
         # so repeated alerts cannot masquerade as independent wins.
-        rollout_start="2026-10-10T15:20:19.532+00:00"
+        rollout_start="2026-10-10T11:09:00+00:00"  # 14:09 Europe/Istanbul
         cohort_rows=con.execute("""WITH ranked AS (
             SELECT o.*, ROW_NUMBER() OVER (
                 PARTITION BY symbol,direction,stage,horizon_min,
-                             substr(event_time_utc,1,10)
+                             date(event_time_utc)
                 ORDER BY event_time_utc,event_id) AS rn
-            FROM observational_forward o WHERE event_time_utc>=?
+            FROM observational_forward o WHERE julianday(event_time_utc)>=julianday(?)
         )
         SELECT stage,horizon_min,COUNT(*),COUNT(DISTINCT symbol),
                SUM(CASE WHEN signed_return_pct>0 THEN 1 ELSE 0 END),
@@ -112,8 +112,8 @@ def resolve_observational_forward(db_path, fetch_prices, now=None, limit=30):
                  "dedup_events":row[2],"unique_symbols":row[3],
                  "correct":row[4],"wrong":row[5],
                  "avg_signed_pct":row[6]} for row in cohort_rows]
-        print("OBS_FORWARD_POST_ROLLOUT_DEDUP",json.dumps({
-            "rollout_start_utc":rollout_start,"grouping":"first symbol/direction/stage/UTC-day/horizon",
+        print("OBS_FORWARD_SINCE_1409_DEDUP",json.dumps({
+            "start_utc":rollout_start,"start_turkey":"2026-10-10 14:09","grouping":"first symbol/direction/stage/UTC-day/horizon",
             "summary":cohort},ensure_ascii=False),flush=True)
         print("OBS_FORWARD_SUMMARY",json.dumps(result,ensure_ascii=False),flush=True)
         return result
