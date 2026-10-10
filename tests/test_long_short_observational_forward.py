@@ -108,6 +108,31 @@ class ObservationalForwardTests(unittest.TestCase):
                 self.assertEqual(set(x[0] for x in con.execute(
                     "SELECT DISTINCT event_id FROM observational_forward")),{1,2})
 
+    def test_unresolved_events_rotate(self):
+        now=datetime(2026,10,10,20,0,tzinfo=timezone.utc)
+        with tempfile.NamedTemporaryFile(suffix=".db") as f:
+            with sqlite3.connect(f.name) as con:
+                con.execute("""CREATE TABLE events(id INTEGER PRIMARY KEY,symbol TEXT,
+                    direction TEXT,stage_to TEXT,event_time_utc TEXT,price REAL,payload_json TEXT)""")
+                for i in range(1,41):
+                    con.execute("INSERT INTO events VALUES(?,?,?,?,?,?,?)",
+                        (i,f"COIN{i}USDT","LONG","APPROACHING",
+                         (now-timedelta(hours=4)).isoformat(),100.0,
+                         '{"_live_price_source":"BINANCE_SPOT"}'))
+            chosen=[]
+            def fetch(sym,start,horizons,venue):
+                chosen.append(sym)
+                return {}
+            with redirect_stdout(io.StringIO()):
+                resolve_observational_forward(f.name,fetch,now,limit=3)
+            first=chosen[:]
+            chosen.clear()
+            with redirect_stdout(io.StringIO()):
+                resolve_observational_forward(f.name,fetch,now+timedelta(minutes=5),limit=3)
+            self.assertEqual(len(first),3)
+            self.assertEqual(len(chosen),3)
+            self.assertNotEqual(set(first),set(chosen))
+
     def test_missing_prices_remain_pending(self):
         now=datetime(2026,10,10,16,0,tzinfo=timezone.utc)
         with tempfile.NamedTemporaryFile(suffix=".db") as f:
