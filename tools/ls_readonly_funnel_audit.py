@@ -64,6 +64,18 @@ def summarize_analyses(rows):
             "parse_warnings": dict(malformed),
             "scans": len(per_scan), "rows_per_scan": dict(per_scan)}
 
+def summarize_watch_state(rows):
+    groups = Counter()
+    for row in rows:
+        try:
+            gate = json.loads(row["structure_gate_json"] or "{}")
+        except (ValueError, TypeError):
+            gate = {}
+        cohort = "RADAR" if gate.get("_radar_only") else "ACTIONABLE_SETUP"
+        active = "ACTIVE" if row["analyst_active"] else "PAUSED"
+        groups[(cohort, active, str(row["stage"]))] += 1
+    return {"rows":len(rows),"cohorts":{"/".join(k):v for k,v in groups.items()}}
+
 def summarize_live(rows):
     stages, unique, reasons, delivery = Counter(), {}, Counter(), Counter()
     for row in rows:
@@ -120,6 +132,14 @@ def main():
                 report[label]=fn(rows) if isinstance(rows,list) else rows
             except (sqlite3.Error,KeyError,TypeError,ValueError) as exc:
                 report[label]={"status":"error","error":type(exc).__name__,"detail":str(exc)[:200]}
+        try:
+            if not table_exists(live,"watch_state"):
+                report["watch_state"]={"status":"missing_table"}
+            else:
+                report["watch_state"]=summarize_watch_state(live.execute(
+                    "SELECT stage,analyst_active,structure_gate_json FROM watch_state").fetchall())
+        except (sqlite3.Error,KeyError,TypeError,ValueError) as exc:
+            report["watch_state"]={"status":"error","error":type(exc).__name__}
     finally:
         for con in (analyst,live):
             if con: con.close()
