@@ -2401,6 +2401,32 @@ def main():
     # BTC/ETH/other mega-liquidity names into the live pool even when faster
     # mid/small-cap perpetuals had stronger current setups.
     shortlist=select_deep_shortlist(preselected,PRESELECT_MAX)
+    # Observability: distinguish executable shortlist capacity from research-only
+    # backfill. Do not change the frozen signal rules or ranking.
+    try:
+        actionable_all=0
+        actionable_selected=0
+        for entry in preselected:
+            meta=entry.get("discovery_meta") or {}
+            valid=(float(entry.get("quote_volume") or 0)>=MIN_24H_QUOTE_VOL
+                   and bool(meta.get("binance_spot_member"))
+                   and not bool(meta.get("external_only_unverified")))
+            actionable_all+=int(valid)
+        for entry in shortlist:
+            meta=entry.get("discovery_meta") or {}
+            valid=(float(entry.get("quote_volume") or 0)>=MIN_24H_QUOTE_VOL
+                   and bool(meta.get("binance_spot_member"))
+                   and not bool(meta.get("external_only_unverified")))
+            actionable_selected+=int(valid)
+        print("SHORTLIST_EXECUTABILITY",json.dumps({
+            "window":len(uni),"prefilter_ok":len(preselected),
+            "actionable_in_window":actionable_all,
+            "actionable_selected":actionable_selected,
+            "research_only_selected":len(shortlist)-actionable_selected,
+            "selection_limit":PRESELECT_MAX,
+        }),flush=True)
+    except Exception as exc:
+        print("SHORTLIST_EXECUTABILITY_ERROR",type(exc).__name__,str(exc)[:160],flush=True)
     print("FAST_PREFILTER",len(uni),"->",len(shortlist),
           ",".join(x["symbol"] for x in shortlist))
     save_universe_observations(ts,preselected,shortlist)
