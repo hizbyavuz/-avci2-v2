@@ -2534,6 +2534,37 @@ def main():
             derivatives_counts[str(payload.get("derivatives_ready"))[:20]]+=1
             if not direction.get("hard_blockers") and analysis.status=="NO_TRADE":
                 blocker_counts["NO_EXPLICIT_HARD_BLOCKER"]+=1
+        # Explicitly separate eligibility from setup readiness: no hard blocker
+        # does NOT imply that a valid LONG/SHORT setup exists.
+        decision_counts=Counter()
+        unblocked_samples=[]
+        for item in preselected:
+            sym=item["symbol"]
+            if sym not in selected:
+                continue
+            analysis=deep.get(sym)
+            if analysis is None:
+                continue
+            payload=analysis.payload or {}
+            direction=payload.get("direction_engine") or {}
+            blockers=direction.get("hard_blockers") or []
+            if blockers or analysis.status!="NO_TRADE":
+                continue
+            decision_counts[str(direction.get("direction") or "NONE")[:24]]+=1
+            if len(unblocked_samples)<8:
+                unblocked_samples.append({
+                    "symbol":sym,"status":analysis.status,
+                    "direction":direction.get("direction"),
+                    "eligible":direction.get("eligible"),
+                    "best_score":direction.get("best_score"),
+                    "edge":direction.get("edge"),
+                    "shadow_veto":(payload.get("v3_hard_gate_shadow") or {}).get("veto"),
+                })
+        print("NO_TRADE_WITHOUT_HARD_BLOCKER",json.dumps({
+            "count":sum(decision_counts.values()),
+            "directions":decision_counts.most_common(),
+            "samples":unblocked_samples,
+        },ensure_ascii=False,default=str),flush=True)
         print("OPPORTUNITY_BLOCKER_SUMMARY",json.dumps({
             "scope":"deep_selected","selected":len(selected),
             "hard_blockers":blocker_counts.most_common(15),
