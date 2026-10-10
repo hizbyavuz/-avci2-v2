@@ -39,6 +39,7 @@ def decide_direction(
     spot_flow: dict[str, Any] | None = None,
     residual: dict[str, Any] | None = None,
     phase: str = "NONE",
+    atr_pct: float | None = None,
 ) -> dict[str, Any]:
     """Combine directional evidence; reserve hard vetoes for safety only.
 
@@ -107,6 +108,12 @@ def decide_direction(
         hard_blockers.append("unverified_external_only")
     if invalid_score:
         hard_blockers.append("score_not_finite")
+    if atr_pct is not None:
+        atr_value = finite_score(atr_pct)
+        if atr_value is None:
+            hard_blockers.append("atr_not_finite")
+        elif atr_value >= 4.0:
+            hard_blockers.append("atr_volatility_veto")
 
     eligible=bool(direction!="NONE" and not hard_blockers)
     # Explicit diagnostics: a healthy but directionless market is not a data outage.
