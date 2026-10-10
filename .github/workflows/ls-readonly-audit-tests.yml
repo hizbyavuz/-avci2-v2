@@ -1,0 +1,28 @@
+name: LONG SHORT read-only audit tests
+on:
+  pull_request:
+    paths:
+      - 'tools/ls_readonly_funnel_audit.py'
+      - 'tools/test_ls_readonly_funnel_audit.py'
+      - '.github/workflows/ls-readonly-audit-tests.yml'
+  workflow_dispatch:
+jobs:
+  audit-tests:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Compile production and audit Python without imports
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          for p in ('long_short_live_pool.py','tools/ls_readonly_funnel_audit.py','tools/test_ls_readonly_funnel_audit.py'):
+              compile(Path(p).read_text(encoding='utf-8'),p,'exec')
+              print('COMPILE_OK',p)
+          PY
+      - name: Run synthetic read-only tests
+        run: python -m unittest discover -s tools -p 'test_ls_readonly_funnel_audit.py' -v
