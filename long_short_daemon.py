@@ -186,6 +186,7 @@ def heartbeat_loop(sd: Path) -> None:
                 "time_utc": now_iso(),
                 "telegram_configured": bool((os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()),
                 "telegram_chat_configured": bool((os.getenv("TELEGRAM_CHAT_ID") or "").strip()),
+                "telegram_chat_id_source": "environment" if (os.getenv("TELEGRAM_CHAT_ID") or "").strip() else "runtime_resolution_required",
                 "state_dir": str(sd),
                 "processes": json.loads(json.dumps(STATUS)),
             }
