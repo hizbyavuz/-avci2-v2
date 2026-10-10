@@ -2033,6 +2033,11 @@ def main():
                 print("TELEGRAM_DELIVERY_TEST_FAILED",type(exc).__name__,str(exc)[:200],flush=True)
     except Exception as exc:
         print("TELEGRAM_DELIVERY_TEST_SETUP_ERROR",type(exc).__name__,str(exc)[:200],flush=True)
+    try:
+        retried=retry_failed_telegram_events()
+        print("TELEGRAM_FAILED_RETRY",retried,flush=True)
+    except Exception as exc:
+        print("TELEGRAM_FAILED_RETRY_ERROR",type(exc).__name__,str(exc)[:160],flush=True)
     items=load_watchlist()
     sync_watchlist(items)
     try:
@@ -2053,8 +2058,15 @@ def main():
     print(f"Live pool started: {len(items)} symbols, poll={POLL_SECONDS}s, "
           f"full_window_seconds={RUN_SECONDS}, "
           f"until={datetime.fromtimestamp(end,tz=timezone.utc).isoformat()}",flush=True)
+    last_retry=time.monotonic()
     while time.time()<end:
         loop_once()
+        if time.monotonic()-last_retry>=60:
+            try:
+                retry_failed_telegram_events()
+            except Exception as exc:
+                print("TELEGRAM_FAILED_RETRY_ERROR",type(exc).__name__,str(exc)[:160],flush=True)
+            last_retry=time.monotonic()
         time.sleep(POLL_SECONDS)
 
 if __name__=="__main__":
