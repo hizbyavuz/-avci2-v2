@@ -782,7 +782,7 @@ def multi_venue_perp_klines(symbol: str, interval: str, limit: int = 220, *, sta
             rows.append([
                 ts, r[1], r[2], r[3], r[4], r[5],
                 ts + interval_ms[interval] - 1,
-                str(quote_volume), 0, "0", str(quote_volume * 0.5), "0",
+                str(quote_volume), None, "0", None, "0",
             ])
         rows.sort(key=lambda r: int(r[0]))
         if rows:
@@ -812,7 +812,7 @@ def multi_venue_perp_klines(symbol: str, interval: str, limit: int = 220, *, sta
             rows.append([
                 ts, r.get("o"), r.get("h"), r.get("l"), r.get("c"), str(base_volume),
                 ts + interval_ms[interval] - 1,
-                str(quote_volume), 0, "0", str(quote_volume * 0.5), "0",
+                str(quote_volume), None, "0", None, "0",
             ])
         rows.sort(key=lambda r: int(r[0]))
         if rows:
