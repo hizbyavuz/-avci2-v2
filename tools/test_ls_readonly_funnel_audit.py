@@ -41,7 +41,7 @@ class AuditTest(unittest.TestCase):
         self.assertIn('"reason":"WATCHLIST_GRACE_EXPIRED"', body)
         self.assertLess(body.index("LIVE_WATCH_EXPIRED "), body.index('con.execute("DELETE FROM watch_state WHERE symbol=?"'))
         self.assertLess(body.index("active_at_start="), body.index("for x in items:"))
-        self.assertLess(body.index("paused_absent="), body.index("UPDATE watch_state SET analyst_active=0,last_update_utc=?"))
+        self.assertLess(body.index("paused_absent="), body.index("UPDATE watch_state SET analyst_active=0,"))
 
     def test_synthetic_funnel_and_no_db_changes(self):
         with tempfile.TemporaryDirectory() as td:
