@@ -91,6 +91,14 @@ def decide_direction(
         hard_blockers.append("unverified_external_only")
 
     eligible=bool(direction!="NONE" and not hard_blockers)
+    # Explicit diagnostics: a healthy but directionless market is not a data outage.
+    # These observations do not modify the frozen decision thresholds.
+    decision_reasons=[]
+    if best<MIN_DIRECTION_SCORE:
+        decision_reasons.append("direction_score_below_minimum")
+    if edge<MIN_DIRECTION_EDGE:
+        decision_reasons.append("direction_edge_below_minimum")
+    decision_reasons.extend(hard_blockers)
     setup_type="PULLBACK" if str(phase)=="IMPULSE" else "BREAKOUT"
 
     return {
@@ -108,6 +116,7 @@ def decide_direction(
             "min_direction_edge":MIN_DIRECTION_EDGE,
         },
         "hard_blockers":hard_blockers,
+        "decision_reasons":decision_reasons,
         "veto_reasons":hard_blockers,
         "evidence":evidence,
     }
