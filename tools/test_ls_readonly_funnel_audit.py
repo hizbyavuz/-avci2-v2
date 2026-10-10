@@ -71,9 +71,9 @@ class AuditTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             log = Path(td) / "railway.log"
             log.write_text(
-                'LIVE_WATCH_PAUSED {"reason":"absent_from_latest_selected_watchlist","setups":[{"symbol":"ENAUSDT","direction":"LONG","stage":"WATCH"}]}\\n'
-                'LIVE_WATCH_PAUSED {"reason":"downgraded_to_radar_only","setups":[{"symbol":"MAGICUSDT","direction":"SHORT","stage":"APPROACHING"}]}\\n'
-                'LIVE_WATCH_PAUSED not-json\\n',encoding="utf-8")
+                'LIVE_WATCH_PAUSED {"reason":"absent_from_latest_selected_watchlist","setups":[{"symbol":"ENAUSDT","direction":"LONG","stage":"WATCH"}]}\n'
+                'LIVE_WATCH_PAUSED {"reason":"downgraded_to_radar_only","setups":[{"symbol":"MAGICUSDT","direction":"SHORT","stage":"APPROACHING"}]}\n'
+                'LIVE_WATCH_PAUSED not-json\n',encoding="utf-8")
             import importlib.util
             spec=importlib.util.spec_from_file_location("audit_module",SCRIPT)
             module=importlib.util.module_from_spec(spec)
