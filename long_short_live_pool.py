@@ -165,10 +165,10 @@ def live_execution_gate(row,price,proxy):
     if direction=="LONG":
         geometry=bool(inv<entry<t1)
         reward=(t1/entry-1.0)*100.0 if geometry else -999.0
-        risk=(entry/inv-1.0)*100.0 if geometry and inv>0 else 0.0
+        risk=(1.0-inv/entry)*100.0 if geometry and entry>0 else 0.0
     else:
         geometry=bool(t1<entry<inv)
-        reward=(entry/t1-1.0)*100.0 if geometry and t1>0 else -999.0
+        reward=(1.0-t1/entry)*100.0 if geometry and entry>0 else -999.0
         risk=(inv/entry-1.0)*100.0 if geometry else 0.0
     net_r=((reward-total_cost_pct)/risk) if risk>0 else None
     qualified=bool(geometry and net_r is not None and net_r>=EXECUTION_MIN_NET_T1_R)
