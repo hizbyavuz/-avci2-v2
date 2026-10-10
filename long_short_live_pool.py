@@ -25,6 +25,7 @@ from long_short_simple_notify import classify_move, format_alert, queue_alert, c
 from long_short_telegram_delivery_integrity import policy as telegram_integrity_policy
 from long_short_dual_v32 import init as init_dual_v32, sync as sync_dual_v32, advance as advance_dual_v32
 from long_short_data_router import multi_venue_perp_klines, multi_venue_perp_universe
+from long_short_observational_forward import resolve_observational_forward
 
 ANALYST_DB=os.getenv("LS_DB","long_short_analyst.db")
 LIVE_DB=os.getenv("LS_LIVE_DB","long_short_live_pool.db")
@@ -1531,6 +1532,27 @@ def record_confirmed_forward(con,symbol,price,observed_time):
         print("CONFIRMED_FORWARD_RECORDED",symbol,count,flush=True)
 
 
+def _observational_closed_prices(symbol,event_time_utc,horizons):
+    """Historical Binance Spot 1m closes. No ticker substitution or future candles."""
+    start=datetime.fromisoformat(event_time_utc.replace("Z","+00:00"))
+    if start.tzinfo is None:
+        start=start.replace(tzinfo=timezone.utc)
+    begin=math.ceil(start.timestamp()/60)*60000
+    max_h=max(horizons)
+    rows=spot_get("/api/v3/klines",{"symbol":symbol,"interval":"1m",
+        "startTime":begin,"limit":min(240,max_h+2)})
+    by_time={int(float(bar[0])):bar for bar in rows}
+    now_ms=int(time.time()*1000)
+    result={}
+    for h in horizons:
+        target=begin+(h-1)*60000
+        bar=by_time.get(target)
+        if bar is None or target+60000>now_ms:
+            continue
+        result[h]=(datetime.fromtimestamp((target+60000)/1000,tz=timezone.utc).isoformat(),float(bar[4]))
+    return result
+
+
 def resolve_confirmed_trade_outcomes():
     """Immutable, cost-aware 1m path labels for delivered TRIGGERED alerts.
 
@@ -2031,6 +2053,14 @@ def loop_once():
             resolve_confirmed_trade_outcomes()
         except Exception as exc:
             print("CONFIRMED_OUTCOME_WORKER_ERROR",type(exc).__name__,str(exc)[:160],flush=True)
+
+    # Observation-only forward evaluation; never blocks or modifies live signals.
+    if getattr(resolve_observational_forward,"_bucket",None)!=bucket:
+        resolve_observational_forward._bucket=bucket
+        try:
+            resolve_observational_forward(LIVE_DB,_observational_closed_prices)
+        except Exception as exc:
+            print("OBS_FORWARD_WORKER_ERROR",type(exc).__name__,str(exc)[:160],flush=True)
 
     # Retain old pending observational alerts in DB; never release them to Telegram.
     ready=None if TELEGRAM_TRADE_ONLY else claim_ready_alert()
