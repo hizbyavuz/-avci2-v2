@@ -38,6 +38,15 @@ def main():
                 LEFT JOIN opportunity_funnel f
                 ON f.scan_time_utc=u.scan_time_utc AND f.symbol=u.symbol
             """).fetchone()
+    if has_table(db, "full_universe_stage_audit") and "detail_json" in cols(db, "full_universe_stage_audit"):
+        selection_reasons = Counter()
+        for (raw,) in db.execute("SELECT detail_json FROM full_universe_stage_audit"):
+            try:
+                for reason in (json.loads(raw or "{}").get("selection_blockers") or []):
+                    selection_reasons[str(reason)] += 1
+            except (ValueError, TypeError):
+                selection_reasons["MALFORMED_DETAIL_JSON"] += 1
+        report["selection_blockers"] = dict(selection_reasons)
     if has_table(db, "opportunity_funnel"):
         report["funnel_stages"] = dict(db.execute(
             "SELECT stage, COUNT(*) FROM opportunity_funnel GROUP BY stage").fetchall())
