@@ -2669,13 +2669,21 @@ def main():
                     rows.append(analysis)
                     if len(rows) >= 5:
                         break
-                notice = format_watch_digest(rows)
-                if notice:
-                    send_telegram(notice)
-                    sent_at = now_iso()
-                    con.executemany("INSERT OR REPLACE INTO watch_451_symbol_notices VALUES (?,?,?)", [(a.symbol, a.payload["direction_engine"]["direction"], sent_at) for a in rows])
+                sent_count = 0
+                for analysis in rows:
+                    notice = format_watch_digest([analysis])
+                    if not notice:
+                        continue
+                    try:
+                        send_telegram(notice)
+                    except Exception as delivery_exc:
+                        print("WATCH_451_DELIVERY_ERROR", analysis.symbol, type(delivery_exc).__name__, str(delivery_exc)[:120], flush=True)
+                        continue
+                    con.execute("INSERT OR REPLACE INTO watch_451_symbol_notices VALUES (?,?,?)", (analysis.symbol, analysis.payload["direction_engine"]["direction"], now_iso()))
                     con.commit()
-                    print("WATCH_451_TELEGRAM_SENT", len(rows), flush=True)
+                    sent_count += 1
+                if sent_count:
+                    print("WATCH_451_TELEGRAM_SENT", sent_count, flush=True)
         except Exception as exc:
             print("WATCH_451_TELEGRAM_ERROR", type(exc).__name__, str(exc)[:160], flush=True)
     send_health_once(results)
