@@ -1,5 +1,6 @@
 """Timestamped closed-candle quote for research outcome backfill."""
 from datetime import datetime, timezone, timedelta
+import math
 
 
 def closed_quote(symbol, now_utc, candle_fetch):
@@ -13,6 +14,6 @@ def closed_quote(symbol, now_utc, candle_fetch):
     row = rows[-1]
     price = float(row[4])
     closed_at = datetime.fromtimestamp(int(row[6]) / 1000, timezone.utc)
-    if price <= 0 or not now - timedelta(minutes=3) <= closed_at <= now:
+    if not math.isfinite(price) or price <= 0 or not now - timedelta(minutes=3) <= closed_at <= now:
         return None
     return price, closed_at.isoformat()
