@@ -1,0 +1,196 @@
+"""Synthetic, no-network tests for tools/ls_readonly_funnel_audit.py."""
+import json
+import sqlite3
+import subprocess
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+
+SCRIPT = Path(__file__).with_name("ls_readonly_funnel_audit.py")
+
+class AuditTest(unittest.TestCase):
+    def test_legacy_null_last_seen_preserved_before_pause_timestamp_refresh(self):
+        source=(SCRIPT.parent.parent / "long_short_live_pool.py").read_text(encoding="utf-8")
+        start=source.index("def sync_watchlist(items):")
+        end=source.index("\\ndef _ema(",start) if "\\ndef _ema(" in source[start:] else source.index("\ndef _ema(",start)
+        body=source[start:end]
+        self.assertEqual(body.count("last_seen_watchlist_utc=COALESCE(last_seen_watchlist_utc,last_update_utc)"),2)
+        with sqlite3.connect(":memory:") as db:
+            db.execute("CREATE TABLE watch_state(symbol TEXT,analyst_active INTEGER,last_seen_watchlist_utc TEXT,last_update_utc TEXT)")
+            db.executemany("INSERT INTO watch_state VALUES(?,?,?,?)",[
+                ("LEGACY",1,None,"2026-10-10T10:00:00Z"),
+                ("CURRENT",1,"2026-10-10T11:00:00Z","2026-10-10T11:05:00Z")])
+            db.execute("""UPDATE watch_state SET analyst_active=0,
+                         last_seen_watchlist_utc=COALESCE(last_seen_watchlist_utc,last_update_utc),
+                         last_update_utc=? WHERE symbol NOT IN (?)""",
+                       ("2026-10-10T12:00:00Z","OTHER"))
+            rows=db.execute("SELECT symbol,last_seen_watchlist_utc,last_update_utc FROM watch_state ORDER BY symbol").fetchall()
+            self.assertEqual(rows,[
+                ("CURRENT","2026-10-10T11:00:00Z","2026-10-10T12:00:00Z"),
+                ("LEGACY","2026-10-10T10:00:00Z","2026-10-10T12:00:00Z")])
+            stale=db.execute("""SELECT symbol FROM watch_state WHERE
+                (julianday(?) - julianday(COALESCE(last_seen_watchlist_utc,last_update_utc)))*86400.0 > ?""",
+                ("2026-10-10T12:00:00Z",3600)).fetchall()
+            self.assertEqual(stale,[("LEGACY",)])
+
+    def test_paused_watch_diagnostics_snapshot_precedes_mutation(self):
+        """Prevent the previous bug: reading active setups after they were paused."""
+        source = (SCRIPT.parent.parent / "long_short_live_pool.py").read_text(encoding="utf-8")
+        start = source.index("def sync_watchlist(items):")
+        end = source.index("\\ndef _ema(", start) if "\\ndef _ema(" in source[start:] else source.index("\ndef _ema(", start)
+        body = source[start:end]
+        self.assertIn("active_at_start=", body)
+        self.assertIn("paused_absent=", body)
+        self.assertIn("paused_radar=", body)
+        self.assertIn("actionable_now=", body)
+        self.assertIn("downgraded_to_radar_only", body)
+        self.assertIn("LIVE_WATCH_EXPIRED ", body)
+        self.assertIn('"reason":"WATCHLIST_GRACE_EXPIRED"', body)
+        self.assertLess(body.index("LIVE_WATCH_EXPIRED "), body.index('con.execute("DELETE FROM watch_state WHERE symbol=?"'))
+        self.assertLess(body.index("active_at_start="), body.index("for x in items:"))
+        self.assertLess(body.index("paused_absent="), body.index("UPDATE watch_state SET analyst_active=0,"))
+
+    def test_synthetic_funnel_and_no_db_changes(self):
+        with tempfile.TemporaryDirectory() as td:
+            state = Path(td) / "state"
+            state.mkdir()
+            analyst = state / "long_short_analyst.db"
+            live = state / "long_short_live_pool.db"
+            with sqlite3.connect(analyst) as db:
+                db.execute("CREATE TABLE analyses(scan_time_utc TEXT,symbol TEXT,status TEXT,payload_json TEXT,reasons_json TEXT,risks_json TEXT)")
+                db.execute("INSERT INTO analyses VALUES(?,?,?,?,?,?)", (
+                    "2026-10-10T11:10:00+00:00","BTCUSDT","WAIT",
+                    json.dumps({"setup_plan":{"direction":"LONG","trigger_level":10}}),json.dumps(["waiting_for_close"]),json.dumps(["wide_spread"])))
+            with sqlite3.connect(live) as db:
+                db.execute("CREATE TABLE events(event_time_utc TEXT,symbol TEXT,stage_to TEXT,telegram_status TEXT,payload_json TEXT)")
+                db.execute("INSERT INTO events VALUES(?,?,?,?,?)", (
+                    "2026-10-10T11:12:00+00:00","BTCUSDT","EXECUTION_BLOCKED","SHADOW",
+                    json.dumps({"_trigger_execution_gate":{"reason":"trigger_time_net_r_failed"}})))
+                db.execute("CREATE TABLE watch_episodes(started_at_utc TEXT,end_reason TEXT,max_stage TEXT)")
+                db.execute("INSERT INTO watch_episodes VALUES(?,?,?)", (
+                    "2026-10-10T11:10:00+00:00","TRIGGER_EXECUTION_GATE","EXECUTION_BLOCKED"))
+                db.execute("CREATE TABLE confirmed_trade_outcomes(entry_time_utc TEXT,result TEXT)")
+                db.execute("CREATE TABLE watch_state(stage TEXT,analyst_active INTEGER,structure_gate_json TEXT)")
+                db.execute("INSERT INTO watch_state VALUES(?,?,?)",("WATCH",0,json.dumps({"_radar_only":False})))
+                db.execute("INSERT INTO watch_state VALUES(?,?,?)",("APPROACHING",0,json.dumps({"_radar_only":True})))
+            before = {p.name:p.read_bytes() for p in (analyst,live)}
+            result = subprocess.run([sys.executable,"-I",str(SCRIPT),
+                "--state-dir",str(state),"--since","2026-10-10T11:09:00+00:00",
+                "--out","/tmp/ls_funnel_synthetic_test.json"],capture_output=True,text=True)
+            self.assertEqual(result.returncode,0,result.stderr)
+            report = json.loads(result.stdout)
+            self.assertEqual(report["analyst"]["rows"],1)
+            self.assertEqual(report["analyst"]["explicit_reasons"]["waiting_for_close"],1)
+            self.assertEqual(report["analyst"]["explicit_risks"]["wide_spread"],1)
+            self.assertEqual(report["live"]["execution_block_reasons"]["trigger_time_net_r_failed"],1)
+            self.assertEqual(report["episodes"]["end_reasons"]["TRIGGER_EXECUTION_GATE"],1)
+            self.assertEqual(report["confirmed_outcomes"]["outcomes"],0)
+            self.assertTrue(report["audit_complete"])
+            self.assertEqual(report["performance_interpretation"],"INSUFFICIENT_OR_UNAVAILABLE_CONFIRMED_OUTCOMES")
+            self.assertEqual(report["watch_state_scope"],"CURRENT_SNAPSHOT_NOT_SINCE_FILTERED")
+            self.assertEqual(report["watch_state"]["cohorts"]["ACTIONABLE_SETUP/PAUSED/WATCH"],1)
+            self.assertEqual(report["watch_state"]["cohorts"]["RADAR/PAUSED/APPROACHING"],1)
+            self.assertEqual(before,{p.name:p.read_bytes() for p in (analyst,live)})
+            Path("/tmp/ls_funnel_synthetic_test.json").unlink(missing_ok=True)
+
+    def test_pause_log_breakdown_is_not_trade_performance(self):
+        with tempfile.TemporaryDirectory() as td:
+            log = Path(td) / "railway.log"
+            log.write_text(
+                'LIVE_WATCH_PAUSED {"reason":"absent_from_latest_selected_watchlist","setups":[{"symbol":"ENAUSDT","direction":"LONG","stage":"WATCH"}]}\n'
+                'LIVE_WATCH_PAUSED {"reason":"downgraded_to_radar_only","setups":[{"symbol":"MAGICUSDT","direction":"SHORT","stage":"APPROACHING"}]}\n'
+                'LIVE_WATCH_PAUSED not-json\n',encoding="utf-8")
+            import importlib.util
+            spec=importlib.util.spec_from_file_location("audit_module",SCRIPT)
+            module=importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            result=module.summarize_paused_watch_log(log.read_text().splitlines())
+            self.assertEqual(result["pause_events_by_reason_stage"]["absent_from_latest_selected_watchlist/WATCH"],1)
+            self.assertEqual(result["pause_events_by_reason_stage"]["downgraded_to_radar_only/APPROACHING"],1)
+            self.assertEqual(result["malformed_messages"],1)
+            self.assertIn("not missed trades",result["warning"])
+
+    def test_log_only_without_database(self):
+        with tempfile.TemporaryDirectory() as td:
+            log=Path(td)/"railway.log"
+            log.write_text('LIVE_WATCH_PAUSED {"at_utc":"2026-10-10T11:10:00Z","reason":"absent_from_latest_selected_watchlist","setups":[{"symbol":"ENAUSDT","direction":"LONG","stage":"WATCH"}]}\n',encoding="utf-8")
+            result=subprocess.run([sys.executable,"-I",str(SCRIPT),
+                "--state-dir",str(Path(td)/"missing_state"),
+                "--since","2026-10-10T11:09:00+00:00",
+                "--railway-log-file",str(log),"--log-only",
+                "--out","/tmp/ls_funnel_log_only_test.json"],capture_output=True,text=True)
+            self.assertEqual(result.returncode,0,result.stderr)
+            report=json.loads(result.stdout)
+            self.assertFalse(report["database_inspected"])
+            self.assertFalse(report["trade_performance_measured"])
+            self.assertTrue(report["since_filter_applied"])
+            self.assertEqual(report["paused_watch_logs"]["pause_events_by_reason_stage"]["absent_from_latest_selected_watchlist/WATCH"],1)
+            self.assertEqual(report["paused_watch_logs"]["excluded_missing_timestamp"],0)
+            Path("/tmp/ls_funnel_log_only_test.json").unlink(missing_ok=True)
+
+    def test_pause_log_since_boundary_and_missing_timestamps(self):
+        import importlib.util
+        spec=importlib.util.spec_from_file_location("audit_module",SCRIPT)
+        module=importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        def line(stamp):
+            ts=(',"at_utc":"'+stamp+'"') if stamp is not None else ''
+            return ('LIVE_WATCH_PAUSED {"reason":"absent_from_latest_selected_watchlist"'
+                    +ts+',"setups":[{"symbol":"ENAUSDT","direction":"LONG","stage":"WATCH"}]}')
+        report=module.summarize_paused_watch_log([
+            line("2026-10-10T11:08:59Z"),
+            line("2026-10-10T11:09:00Z"),
+            line(None),
+            line("2026-10-10T11:10:00Z"),
+        ],"2026-10-10T11:09:00+00:00")
+        self.assertEqual(report["pause_events_by_reason_stage"]["absent_from_latest_selected_watchlist/WATCH"],2)
+        self.assertEqual(report["excluded_before_since"],1)
+        self.assertEqual(report["excluded_missing_timestamp"],1)
+
+    def test_malformed_multi_setup_message_does_not_partially_count(self):
+        import importlib.util
+        spec=importlib.util.spec_from_file_location("audit_module",SCRIPT)
+        module=importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        lines=[
+            'LIVE_WATCH_PAUSED {"at_utc":"2026-10-10T11:10:00Z","reason":"absent","setups":[{"symbol":"ENAUSDT","direction":"LONG","stage":"WATCH"},{"symbol":"MAGICUSDT","direction":"SHORT"}]}',
+            'LIVE_WATCH_PAUSED {"at_utc":"2026-10-10T11:11:00Z","reason":"absent","setups":[{"symbol":"SOLUSDT","direction":"LONG","stage":"WATCH"}]}'
+        ]
+        report=module.summarize_paused_watch_log(lines,"2026-10-10T11:09:00Z")
+        self.assertEqual(report["malformed_messages"],1)
+        self.assertEqual(report["pause_events_by_reason_stage"],{"absent/WATCH":1})
+        self.assertEqual(report["unique_symbol_directions_by_reason"],{"absent":1})
+
+    def test_non_object_pause_payload_is_skipped(self):
+        import importlib.util
+        spec=importlib.util.spec_from_file_location("audit_module",SCRIPT)
+        module=importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        report=module.summarize_paused_watch_log([
+            "LIVE_WATCH_PAUSED []",
+            "LIVE_WATCH_PAUSED null",
+            'LIVE_WATCH_PAUSED {"at_utc":"2026-10-10T11:10:00Z","reason":null,"setups":[]}',
+        ],"2026-10-10T11:09:00Z")
+        self.assertEqual(report["malformed_messages"],3)
+        self.assertEqual(report["pause_events_by_reason_stage"],{})
+
+    def test_missing_databases_are_rejected(self):
+        with tempfile.TemporaryDirectory() as td:
+            result = subprocess.run([sys.executable,"-I",str(SCRIPT),
+                "--state-dir",td,"--since","2026-10-10T11:09:00+00:00",
+                "--out","/tmp/ls_funnel_missing_test.json"],capture_output=True,text=True)
+            self.assertNotEqual(result.returncode,0)
+            self.assertIn("Missing database",result.stderr)
+
+    def test_reject_state_dir_output(self):
+        with tempfile.TemporaryDirectory() as td:
+            state = Path(td)
+            result = subprocess.run([sys.executable,"-I",str(SCRIPT),
+                "--state-dir",str(state),"--since","2026-10-10T11:09:00+00:00",
+                "--out",str(state/"result.json")],capture_output=True,text=True)
+            self.assertNotEqual(result.returncode,0)
+            self.assertFalse((state/"result.json").exists())
+
+if __name__ == "__main__":
+    unittest.main()

@@ -1,0 +1,253 @@
+#!/usr/bin/env python3
+"""Read-only LONG/SHORT funnel audit. Does not import production modules."""
+import argparse
+import json
+import sqlite3
+from collections import Counter
+from datetime import datetime, timezone
+from pathlib import Path
+
+def connect(path):
+    if not path.is_file():
+        return None
+    con = sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True)
+    con.execute("PRAGMA query_only=ON")
+    con.row_factory = sqlite3.Row
+    return con
+
+def table_exists(con, table):
+    return con is not None and con.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (table,)
+    ).fetchone() is not None
+
+def columns(con, table):
+    return {r["name"] for r in con.execute(f"PRAGMA table_info({table})")}
+
+def scan(con, table, time_column, since):
+    if not table_exists(con, table):
+        return {"status": "missing_table"}
+    if time_column not in columns(con, table):
+        return {"status": "missing_time_column"}
+    rows = con.execute(
+        f"SELECT * FROM {table} WHERE julianday({time_column}) >= julianday(?)",
+        (since,)
+    )
+    return list(rows)
+
+def summarize_analyses(rows):
+    """Count stored analyst statuses and explicit reasons, not inferred eligibility."""
+    statuses, reasons, risks, per_scan = Counter(), Counter(), Counter(), Counter()
+    malformed = Counter()
+    for row in rows:
+        statuses[str(row["status"])] += 1
+        per_scan[str(row["scan_time_utc"])] += 1
+        for column, counter in (("reasons_json", reasons), ("risks_json", risks)):
+            if column not in row.keys():
+                malformed["missing_" + column] += 1
+                continue
+            try:
+                value = json.loads(row[column] or "[]")
+            except (ValueError, TypeError):
+                malformed["invalid_" + column] += 1
+                continue
+            if isinstance(value, list):
+                for item in value:
+                    counter[str(item)] += 1
+            elif isinstance(value, dict):
+                for key, val in value.items():
+                    if val:
+                        counter[str(key)] += 1
+            else:
+                malformed["unexpected_" + column] += 1
+    return {"rows": len(rows), "statuses": dict(statuses),
+            "explicit_reasons": dict(reasons), "explicit_risks": dict(risks),
+            "parse_warnings": dict(malformed),
+            "scans": len(per_scan), "rows_per_scan": dict(per_scan)}
+
+def summarize_paused_watch_log(lines, since=None):
+    """Parse LIVE_WATCH_PAUSED messages without assuming they are missed trades."""
+    counts=Counter()
+    symbols={}
+    malformed=0
+    missing_timestamp=0
+    before_since=0
+    cutoff=datetime.fromisoformat(since.replace('Z','+00:00')) if since else None
+    for line in lines:
+        if "LIVE_WATCH_PAUSED " not in line:
+            continue
+        try:
+            payload=json.loads(line.split("LIVE_WATCH_PAUSED ",1)[1])
+            if not isinstance(payload,dict):
+                raise ValueError("payload must be an object")
+            if cutoff is not None:
+                stamp=payload.get("at_utc")
+                if not stamp:
+                    missing_timestamp+=1
+                    continue
+                event_time=datetime.fromisoformat(stamp.replace("Z","+00:00"))
+                if event_time.tzinfo is None:
+                    raise ValueError("timezone required")
+                if event_time<cutoff:
+                    before_since+=1
+                    continue
+            reason=payload["reason"]
+            if not isinstance(reason,str) or not reason.strip():
+                raise ValueError("reason must be a non-empty string")
+            setups=payload["setups"]
+            if not isinstance(setups,list):
+                raise ValueError("setups must be a list")
+            # Validate the entire message before counting any setup.
+            # Otherwise a malformed second setup leaves a phantom first event.
+            validated=[]
+            for setup in setups:
+                if not isinstance(setup,dict):
+                    raise ValueError("setup must be an object")
+                symbol=setup["symbol"]
+                stage=setup["stage"]
+                direction=setup["direction"]
+                if not all(isinstance(v,str) and v.strip() for v in (symbol,stage,direction)):
+                    raise ValueError("setup fields must be non-empty strings")
+                validated.append((symbol,stage,direction))
+            for symbol,stage,direction in validated:
+                counts[(reason,stage)]+=1
+                symbols.setdefault(reason,set()).add((symbol,direction))
+        except (ValueError,TypeError,KeyError):
+            malformed+=1
+    return {"pause_events_by_reason_stage":{"/".join(k):v for k,v in counts.items()},
+            "unique_symbol_directions_by_reason":{k:len(v) for k,v in symbols.items()},
+            "malformed_messages":malformed,
+            "excluded_missing_timestamp":missing_timestamp,
+            "excluded_before_since":before_since,
+            "warning":"Pauses are not missed trades; requires post-pause price and eligibility checks"}
+
+def summarize_watch_state(rows):
+    groups = Counter()
+    for row in rows:
+        try:
+            gate = json.loads(row["structure_gate_json"] or "{}")
+        except (ValueError, TypeError):
+            gate = {}
+        cohort = "RADAR" if gate.get("_radar_only") else "ACTIONABLE_SETUP"
+        active = "ACTIVE" if row["analyst_active"] else "PAUSED"
+        groups[(cohort, active, str(row["stage"]))] += 1
+    return {"rows":len(rows),"cohorts":{"/".join(k):v for k,v in groups.items()}}
+
+def summarize_live(rows):
+    stages, unique, reasons, delivery = Counter(), {}, Counter(), Counter()
+    for row in rows:
+        stage = str(row["stage_to"])
+        delivery[(stage,str(row["telegram_status"]))] += 1
+        stages[stage] += 1
+        unique.setdefault(stage,set()).add(str(row["symbol"]))
+        try:
+            p = json.loads(row["payload_json"] or "{}")
+        except (ValueError,TypeError):
+            p = {}
+        if stage == "EXECUTION_BLOCKED":
+            reasons[str((p.get("_trigger_execution_gate") or {}).get("reason") or p.get("_execution_block_reason") or "UNKNOWN")] += 1
+    return {"events":len(rows),"stage_transitions":dict(stages),
+            "unique_symbols_per_stage":{k:len(v) for k,v in unique.items()},
+            "execution_block_reasons":dict(reasons),
+            "telegram_status_by_stage":{"/".join(k):v for k,v in delivery.items()}}
+
+def summarize_episodes(rows):
+    return {"episodes":len(rows),"end_reasons":dict(Counter(str(r["end_reason"] or "OPEN") for r in rows)),
+            "max_stages":dict(Counter(str(r["max_stage"]) for r in rows))}
+
+def summarize_outcomes(rows):
+    return {"outcomes":len(rows),"results":dict(Counter(str(r["result"]) for r in rows))}
+
+def main():
+    parser=argparse.ArgumentParser()
+    parser.add_argument("--state-dir",default="/app/.long-short-state")
+    parser.add_argument("--since",required=True)
+    parser.add_argument("--railway-log-file",help="Optional local exported Railway log text; never fetched remotely")
+    parser.add_argument("--log-only",action="store_true",help="Analyze exported pause logs without requiring SQLite files")
+    parser.add_argument("--out",default="/tmp/ls_funnel_audit.json")
+    args=parser.parse_args()
+    state=Path(args.state_dir).resolve()
+    out=Path(args.out).resolve()
+    if out==state or state in out.parents:
+        parser.error("Output must not be inside state volume")
+    try:
+        parsed_since=datetime.fromisoformat(args.since.replace("Z","+00:00"))
+        if parsed_since.tzinfo is None:
+            raise ValueError("timezone required")
+    except ValueError:
+        parser.error("--since must be ISO datetime")
+    if args.log_only:
+        if not args.railway_log_file:
+            parser.error("--log-only requires --railway-log-file")
+        if out.parent != Path("/tmp"):
+            parser.error("Output must be directly under /tmp")
+        logpath=Path(args.railway_log_file).resolve()
+        if logpath==state or state in logpath.parents:
+            parser.error("Log input must not be inside state volume")
+        try:
+            pause_report=summarize_paused_watch_log(
+                logpath.read_text(encoding="utf-8").splitlines(),args.since)
+        except (OSError,UnicodeError) as exc:
+            parser.error("Unable to read log file: "+type(exc).__name__)
+        report={"generated_utc":datetime.now(timezone.utc).isoformat(),
+                "read_only":True,"source":"RAILWAY_EXPORTED_LOGS_ONLY",
+                "database_inspected":False,
+                "trade_performance_measured":False,
+                "since_filter_applied":True,
+                "paused_watch_logs":pause_report}
+        out.write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding="utf-8")
+        print(json.dumps(report,ensure_ascii=False,indent=2))
+        return
+    analyst_path=state/"long_short_analyst.db"
+    live_path=state/"long_short_live_pool.db"
+    missing=[str(p) for p in (analyst_path,live_path) if not p.is_file()]
+    if missing:
+        parser.error("Missing database(s): "+", ".join(missing))
+    analyst=connect(analyst_path)
+    live=connect(live_path)
+    report={"generated_utc":datetime.now(timezone.utc).isoformat(),
+            "watch_state_scope":"CURRENT_SNAPSHOT_NOT_SINCE_FILTERED",
+            "episodes_scope":"EPISODES_STARTED_SINCE_ONLY",
+            "since":args.since,"read_only":True,
+            "note":"Diagnostic counts only; not validated production admission or trade performance"}
+    try:
+        for label,con,table,time_col,fn in (("analyst",analyst,"analyses","scan_time_utc",summarize_analyses),("live",live,"events","event_time_utc",summarize_live),("episodes",live,"watch_episodes","started_at_utc",summarize_episodes),("confirmed_outcomes",live,"confirmed_trade_outcomes","entry_time_utc",summarize_outcomes)):
+            try:
+                rows=scan(con,table,time_col,args.since)
+                report[label]=fn(rows) if isinstance(rows,list) else rows
+            except (sqlite3.Error,KeyError,TypeError,ValueError) as exc:
+                report[label]={"status":"error","error":type(exc).__name__,"detail":str(exc)[:200]}
+        try:
+            if not table_exists(live,"watch_state"):
+                report["watch_state"]={"status":"missing_table"}
+            else:
+                report["watch_state"]=summarize_watch_state(live.execute(
+                    "SELECT stage,analyst_active,structure_gate_json FROM watch_state").fetchall())
+        except (sqlite3.Error,KeyError,TypeError,ValueError) as exc:
+            report["watch_state"]={"status":"error","error":type(exc).__name__}
+    finally:
+        for con in (analyst,live):
+            if con: con.close()
+    if out.parent != Path("/tmp"):
+        parser.error("Output must be directly under /tmp")
+    if args.railway_log_file:
+        try:
+            logpath=Path(args.railway_log_file).resolve()
+            if logpath==state or state in logpath.parents:
+                parser.error("Log input must not be inside state volume")
+            report["paused_watch_logs"]=summarize_paused_watch_log(
+                logpath.read_text(encoding="utf-8").splitlines(),args.since)
+        except (OSError,UnicodeError) as exc:
+            report["paused_watch_logs"]={"status":"error","error":type(exc).__name__}
+    failed={k:v for k,v in report.items() if isinstance(v,dict) and v.get("status") in ("error","missing_table","missing_time_column")}
+    report["audit_complete"]=not bool(failed)
+    report["incomplete_sections"]=list(failed)
+    # Do not imply that zero confirmed outcomes measures signal precision.
+    outcomes=report.get("confirmed_outcomes",{})
+    if not isinstance(outcomes,dict) or not isinstance(outcomes.get("outcomes"),int) or outcomes["outcomes"]==0:
+        report["performance_interpretation"]="INSUFFICIENT_OR_UNAVAILABLE_CONFIRMED_OUTCOMES"
+    else:
+        report["performance_interpretation"]="DESCRIPTIVE_ONLY_NOT_A_VALIDATED_HIT_RATE"
+    out.write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding="utf-8")
+    print(json.dumps(report,ensure_ascii=False,indent=2))
+if __name__=="__main__":
+    main()
