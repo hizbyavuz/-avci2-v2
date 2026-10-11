@@ -35,7 +35,8 @@ def main():
                 last_track = now
                 engine.track(now)
                 EO.track(now)
-            engine.daily_summary()
+            # Daily summary disabled by request; only actionable alerts are sent.
+            # engine.daily_summary()
         except Exception:
             traceback.print_exc()
         time.sleep(5)
