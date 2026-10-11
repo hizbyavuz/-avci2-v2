@@ -1701,6 +1701,16 @@ def loop_once():
                                                ended_at_utc=?,end_reason='TRIGGER_EXECUTION_GATE',
                                                last_price=? WHERE symbol=? AND ended_at_utc IS NULL""",
                                             (observed_time,price,row["symbol"]))
+                                print("LS_EXECUTION_BLOCK_AUDIT "+json.dumps({
+                                    "symbol":row["symbol"],"direction":row["direction"],
+                                    "utc":observed_time,
+                                    "reason":execution_check.get("reason"),
+                                    "data_mode":str(row["data_mode"] or "UNKNOWN") if "data_mode" in row.keys() else "UNKNOWN",
+                                    "derivatives_provider":str(row["derivatives_provider"] or "UNKNOWN") if "derivatives_provider" in row.keys() else "UNKNOWN",
+                                    "book_source":str(trigger_proxy.get("source") or "UNKNOWN"),
+                                    "proxy_available":bool(trigger_proxy.get("available")),
+                                    "net_t1_r":execution_check.get("net_t1_r"),
+                                },ensure_ascii=False))
                                 con.commit()
                                 continue
 
