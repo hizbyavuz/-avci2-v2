@@ -91,6 +91,15 @@ def decide_direction(
         hard_blockers.append("unverified_external_only")
 
     eligible=bool(direction!="NONE" and not hard_blockers)
+    # 451-safe observation: missing derivatives alone must not erase a
+    # directionally valid, liquid, venue-verified chart opportunity.
+    # This is NOT a trade authorization and does not alter eligible.
+    observation_only=bool(
+        direction!="NONE"
+        and not bool(deriv_ready)
+        and bool(actionable_liquidity_ok)
+        and not bool(external_only_unverified)
+    )
     # Explicit diagnostics: a healthy but directionless market is not a data outage.
     # These observations do not modify the frozen decision thresholds.
     decision_reasons=[]
@@ -104,6 +113,8 @@ def decide_direction(
     return {
         "version":DIRECTION_ENGINE_VERSION,
         "eligible":eligible,
+        "observation_only":observation_only,
+        "observation_reason":"FUTURES_DATA_MISSING" if observation_only else None,
         "direction":direction,
         "setup_type":setup_type,
         "phase":str(phase or "NONE"),

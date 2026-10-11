@@ -25,6 +25,9 @@ from binance_notify import resolve_chat_id
 from long_short_data_router import multi_venue_derivatives, multi_venue_perp_universe, multi_venue_perp_klines
 from long_short_v3_core import V3_VERSION, discovery_rank as v3_discovery_rank, beta_residual_3h, decide_setup as v3_decide_setup
 from long_short_direction_engine import DIRECTION_ENGINE_VERSION, decide_direction as production_decide_direction
+from long_short_451_watch_digest import format_watch_digest
+from long_short_451_outcomes import record_observations, backfill_pending
+from long_short_451_price_source import closed_quote
 from long_short_room_v32_shadow import from_analyst_snapshots as v32_room_shadow
 from long_short_dual_v32 import build_both_sides as build_v32_dual_scenarios
 
@@ -1766,6 +1769,7 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
     print("PRODUCTION_DIRECTION_AUDIT",json.dumps({
         "symbol":symbol,"direction":v3.get("direction"),
         "eligible":v3.get("eligible"),"hard_blockers":v3.get("hard_blockers"),
+        "observation_only":v3.get("observation_only"),
         "decision_reasons":v3.get("decision_reasons"),
         "best_score":v3.get("best_score"),"edge":v3.get("edge"),
         "shadow_veto":v3_hard_gate_shadow.get("veto"),
@@ -1869,6 +1873,7 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
         "raw_scores":{"long":raw_long,"short":raw_short},
         "legacy_score_shadow_only":False,
         "direction_engine":v3,
+        "futures_missing_observation_only":bool(v3.get("observation_only")),
         "v3":v3,
         "v3_hard_gate_shadow":v3_hard_gate_shadow,
         "spot_flow":spot_flow,
@@ -2550,6 +2555,7 @@ def main():
                 a=deep.get(sym)
                 stage=("NOT_SELECTED" if sym not in selected else
                        "DEEP_ERROR" if a is None else
+                       "FUTURES_MISSING_OBSERVE" if (a.payload or {}).get("futures_missing_observation_only") else
                        "MODEL_"+str(a.status))
                 counts[stage]=counts.get(stage,0)+1
                 payload=(a.payload or {}) if a else {}
@@ -2642,6 +2648,46 @@ def main():
     except Exception as exc:
         print("OPPORTUNITY_FUNNEL_ERROR",type(exc).__name__,str(exc)[:160],flush=True)
     save_scan(ts,regime,len(uni),results)
+    watch_451_recorded = False
+    try:
+        record_observations(DB, ts, results)
+        watch_451_recorded = True
+        backfill_pending(DB, now_iso(), lambda symbol: closed_quote(symbol, now_iso(), fetch_klines))
+    except Exception as exc:
+        print('WATCH_451_OUTCOME_ERROR', type(exc).__name__, str(exc)[:160], flush=True)
+    if watch_451_recorded and os.getenv('LS_451_WATCH_TELEGRAM', '0') == '1':
+        # Deduplicate each symbol+direction, not a changing batch digest.
+        # BEGIN IMMEDIATE serializes concurrent SQLite notice selections.
+        cooldown = max(300, int(os.getenv('LS_451_WATCH_COOLDOWN_SECONDS', '7200')))
+        with sqlite3.connect(DB, timeout=15) as con:
+            con.execute('BEGIN IMMEDIATE')
+            con.execute('CREATE TABLE IF NOT EXISTS watch_451_symbol_notices (symbol TEXT NOT NULL, direction TEXT NOT NULL, sent_at_utc TEXT NOT NULL, PRIMARY KEY(symbol,direction))')
+            watch_rows = []
+            for a in results:
+                decision = (a.payload or {}).get('direction_engine') or {}
+                direction = decision.get('direction')
+                if not decision.get('observation_only') or decision.get('eligible') or direction not in ('LONG', 'SHORT'):
+                    continue
+                if not isinstance(a.price, (int,float)) or a.price <= 0:
+                    continue
+                previous = con.execute('SELECT sent_at_utc FROM watch_451_symbol_notices WHERE symbol=? AND direction=?', (a.symbol,direction)).fetchone()
+                previous_time = datetime.fromisoformat(previous[0]).timestamp() if previous else 0
+                if time.time()-previous_time >= cooldown:
+                    watch_rows.append(a)
+                if len(watch_rows) >= 5:
+                    break
+            watch_rows = [a for a in watch_rows if con.execute('SELECT 1 FROM watch_451_observations WHERE scan_time_utc=? AND symbol=? AND direction=?', (ts, a.symbol, a.payload['direction_engine']['direction'])).fetchone()]
+            print('WATCH_451_MATCHED_RECORDS', len(watch_rows), flush=True)
+            watch_msg = format_watch_digest(watch_rows)
+            if watch_msg:
+                try:
+                    send_telegram(watch_msg)
+                except Exception as exc:
+                    print('WATCH_451_TELEGRAM_ERROR', type(exc).__name__, str(exc)[:150], flush=True)
+                else:
+                    sent_at = now_iso()
+                    con.executemany('INSERT OR REPLACE INTO watch_451_symbol_notices VALUES (?,?,?)', [(a.symbol,(a.payload or {}).get('direction_engine',{}).get('direction'),sent_at) for a in watch_rows])
+                    con.commit()
     send_health_once(results)
     perf=performance_summary()
     msg=build_message(ts,regime,results,errors,perf)

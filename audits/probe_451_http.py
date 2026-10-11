@@ -1,0 +1,26 @@
+"""One-shot, read-only Binance HTTP accessibility probe for Railway.
+No API keys, trading, Telegram, or persistent storage.
+"""
+import json
+import urllib.error
+import urllib.request
+
+URLS = {
+    "binance_futures": "https://fapi.binance.com/fapi/v1/time",
+    "binance_spot": "https://api.binance.com/api/v3/time",
+    "binance_futures_fapi1": "https://fapi1.binance.com/fapi/v1/time",
+    "binance_futures_fapi2": "https://fapi2.binance.com/fapi/v1/time",
+    "binance_spot_data": "https://data-api.binance.vision/api/v3/time",
+    "binance_spot_klines": "https://data-api.binance.vision/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=2",
+    "gate_futures_primary": "https://api.gateio.ws/api/v4/futures/usdt/tickers?contract=BTC_USDT",
+    "gate_futures_alternative": "https://fx-api.gateio.ws/api/v4/futures/usdt/tickers?contract=BTC_USDT",
+}
+for label, url in URLS.items():
+    try:
+        request = urllib.request.Request(url, headers={"User-Agent": "avci-451-diagnostic/1.0"})
+        with urllib.request.urlopen(request, timeout=8) as response:
+            print("HTTP_PROBE", json.dumps({"source": label, "status": response.status, "accessible": response.status == 200}), flush=True)
+    except urllib.error.HTTPError as exc:
+        print("HTTP_PROBE", json.dumps({"source": label, "status": exc.code, "accessible": False}), flush=True)
+    except Exception as exc:
+        print("HTTP_PROBE", json.dumps({"source": label, "status": "ERROR", "error_type": type(exc).__name__, "accessible": False}), flush=True)
