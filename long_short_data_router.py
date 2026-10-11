@@ -898,6 +898,38 @@ def bybit_linear_paper_snapshot(symbol: str, interval: str = "5m",
             "last_closed_at_ms": int(closed[-1][6]), "book": book}
 
 
+def gate_linear_paper_snapshot(symbol: str, interval: str = "5m",
+                               limit: int = 120) -> dict[str, Any]:
+    """Read-only same-venue Gate futures data-health check; never a trade signal."""
+    contract = symbol[:-4] + "_USDT" if symbol.endswith("USDT") else symbol
+    out = {"qualified": False, "venue": "GATE_FUTURES", "symbol": symbol}
+    try:
+        candles = multi_venue_perp_klines(symbol, interval, limit,
+                                           provider="GATE_FUTURES")
+        now_ms = int(time.time() * 1000)
+        closed = [row for row in candles["rows"] if int(row[6]) < now_ms - 250]
+        if len(closed) < 20:
+            return {**out, "reason": "insufficient_closed_gate_candles",
+                    "closed_candle_count": len(closed)}
+        book = _gate("/futures/usdt/order_book",
+                     {"contract": contract, "limit": 50, "interval": 0})
+        bids, asks = book.get("bids") or [], book.get("asks") or []
+        if not bids or not asks:
+            return {**out, "reason": "gate_orderbook_empty"}
+        bid, ask = float(bids[0]["p"]), float(asks[0]["p"])
+        if not (0 < bid <= ask):
+            return {**out, "reason": "invalid_gate_book"}
+        return {**out, "reason": "research_only_no_directional_confirmation",
+                "closed_candle_count": len(closed),
+                "last_closed_price": float(closed[-1][4]),
+                "last_closed_at_ms": int(closed[-1][6]),
+                "spread_bps": (ask - bid) / ((ask + bid) / 2) * 10000,
+                "book_venue": "GATE_FUTURES", "chart_venue": "GATE_FUTURES"}
+    except Exception as exc:
+        return {**out, "reason": "gate_data_unavailable",
+                "error": type(exc).__name__ + ": " + str(exc)[:300]}
+
+
 if __name__ == "__main__":
     import json
     import sys
@@ -906,8 +938,10 @@ if __name__ == "__main__":
     mode = sys.argv[2] if len(sys.argv) > 2 else "derivatives"
     if mode == "bybit-paper":
         output = bybit_linear_paper_snapshot(sym)
+    elif mode == "gate-paper":
+        output = gate_linear_paper_snapshot(sym)
     elif mode == "derivatives":
         output = multi_venue_derivatives(sym)
     else:
-        raise SystemExit("mode must be derivatives or bybit-paper")
+        raise SystemExit("mode must be derivatives, bybit-paper or gate-paper")
     print(json.dumps(output, ensure_ascii=False, indent=2))
