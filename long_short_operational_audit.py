@@ -257,6 +257,33 @@ def audit_db(path):
                     "SELECT COUNT(DISTINCT symbol) FROM opportunity_funnel "
                     "WHERE scan_time_utc>=?",(cutoff,)).fetchone()[0]
                 out["preselection_scope"]="observed preselection universe, not full Binance Futures market"
+                # Explain which observed preselection candidates were excluded.
+                # Reasons are descriptive and may overlap; never use as vetoes.
+                from collections import Counter
+                reasons=Counter()
+                samples={}
+                for symbol,raw in con.execute(
+                    "SELECT symbol,detail_json FROM opportunity_funnel "
+                    "WHERE scan_time_utc>=? AND stage='NOT_SELECTED'",
+                    (cutoff,)):
+                    try:
+                        d=json.loads(raw or "{}")
+                        discovery=d.get("discovery") or {}
+                        meta=d.get("discovery_meta") or {}
+                        # Do not invent a specific rejection reason if the
+                        # archived payload does not explicitly supply one.
+                        explicit=d.get("selection_reason") or d.get("reject_reason")
+                        if explicit:
+                            key=str(explicit)[:100]
+                        else:
+                            key="reason_not_recorded"
+                        reasons[key]+=1
+                        if key not in samples: samples[key]=str(symbol)
+                    except (ValueError,TypeError,AttributeError):
+                        reasons["unreadable_payload"]+=1
+                out["preselection_exclusion_reasons_24h"]=dict(reasons)
+                out["preselection_exclusion_sample_symbols"]=samples
+
             except sqlite3.Error as exc:
                 out["preselection_error"]=str(exc)
         if "paper_events" in names:
@@ -288,6 +315,7 @@ def main():
         "statuses_24h":analyst.get("statuses_24h",{}),
         "analyses_24h":analyst.get("analyses_24h",0),
         "preselection_funnel_24h":analyst.get("preselection_funnel_24h",{}),
+        "preselection_exclusion_reasons_24h":analyst.get("preselection_exclusion_reasons_24h",{}),
         "preselection_distinct_symbols_24h":analyst.get("preselection_distinct_symbols_24h",0),
         "post_scan_price_proxy":analyst.get("post_scan_price_proxy",{}),
         "post_scan_price_proxy_scope":analyst.get("post_scan_price_proxy_scope","unavailable"),
