@@ -104,11 +104,14 @@ class V3CoreTests(unittest.TestCase):
                 return super().keys()
         row=Row({
             "direction":"LONG",
+            "data_mode":"BINANCE_FUTURES",
+            "derivatives_provider":"BINANCE_FUTURES",
             "invalidation":99.0,
             "target1":100.7,
         })
         proxy={
             "available":True,
+            "source":"BINANCE_FUTURES_BOOK",
             "notional_usdt":250,
             "costs":{"250":{"buy_bps":25.0,"sell_bps":25.0}},
         }
@@ -122,11 +125,14 @@ class V3CoreTests(unittest.TestCase):
                 return super().keys()
         row=Row({
             "direction":"LONG",
+            "data_mode":"BINANCE_FUTURES",
+            "derivatives_provider":"BINANCE_FUTURES",
             "invalidation":99.0,
             "target1":102.0,
         })
         proxy={
             "available":True,
+            "source":"BINANCE_FUTURES_BOOK",
             "notional_usdt":250,
             "costs":{"250":{"buy_bps":2.0,"sell_bps":2.0}},
         }
