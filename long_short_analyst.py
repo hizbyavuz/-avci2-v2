@@ -1766,6 +1766,7 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
     print("PRODUCTION_DIRECTION_AUDIT",json.dumps({
         "symbol":symbol,"direction":v3.get("direction"),
         "eligible":v3.get("eligible"),"hard_blockers":v3.get("hard_blockers"),
+        "observation_only":v3.get("observation_only"),
         "decision_reasons":v3.get("decision_reasons"),
         "best_score":v3.get("best_score"),"edge":v3.get("edge"),
         "shadow_veto":v3_hard_gate_shadow.get("veto"),
@@ -1869,6 +1870,7 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
         "raw_scores":{"long":raw_long,"short":raw_short},
         "legacy_score_shadow_only":False,
         "direction_engine":v3,
+        "futures_missing_observation_only":bool(v3.get("observation_only")),
         "v3":v3,
         "v3_hard_gate_shadow":v3_hard_gate_shadow,
         "spot_flow":spot_flow,
