@@ -25,6 +25,7 @@ from binance_notify import resolve_chat_id
 from long_short_data_router import multi_venue_derivatives, multi_venue_perp_universe, multi_venue_perp_klines
 from long_short_v3_core import V3_VERSION, discovery_rank as v3_discovery_rank, beta_residual_3h, decide_setup as v3_decide_setup
 from long_short_direction_engine import DIRECTION_ENGINE_VERSION, decide_direction as production_decide_direction
+from long_short_451_watch_digest import format_watch_digest
 from long_short_room_v32_shadow import from_analyst_snapshots as v32_room_shadow
 from long_short_dual_v32 import build_both_sides as build_v32_dual_scenarios
 
@@ -2642,6 +2643,41 @@ def main():
     except Exception as exc:
         print("OPPORTUNITY_FUNNEL_ERROR",type(exc).__name__,str(exc)[:160],flush=True)
     save_scan(ts,regime,len(uni),results)
+    # Missing Futures derivatives do not hide chart-only watch suggestions.
+    # These are never trade confirmations; all existing execution gates remain intact.
+    if os.getenv("LS_451_WATCH_TELEGRAM", "1").strip().lower() in ("1", "true", "yes", "on"):
+        try:
+            with sqlite3.connect(DB, timeout=15) as con:
+                con.execute("CREATE TABLE IF NOT EXISTS watch_451_symbol_notices (symbol TEXT NOT NULL, direction TEXT NOT NULL, sent_at_utc TEXT NOT NULL, PRIMARY KEY(symbol,direction))")
+                con.execute("BEGIN IMMEDIATE")
+                now_ts = time.time()
+                rows = []
+                for analysis in results:
+                    decision = (analysis.payload or {}).get("direction_engine") or {}
+                    direction = decision.get("direction")
+                    if not decision.get("observation_only") or decision.get("eligible") or direction not in ("LONG", "SHORT"):
+                        continue
+                    if not isinstance(analysis.price, (int,float)) or not math.isfinite(analysis.price) or analysis.price <= 0:
+                        continue
+                    previous = con.execute("SELECT sent_at_utc FROM watch_451_symbol_notices WHERE symbol=? AND direction=?", (analysis.symbol, direction)).fetchone()
+                    if previous:
+                        try:
+                            if now_ts - datetime.fromisoformat(previous[0]).timestamp() < 7200:
+                                continue
+                        except (ValueError, TypeError):
+                            pass
+                    rows.append(analysis)
+                    if len(rows) >= 5:
+                        break
+                notice = format_watch_digest(rows)
+                if notice:
+                    send_telegram(notice)
+                    sent_at = now_iso()
+                    con.executemany("INSERT OR REPLACE INTO watch_451_symbol_notices VALUES (?,?,?)", [(a.symbol, a.payload["direction_engine"]["direction"], sent_at) for a in rows])
+                    con.commit()
+                    print("WATCH_451_TELEGRAM_SENT", len(rows), flush=True)
+        except Exception as exc:
+            print("WATCH_451_TELEGRAM_ERROR", type(exc).__name__, str(exc)[:160], flush=True)
     send_health_once(results)
     perf=performance_summary()
     msg=build_message(ts,regime,results,errors,perf)
