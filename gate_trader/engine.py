@@ -12,6 +12,7 @@ from . import messages as M
 from . import telegram as TG
 from .gates import evaluate, trend
 from .outcome import pnl_usd, position_notional, simulate
+from .early_watch import classify as classify_early
 
 def _eval_coin(row:dict, btc4h, now_ts:float):
     con=row["contract"]
@@ -23,6 +24,15 @@ def _eval_coin(row:dict, btc4h, now_ts:float):
         i=len(c15)-1
         if c15.t[i]+c15.sec<now_ts-2*c15.sec:return con,None,"VERI"
         d=evaluate(btc4h,c4h,c1h,c15,i,vol24=row["vol24"],funding=row.get("funding"))
+        # Observational early-watch: no bypass of confirmation/risk gates.
+        if not d.ok:
+            direction=trend(c4h,c4h.last_closed_index(now_ts))
+            side="LONG" if direction=="UP" else "SHORT" if direction=="DOWN" else None
+            if side:
+                candles=[{"high":c15.h[k],"low":c15.l[k],"close":c15.c[k],
+                          "volume":c15.qv[k]} for k in range(len(c15))]
+                d.early=classify_early(candles,side)
+                d.early_ts=c15.t[i]+c15.sec
         return con,d,d.gate
     except Exception as exc:
         print("COIN_HATA",con,type(exc).__name__,str(exc)[:150],flush=True)
@@ -35,13 +45,33 @@ def scan(now_ts:float|None=None)->dict:
     market=trend(btc4h,btc4h.last_closed_index(now_ts))
     uni=G.universe()
     passed=[]
+    early=[]
     with ThreadPoolExecutor(max_workers=C.WORKERS) as pool:
         for con,d,gate in pool.map(lambda r:_eval_coin(r,btc4h,now_ts),uni):
             funnel[gate]+=1
             if d is not None and d.ok:passed.append((con,d))
+            elif d is not None and getattr(d,"early",None) is not None:
+                early.append((con,d.early,d.early_ts))
     sent=0
     with LG.connect() as db:
         open_n=len(LG.open_signals(db))
+        # Early alerts are watch-only, never paper-trade entries. One per coin/side/state/closed bar.
+        for con,watch,bar_ts in early:
+            if watch["state"]!="ERKEN_IZLE" or LG.is_open(db,con):
+                continue
+            key=f"early:{con}:{watch['side']}"
+            last=LG.get_meta(db,key)
+            if last and bar_ts-int(last)<C.COOLDOWN_HOURS*3600:
+                continue
+            arrow="🟢" if watch["side"]=="LONG" else "🔴"
+            verb="üstünde" if watch["side"]=="LONG" else "altında"
+            msg=(f"{arrow} ERKEN {watch['side']} İÇİN İZLE | {con.replace('_USDT','')}\n"
+                 f"15 dk izleme seviyesi: {watch['trigger']:.8g} {verb} kapanış bekleniyor.\n"
+                 f"Son kapanış: {watch['price']:.8g} | Hacim: {watch['volume_ratio']:.2f}x\n"
+                 "🟡 Yalnızca erken gözlem. İşlem teyidi DEĞİL; stop/hedef henüz yok.")
+            if C.SEND_SIGNALS and TG.send(msg):
+                LG.set_meta(db,key,bar_ts)
+                funnel["ERKEN_UYARI"]+=1
         for con,d in sorted(passed,key=lambda x:-(x[1].net_rr or 0)):
             if LG.is_open(db,con):
                 funnel["ZATEN_ACIK"]+=1
