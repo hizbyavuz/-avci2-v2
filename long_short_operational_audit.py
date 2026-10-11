@@ -39,6 +39,19 @@ def audit_db(path):
                 out["triggered_count"]=con.execute("SELECT COUNT(*) FROM events WHERE stage_to='TRIGGERED'").fetchone()[0]
                 if "telegram_sent_time_utc" in cols:
                     out["triggered_delivered"]=con.execute("SELECT COUNT(*) FROM events WHERE stage_to='TRIGGERED' AND telegram_sent_time_utc IS NOT NULL").fetchone()[0]
+                # Diagnostic-only: distinguish emitted trigger events from events
+                # eligible for immutable, post-signal outcome labeling.
+                required={"telegram_status","telegram_sent_time_utc","price"}
+                if required.issubset(cols):
+                    out["triggered_outcome_eligible"]=con.execute(
+                        "SELECT COUNT(*) FROM events WHERE stage_to='TRIGGERED' "
+                        "AND telegram_status='SENT' AND telegram_sent_time_utc IS NOT NULL AND price>0"
+                    ).fetchone()[0]
+                    out["triggered_not_eligible"]=out["triggered_count"]-out["triggered_outcome_eligible"]
+                    out["triggered_telegram_statuses"]=dict(con.execute(
+                        "SELECT COALESCE(telegram_status,'NULL'),COUNT(*) FROM events "
+                        "WHERE stage_to='TRIGGERED' GROUP BY telegram_status"
+                    ).fetchall())
         if "events" in names and "stage_to" in [r[1] for r in con.execute("PRAGMA table_info(events)")]:
             out["stage_funnel"]=dict(con.execute("SELECT stage_to,COUNT(*) FROM events GROUP BY stage_to").fetchall())
         if "watch_state" in names:
@@ -149,7 +162,7 @@ def main():
     else: result["error"]="STATE_DIRECTORY_MISSING"
     research=next((x for x in result["databases"] if x.get("file")=="long_short_research.db"),{})
     live=next((x for x in result["databases"] if x.get("file")=="long_short_live_pool.db"),{})
-    result["signal_health"]={"native_primary_events":research.get("primary_count",0),"triggered_events":live.get("triggered_count",0),"triggered_delivered":live.get("triggered_delivered",0),"assessment":"NO_NATIVE_PRIMARY_EVIDENCE" if not research.get("primary_count",0) else "REVIEW_PRIMARY_STATISTICS"}
+    result["signal_health"]={"native_primary_events":research.get("primary_count",0),"triggered_events":live.get("triggered_count",0),"triggered_delivered":live.get("triggered_delivered",0),"triggered_outcome_eligible":live.get("triggered_outcome_eligible",0),"assessment":"NO_NATIVE_PRIMARY_EVIDENCE" if not research.get("primary_count",0) else "REVIEW_PRIMARY_STATISTICS"}
     analyst=next((x for x in result["databases"] if x.get("file")=="long_short_analyst.db"),{})
     reversal=next((x for x in result["databases"] if x.get("file")=="long_short_reversal_live.db"),{})
     summary={
@@ -161,6 +174,10 @@ def main():
         "actionable_precheck_failures":analyst.get("actionable_rejection_indicators",{}),
         "live_funnel":live.get("stage_funnel",{}),
         "live_confirmed_outcomes":live.get("tables",{}).get("confirmed_trade_outcomes",0),
+        "live_triggered_events":live.get("triggered_count",0),
+        "live_triggered_outcome_eligible":live.get("triggered_outcome_eligible",0),
+        "live_triggered_not_eligible":live.get("triggered_not_eligible",0),
+        "live_triggered_telegram_statuses":live.get("triggered_telegram_statuses",{}),
         "reversal_triggered":reversal.get("triggered_count",0),
         "native_primary_events":research.get("primary_count",0),
         "research_only":True,
