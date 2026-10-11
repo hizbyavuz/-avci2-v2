@@ -99,7 +99,7 @@ def backfill_pending(db_path, now_utc, price_fetcher, max_symbols=20):
     price_fetcher(symbol) -> (price, observed_utc) or None.
     No extrapolation: the actual quote timestamp is used for horizon labels.
     """
-    symbols = pending_symbols(db_path, now_utc)[:max_symbols]
+    symbols = pending_symbols(db_path, now_utc)[:max(0, int(max_symbols))]
     snapshots = {}
     for symbol in symbols:
         try:
@@ -117,4 +117,4 @@ def backfill_pending(db_path, now_utc, price_fetcher, max_symbols=20):
             continue
     for quote_time, analyses in sorted(snapshots.items()):
         record_observations(db_path, quote_time, analyses)
-    return len(snapshots)
+    return sum(len(items) for items in snapshots.values())
