@@ -31,7 +31,7 @@ def _eval_coin(row:dict, btc4h, now_ts:float):
             side="LONG" if direction=="UP" else "SHORT" if direction=="DOWN" else None
             if side:
                 candles=[{"high":c15.h[k],"low":c15.l[k],"close":c15.c[k],
-                          "volume":c15.qv[k]} for k in range(len(c15))]
+                          "volume":c15.qv[k],"open":c15.o[k]} for k in range(len(c15))]
                 d.early=classify_early(candles,side)
                 d.early_ts=c15.t[i]+c15.sec
         return con,d,d.gate
@@ -71,10 +71,12 @@ def scan(now_ts:float|None=None)->dict:
             trigger=watch["trigger"]
             price=watch["price"]
             ratio=watch["volume_ratio"]
+            travel=watch.get("travel_pct",0)
             msg=(f"{arrow} ERKEN {direction} İÇİN İZLE | {coin_name}\n"
                  f"🎯 İzleme seviyesi: {trigger:.8g}\n"
                  f"💵 Son kapanış: {price:.8g}\n"
                  f"📊 Hacim: normalin {ratio:.2f} katı\n"
+                 f"📈 İlk hareketten bu yana: %{travel:+.2f}\n"
                  f"👀 Beklenen: 15 dk mum {trigger:.8g} {verb} kapansın, seviye korunsun.\n"
                  "🟡 Henüz işlem sinyali değil. Stop/hedef yok.")
             if C.SEND_SIGNALS and TG.send(msg):
