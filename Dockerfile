@@ -10,4 +10,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-CMD ["python", "-u", "long_short_daemon.py"]
+CMD ["python", "-u", "audits/binance_451_probe.py"]
