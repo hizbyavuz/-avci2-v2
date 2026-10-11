@@ -9,6 +9,7 @@ import sqlite3
 from datetime import datetime, timezone
 
 HORIZONS = (15, 60, 240)
+MAX_LABEL_LAG_MINUTES = 10
 
 
 def _time(s):
@@ -39,8 +40,8 @@ def record_observations(db_path, ts, analyses):
             con.execute("INSERT OR IGNORE INTO watch_451_observations VALUES (?,?,?,?)",
                         (ts, a.symbol, direction, price))
         # Resolve only using later stored market observations, never pre-signal data.
-        # First available snapshot at/after the horizon is a coarse approximation,
-        # not a precise horizon close; retain its timestamp for audit.
+        # Only label a horizon when a snapshot is within 10 minutes of it.
+        # Later observations cannot masquerade as the requested horizon.
         current = {a.symbol: a.price for a in analyses
                    if isinstance(getattr(a, "price", None), (float, int)) and a.price > 0}
         for sig_time, symbol, direction, entry in con.execute(
@@ -52,7 +53,7 @@ def record_observations(db_path, ts, analyses):
             if elapsed < 0:
                 continue
             for horizon in HORIZONS:
-                if elapsed < horizon:
+                if elapsed < horizon or elapsed > horizon + MAX_LABEL_LAG_MINUTES:
                     continue
                 exists = con.execute(
                     "SELECT 1 FROM watch_451_labels WHERE signal_time_utc=? AND symbol=? AND direction=? AND horizon_minutes=?",
