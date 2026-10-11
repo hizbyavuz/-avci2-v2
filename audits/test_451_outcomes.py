@@ -44,6 +44,12 @@ class OutcomeTests(unittest.TestCase):
         record_observations(self.db, "2026-10-11T14:00:00+00:00", [])
         self.assertEqual(self.rows("watch_451_labels"), [])
 
+    def test_stale_snapshot_cannot_fake_15_minute_outcome(self):
+        record_observations(self.db, "2026-10-11T10:00:00+00:00", [analysis()])
+        record_observations(self.db, "2026-10-11T11:00:00+00:00", [analysis(price=120, observed=False)])
+        labels = self.rows("watch_451_labels")
+        self.assertEqual([row[3] for row in labels], [60])
+
     def test_trade_eligible_never_observed(self):
         record_observations(self.db, "2026-10-11T10:00:00+00:00", [analysis(eligible=True)])
         self.assertEqual(self.rows("watch_451_observations"), [])
