@@ -940,8 +940,10 @@ if __name__ == "__main__":
         output = bybit_linear_paper_snapshot(sym)
     elif mode == "gate-paper":
         output = gate_linear_paper_snapshot(sym)
+    elif mode == "gate-derivatives":
+        output = gate_derivatives(sym)
     elif mode == "derivatives":
         output = multi_venue_derivatives(sym)
     else:
-        raise SystemExit("mode must be derivatives, bybit-paper or gate-paper")
+        raise SystemExit("mode must be derivatives, bybit-paper, gate-paper or gate-derivatives")
     print(json.dumps(output, ensure_ascii=False, indent=2))
