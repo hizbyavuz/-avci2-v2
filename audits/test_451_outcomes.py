@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from types import SimpleNamespace
 
-from long_short_451_outcomes import record_observations
+from long_short_451_outcomes import record_observations, pending_symbols, backfill_pending
 
 
 def analysis(symbol="ETHUSDT", price=100, direction="LONG", observed=True, eligible=False):
@@ -52,6 +52,27 @@ class OutcomeTests(unittest.TestCase):
         record_observations(self.db, "2026-10-11T10:00:00+00:00", [analysis()])
         record_observations(self.db, "2026-10-11T09:45:00+00:00", [analysis(price=90, observed=False)])
         self.assertEqual(self.rows("watch_451_labels"), [])
+
+
+    def test_pending_symbol_backfill_after_deep_scan_omission(self):
+        record_observations(self.db, "2026-10-11T10:00:00+00:00", [analysis()])
+        self.assertEqual(pending_symbols(self.db, "2026-10-11T10:30:00+00:00"), ["ETHUSDT"])
+        backfill_pending(self.db, "2026-10-11T10:30:00+00:00",
+                         lambda symbol: (106, "2026-10-11T10:30:00+00:00"))
+        labels = self.rows("watch_451_labels")
+        self.assertEqual(len(labels), 1)
+        self.assertEqual(labels[0][3], 15)
+        self.assertEqual(round(labels[0][6], 2), 6)
+
+    def test_future_dated_quote_is_rejected(self):
+        record_observations(self.db, "2026-10-11T10:00:00+00:00", [analysis()])
+        backfill_pending(self.db, "2026-10-11T10:30:00+00:00",
+                         lambda symbol: (106, "2026-10-11T10:35:00+00:00"))
+        self.assertEqual(self.rows("watch_451_labels"), [])
+
+    def test_expired_pending_symbols_not_fetched(self):
+        record_observations(self.db, "2026-10-11T10:00:00+00:00", [analysis()])
+        self.assertEqual(pending_symbols(self.db, "2026-10-12T10:00:00+00:00"), [])
 
 
 if __name__ == "__main__":
