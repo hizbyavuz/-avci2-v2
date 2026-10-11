@@ -10,6 +10,7 @@ from . import gate_api as G
 from . import ledger as LG
 from . import messages as M
 from . import telegram as TG
+from . import early_outcomes as EO
 from .gates import evaluate, trend
 from .outcome import pnl_usd, position_notional, simulate
 from .early_watch import classify as classify_early
@@ -71,6 +72,7 @@ def scan(now_ts:float|None=None)->dict:
                  "🟡 Yalnızca erken gözlem. İşlem teyidi DEĞİL; stop/hedef henüz yok.")
             if C.SEND_SIGNALS and TG.send(msg):
                 LG.set_meta(db,key,bar_ts)
+                EO.record(db,con,watch,bar_ts)
                 funnel["ERKEN_UYARI"]+=1
         for con,d in sorted(passed,key=lambda x:-(x[1].net_rr or 0)):
             if LG.is_open(db,con):
@@ -140,7 +142,7 @@ def daily_summary(force:bool=False)->bool:
         funnel=Counter()
         for r in db.execute("SELECT funnel FROM scans WHERE ts>=?",(day_ago,)):
             funnel.update(json.loads(r["funnel"] or "{}"))
-        message=M.summary("Son 24 saat",today,scans)+"\n\n"+M.summary("Tüm defter",total)
+        message=M.summary("Son 24 saat",today,scans)+"\n\n"+M.summary("Tüm defter",total)+"\n\n"+EO.summary(db)
         if funnel:
             names={"1-PIYASA":"BTC yönsüz","2-COIN":"trend uymadı","3-SEVIYE":"seviyede değil",
                    "4-TEYIT":"teyit yok","5-RISK":"risk/ödül kötü","TAMAM":"sinyal"}
