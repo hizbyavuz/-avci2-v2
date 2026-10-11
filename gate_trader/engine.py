@@ -95,7 +95,8 @@ def scan(now_ts:float|None=None)->dict:
             open_n+=1
             if C.SEND_SIGNALS and TG.send(M.signal(sid,con,d,notional)):
                 db.execute("UPDATE signals SET sent=1 WHERE id=?",(sid,))
-            sent+=1
+            if C.SEND_SIGNALS and db.execute("SELECT sent FROM signals WHERE id=?",(sid,)).fetchone()["sent"]:
+                sent+=1
         db.execute("INSERT OR REPLACE INTO scans(ts,coins,funnel,errors,signals) VALUES(?,?,?,?,?)",
                    (int(now_ts),len(uni),json.dumps(funnel),funnel.get("HATA",0),sent))
     res={"market":market,"coins":len(uni),"funnel":dict(funnel),"signals":sent}
