@@ -65,6 +65,23 @@ def audit_db(path):
                         reason="unreadable_payload"
                     reasons[reason]=reasons.get(reason,0)+1
                 out["execution_block_reasons"]=reasons
+                # Historical rows persist across deployments. Never attribute a
+                # legacy net-R block to the current native-only execution gate.
+                # This is diagnostic, not a trading rule or a new outcome label.
+                provenance={"legacy_or_unverified":0,"current_native_verified":0}
+                for (raw,) in con.execute("SELECT payload_json FROM events WHERE stage_to='EXECUTION_BLOCKED'"):
+                    try:
+                        p=json.loads(raw or "{}")
+                        g=p.get("_trigger_execution_gate") or {}
+                        proxy=g.get("proxy") or {}
+                        is_native=(proxy.get("source")=="BINANCE_FUTURES_BOOK"
+                            and str(g.get("chart_venue") or p.get("data_mode") or "")=="BINANCE_FUTURES"
+                            and str(g.get("deriv_venue") or p.get("derivatives_provider") or "").upper().startswith("BINANCE"))
+                        provenance["current_native_verified" if is_native else "legacy_or_unverified"]+=1
+                    except (ValueError,TypeError,AttributeError):
+                        provenance["legacy_or_unverified"]+=1
+                out["execution_block_provenance"]=provenance
+
         if "watch_state" in names:
             cols=[r[1] for r in con.execute("PRAGMA table_info(watch_state)")]
             if "stage" in cols:
@@ -199,6 +216,7 @@ def main():
         "live_confirmed_outcomes":live.get("tables",{}).get("confirmed_trade_outcomes",0),
         "live_triggered_events":live.get("triggered_count",0),
         "execution_block_reasons":live.get("execution_block_reasons",{}),
+        "execution_block_provenance":live.get("execution_block_provenance",{}),
         "live_triggered_outcome_eligible":live.get("triggered_outcome_eligible",0),
         "live_triggered_not_eligible":live.get("triggered_not_eligible",0),
         "live_triggered_telegram_statuses":live.get("triggered_telegram_statuses",{}),
