@@ -2647,22 +2647,35 @@ def main():
         print("OPPORTUNITY_FUNNEL_ERROR",type(exc).__name__,str(exc)[:160],flush=True)
     save_scan(ts,regime,len(uni),results)
     if os.getenv('LS_451_WATCH_TELEGRAM', '0') == '1':
-        watch_msg = format_watch_digest(results)
-        if watch_msg:
-            with sqlite3.connect(DB, timeout=15) as con:
-                con.execute('CREATE TABLE IF NOT EXISTS watch_451_notices (digest_hash TEXT PRIMARY KEY, sent_at_utc TEXT NOT NULL)')
-                digest_hash = hashlib.sha256(watch_msg.encode('utf-8')).hexdigest()
-                last = con.execute('SELECT sent_at_utc FROM watch_451_notices WHERE digest_hash=?', (digest_hash,)).fetchone()
-                cooldown = max(300, int(os.getenv('LS_451_WATCH_COOLDOWN_SECONDS', '7200')))
-                last_time = datetime.fromisoformat(last[0]).timestamp() if last else 0
-                if time.time() - last_time >= cooldown:
-                    try:
-                        send_telegram(watch_msg)
-                    except Exception as exc:
-                        print('WATCH_451_TELEGRAM_ERROR', type(exc).__name__, str(exc)[:150], flush=True)
-                    else:
-                        con.execute('INSERT OR REPLACE INTO watch_451_notices VALUES (?,?)', (digest_hash, now_iso()))
-                        con.commit()
+        # Deduplicate each symbol+direction, not a changing batch digest.
+        # Reserve rows before sending to avoid concurrent duplicate alerts.
+        cooldown = max(300, int(os.getenv('LS_451_WATCH_COOLDOWN_SECONDS', '7200')))
+        with sqlite3.connect(DB, timeout=15) as con:
+            con.execute('CREATE TABLE IF NOT EXISTS watch_451_symbol_notices (symbol TEXT NOT NULL, direction TEXT NOT NULL, sent_at_utc TEXT NOT NULL, PRIMARY KEY(symbol,direction))')
+            watch_rows = []
+            for a in results:
+                decision = (a.payload or {}).get('direction_engine') or {}
+                direction = decision.get('direction')
+                if not decision.get('observation_only') or decision.get('eligible') or direction not in ('LONG', 'SHORT'):
+                    continue
+                if not isinstance(a.price, (int,float)) or a.price <= 0:
+                    continue
+                previous = con.execute('SELECT sent_at_utc FROM watch_451_symbol_notices WHERE symbol=? AND direction=?', (a.symbol,direction)).fetchone()
+                previous_time = datetime.fromisoformat(previous[0]).timestamp() if previous else 0
+                if time.time()-previous_time >= cooldown:
+                    watch_rows.append(a)
+                if len(watch_rows) >= 5:
+                    break
+            watch_msg = format_watch_digest(watch_rows)
+            if watch_msg:
+                try:
+                    send_telegram(watch_msg)
+                except Exception as exc:
+                    print('WATCH_451_TELEGRAM_ERROR', type(exc).__name__, str(exc)[:150], flush=True)
+                else:
+                    sent_at = now_iso()
+                    con.executemany('INSERT OR REPLACE INTO watch_451_symbol_notices VALUES (?,?,?)', [(a.symbol,(a.payload or {}).get('direction_engine',{}).get('direction'),sent_at) for a in watch_rows])
+                    con.commit()
     send_health_once(results)
     perf=performance_summary()
     msg=build_message(ts,regime,results,errors,perf)
