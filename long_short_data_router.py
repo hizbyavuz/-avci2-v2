@@ -940,10 +940,25 @@ if __name__ == "__main__":
         output = bybit_linear_paper_snapshot(sym)
     elif mode == "gate-paper":
         output = gate_linear_paper_snapshot(sym)
+    elif mode == "gate-batch":
+        # Read-only cross-symbol health audit. No scoring, signals or trading.
+        symbols = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT", "SUIUSDT", "DOGEUSDT"]
+        results = []
+        for item in symbols:
+            d = gate_derivatives(item)
+            results.append({
+                "symbol": item, "quality": d.get("quality"),
+                "coverage": d.get("coverage"), "v3_core_ready": d.get("v3_core_ready"),
+                "stale": d.get("stale"), "source_age_seconds": d.get("source_age_seconds"),
+                "missing": [k for k in d.get("critical_fields", []) if d.get(k) is None],
+                "errors": d.get("errors", []),
+            })
+        output = {"venue": "GATE_FUTURES", "research_only": True,
+                  "sample_size": len(results), "results": results}
     elif mode == "gate-derivatives":
         output = gate_derivatives(sym)
     elif mode == "derivatives":
         output = multi_venue_derivatives(sym)
     else:
-        raise SystemExit("mode must be derivatives, bybit-paper, gate-paper or gate-derivatives")
+        raise SystemExit("mode must be derivatives, bybit-paper, gate-paper, gate-derivatives or gate-batch")
     print(json.dumps(output, ensure_ascii=False, indent=2))
