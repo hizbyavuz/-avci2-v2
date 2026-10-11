@@ -181,6 +181,18 @@ def research_loop() -> None:
                   " output=" + (probe.stdout or probe.stderr)[-1200:], flush=True)
         except (subprocess.TimeoutExpired, OSError) as exc:
             print("[daemon] BYBIT_PAPER_PROBE_ERROR " + str(exc), flush=True)
+    # Gate USDT perpetual read-only health probe; independent of Bybit access.
+    try:
+        gate_probe = subprocess.run(
+            [sys.executable, "-u", str(ROOT / "long_short_data_router.py"),
+             "BTCUSDT", "gate-paper"],
+            cwd=str(ROOT), env=os.environ.copy(), timeout=45,
+            capture_output=True, text=True, check=False,
+        )
+        print("[daemon] GATE_PAPER_PROBE rc=" + str(gate_probe.returncode) +
+              " output=" + (gate_probe.stdout or gate_probe.stderr)[-1200:], flush=True)
+    except (subprocess.TimeoutExpired, OSError) as exc:
+        print("[daemon] GATE_PAPER_PROBE_ERROR " + str(exc), flush=True)
     if STOP.wait(RESEARCH_INITIAL_DELAY):
         return
     while not STOP.is_set():
