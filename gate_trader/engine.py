@@ -12,6 +12,7 @@ from . import messages as M
 from . import telegram as TG
 from .gates import evaluate, trend
 from .outcome import pnl_usd, position_notional, simulate
+from .early_watch import classify as early_classify
 
 def _eval_coin(row:dict, btc4h, now_ts:float):
     con=row["contract"]
@@ -53,7 +54,11 @@ def scan(now_ts:float|None=None)->dict:
             if open_n>=C.MAX_OPEN:
                 funnel["MAX_ACIK"]+=1
                 continue
-            oi=G.oi_change_1h(con)
+            try:
+                oi=G.oi_change_1h(con)
+            except Exception as exc:
+                oi=None
+                print("OI_HATA",con,type(exc).__name__,flush=True)
             if oi is not None:d.reasons.append(f"OI son 1s: %{oi:+.1f} (bilgi)")
             notional=position_notional(d.stop_pct)
             sid=LG.insert_signal(db,con,d,notional,C.ROUND_TRIP_COST_PCT)
