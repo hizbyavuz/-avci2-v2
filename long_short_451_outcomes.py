@@ -128,7 +128,7 @@ def backfill_pending(db_path, now_utc, price_fetcher, max_symbols=20):
             if not quote:
                 continue
             price, quote_time = quote
-            if (not isinstance(price, (int,float)) or price <= 0
+            if (not isinstance(price, (int,float)) or not math.isfinite(price) or price <= 0
                     or _time(quote_time) > _time(now_utc)):
                 continue
             snapshots.setdefault(quote_time, []).append(
