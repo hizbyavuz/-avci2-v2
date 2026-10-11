@@ -50,6 +50,13 @@ class OutcomeTests(unittest.TestCase):
         labels = self.rows("watch_451_labels")
         self.assertEqual([row[3] for row in labels], [60])
 
+    def test_same_direction_scan_cooldown(self):
+        record_observations(self.db, "2026-10-11T10:00:00+00:00", [analysis()])
+        record_observations(self.db, "2026-10-11T10:05:00+00:00", [analysis(price=101)])
+        self.assertEqual(len(self.rows("watch_451_observations")), 1)
+        record_observations(self.db, "2026-10-11T12:00:00+00:00", [analysis(price=103)])
+        self.assertEqual(len(self.rows("watch_451_observations")), 2)
+
     def test_trade_eligible_never_observed(self):
         record_observations(self.db, "2026-10-11T10:00:00+00:00", [analysis(eligible=True)])
         self.assertEqual(self.rows("watch_451_observations"), [])
