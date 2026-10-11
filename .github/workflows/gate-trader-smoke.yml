@@ -1,0 +1,21 @@
+name: Gate Trader smoke tests
+on:
+  push:
+    branches:
+      - gate-trader-single-motor-20261012
+  workflow_dispatch:
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install minimum runtime dependencies
+        run: python -m pip install 'requests>=2.31,<3'
+      - name: Compile Gate Trader
+        run: python -m compileall -q gate_trader
+      - name: Run offline smoke tests
+        run: python -m unittest discover -s gate_trader/tests -p 'test_smoke.py' -v
