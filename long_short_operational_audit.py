@@ -245,6 +245,20 @@ def audit_db(path):
                         except (ValueError,TypeError,AttributeError):
                             admission["unreadable_payload"]=admission.get("unreadable_payload",0)+1
                     out["latest_scan_first_admission_gate"]=admission
+        # Preselection funnel: unlike the 24-symbol deep-analysis subset,
+        # this table also records observed symbols not selected for deep scan.
+        if "opportunity_funnel" in names:
+            try:
+                cutoff=(datetime.now(timezone.utc)-timedelta(hours=24)).isoformat()
+                out["preselection_funnel_24h"]=dict(con.execute(
+                    "SELECT stage,COUNT(*) FROM opportunity_funnel "
+                    "WHERE scan_time_utc>=? GROUP BY stage",(cutoff,)).fetchall())
+                out["preselection_distinct_symbols_24h"]=con.execute(
+                    "SELECT COUNT(DISTINCT symbol) FROM opportunity_funnel "
+                    "WHERE scan_time_utc>=?",(cutoff,)).fetchone()[0]
+                out["preselection_scope"]="observed preselection universe, not full Binance Futures market"
+            except sqlite3.Error as exc:
+                out["preselection_error"]=str(exc)
         if "paper_events" in names:
             cols=[r[1] for r in con.execute("PRAGMA table_info(paper_events)")]
             if "data_cohort" in cols:
@@ -273,6 +287,8 @@ def main():
         "statuses":analyst.get("latest_scan_status_counts",{}),
         "statuses_24h":analyst.get("statuses_24h",{}),
         "analyses_24h":analyst.get("analyses_24h",0),
+        "preselection_funnel_24h":analyst.get("preselection_funnel_24h",{}),
+        "preselection_distinct_symbols_24h":analyst.get("preselection_distinct_symbols_24h",0),
         "post_scan_price_proxy":analyst.get("post_scan_price_proxy",{}),
         "post_scan_price_proxy_scope":analyst.get("post_scan_price_proxy_scope","unavailable"),
         "post_scan_price_proxy_missing_future_snapshots":analyst.get("post_scan_price_proxy_missing_future_snapshots",{}),
