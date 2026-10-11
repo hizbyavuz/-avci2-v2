@@ -8,6 +8,8 @@ import urllib.request
 URLS = {
     "binance_futures": "https://fapi.binance.com/fapi/v1/time",
     "binance_spot": "https://api.binance.com/api/v3/time",
+    "gate_futures_primary": "https://api.gateio.ws/api/v4/futures/usdt/tickers?contract=BTC_USDT",
+    "gate_futures_alternative": "https://fx-api.gateio.ws/api/v4/futures/usdt/tickers?contract=BTC_USDT",
 }
 for label, url in URLS.items():
     try:
