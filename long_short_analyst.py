@@ -2657,7 +2657,7 @@ def main():
         print('WATCH_451_OUTCOME_ERROR', type(exc).__name__, str(exc)[:160], flush=True)
     if watch_451_recorded and os.getenv('LS_451_WATCH_TELEGRAM', '0') == '1':
         # Deduplicate each symbol+direction, not a changing batch digest.
-        # Notices are recorded after Telegram confirms delivery; concurrent workers require a separate lock.
+        # BEGIN IMMEDIATE serializes concurrent SQLite notice selections.
         cooldown = max(300, int(os.getenv('LS_451_WATCH_COOLDOWN_SECONDS', '7200')))
         with sqlite3.connect(DB, timeout=15) as con:
             con.execute('BEGIN IMMEDIATE')
