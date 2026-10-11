@@ -139,6 +139,21 @@ def audit_db(path):
                                 ret=100*(later[1]/px-1)
                                 group="actionable_watch" if st in ("WAIT","LONG","SHORT") else "no_trade"
                                 buckets[(group,minutes)].append(ret)
+                    # Do not imply a symbol-hour has complete future coverage:
+                    # report both evaluated anchors and unavailable horizons.
+                    horizon_missing={str(h):0 for h in horizons}
+                    for symbol,history in by_symbol.items():
+                        seen_hours=set()
+                        for i,(moment,st,px) in enumerate(history):
+                            hour=moment.strftime("%Y-%m-%dT%H")
+                            if hour in seen_hours or px<=0: continue
+                            seen_hours.add(hour)
+                            for minutes in horizons:
+                                target=moment+timedelta(minutes=minutes)
+                                if target+timedelta(minutes=15)>matured: continue
+                                if not any(target<=t<=target+timedelta(minutes=15) for t,_,_ in history[i+1:]):
+                                    horizon_missing[str(minutes)]+=1
+                    out["post_scan_price_proxy_missing_future_snapshots"]=horizon_missing
                     out["post_scan_price_proxy"]={
                         group:{str(minutes):{
                             "n":len(buckets[(group,minutes)]),
@@ -260,6 +275,7 @@ def main():
         "analyses_24h":analyst.get("analyses_24h",0),
         "post_scan_price_proxy":analyst.get("post_scan_price_proxy",{}),
         "post_scan_price_proxy_scope":analyst.get("post_scan_price_proxy_scope","unavailable"),
+        "post_scan_price_proxy_missing_future_snapshots":analyst.get("post_scan_price_proxy_missing_future_snapshots",{}),
         "first_admission_blockers":analyst.get("latest_scan_first_admission_gate",{}),
         "actionable_precheck_failures":analyst.get("actionable_rejection_indicators",{}),
         "live_funnel":live.get("stage_funnel",{}),
