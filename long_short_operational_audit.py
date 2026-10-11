@@ -247,6 +247,30 @@ def audit_db(path):
                     out["latest_scan_first_admission_gate"]=admission
         # Preselection funnel: unlike the 24-symbol deep-analysis subset,
         # this table also records observed symbols not selected for deep scan.
+        # Existing source-of-truth selection audit already contains blockers.
+        # Keep prefilter failures, capacity exclusions and execution constraints
+        # separate; all are overlapping diagnostics, not independent outcomes.
+        if "full_universe_stage_audit" in names:
+            try:
+                cutoff=(datetime.now(timezone.utc)-timedelta(hours=24)).isoformat()
+                out["rotating_universe_stages_24h"]=dict(con.execute(
+                    "SELECT stage,COUNT(*) FROM full_universe_stage_audit "
+                    "WHERE scan_time_utc>=? GROUP BY stage",(cutoff,)).fetchall())
+                from collections import Counter
+                blockers=Counter()
+                for (raw,) in con.execute(
+                    "SELECT detail_json FROM full_universe_stage_audit "
+                    "WHERE scan_time_utc>=?",(cutoff,)):
+                    try:
+                        payload=json.loads(raw or "{}")
+                        for b in payload.get("selection_blockers") or []:
+                            blockers[str(b)[:100]]+=1
+                    except (ValueError,TypeError,AttributeError):
+                        blockers["UNREADABLE_DETAIL"]+=1
+                out["rotating_universe_blockers_24h"]=dict(blockers)
+                out["rotating_universe_scope"]="rotating observed window, not full futures universe"
+            except sqlite3.Error as exc:
+                out["rotating_universe_error"]=str(exc)
         if "opportunity_funnel" in names:
             try:
                 cutoff=(datetime.now(timezone.utc)-timedelta(hours=24)).isoformat()
@@ -315,6 +339,8 @@ def main():
         "statuses_24h":analyst.get("statuses_24h",{}),
         "analyses_24h":analyst.get("analyses_24h",0),
         "preselection_funnel_24h":analyst.get("preselection_funnel_24h",{}),
+        "rotating_universe_stages_24h":analyst.get("rotating_universe_stages_24h",{}),
+        "rotating_universe_blockers_24h":analyst.get("rotating_universe_blockers_24h",{}),
         "preselection_exclusion_reasons_24h":analyst.get("preselection_exclusion_reasons_24h",{}),
         "preselection_distinct_symbols_24h":analyst.get("preselection_distinct_symbols_24h",0),
         "post_scan_price_proxy":analyst.get("post_scan_price_proxy",{}),
