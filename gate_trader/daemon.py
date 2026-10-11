@@ -12,16 +12,7 @@ def main():
         first = LG.get_meta(db, "started_version") != C.VERSION
         LG.set_meta(db, "started_version", C.VERSION)
     print("GATE_TRADER_BASLADI", C.VERSION, "RAM_ONLY", flush=True)
-    if first:
-        TG.send("\n".join([
-            "🚀 Gate Trader başladı",
-            f"Sürüm: {C.VERSION}",
-            f"Tarama: en hacimli {C.MAX_COINS} Gate vadeli coin, her 15 dakikada",
-            f"Risk: işlem başı {C.RISK_USD:.0f}$, hedef en az {C.MIN_RR:.0f}R",
-            "Kapılar: coin trendi → seviye → teyit mumu → risk/ödül; BTC yalnızca bilgi",
-            "Depolama: yalnızca geçici RAM, yeniden başlatmada silinir.",
-            "Otomatik emir YOK.",
-        ]))
+    # Startup details stay in Railway logs, never spam Telegram.
     last_scan_bar = None
     last_track = 0.0
     while True:
