@@ -102,6 +102,54 @@ def audit_db(path):
                     (cutoff,)).fetchall()
                 out["statuses_24h"]=dict(rows24)
                 out["analyses_24h"]=sum(n for _,n in rows24)
+                # Read-only matched future scan-price observations. These are
+                # coarse research proxies, NOT executable prices or trade labels.
+                # Include rejected statuses to quantify potential missed moves.
+                if "price" in cols and "symbol" in cols:
+                    future_rows=con.execute(
+                        "SELECT scan_time_utc,symbol,status,price FROM analyses "
+                        "WHERE scan_time_utc>=? AND price>0 ORDER BY symbol,scan_time_utc",
+                        ((datetime.now(timezone.utc)-timedelta(hours=30)).isoformat(),)
+                    ).fetchall()
+                    from collections import defaultdict
+                    by_symbol=defaultdict(list)
+                    for stamp,symbol,st,px in future_rows:
+                        try:
+                            moment=datetime.fromisoformat(str(stamp).replace("Z","+00:00"))
+                            if moment.tzinfo is None: moment=moment.replace(tzinfo=timezone.utc)
+                            by_symbol[symbol].append((moment,str(st),float(px)))
+                        except (ValueError,TypeError): continue
+                    horizons=(15,30,60,180)
+                    buckets=defaultdict(list)
+                    matured=datetime.now(timezone.utc)
+                    for symbol,history in by_symbol.items():
+                        # Avoid re-counting every 5m scan as an independent event.
+                        # One anchor per symbol per UTC hour; still descriptive only.
+                        anchors=set()
+                        for i,(moment,st,px) in enumerate(history):
+                            hour=moment.strftime("%Y-%m-%dT%H")
+                            if hour in anchors or px<=0: continue
+                            anchors.add(hour)
+                            for minutes in horizons:
+                                if moment+timedelta(minutes=minutes+15)>matured: continue
+                                target=moment+timedelta(minutes=minutes)
+                                later=next(((t,v) for t,_,v in history[i+1:]
+                                    if target<=t<=target+timedelta(minutes=15)),None)
+                                if later is None: continue
+                                ret=100*(later[1]/px-1)
+                                group="actionable_watch" if st in ("WAIT","LONG","SHORT") else "no_trade"
+                                buckets[(group,minutes)].append(ret)
+                    out["post_scan_price_proxy"]={
+                        group:{str(minutes):{
+                            "n":len(buckets[(group,minutes)]),
+                            "mean_pct":round(sum(buckets[(group,minutes)])/len(buckets[(group,minutes)]),4)
+                                if buckets[(group,minutes)] else None,
+                            "up_3pct":sum(x>=3 for x in buckets[(group,minutes)]),
+                            "down_3pct":sum(x<=-3 for x in buckets[(group,minutes)])
+                        } for minutes in horizons}
+                        for group in ("actionable_watch","no_trade")}
+                    out["post_scan_price_proxy_scope"]="selected_analyst_symbols_only; 15m delayed scan price; not independent, not executable, not full-universe recall"
+
 
                 if latest:
                     latest_rows=con.execute("SELECT status,payload_json FROM analyses WHERE scan_time_utc=?",(latest,)).fetchall()
@@ -210,6 +258,8 @@ def main():
         "statuses":analyst.get("latest_scan_status_counts",{}),
         "statuses_24h":analyst.get("statuses_24h",{}),
         "analyses_24h":analyst.get("analyses_24h",0),
+        "post_scan_price_proxy":analyst.get("post_scan_price_proxy",{}),
+        "post_scan_price_proxy_scope":analyst.get("post_scan_price_proxy_scope","unavailable"),
         "first_admission_blockers":analyst.get("latest_scan_first_admission_gate",{}),
         "actionable_precheck_failures":analyst.get("actionable_rejection_indicators",{}),
         "live_funnel":live.get("stage_funnel",{}),
