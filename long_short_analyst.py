@@ -25,6 +25,7 @@ from binance_notify import resolve_chat_id
 from long_short_data_router import multi_venue_derivatives, multi_venue_perp_universe, multi_venue_perp_klines
 from long_short_v3_core import V3_VERSION, discovery_rank as v3_discovery_rank, beta_residual_3h, decide_setup as v3_decide_setup
 from long_short_direction_engine import DIRECTION_ENGINE_VERSION, decide_direction as production_decide_direction
+from long_short_451_watch_digest import format_watch_digest
 from long_short_room_v32_shadow import from_analyst_snapshots as v32_room_shadow
 from long_short_dual_v32 import build_both_sides as build_v32_dual_scenarios
 
@@ -2645,6 +2646,10 @@ def main():
     except Exception as exc:
         print("OPPORTUNITY_FUNNEL_ERROR",type(exc).__name__,str(exc)[:160],flush=True)
     save_scan(ts,regime,len(uni),results)
+    if os.getenv('LS_451_WATCH_TELEGRAM', '0') == '1':
+        watch_msg = format_watch_digest(results)
+        if watch_msg:
+            send_telegram(watch_msg)
     send_health_once(results)
     perf=performance_summary()
     msg=build_message(ts,regime,results,errors,perf)
