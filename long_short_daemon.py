@@ -31,6 +31,7 @@ ROOT = Path(__file__).resolve().parent
 STOP = threading.Event()
 STATUS_LOCK = threading.Lock()
 STATUS: dict[str, dict] = {}
+TELEGRAM_CHAT_SOURCE = "unresolved"
 
 ANALYST_INTERVAL = int(os.getenv("LS_DAEMON_ANALYST_INTERVAL_SECONDS", "300"))
 RESEARCH_INTERVAL = int(os.getenv("LS_DAEMON_RESEARCH_INTERVAL_SECONDS", "3600"))
@@ -260,7 +261,7 @@ def heartbeat_loop(sd: Path) -> None:
                 "time_utc": now_iso(),
                 "telegram_configured": bool((os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()),
                 "telegram_chat_configured": bool((os.getenv("TELEGRAM_CHAT_ID") or "").strip()),
-                "telegram_chat_id_source": "environment" if (os.getenv("TELEGRAM_CHAT_ID") or "").strip() else "runtime_resolution_required",
+                "telegram_chat_id_source": TELEGRAM_CHAT_SOURCE,
                 "state_dir": str(sd),
                 "processes": json.loads(json.dumps(STATUS)),
             }
@@ -279,12 +280,14 @@ def handle_signal(signum, _frame) -> None:
 
 
 def main() -> int:
+    global TELEGRAM_CHAT_SOURCE
     signal.signal(signal.SIGTERM, handle_signal)
     signal.signal(signal.SIGINT, handle_signal)
 
     sd = configure_state_paths()
     token_ok = bool((os.getenv("TELEGRAM_BOT_TOKEN") or "").strip())
     chat_ok = bool((os.getenv("TELEGRAM_CHAT_ID") or "").strip())
+    TELEGRAM_CHAT_SOURCE = "environment" if chat_ok else "unresolved"
     print(
         f"[daemon] boot state_dir={sd} telegram_token={token_ok} telegram_chat_id={chat_ok}",
         flush=True,
@@ -304,6 +307,7 @@ def main() -> int:
             if resolved:
                 os.environ["TELEGRAM_CHAT_ID"] = str(resolved)
                 chat_ok = True
+                TELEGRAM_CHAT_SOURCE = "runtime_resolved"
                 print("[daemon] TELEGRAM_CHAT_RESOLVED_AT_BOOT", flush=True)
             else:
                 print("[daemon] TELEGRAM_CHAT_UNRESOLVED_AT_BOOT", flush=True)
