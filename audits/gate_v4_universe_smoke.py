@@ -1,4 +1,9 @@
+"""Read-only Gate V4 universe smoke test, runnable from audits/."""
 import json
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from gate_v4_universe import gate_usdt_perpetual_universe
 
 result = gate_usdt_perpetual_universe()
