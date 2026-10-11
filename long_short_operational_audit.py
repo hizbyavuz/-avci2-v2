@@ -54,6 +54,17 @@ def audit_db(path):
                     ).fetchall())
         if "events" in names and "stage_to" in [r[1] for r in con.execute("PRAGMA table_info(events)")]:
             out["stage_funnel"]=dict(con.execute("SELECT stage_to,COUNT(*) FROM events GROUP BY stage_to").fetchall())
+        if "events" in names:
+            cols=[r[1] for r in con.execute("PRAGMA table_info(events)")]
+            if "stage_to" in cols and "payload_json" in cols:
+                reasons={}
+                for (raw,) in con.execute("SELECT payload_json FROM events WHERE stage_to='EXECUTION_BLOCKED'"):
+                    try:
+                        reason=str((json.loads(raw or "{}").get("_trigger_execution_gate") or {}).get("reason") or "unknown")
+                    except (ValueError,TypeError,AttributeError):
+                        reason="unreadable_payload"
+                    reasons[reason]=reasons.get(reason,0)+1
+                out["execution_block_reasons"]=reasons
         if "watch_state" in names:
             cols=[r[1] for r in con.execute("PRAGMA table_info(watch_state)")]
             if "stage" in cols:
@@ -175,6 +186,7 @@ def main():
         "live_funnel":live.get("stage_funnel",{}),
         "live_confirmed_outcomes":live.get("tables",{}).get("confirmed_trade_outcomes",0),
         "live_triggered_events":live.get("triggered_count",0),
+        "execution_block_reasons":live.get("execution_block_reasons",{}),
         "live_triggered_outcome_eligible":live.get("triggered_outcome_eligible",0),
         "live_triggered_not_eligible":live.get("triggered_not_eligible",0),
         "live_triggered_telegram_statuses":live.get("triggered_telegram_statuses",{}),
