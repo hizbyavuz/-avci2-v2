@@ -66,12 +66,17 @@ def scan(now_ts:float|None=None)->dict:
                 continue
             arrow="🟢" if watch["side"]=="LONG" else "🔴"
             verb="üstünde" if watch["side"]=="LONG" else "altında"
-            msg=(f"{arrow} ERKEN {watch[\'side\']} ICIN IZLE | {con.replace(\'_USDT\',\'\')}\n"
-                 f"Seviye: {watch[\'trigger\']:.8g}\n"
-                 f"Son kapanis: {watch[\'price\']:.8g}\n"
-                 f"Hacim: normalin {watch[\'volume_ratio\']:.2f} kati\n"
-                 f"Beklenen: 15 dk mum {watch[\'trigger\']:.8g} {verb} kapansin, seviye korunsun.\n"
-                 "Durum: Erken izleme. Henuz islem sinyali degil. Stop/hedef yok.")
+            coin_name=con.replace("_USDT","")
+            direction=watch["side"]
+            trigger=watch["trigger"]
+            price=watch["price"]
+            ratio=watch["volume_ratio"]
+            msg=(f"{arrow} ERKEN {direction} İÇİN İZLE | {coin_name}\n"
+                 f"🎯 İzleme seviyesi: {trigger:.8g}\n"
+                 f"💵 Son kapanış: {price:.8g}\n"
+                 f"📊 Hacim: normalin {ratio:.2f} katı\n"
+                 f"👀 Beklenen: 15 dk mum {trigger:.8g} {verb} kapansın, seviye korunsun.\n"
+                 "🟡 Henüz işlem sinyali değil. Stop/hedef yok.")
             if C.SEND_SIGNALS and TG.send(msg):
                 LG.set_meta(db,key,bar_ts)
                 EO.record(db,con,watch,bar_ts)
