@@ -15,6 +15,10 @@ from .gates import evaluate, trend
 from .outcome import pnl_usd, position_notional, simulate
 from .early_watch import classify as classify_early
 
+# RAM resets on deploy; suppress repeated watch alerts briefly after restart.
+_STARTED_AT = time.time()
+_EARLY_RESTART_QUIET_SEC = 3600
+
 def _eval_coin(row:dict, btc4h, now_ts:float):
     con=row["contract"]
     try:
@@ -58,6 +62,9 @@ def scan(now_ts:float|None=None)->dict:
         open_n=len(LG.open_signals(db))
         # Early alerts are watch-only, never paper-trade entries. One per coin/side/state/closed bar.
         for con,watch,bar_ts in early:
+            if now_ts - _STARTED_AT < _EARLY_RESTART_QUIET_SEC:
+                funnel["ERKEN_RESTART_SESSIZ"] += 1
+                continue
             if watch["state"]!="ERKEN_IZLE" or LG.is_open(db,con):
                 continue
             key=f"early:{con}:{watch['side']}"
