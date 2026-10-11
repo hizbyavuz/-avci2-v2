@@ -875,7 +875,14 @@ def bybit_linear_execution_book(symbol: str, notional_usdt: float = 500.0) -> di
 def bybit_linear_paper_snapshot(symbol: str, interval: str = "5m",
                                 limit: int = 120, notional_usdt: float = 500.0) -> dict[str, Any]:
     """One-venue, read-only paper observation. No trading approval."""
-    candles = multi_venue_perp_klines(symbol, interval, limit, provider="BYBIT_LINEAR")
+    try:
+        candles = multi_venue_perp_klines(symbol, interval, limit, provider="BYBIT_LINEAR")
+    except (RuntimeError, requests.RequestException, ValueError, KeyError, TypeError) as exc:
+        # Read-only health probe: a blocked venue is an unavailable observation,
+        # not a daemon crash and never permission to use mixed-venue execution.
+        return {"qualified": False, "reason": "bybit_candles_unavailable",
+                "venue": "BYBIT_LINEAR", "symbol": symbol,
+                "error": type(exc).__name__ + ": " + str(exc)[:240]}
     rows = candles["rows"]
     now_ms = int(time.time() * 1000)
     closed = [r for r in rows if int(r[6]) < now_ms - 250]
