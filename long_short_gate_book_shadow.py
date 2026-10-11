@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Read-only Gate USDT perpetual order-book observation; never approves trades."""
+"""Read-only Gate USDT perpetual order-book observation; never approves trades.
+
+Production rollout note: this module is observational only, not an execution gate.
+"""
 from datetime import datetime, timezone
 import math
 import requests
