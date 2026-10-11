@@ -11,6 +11,7 @@ URLS = {
     "binance_futures_fapi1": "https://fapi1.binance.com/fapi/v1/time",
     "binance_futures_fapi2": "https://fapi2.binance.com/fapi/v1/time",
     "binance_spot_data": "https://data-api.binance.vision/api/v3/time",
+    "binance_spot_klines": "https://data-api.binance.vision/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=2",
     "gate_futures_primary": "https://api.gateio.ws/api/v4/futures/usdt/tickers?contract=BTC_USDT",
     "gate_futures_alternative": "https://fx-api.gateio.ws/api/v4/futures/usdt/tickers?contract=BTC_USDT",
 }
