@@ -193,6 +193,18 @@ def research_loop() -> None:
               " output=" + (gate_probe.stdout or gate_probe.stderr)[-1200:], flush=True)
     except (subprocess.TimeoutExpired, OSError) as exc:
         print("[daemon] GATE_PAPER_PROBE_ERROR " + str(exc), flush=True)
+    # Inspect same-venue OI/funding/taker/long-short/depth coverage; no trade approval.
+    try:
+        gate_deriv = subprocess.run(
+            [sys.executable, "-u", str(ROOT / "long_short_data_router.py"),
+             "BTCUSDT", "gate-derivatives"],
+            cwd=str(ROOT), env=os.environ.copy(), timeout=45,
+            capture_output=True, text=True, check=False,
+        )
+        print("[daemon] GATE_DERIVATIVES_PROBE rc=" + str(gate_deriv.returncode) +
+              " output=" + (gate_deriv.stdout or gate_deriv.stderr)[-3500:], flush=True)
+    except (subprocess.TimeoutExpired, OSError) as exc:
+        print("[daemon] GATE_DERIVATIVES_PROBE_ERROR " + str(exc), flush=True)
     if STOP.wait(RESEARCH_INITIAL_DELAY):
         return
     while not STOP.is_set():
