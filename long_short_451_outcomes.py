@@ -37,6 +37,12 @@ def record_observations(db_path, ts, analyses):
                     or direction not in ("LONG", "SHORT")
                     or not isinstance(price, (float, int)) or price <= 0):
                 continue
+            latest = con.execute(
+                "SELECT scan_time_utc FROM watch_451_observations WHERE symbol=? AND direction=? ORDER BY scan_time_utc DESC LIMIT 1",
+                (a.symbol, direction)
+            ).fetchone()
+            if latest and 0 <= (_time(ts)-_time(latest[0])).total_seconds() < 7200:
+                continue
             con.execute("INSERT OR IGNORE INTO watch_451_observations VALUES (?,?,?,?)",
                         (ts, a.symbol, direction, price))
         # Resolve only using later stored market observations, never pre-signal data.
