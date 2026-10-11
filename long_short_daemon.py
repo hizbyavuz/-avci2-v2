@@ -168,20 +168,23 @@ def watcher_loop(name: str, script: str) -> None:
 
 
 def research_loop() -> None:
-    if STOP.wait(RESEARCH_INITIAL_DELAY):
-        return
-    while not STOP.is_set():
-        rc_v2 = run_child("v2_shadow", "long_short_v2_shadow.py")
-        # Optional read-only venue health probe; never affects signal decisions.
-        if os.getenv("LS_BYBIT_PAPER_PROBE_ENABLED", "0") == "1":
-            rc_probe = subprocess.run(
+    # Read-only Bybit connectivity check is independent of the shadow scan.
+    if os.getenv("LS_BYBIT_PAPER_PROBE_ENABLED", "0") == "1":
+        try:
+            probe = subprocess.run(
                 [sys.executable, "-u", str(ROOT / "long_short_data_router.py"),
                  "BTCUSDT", "bybit-paper"],
                 cwd=str(ROOT), env=os.environ.copy(), timeout=45,
                 capture_output=True, text=True, check=False,
             )
-            print("[daemon] BYBIT_PAPER_PROBE rc=" + str(rc_probe.returncode) +
-                  " output=" + (rc_probe.stdout or rc_probe.stderr)[-1200:], flush=True)
+            print("[daemon] BYBIT_PAPER_PROBE rc=" + str(probe.returncode) +
+                  " output=" + (probe.stdout or probe.stderr)[-1200:], flush=True)
+        except (subprocess.TimeoutExpired, OSError) as exc:
+            print("[daemon] BYBIT_PAPER_PROBE_ERROR " + str(exc), flush=True)
+    if STOP.wait(RESEARCH_INITIAL_DELAY):
+        return
+    while not STOP.is_set():
+        rc_v2 = run_child("v2_shadow", "long_short_v2_shadow.py")
         rc_val = run_child("research_validation", "long_short_research_validation.py")
         set_status("research_cycle", state="DONE", v2_rc=rc_v2, validation_rc=rc_val)
         if STOP.wait(RESEARCH_INTERVAL):
