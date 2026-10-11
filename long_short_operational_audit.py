@@ -76,6 +76,16 @@ def audit_db(path):
             if all(k in cols for k in ("scan_time_utc","status","payload_json")):
                 latest=con.execute("SELECT MAX(scan_time_utc) FROM analyses").fetchone()[0]
                 out["latest_scan_time_utc"]=latest
+                # Historical context: avoid judging signal starvation by one scan.
+                # ISO UTC timestamps are lexicographically ordered in this dataset.
+                from datetime import timedelta
+                cutoff=(datetime.now(timezone.utc)-timedelta(hours=24)).isoformat()
+                rows24=con.execute(
+                    "SELECT status,COUNT(*) FROM analyses WHERE scan_time_utc>=? GROUP BY status",
+                    (cutoff,)).fetchall()
+                out["statuses_24h"]=dict(rows24)
+                out["analyses_24h"]=sum(n for _,n in rows24)
+
                 if latest:
                     latest_rows=con.execute("SELECT status,payload_json FROM analyses WHERE scan_time_utc=?",(latest,)).fetchall()
                     rejection={}
@@ -181,6 +191,8 @@ def main():
         "scan_time":analyst.get("latest_scan_time_utc"),
         "scanned":analyst.get("latest_scan_sample_size"),
         "statuses":analyst.get("latest_scan_status_counts",{}),
+        "statuses_24h":analyst.get("statuses_24h",{}),
+        "analyses_24h":analyst.get("analyses_24h",0),
         "first_admission_blockers":analyst.get("latest_scan_first_admission_gate",{}),
         "actionable_precheck_failures":analyst.get("actionable_rejection_indicators",{}),
         "live_funnel":live.get("stage_funnel",{}),
