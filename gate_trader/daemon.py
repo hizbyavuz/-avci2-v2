@@ -5,6 +5,7 @@ from . import config as C
 from . import engine
 from . import ledger as LG
 from . import telegram as TG
+from . import early_outcomes as EO
 
 def main():
     with LG.connect() as db:
@@ -33,6 +34,7 @@ def main():
             if now - last_track >= C.TRACK_EVERY_SEC:
                 last_track = now
                 engine.track(now)
+                EO.track(now)
             engine.daily_summary()
         except Exception:
             traceback.print_exc()
