@@ -2552,6 +2552,7 @@ def main():
                 a=deep.get(sym)
                 stage=("NOT_SELECTED" if sym not in selected else
                        "DEEP_ERROR" if a is None else
+                       "FUTURES_MISSING_OBSERVE" if (a.payload or {}).get("futures_missing_observation_only") else
                        "MODEL_"+str(a.status))
                 counts[stage]=counts.get(stage,0)+1
                 payload=(a.payload or {}) if a else {}
