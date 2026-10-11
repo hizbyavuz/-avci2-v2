@@ -293,6 +293,22 @@ def main() -> int:
         print("[daemon] WARNING TELEGRAM_BOT_TOKEN missing; alerts cannot be delivered.", flush=True)
     if not chat_ok:
         print("[daemon] WARNING TELEGRAM_CHAT_ID missing; auto-discovery will be attempted but explicit ID is preferred.", flush=True)
+        # Resolve once at boot and share the verified destination with all child
+        # processes. Never guess a chat ID or print the token / destination.
+        try:
+            from binance_notify import resolve_chat_id
+            resolved = resolve_chat_id(
+                os.environ.get("TELEGRAM_BOT_TOKEN", ""), "",
+                db_path=str(sd / "long_short_telegram_chat_cache.db"),
+            ) if token_ok else ""
+            if resolved:
+                os.environ["TELEGRAM_CHAT_ID"] = str(resolved)
+                chat_ok = True
+                print("[daemon] TELEGRAM_CHAT_RESOLVED_AT_BOOT", flush=True)
+            else:
+                print("[daemon] TELEGRAM_CHAT_UNRESOLVED_AT_BOOT", flush=True)
+        except Exception as exc:
+            print("[daemon] TELEGRAM_CHAT_RESOLUTION_ERROR", type(exc).__name__, flush=True)
 
     # One initial analyst pass gives both live watchers a fresh plan before they
     # start. Failure is not fatal; the analyst loop will keep retrying.
