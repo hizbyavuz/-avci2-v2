@@ -12,7 +12,6 @@ from . import messages as M
 from . import telegram as TG
 from .gates import evaluate, trend
 from .outcome import pnl_usd, position_notional, simulate
-from .early_watch import classify as early_classify
 
 def _eval_coin(row:dict, btc4h, now_ts:float):
     con=row["contract"]
