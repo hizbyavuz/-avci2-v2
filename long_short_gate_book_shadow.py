@@ -57,9 +57,15 @@ def observe(symbol, notional_usdt=250.0, timeout=8):
         metadata_response = requests.get(CONTRACT_URL + contract, timeout=timeout)
         metadata_response.raise_for_status()
         metadata = metadata_response.json()
+        if bool(metadata.get("in_delisting")) or bool(metadata.get("is_delisted")):
+            raise ValueError("contract_delisted")
+        if metadata.get("trade_status") not in (None, "tradable", "TRADABLE"):
+            raise ValueError("contract_not_tradable")
         multiplier = float(metadata["quanto_multiplier"])
         if not math.isfinite(multiplier) or multiplier <= 0:
             raise ValueError("invalid_contract_multiplier")
+        # Public book timestamps vary by endpoint; never claim verified freshness.
+        book_timestamp_ms = book.get("t") or book.get("timestamp")
         buy_vwap = _vwap(ask_levels, multiplier, float(notional_usdt))
         sell_vwap = _vwap(bid_levels, multiplier, float(notional_usdt))
         mid = (best_bid + best_ask) / 2
@@ -72,6 +78,8 @@ def observe(symbol, notional_usdt=250.0, timeout=8):
             "bid_levels": len(bid_levels), "ask_levels": len(ask_levels),
             "requested_notional_usdt": float(notional_usdt),
             "quanto_multiplier": multiplier,
+            "book_timestamp_raw": book_timestamp_ms,
+            "book_freshness_verified": False,
             "buy_vwap": buy_vwap, "sell_vwap": sell_vwap,
             "buy_bps": (buy_vwap / mid - 1) * 10000 if buy_vwap else None,
             "sell_bps": (1 - sell_vwap / mid) * 10000 if sell_vwap else None,
