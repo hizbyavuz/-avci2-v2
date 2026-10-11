@@ -254,10 +254,10 @@ class DiscoveryV23Tests(unittest.TestCase):
         try:
             analyst.fget=lambda *a, **k: (_ for _ in ()).throw(RuntimeError("spot depth unavailable"))
             analyst.MULTI_DERIV_CACHE={
-                "FUTURESONLYUSDT":{
+                "FUTURESONLYUSDT":(analyst.time.monotonic(), {
                     "depth_imbalance":0.23,
                     "selected_provider":"GATE_FUTURES",
-                }
+                })
             }
             out=analyst.fetch_depth_metrics("FUTURESONLYUSDT")
             self.assertAlmostEqual(out["imbalance"],0.23)
