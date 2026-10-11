@@ -5,6 +5,7 @@ Each horizon uses the first eligible later snapshot; missing data stays pending.
 """
 from __future__ import annotations
 import json
+import math
 import sqlite3
 from datetime import datetime, timezone
 
@@ -35,7 +36,7 @@ def record_observations(db_path, ts, analyses):
             price = getattr(a, "price", None)
             if (not d.get("observation_only") or d.get("eligible")
                     or direction not in ("LONG", "SHORT")
-                    or not isinstance(price, (float, int)) or price <= 0):
+                    or not isinstance(price, (float, int)) or not math.isfinite(price) or price <= 0):
                 continue
             latest = con.execute(
                 "SELECT scan_time_utc FROM watch_451_observations WHERE symbol=? AND direction=? ORDER BY scan_time_utc DESC LIMIT 1",
@@ -49,7 +50,7 @@ def record_observations(db_path, ts, analyses):
         # Only label a horizon when a snapshot is within 10 minutes of it.
         # Later observations cannot masquerade as the requested horizon.
         current = {a.symbol: a.price for a in analyses
-                   if isinstance(getattr(a, "price", None), (float, int)) and a.price > 0}
+                   if isinstance(getattr(a, "price", None), (float, int)) and math.isfinite(a.price) and a.price > 0}
         for sig_time, symbol, direction, entry in con.execute(
             "SELECT scan_time_utc,symbol,direction,signal_price FROM watch_451_observations"
         ).fetchall():
