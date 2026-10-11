@@ -1,7 +1,47 @@
+"""Gate Trader configuration, synced with tested RAM-only package."""
 import os
+def _f(n,d):
+    try:return float(os.getenv(n,d))
+    except (TypeError,ValueError):return float(d)
+def _i(n,d):
+    try:return int(float(os.getenv(n,d)))
+    except (TypeError,ValueError):return int(d)
 VERSION="GATE_TRADER_V1_1_RAM_2026-10-12"
-MAX_COINS=int(os.getenv("GT_MAX_COINS","40"))
-SCAN_DELAY_SEC=int(os.getenv("GT_SCAN_DELAY_SEC","20"))
-TRACK_EVERY_SEC=int(os.getenv("GT_TRACK_EVERY_SEC","60"))
-RISK_USD=float(os.getenv("GT_RISK_USD","10"))
+MIN_QUOTE_VOLUME_24H=_f("GT_MIN_VOLUME_USDT",20_000_000)
+MAX_COINS=_i("GT_MAX_COINS",40)
+EXCLUDE={s.strip().upper() for s in os.getenv("GT_EXCLUDE","USDC_USDT,FDUSD_USDT,TUSD_USDT,DAI_USDT,USDE_USDT").split(",") if s.strip()}
+BTC="BTC_USDT"
+EMA_FAST=20
+EMA_SLOW=50
+SLOPE_BARS=6
+PIVOT_K=3
+LEVEL_LOOKBACK_1H=240
+LEVEL_MERGE_ATR=0.30
+TOUCH_ATR=0.25
+MIN_CLOSE_POSITION=0.60
+MIN_VOLUME_MULT=1.20
+HOLD_BARS=8
+HOLD_MIN=6
+MAX_FUNDING_WITH=_f("GT_MAX_FUNDING",0.0005)
+STOP_BUFFER_ATR=0.15
+MIN_STOP_PCT=0.35
+MAX_STOP_PCT=3.50
 MIN_RR=2.0
+MAX_RR=3.0
+DEFAULT_RR=2.5
+MIN_NET_RR=1.8
+TARGET_BUFFER_ATR=0.10
+FEE_PCT=_f("GT_FEE_PCT",0.05)
+SLIP_PCT=_f("GT_SLIP_PCT",0.03)
+ROUND_TRIP_COST_PCT=2*(FEE_PCT+SLIP_PCT)
+RISK_USD=_f("GT_RISK_USD",10.0)
+TIMEOUT_HOURS=_f("GT_TIMEOUT_HOURS",24)
+COOLDOWN_HOURS=_f("GT_COOLDOWN_HOURS",4)
+MAX_OPEN=_i("GT_MAX_OPEN",5)
+STATE_DIR=os.getenv("GT_STATE_DIR","/app/.gate-trader-state")
+DB_PATH=os.getenv("GT_DB",os.path.join(STATE_DIR,"gate_trader.db"))
+SCAN_DELAY_SEC=_i("GT_SCAN_DELAY_SEC",20)
+TRACK_EVERY_SEC=_i("GT_TRACK_EVERY_SEC",60)
+DAILY_SUMMARY_UTC_HOUR=_i("GT_SUMMARY_UTC_HOUR",18)
+WORKERS=_i("GT_WORKERS",4)
+SEND_SIGNALS=os.getenv("GT_SEND_SIGNALS","1")!="0"
