@@ -2675,6 +2675,7 @@ def main():
                     watch_rows.append(a)
                 if len(watch_rows) >= 5:
                     break
+            watch_rows = [a for a in watch_rows if con.execute('SELECT 1 FROM watch_451_observations WHERE scan_time_utc=? AND symbol=? AND direction=?', (ts, a.symbol, a.payload['direction_engine']['direction'])).fetchone()]
             watch_msg = format_watch_digest(watch_rows)
             if watch_msg:
                 try:
