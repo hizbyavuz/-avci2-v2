@@ -66,3 +66,54 @@ def record_observations(db_path, ts, analyses):
                 con.execute("INSERT INTO watch_451_labels VALUES (?,?,?,?,?,?,?)",
                             (sig_time, symbol, direction, horizon, ts, current[symbol], ret))
         con.commit()
+
+
+def pending_symbols(db_path, now_utc, max_age_hours=8):
+    """Return unresolved symbols, even if omitted from current deep scans."""
+    with sqlite3.connect(db_path) as con:
+        try:
+            rows = con.execute(
+                """SELECT o.scan_time_utc,o.symbol,o.direction
+                   FROM watch_451_observations o
+                   WHERE NOT EXISTS (
+                     SELECT 1 FROM watch_451_labels l
+                     WHERE l.signal_time_utc=o.scan_time_utc
+                       AND l.symbol=o.symbol AND l.direction=o.direction
+                       AND l.horizon_minutes=240
+                   )"""
+            ).fetchall()
+        except sqlite3.OperationalError:
+            return []
+    symbols = set()
+    for ts, symbol, direction in rows:
+        age = (_time(now_utc)-_time(ts)).total_seconds()/3600
+        if 0 <= age <= max_age_hours:
+            symbols.add(symbol)
+    return sorted(symbols)
+
+
+def backfill_pending(db_path, now_utc, price_fetcher, max_symbols=20):
+    """Use an independent verified price fetcher for symbols no longer scanned.
+
+    price_fetcher(symbol) -> (price, observed_utc) or None.
+    No extrapolation: the actual quote timestamp is used for horizon labels.
+    """
+    symbols = pending_symbols(db_path, now_utc)[:max_symbols]
+    snapshots = {}
+    for symbol in symbols:
+        try:
+            quote = price_fetcher(symbol)
+            if not quote:
+                continue
+            price, quote_time = quote
+            if (not isinstance(price, (int,float)) or price <= 0
+                    or _time(quote_time) > _time(now_utc)):
+                continue
+            snapshots.setdefault(quote_time, []).append(
+                type("Snapshot", (), {"symbol":symbol, "price":price, "payload":{}})()
+            )
+        except Exception:
+            continue
+    for quote_time, analyses in sorted(snapshots.items()):
+        record_observations(db_path, quote_time, analyses)
+    return len(snapshots)
