@@ -57,25 +57,18 @@ def outcome(row, status: str, exit_price: float, pnl: float, totals: dict) -> st
 
 
 def summary(title: str, s: dict, scans: int | None = None) -> str:
-    if s["n"] == 0:
-        body = ["Henüz sonuçlanmış işlem yok."]
+    lines = [f"📊 {title.upper()} | SİSTEM DURUMU"]
+    if scans is not None:
+        lines.append(f"🔎 Son 24 saat tarama: {scans}")
+    lines.append(f"📌 Açık işlem: {s['open']}")
+    if not s["n"]:
+        lines.append("⏳ Henüz sonuçlanan işlem yok.")
     else:
         wr = s["wins"] / s["n"] * 100
-        pf = f"{s['pf']:.2f}" if s["pf"] is not None else "∞"
-        body = [
-            f"İşlem: {s['n']}  (hedef {s['tp']} / stop {s['sl']} / süre {s['timeout']})",
-            f"Kazanma oranı: %{wr:.0f}",
-            f"Net sonuç: {s['pnl']:+.2f}$  ({C.RISK_USD:.0f}$ risk/işlem)",
-            f"Kâr faktörü: {pf}  (1'in üstü = kazandırıyor)",
-        ]
-        for side in ("LONG", "SHORT"):
-            b = s["by_side"][side]
-            if b["n"]:
-                body.append(f"  {side}: {b['n']} işlem, {b['pnl']:+.2f}$")
-    body.append(f"Açık işlem: {s['open']}")
-    if scans is not None:
-        body.append(f"Bugünkü tarama: {scans}")
-    return "\n".join([f"📒 {title}", ""] + body)
+        lines.append(f"✅ Sonuçlanan: {s['n']} | Kazanan: {s['wins']} (%{wr:.0f})")
+        lines.append(f"🎯 Hedef: {s['tp']} | 🛑 Stop: {s['sl']} | ⏱ Süre: {s['timeout']}")
+        lines.append(f"💰 Tahmini net sonuç: {s['pnl']:+.2f}$ (sanal takip)")
+    return "\n".join(lines)
 
 
 def reasons_of(row) -> list[str]:
