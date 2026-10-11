@@ -62,9 +62,9 @@ class OutcomeTests(unittest.TestCase):
 
     def test_pending_symbol_backfill_after_deep_scan_omission(self):
         record_observations(self.db, "2026-10-11T10:00:00+00:00", [analysis()])
-        self.assertEqual(pending_symbols(self.db, "2026-10-11T10:30:00+00:00"), ["ETHUSDT"])
-        backfill_pending(self.db, "2026-10-11T10:30:00+00:00",
-                         lambda symbol: (106, "2026-10-11T10:30:00+00:00"))
+        self.assertEqual(pending_symbols(self.db, "2026-10-11T10:20:00+00:00"), ["ETHUSDT"])
+        backfill_pending(self.db, "2026-10-11T10:20:00+00:00",
+                         lambda symbol: (106, "2026-10-11T10:20:00+00:00"))
         labels = self.rows("watch_451_labels")
         self.assertEqual(len(labels), 1)
         self.assertEqual(labels[0][3], 15)
