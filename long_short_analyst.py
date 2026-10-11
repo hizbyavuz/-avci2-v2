@@ -2648,12 +2648,14 @@ def main():
     except Exception as exc:
         print("OPPORTUNITY_FUNNEL_ERROR",type(exc).__name__,str(exc)[:160],flush=True)
     save_scan(ts,regime,len(uni),results)
+    watch_451_recorded = False
     try:
         record_observations(DB, ts, results)
+        watch_451_recorded = True
         backfill_pending(DB, now_iso(), lambda symbol: closed_quote(symbol, now_iso(), fetch_klines))
     except Exception as exc:
         print('WATCH_451_OUTCOME_ERROR', type(exc).__name__, str(exc)[:160], flush=True)
-    if os.getenv('LS_451_WATCH_TELEGRAM', '0') == '1':
+    if watch_451_recorded and os.getenv('LS_451_WATCH_TELEGRAM', '0') == '1':
         # Deduplicate each symbol+direction, not a changing batch digest.
         # Reserve rows before sending to avoid concurrent duplicate alerts.
         cooldown = max(300, int(os.getenv('LS_451_WATCH_COOLDOWN_SECONDS', '7200')))
