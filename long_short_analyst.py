@@ -2660,6 +2660,7 @@ def main():
         # Notices are recorded after Telegram confirms delivery; concurrent workers require a separate lock.
         cooldown = max(300, int(os.getenv('LS_451_WATCH_COOLDOWN_SECONDS', '7200')))
         with sqlite3.connect(DB, timeout=15) as con:
+            con.execute('BEGIN IMMEDIATE')
             con.execute('CREATE TABLE IF NOT EXISTS watch_451_symbol_notices (symbol TEXT NOT NULL, direction TEXT NOT NULL, sent_at_utc TEXT NOT NULL, PRIMARY KEY(symbol,direction))')
             watch_rows = []
             for a in results:
