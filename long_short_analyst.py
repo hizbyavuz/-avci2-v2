@@ -26,7 +26,8 @@ from long_short_data_router import multi_venue_derivatives, multi_venue_perp_uni
 from long_short_v3_core import V3_VERSION, discovery_rank as v3_discovery_rank, beta_residual_3h, decide_setup as v3_decide_setup
 from long_short_direction_engine import DIRECTION_ENGINE_VERSION, decide_direction as production_decide_direction
 from long_short_451_watch_digest import format_watch_digest
-from long_short_451_outcomes import record_observations
+from long_short_451_outcomes import record_observations, backfill_pending
+from long_short_451_price_source import closed_quote
 from long_short_room_v32_shadow import from_analyst_snapshots as v32_room_shadow
 from long_short_dual_v32 import build_both_sides as build_v32_dual_scenarios
 
@@ -2649,6 +2650,7 @@ def main():
     save_scan(ts,regime,len(uni),results)
     try:
         record_observations(DB, ts, results)
+        backfill_pending(DB, now_iso(), lambda symbol: closed_quote(symbol, now_iso(), fetch_klines))
     except Exception as exc:
         print('WATCH_451_OUTCOME_ERROR', type(exc).__name__, str(exc)[:160], flush=True)
     if os.getenv('LS_451_WATCH_TELEGRAM', '0') == '1':
