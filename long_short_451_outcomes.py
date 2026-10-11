@@ -72,6 +72,20 @@ def record_observations(db_path, ts, analyses):
                     ret = -ret
                 con.execute("INSERT INTO watch_451_labels VALUES (?,?,?,?,?,?,?)",
                             (sig_time, symbol, direction, horizon, ts, current[symbol], ret))
+        con.execute("""CREATE TABLE IF NOT EXISTS watch_451_quality (
+            signal_time_utc TEXT NOT NULL, symbol TEXT NOT NULL,
+            direction TEXT NOT NULL, status TEXT NOT NULL,
+            reason TEXT NOT NULL,
+            PRIMARY KEY(signal_time_utc,symbol,direction))""")
+        # The current analyst candle router can mix venues and instrument types.
+        # Preserve research outcomes, but do not mark them comparable/executable.
+        con.executemany(
+            "INSERT OR IGNORE INTO watch_451_quality VALUES (?,?,?,?,?)",
+            [(sig, sym, direction, "PROVISIONAL", "ENTRY_EXIT_VENUE_NOT_VERIFIED")
+             for sig, sym, direction in con.execute(
+                 "SELECT scan_time_utc,symbol,direction FROM watch_451_observations"
+             ).fetchall()]
+        )
         con.commit()
 
 
