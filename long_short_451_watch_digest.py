@@ -25,8 +25,8 @@ def format_watch_digest(analyses, limit=5):
     if not rows:
         return None
     lines = [
-        "🟡 İZLEME — TÜREV TEYİDİ EKSİK",
-        "⚠️ Futures verisi eksik. İşlem teyidi DEĞİL; otomatik emir YOK.",
+        "🟡 LONG/SHORT İZLEME ÖNERİLERİ",
+        "⚠️ Binance Futures 451: Bazı türev verileri doğrulanamadı. İşlem teyidi değildir.",
     ]
     for symbol, direction, price in rows:
         lines.append(f"{symbol} | {direction} eğilimi | fiyat: {price:g}")
