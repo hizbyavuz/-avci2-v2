@@ -34,7 +34,7 @@ def gate_usdt_perpetual_universe(min_quote_volume=MIN_QUOTE_VOLUME_USDT):
         name = c.get("name", "")
         if not isinstance(name, str) or not name.endswith("_USDT"):
             continue
-        if c.get("in_delisting") or c.get("enable_bonus") or c.get("type") == "inverse":
+        if c.get("in_delisting") or c.get("type") == "inverse":
             rejected["inactive"] += 1
             continue
         t = by_name.get(name)
