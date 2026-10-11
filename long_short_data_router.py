@@ -961,4 +961,4 @@ if __name__ == "__main__":
         output = multi_venue_derivatives(sym)
     else:
         raise SystemExit("mode must be derivatives, bybit-paper, gate-paper, gate-derivatives or gate-batch")
-    print(json.dumps(output, ensure_ascii=False, indent=2))
+    print(json.dumps(output, ensure_ascii=False, indent=None if mode == "gate-batch" else 2))
