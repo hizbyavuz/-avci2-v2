@@ -150,6 +150,22 @@ def main():
     research=next((x for x in result["databases"] if x.get("file")=="long_short_research.db"),{})
     live=next((x for x in result["databases"] if x.get("file")=="long_short_live_pool.db"),{})
     result["signal_health"]={"native_primary_events":research.get("primary_count",0),"triggered_events":live.get("triggered_count",0),"triggered_delivered":live.get("triggered_delivered",0),"assessment":"NO_NATIVE_PRIMARY_EVIDENCE" if not research.get("primary_count",0) else "REVIEW_PRIMARY_STATISTICS"}
+    analyst=next((x for x in result["databases"] if x.get("file")=="long_short_analyst.db"),{})
+    reversal=next((x for x in result["databases"] if x.get("file")=="long_short_reversal_live.db"),{})
+    summary={
+        "utc":result["utc"],
+        "scan_time":analyst.get("latest_scan_time_utc"),
+        "scanned":analyst.get("latest_scan_sample_size"),
+        "statuses":analyst.get("latest_scan_status_counts",{}),
+        "first_admission_blockers":analyst.get("latest_scan_first_admission_gate",{}),
+        "actionable_precheck_failures":analyst.get("actionable_rejection_indicators",{}),
+        "live_funnel":live.get("stage_funnel",{}),
+        "live_confirmed_outcomes":live.get("tables",{}).get("confirmed_trade_outcomes",0),
+        "reversal_triggered":reversal.get("triggered_count",0),
+        "native_primary_events":research.get("primary_count",0),
+        "research_only":True,
+    }
+    print("LS_SIGNAL_FUNNEL_AUDIT "+json.dumps(summary,ensure_ascii=False,sort_keys=True))
     print("LS_AUDIT "+json.dumps(result,ensure_ascii=False,sort_keys=True))
     return 0 if result["databases"] and all(x.get("integrity")=="ok" for x in result["databases"]) else 2
 
