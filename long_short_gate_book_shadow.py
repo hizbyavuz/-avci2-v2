@@ -24,6 +24,12 @@ def _vwap(levels, multiplier, notional):
 
 def observe(symbol, notional_usdt=250.0, timeout=8):
     """Return a cost snapshot or an explicit unavailable reason; fail closed."""
+    try:
+        notional_usdt = float(notional_usdt)
+        if not math.isfinite(notional_usdt) or notional_usdt <= 0:
+            return {"available": False, "execution_verified": False, "reason": "invalid_notional"}
+    except (TypeError, ValueError, OverflowError):
+        return {"available": False, "execution_verified": False, "reason": "invalid_notional"}
     symbol = str(symbol).upper()
     if not symbol.endswith("USDT") or not symbol[:-4].isalnum():
         return {"available": False, "reason": "invalid_symbol"}
