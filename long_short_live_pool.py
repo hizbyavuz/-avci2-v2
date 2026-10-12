@@ -489,6 +489,11 @@ def load_watchlist():
                 deriv_source=str(p.get("derivatives_source") or p.get("data_mode") or "UNKNOWN")
                 provider=str(p.get("derivatives_selected_provider") or "")
                 quality=str(p.get("derivatives_quality") or "UNKNOWN")
+                # Binance-only production: reject cross-venue analyst candidates.
+                # Third-party vendors are acceptable only for Binance-specific
+                # instruments with explicit, verified provenance (not here).
+                if deriv_source!="BINANCE_FUTURES" or provider.upper().startswith(("BYBIT","GATE","OKX")):
+                    continue
                 if deriv_source=="BINANCE_FUTURES":
                     cohort="BINANCE_FUTURES_NATIVE"
                 elif provider=="BYBIT_LINEAR":
@@ -836,25 +841,10 @@ def market_snapshot(symbol):
         ticker=spot_get("/api/v3/ticker/price",{"symbol":symbol})
         stats=spot_get("/api/v3/ticker/24hr",{"symbol":symbol})
         price=float(ticker["price"])
-    except Exception:
-        # Futures-only listings can be absent from Binance Spot. Use the same
-        # public perpetual chart router as the analyst instead of silently losing
-        # the coin from the near-live watcher.
-        ext5=multi_venue_perp_klines(symbol,"5m",30)
-        ext1=multi_venue_perp_klines(symbol,"1m",30)
-        price_source=str(ext1.get("provider") or "UNKNOWN")
-        if price_source not in ("GATE_FUTURES","BYBIT_LINEAR") or ext5.get("provider")!=price_source:
-            raise RuntimeError(f"{symbol}: mixed live candle venues cannot qualify")
-        kl5=ext5.get("rows") or []
-        kl1=ext1.get("rows") or []
-        if len(kl5)<3 or len(kl1)<3:
-            raise RuntimeError(f"{symbol}: insufficient external live candles")
-        price=float(kl1[-1][4])
-        ps=_perp_stats(symbol)
-        stats={
-            "quoteVolume":str(float(ps.get("quote_volume") or 0.0)),
-            "priceChangePercent":str(float(ps.get("day_change_pct") or 0.0)),
-        }
+    except Exception as exc:
+        # Binance-only mode: never replace a missing Binance price with
+        # Bybit/Gate/OKX candles. Record the missing Binance feed instead.
+        raise RuntimeError(f"{symbol}: Binance price unavailable; cross-venue fallback disabled") from exc
     row=kl5[-2] if len(kl5)>=2 else kl5[-1]
     closed=float(row[4])
     close_ms=int(row[6])
