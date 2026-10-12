@@ -2094,6 +2094,20 @@ def loop_once():
                             event_payload["_telegram_delivery_policy"]=delivery_guard
                         if suppression_reason:
                             event_payload["_telegram_suppression_reason"]=suppression_reason
+                        if msg and new in ("CLOSE_CONFIRMED","TRIGGERED"):
+                            # Recheck at actual send time: DB writes or analysis
+                            # can delay an otherwise timely stage transition.
+                            send_guard=telegram_integrity_policy(
+                                new,now_iso(),closed_candle_time,prior_visible=prior_seen)
+                            if not send_guard["allowed"]:
+                                suppression_reason=send_guard["reason"]
+                                delivery_guard=send_guard
+                                event_payload["_telegram_delivery_policy"]=send_guard
+                                event_payload["_telegram_suppression_reason"]=suppression_reason
+                                telegram_status="SUPPRESSED"
+                                msg=None
+                                print("TELEGRAM_SUPPRESSED_AT_SEND",row["symbol"],
+                                      new,suppression_reason,flush=True)
                         if msg:
                             print(msg)
                             try:
