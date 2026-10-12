@@ -155,6 +155,15 @@ def binance_four_factor_confirmation_gate(symbol, now_epoch=None):
         if int(row[1])!=1:
             return {"qualified":False,"reason":"binance_four_factor_incomplete",
                     "missing":json.loads(row[2] or "[]"),"age_seconds":age}
+        # Recheck the live websocket window at trigger time. An earlier
+        # healthy audit cannot certify a subsequently interrupted session.
+        from long_short_taker_continuous_shadow import window as taker_window
+        state_root=os.getenv("LS_STATE_DIR") or os.getenv("RAILWAY_VOLUME_MOUNT_PATH") or os.path.dirname(os.path.abspath(ANALYST_DB))
+        current=taker_window(os.path.join(state_root,"long_short_taker_minute_shadow.db"),symbol)
+        if not current.get("ready"):
+            return {"qualified":False,"reason":"binance_taker_window_not_ready",
+                    "missing_minutes":current.get("missing_minutes"),
+                    "session_valid":current.get("session_valid")}
         return {"qualified":True,"reason":"binance_four_factor_ready","age_seconds":age}
     except (sqlite3.Error,OSError,ValueError,TypeError) as exc:
         return {"qualified":False,"reason":"binance_four_factor_unavailable",
