@@ -320,6 +320,48 @@ def parse_klines(rows):
     }
 
 
+def native_futures_shadow_klines(symbol, interval, limit):
+    """Read only contiguous, closed Binance Futures candles from the existing recorder.
+
+    Never blend spot and futures candles or invent unavailable taker/trade fields.
+    """
+    if interval not in ("1m", "5m"):
+        return None
+    root = os.getenv("LS_STATE_DIR") or os.getenv("RAILWAY_VOLUME_MOUNT_PATH") or ".long-short-state"
+    db = os.path.join(root, "binance_futures_kline_shadow.db")
+    if not os.path.isfile(db):
+        return None
+    period_ms = {"1m": 60000, "5m": 300000}[interval]
+    now_ms = int(time.time() * 1000)
+    try:
+        conn = sqlite3.connect("file:" + db + "?mode=ro", uri=True, timeout=3)
+        try:
+            rows = conn.execute(
+                """SELECT open_ms, close_ms, open, high, low, close, volume, source, quote_volume, trade_count, taker_buy_quote
+                   FROM futures_closed_klines
+                   WHERE symbol=? AND interval=? ORDER BY open_ms DESC LIMIT ?""",
+                (symbol, interval, limit)
+            ).fetchall()
+        finally:
+            conn.close()
+    except (sqlite3.Error, OSError) as exc:
+        print("FUTURES_SHADOW_READ_ERROR " + type(exc).__name__, flush=True)
+        return None
+    if len(rows) < limit:
+        return None
+    rows.reverse()
+    if rows[-1][1] > now_ms - 250 or now_ms - rows[-1][1] > period_ms * 2:
+        return None
+    if any(r[7] != "BINANCE_UM_FUTURES_WEBSOCKET" or any(v is None for v in r[8:11]) for r in rows):
+        return None
+    if any(b[0] - a[0] != period_ms for a, b in zip(rows, rows[1:])):
+        return None
+    result = []
+    for start, end, op, hi, lo, cl, vol, _, quote_vol, trades, taker_quote in rows:
+        result.append([start, op, hi, lo, cl, vol, end, quote_vol, trades, None, taker_quote])
+    return result
+
+
 def fetch_klines(symbol, interval, limit=220):
     """Return CLOSED candles only, with a public perpetual fallback.
 
@@ -328,6 +370,10 @@ def fetch_klines(symbol, interval, limit=220):
     Spot history is too short), use Bybit/Gate USDT-perpetual candles for chart
     discovery instead of silently dropping the coin from the scanner.
     """
+    shadow = native_futures_shadow_klines(symbol, interval, limit)
+    if shadow is not None:
+        print(f"FUTURES_SHADOW_USED symbol={symbol} interval={interval} bars={len(shadow)}", flush=True)
+        return parse_klines(shadow)
     rows=None
     primary_error=None
     try:
