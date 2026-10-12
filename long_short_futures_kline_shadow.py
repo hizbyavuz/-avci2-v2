@@ -28,7 +28,7 @@ def parse_closed_kline(packet):
     values = tuple(float(bar[key]) for key in ("o", "h", "l", "c", "v"))
     if start <= 0 or end <= start or min(values[:4]) <= 0 or values[4] < 0:
         return None
-    return (symbol, interval, start, end, *values, SOURCE, int(time.time() * 1000))
+    return (symbol, interval, start, end, *values, SOURCE, int(time.time() * 1000), float(bar["q"]), int(bar["n"]), float(bar["Q"]))
 
 
 def initialize(db):
@@ -42,14 +42,18 @@ def initialize(db):
         source TEXT NOT NULL, received_ms INTEGER NOT NULL,
         PRIMARY KEY(symbol,interval,open_ms)
     )""")
+    columns = {r[1] for r in conn.execute("PRAGMA table_info(futures_closed_klines)")}
+    for name, dtype in (("quote_volume", "REAL"), ("trade_count", "INTEGER"), ("taker_buy_quote", "REAL")):
+        if name not in columns:
+            conn.execute(f"ALTER TABLE futures_closed_klines ADD COLUMN {name} {dtype}")
     conn.commit()
     return conn
 
 
 def store(conn, row):
     conn.execute("""INSERT OR REPLACE INTO futures_closed_klines
-        (symbol,interval,open_ms,close_ms,open,high,low,close,volume,source,received_ms)
-        VALUES(?,?,?,?,?,?,?,?,?,?,?)""", row)
+        (symbol,interval,open_ms,close_ms,open,high,low,close,volume,source,received_ms,quote_volume,trade_count,taker_buy_quote)
+        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", row)
     conn.commit()
 
 
