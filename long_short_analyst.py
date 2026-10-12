@@ -337,7 +337,7 @@ def native_futures_shadow_klines(symbol, interval, limit):
         conn = sqlite3.connect("file:" + db + "?mode=ro", uri=True, timeout=3)
         try:
             rows = conn.execute(
-                """SELECT open_ms, close_ms, open, high, low, close, volume, source
+                """SELECT open_ms, close_ms, open, high, low, close, volume, source, quote_volume, trade_count, taker_buy_quote
                    FROM futures_closed_klines
                    WHERE symbol=? AND interval=? ORDER BY open_ms DESC LIMIT ?""",
                 (symbol, interval, limit)
@@ -352,15 +352,13 @@ def native_futures_shadow_klines(symbol, interval, limit):
     rows.reverse()
     if rows[-1][1] > now_ms - 250 or now_ms - rows[-1][1] > period_ms * 2:
         return None
-    if any(r[7] != "BINANCE_UM_FUTURES_WEBSOCKET" for r in rows):
+    if any(r[7] != "BINANCE_UM_FUTURES_WEBSOCKET" or any(v is None for v in r[8:11]) for r in rows):
         return None
     if any(b[0] - a[0] != period_ms for a, b in zip(rows, rows[1:])):
         return None
     result = []
-    for start, end, op, hi, lo, cl, vol, _ in rows:
-        # Recorder has base volume, not quote volume or native trade/taker counts.
-        # Preserve unknown fields as None rather than fabricating observations.
-        result.append([start, op, hi, lo, cl, vol, end, vol * cl, None, None, None])
+    for start, end, op, hi, lo, cl, vol, _, quote_vol, trades, taker_quote in rows:
+        result.append([start, op, hi, lo, cl, vol, end, quote_vol, trades, None, taker_quote])
     return result
 
 
