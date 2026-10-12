@@ -99,6 +99,36 @@ def _book_vwap_quote(levels,quote_notional):
     return spent/base_qty
 
 
+def _futures_ws_depth(symbol):
+    """Official USD-M Futures WebSocket API depth snapshot; never use spot data."""
+    import websocket
+    import uuid
+    if not isinstance(symbol,str) or not symbol.endswith("USDT") or not symbol.replace("_","").isalnum():
+        raise ValueError("invalid_futures_symbol")
+    ws=websocket.create_connection(
+        "wss://ws-fapi.binance.com/ws-fapi/v1",
+        timeout=5,
+        enable_multithread=True,
+    )
+    try:
+        request_id=uuid.uuid4().hex
+        ws.send(json.dumps({"id":request_id,"method":"depth",
+                            "params":{"symbol":symbol,"limit":100}}))
+        for _ in range(3):
+            msg=json.loads(ws.recv())
+            if msg.get("id")!=request_id:
+                continue
+            if msg.get("status")!=200 or not isinstance(msg.get("result"),dict):
+                raise ValueError("futures_ws_depth_rejected")
+            book=msg["result"]
+            if not book.get("bids") or not book.get("asks"):
+                raise ValueError("futures_ws_depth_empty")
+            return book
+        raise ValueError("futures_ws_depth_no_matching_response")
+    finally:
+        ws.close()
+
+
 def trigger_execution_proxy(symbol):
     """Capture one execution-cost snapshot after a TRIGGERED alert is sent."""
     source="BINANCE_FUTURES_BOOK"
@@ -112,8 +142,12 @@ def trigger_execution_proxy(symbol):
         r.raise_for_status()
         book=r.json()
     except Exception:
-        source="BINANCE_SPOT_BOOK_PROXY"
-        book=spot_get("/api/v3/depth",{"symbol":symbol,"limit":100})
+        try:
+            book=_futures_ws_depth(symbol)
+            source="BINANCE_FUTURES_BOOK"
+        except Exception:
+            source="BINANCE_SPOT_BOOK_PROXY"
+            book=spot_get("/api/v3/depth",{"symbol":symbol,"limit":100})
 
     bids=book.get("bids",[]) or []
     asks=book.get("asks",[]) or []
