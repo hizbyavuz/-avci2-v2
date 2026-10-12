@@ -833,6 +833,42 @@ def _perp_stats(symbol):
     return (_PERP_STATS_CACHE.get("rows") or {}).get(symbol) or {}
 
 
+def native_futures_closed_bars(symbol, interval, count, max_age_seconds):
+    """Read authentic closed USD-M bars, fail closed on gaps or stale data.
+
+    This is a read-only integration primitive, not an execution approval.
+    """
+    db = os.getenv("LS_FUTURES_KLINE_DB") or os.path.join(
+        os.getenv("LS_STATE_DIR") or os.getenv("RAILWAY_VOLUME_MOUNT_PATH") or ".long-short-state",
+        "binance_futures_kline_shadow.db")
+    if interval not in ("1m", "5m") or count < 2:
+        raise ValueError("unsupported futures candle request")
+    step = {"1m": 60000, "5m": 300000}[interval]
+    with sqlite3.connect(f"file:{os.path.abspath(db)}?mode=ro", uri=True, timeout=3) as con:
+        bars = con.execute("""SELECT open_ms,open,high,low,close,volume,close_ms,
+                          quote_volume,trade_count,taker_buy_quote,source
+                          FROM futures_closed_klines
+                          WHERE symbol=? AND interval=? ORDER BY open_ms DESC LIMIT ?""",
+                          (symbol.upper(), interval, count)).fetchall()
+    bars.reverse()
+    if len(bars) != count:
+        raise RuntimeError("FUTURES_CANDLES_INSUFFICIENT")
+    now_ms = int(time.time()*1000)
+    if not (0 <= now_ms - int(bars[-1][6]) <= max_age_seconds*1000):
+        raise RuntimeError("FUTURES_CANDLES_STALE")
+    if any(int(b[0])-int(a[0]) != step for a,b in zip(bars,bars[1:])):
+        raise RuntimeError("FUTURES_CANDLES_GAPPED")
+    allowed = {"BINANCE_UM_FUTURES_WEBSOCKET",
+               "BINANCE_UM_FUTURES_ARCHIVE","BINANCE_UM_FUTURES_REST"}
+    for b in bars:
+        if b[10] not in allowed or any(v is None or not math.isfinite(float(v))
+                                           for v in b[:10]):
+            raise RuntimeError("FUTURES_CANDLES_UNVERIFIED")
+        if float(b[2]) < max(float(b[1]),float(b[4])) or float(b[3]) > min(float(b[1]),float(b[4])):
+            raise RuntimeError("FUTURES_CANDLES_BAD_OHLC")
+    return bars
+
+
 def market_snapshot(symbol):
     # 1m data lets the observational layer see a breakout while it is forming.
     # The frozen continuation engine still uses the last completed 5m close below.
