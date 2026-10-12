@@ -4,6 +4,7 @@ No orders, no Telegram, no fallback to other exchanges. Closed candles only.
 Run separately before considering production integration.
 """
 import json
+import os
 import sqlite3
 import time
 
@@ -57,6 +58,7 @@ def collect(db, symbols, seconds=90):
     symbols = sorted({s.upper() for s in symbols if s.upper().endswith("USDT")})[:24]
     if not symbols:
         raise ValueError("No Binance USDT symbols")
+    os.makedirs(os.path.dirname(os.path.abspath(db)), exist_ok=True)
     conn = initialize(db)
     ws = None
     count = 0
@@ -81,3 +83,21 @@ def collect(db, symbols, seconds=90):
         if ws:
             ws.close()
         conn.close()
+
+
+def main():
+    """Optional one-shot Railway probe; never starts with production daemon."""
+    from long_short_v4_native_pipeline import choose_symbols
+    root = os.getenv("LS_STATE_DIR") or os.getenv("RAILWAY_VOLUME_MOUNT_PATH") or ".long-short-state"
+    analyst_db = os.getenv("LS_ANALYST_DB") or os.path.join(root, "long_short_analyst.db")
+    symbols = choose_symbols("", analyst_db=analyst_db, limit=12)
+    if not symbols:
+        print("FUTURES_KLINE_SHADOW_NO_SYMBOLS", flush=True)
+        return 2
+    result = collect(os.path.join(root, "binance_futures_kline_shadow.db"), symbols, seconds=95)
+    print("FUTURES_KLINE_SHADOW_RESULT " + json.dumps(result), flush=True)
+    return 0 if result["closed_bars"] > 0 else 3
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
