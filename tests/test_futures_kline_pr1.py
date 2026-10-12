@@ -31,6 +31,18 @@ class NativeFuturesKlineTests(unittest.TestCase):
             finally:
                 con.close()
 
+    def test_nonfinite_price_rejected(self):
+        self.bar["c"] = "NaN"
+        self.assertIsNone(parse_closed_kline({"e": "kline", "s": "BTCUSDT", "k": self.bar}))
+
+    def test_inconsistent_high_rejected(self):
+        self.bar["h"] = "100"
+        self.assertIsNone(parse_closed_kline({"e": "kline", "s": "BTCUSDT", "k": self.bar}))
+
+    def test_taker_exceeding_quote_volume_rejected(self):
+        self.bar["Q"] = "999"
+        self.assertIsNone(parse_closed_kline({"e": "kline", "s": "BTCUSDT", "k": self.bar}))
+
     def test_non_usdt_symbol_is_rejected(self):
         self.bar["s"] = "BTCUSD"
         self.assertIsNone(parse_closed_kline({"e": "kline", "s": "BTCUSD", "k": self.bar}))
