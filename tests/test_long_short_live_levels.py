@@ -23,9 +23,9 @@ class LiveLevelConsistencyTests(unittest.TestCase):
                     )""")
                     payload={
                         "derivatives_ready":True,
-                        "derivatives_source":"MULTI_VENUE_PUBLIC",
-                        "derivatives_selected_provider":"GATE_FUTURES",
-                        "derivatives_quality":"FULL",
+                        "derivatives_source":"BINANCE_FUTURES",
+                        "derivatives_selected_provider":"BINANCE",
+                        "derivatives_quality":"NATIVE",
                         "day_change_pct":1.0,
                         "setup_plan":{
                             "direction":"LONG",
