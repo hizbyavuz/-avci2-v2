@@ -57,6 +57,7 @@ def collect(db,symbols,stop,rotation_seconds=300):
     connected_at=None
     events_received=0
     last_heartbeat=time.monotonic()
+    last_log=time.monotonic()
     last_event=time.monotonic()
     try:
         initialize(conn)
@@ -104,7 +105,8 @@ def collect(db,symbols,stop,rotation_seconds=300):
                                  "events_received":events_received})))
                 conn.commit()
                 last_heartbeat=time.monotonic()
-            if events_received and events_received%10000==0:
+            if time.monotonic()-last_log>=60:
+                last_log=time.monotonic()
                 print("BINANCE_TAKER_SHADOW_HEARTBEAT "+json.dumps({
                     "state":state,"symbols":len(symbols),
                     "events_received":events_received,"dropped":dropped,
