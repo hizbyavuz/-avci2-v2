@@ -325,13 +325,13 @@ def native_futures_shadow_klines(symbol, interval, limit):
 
     Never blend spot and futures candles or invent unavailable taker/trade fields.
     """
-    if interval not in ("1m", "5m"):
+    if interval not in ("1m", "5m", "15m", "30m", "1h", "4h"):
         return None
     root = os.getenv("LS_STATE_DIR") or os.getenv("RAILWAY_VOLUME_MOUNT_PATH") or ".long-short-state"
     db = os.path.join(root, "binance_futures_kline_shadow.db")
     if not os.path.isfile(db):
         return None
-    period_ms = {"1m": 60000, "5m": 300000}[interval]
+    period_ms = {"1m": 60000, "5m": 300000, "15m": 900000, "30m": 1800000, "1h": 3600000, "4h": 14400000}[interval]
     now_ms = int(time.time() * 1000)
     try:
         conn = sqlite3.connect("file:" + db + "?mode=ro", uri=True, timeout=3)
