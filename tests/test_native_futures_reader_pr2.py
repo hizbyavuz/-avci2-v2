@@ -109,6 +109,18 @@ class NativeFuturesReaderTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError,"INSUFFICIENT"):
             self.read()
 
+    def test_invalid_taker_volume_rejected(self):
+        with sqlite3.connect(self.db) as con:
+            con.execute("UPDATE futures_closed_klines SET taker_buy_quote=quote_volume*2")
+        with self.assertRaisesRegex(RuntimeError,"INVALID_VOLUME_OR_PRICE"):
+            self.read()
+
+    def test_negative_quote_volume_rejected(self):
+        with sqlite3.connect(self.db) as con:
+            con.execute("UPDATE futures_closed_klines SET quote_volume=-1")
+        with self.assertRaisesRegex(RuntimeError,"INVALID_VOLUME_OR_PRICE"):
+            self.read()
+
     def test_spot_source_rejected(self):
         with sqlite3.connect(self.db) as con:
             con.execute("UPDATE futures_closed_klines SET source='BINANCE_SPOT'")
