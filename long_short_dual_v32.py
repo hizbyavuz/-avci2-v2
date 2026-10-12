@@ -72,8 +72,8 @@ def build_both_sides(*,symbol,price,k5,t15,chart,build_breakout,build_pullback,
         geom_ok=(ordered and bool(g.get("qualified_precheck"))
                  and float(g.get("room_pct") or 0)>=required_room_pct
                  and exact_net_r is not None and exact_net_r>=min_net_r)
-        base_data=bool(derivatives_ready and liquidity_ok and not external_only
-                       and float(atr_pct)<4.0 and source not in ("UNKNOWN","DERIVATIVES_INCOMPLETE"))
+        base_data=bool(liquidity_ok and not external_only
+                       and float(atr_pct)<4.0)
         # The opposite side remains monitored even when the V3.1 model
         # currently favors the other side; it cannot send a trade signal.
         eligible=bool(direction==preferred_direction and analyst_eligible and geom_ok and base_data)
