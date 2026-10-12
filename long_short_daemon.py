@@ -357,6 +357,28 @@ def main() -> int:
 
     threading.Thread(target=coinalyze_shadow_check, name="coinalyze-shadow", daemon=True).start()
 
+    # Funding shadow: two Binance-only symbols; no scoring, orders or DB writes.
+    def coinalyze_funding_shadow():
+        try:
+            from long_short_coinalyze_funding_probe import funding_snapshot
+            for symbol in ("BTCUSDT", "ETHUSDT"):
+                try:
+                    result = funding_snapshot(symbol)
+                    safe = {
+                        "symbol": symbol,
+                        "source": result.get("source"),
+                        "funding_fresh": result.get("funding_fresh", False),
+                        "funding_available": result.get("funding_pct") is not None,
+                        "age_seconds": result.get("funding_age_seconds"),
+                    }
+                    print("[daemon] COINALYZE_FUNDING_SHADOW " + json.dumps(safe), flush=True)
+                except Exception as exc:
+                    print("[daemon] COINALYZE_FUNDING_SHADOW_FAILED " + symbol + " " + type(exc).__name__, flush=True)
+        except Exception as exc:
+            print("[daemon] COINALYZE_FUNDING_SHADOW_FAILED " + type(exc).__name__, flush=True)
+
+    threading.Thread(target=coinalyze_funding_shadow, name="coinalyze-funding-shadow", daemon=True).start()
+
     # One initial analyst pass gives both live watchers a fresh plan before they
     # start. Failure is not fatal; the analyst loop will keep retrying.
     initial_rc = run_child("analyst_initial", "long_short_analyst.py")
