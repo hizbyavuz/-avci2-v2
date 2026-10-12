@@ -68,7 +68,7 @@ def streams_for(symbols):
     for s in symbols:
         x=s.lower()
         market.extend([x+"@kline_1m",x+"@kline_5m",x+"@aggTrade"])
-        public.append(x+"@bookTicker")
+        public.extend([x+"@bookTicker",x+"@depth20@500ms"])
     return market,public
 
 def initialize(c):
