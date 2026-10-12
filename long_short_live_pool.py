@@ -910,6 +910,27 @@ def futures_24h_closed_stats(symbol):
             "rolling_ticker":False}
 
 
+def futures_signal_authorization(early, execution_check):
+    """Fail-closed authorization for experimental Futures observation.
+
+    Keep venue checks independent of book quality and four-factor checks.
+    Never turn a closed-candle or book-mid observation into trade approval.
+    """
+    result=dict(execution_check)
+    if str(early.get("live_price_source") or "") != "BINANCE_FUTURES":
+        return {"qualified":False,"reason":"live_price_venue_mismatch",
+                "live_price_source":str(early.get("live_price_source") or "UNKNOWN"),
+                "required_source":"BINANCE_FUTURES",
+                "prior_execution_check":result}
+    if early.get("native_futures_observation_only"):
+        return {"qualified":False,"reason":"native_futures_observation_only",
+                "prior_execution_check":result}
+    if not early.get("rolling_24h_stats_verified",False):
+        return {"qualified":False,"reason":"futures_24h_stats_unverified",
+                "prior_execution_check":result}
+    return result
+
+
 def futures_market_snapshot(symbol):
     """Read-only Binance USD-M candle + executable-book snapshot.
 
@@ -1876,17 +1897,7 @@ def loop_once():
                                 except Exception as exc:
                                     trigger_proxy={"available":False,"error":type(exc).__name__+":"+str(exc)[:120]}
                                 execution_check=live_execution_gate(row,price,trigger_proxy)
-                                # The live snapshot currently comes from Binance SPOT.
-                                # Never approve a FUTURES entry from mixed-venue
-                                # price/structure even if the futures book is valid.
-                                if early.get("native_futures_observation_only") or not early.get("rolling_24h_stats_verified", True):
-                                    execution_check={"qualified":False,"reason":"native_futures_observation_only_missing_24h_stats"}
-                                if str(early.get("live_price_source") or "") != "BINANCE_FUTURES":
-                                    execution_check={"qualified":False,
-                                        "reason":"live_price_venue_mismatch",
-                                        "live_price_source":str(early.get("live_price_source") or "UNKNOWN"),
-                                        "required_source":"BINANCE_FUTURES",
-                                        "prior_execution_check":execution_check}
+                                execution_check=futures_signal_authorization(early,execution_check)
                                 execution_check["four_factor_tier"]=four_factor_check["tier"]
                             if not execution_check.get("qualified"):
                                 blocked_payload=dict(row)
