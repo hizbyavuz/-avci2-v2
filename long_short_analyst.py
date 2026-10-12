@@ -1042,7 +1042,11 @@ def universe():
     DISCOVERY_META={}
 
     info=fget("/fapi/v1/exchangeInfo")
+    if os.getenv("LS_BINANCE_FUTURES_ONLY", "1") == "1" and DATA_MODE != "BINANCE_FUTURES":
+        raise RuntimeError("BINANCE_FUTURES_ONLY: Futures exchange info blocked; refusing Spot universe")
     tick=fget("/fapi/v1/ticker/24hr")
+    if os.getenv("LS_BINANCE_FUTURES_ONLY", "1") == "1" and DATA_MODE != "BINANCE_FUTURES":
+        raise RuntimeError("BINANCE_FUTURES_ONLY: Futures tickers blocked; refusing Spot universe")
 
     tradable={}
     for x in info.get("symbols",[]):
