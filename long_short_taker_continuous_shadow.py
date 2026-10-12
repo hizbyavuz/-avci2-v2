@@ -168,7 +168,7 @@ def window(db,symbol,now_ms=None):
                 and isinstance(details.get("connected_at_ms"),int)
                 and details["connected_at_ms"]<=start
                 and latest[0]>=last_closed+60000
-                and (latest[1]!="CONNECTED" or now_ms-latest[0]<=30000)
+                and now_ms-latest[0]<=30000
             )
         except (ValueError,TypeError,KeyError):
             session_ok=False
