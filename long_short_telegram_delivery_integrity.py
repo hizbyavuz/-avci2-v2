@@ -39,15 +39,6 @@ def policy(stage, observed_at, latest_closed_candle_at, prior_visible=False, max
         result.update(allowed=False,reason="INVALID_CLOSE_TIMESTAMP")
         return result
     result["closed_candle_age_seconds"]=round(diff,3)
-    # A retest/acceptance TRIGGERED transition may legitimately occur several
-    # minutes after its original confirmation candle. It is a new observed
-    # market condition, not a replay of that old CLOSE_CONFIRMED alert.
-    if stage=="TRIGGERED":
-        if diff < -5:
-            result.update(allowed=False,reason="FUTURE_5M_CLOSE")
-        else:
-            result["reason"]="TRIGGER_OBSERVED_NOW"
-        return result
     if not (-5 <= diff <= max_age_seconds):
         result.update(allowed=False,reason="STALE_OR_FUTURE_5M_CLOSE")
     return result
