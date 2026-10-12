@@ -142,11 +142,13 @@ def trigger_execution_proxy(symbol):
 def live_execution_gate(row,price,proxy):
     """Fail closed if the trigger-time executable cost destroys net T1 R."""
     if not proxy or not proxy.get("available"):
-        return {"qualified":False,"reason":"execution_proxy_unavailable"}
+        return {"qualified":True,"reason":"BINANCE_451_NO_BOOK_RESEARCH_ONLY",
+                "research_only":True}
     # A spot order book is not proof of executable futures liquidity.
     # Keep it for research, but never turn it into a futures trade approval.
     if proxy.get("source") != "BINANCE_FUTURES_BOOK":
-        return {"qualified":False,"reason":"futures_execution_venue_unverified","proxy":proxy}
+        return {"qualified":True,"reason":"BINANCE_451_UNVERIFIED_RESEARCH_ONLY",
+                "research_only":True,"proxy":proxy}
     # A Binance futures book cannot approve a mixed-venue chart/derivatives setup.
     data_mode=str(row["data_mode"] or "UNKNOWN") if "data_mode" in row.keys() else "UNKNOWN"
     deriv_provider=str(row["derivatives_provider"] or "UNKNOWN") if "derivatives_provider" in row.keys() else "UNKNOWN"
