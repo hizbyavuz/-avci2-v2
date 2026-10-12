@@ -14,7 +14,7 @@ class TakerMinuteTests(unittest.TestCase):
                 for minute in range(300000,600000,60000):
                     record_minute(c,"BTCUSDT",minute,100,50,2,minute+1000,minute+2000)
                 c.execute("INSERT INTO taker_collector_health VALUES(?,?,?,?,?)",
-                          (now-1000,"ROTATE",'["BTCUSDT"]',0,None))
+                          (now,"ROTATE",'["BTCUSDT"]',0,'{"connected_at_ms":300000}'))
                 c.commit()
             result=window(path,"BTCUSDT",now)
             self.assertTrue(result["ready"])
