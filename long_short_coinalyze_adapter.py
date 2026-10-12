@@ -47,10 +47,10 @@ def _cached_request(path, params=None, ttl=300):
             if used >= _MAX_REQUESTS_PER_MINUTE:
                 raise RuntimeError("COINALYZE_RATE_BUDGET_EXHAUSTED")
             conn.execute("INSERT INTO api_budget(request_at) VALUES(?)", (now,))
-        result = _get(path, params)
-        with _cache_connection() as conn:
-            conn.execute("INSERT OR REPLACE INTO api_cache VALUES(?,?,?)", (key, time.time(), json.dumps(result)))
-        return result
+            result = _get(path, params)
+            conn.execute("INSERT OR REPLACE INTO api_cache VALUES(?,?,?)",
+                         (key, time.time(), json.dumps(result)))
+            return result
 
 
 BASE = "https://api.coinalyze.net/v1"
