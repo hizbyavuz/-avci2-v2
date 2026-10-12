@@ -2245,7 +2245,13 @@ def save_universe_observations(ts, preselected, shortlist):
 
 def save_reversal_candidates(ts, pres):
     """Archive reversal discovery independently from continuation shortlist."""
-    with sqlite3.connect(DB) as con:
+    try:
+        con = sqlite3.connect(DB, timeout=30)
+        con.execute("PRAGMA busy_timeout=30000")
+    except sqlite3.OperationalError as exc:
+        print("REVERSAL_ARCHIVE_DEFERRED", type(exc).__name__, str(exc)[:160], flush=True)
+        return
+    try:
         for pre in pres:
             try:
                 price=pre["t5"]["price"]
@@ -2263,6 +2269,11 @@ def save_reversal_candidates(ts, pres):
                  json.dumps(plan,ensure_ascii=False)))
             except Exception as exc:
                 print("reversal archive error",pre.get("symbol"),type(exc).__name__,str(exc)[:120])
+        con.commit()
+    except sqlite3.OperationalError as exc:
+        print("REVERSAL_ARCHIVE_DEFERRED", type(exc).__name__, str(exc)[:160], flush=True)
+    finally:
+        con.close()
 
 
 def save_scan(ts, regime, n, results):
