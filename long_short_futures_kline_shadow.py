@@ -181,13 +181,13 @@ def backfill_binance_archive(db, symbols, intervals=("1m", "5m", "15m", "30m", "
     print(f"FUTURES_ARCHIVE_BACKFILL rows_added={inserted}", flush=True)
 
 
-def bridge_recent_futures(db, symbols):
+def bridge_recent_futures(db, symbols, intervals=("1m", "5m", "15m", "30m", "1h", "4h")):
     import urllib.parse
     import urllib.request
     conn = initialize(db)
     try:
         for symbol in symbols:
-            for interval in ("1m", "5m", "15m", "30m", "1h", "4h"):
+            for interval in intervals:
                 query = urllib.parse.urlencode({"symbol": symbol, "interval": interval, "limit": 300})
                 try:
                     with urllib.request.urlopen("https://fapi.binance.com/fapi/v1/klines?" + query, timeout=7) as response:
@@ -223,10 +223,10 @@ def continuous_main():
         try:
             if not backfill_done:
                 backfill_binance_archive(db, ["BTCUSDT", "ETHUSDT", "SOLUSDT"])
-                bridge_recent_futures(db, ["BTCUSDT", "ETHUSDT", "SOLUSDT"])
                 backfill_done = True
             symbols = ["BTCUSDT", "ETHUSDT", "SOLUSDT"] + choose_symbols("", analyst_db=analyst, limit=9)
             symbols = list(dict.fromkeys(symbols))[:12]
+            bridge_recent_futures(db, symbols, intervals=("5m", "1h", "4h"))
             result = collect(db, symbols, seconds=900, stop=stop)
             print("FUTURES_KLINE_FEED " + json.dumps(result), flush=True)
             # No signal source switch: only observe verified native Futures candles.
