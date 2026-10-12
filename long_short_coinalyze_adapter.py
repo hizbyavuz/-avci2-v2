@@ -65,6 +65,7 @@ def snapshot(symbol):
             if 0 <= time.time() - stamp <= 180 and value > 0:
                 out["oi_now"] = value
                 out["oi_fresh"] = True
+        # OI change is usable only when the provider explicitly reports base units.
         if out["oi_fresh"] and unit == "BASE_ASSET":
             end = int(time.time())
             hist = _get("/open-interest-history", {"symbols": key, "interval": "5min",
@@ -77,7 +78,8 @@ def snapshot(symbol):
                 last = float(candles[-1]["c"])
                 if first > 0 and last > 0 and 0 <= time.time()-float(candles[-1]["t"]) <= 660:
                     out["oi_change_1h"] = (last / first - 1) * 100
-        if meta.get("has_long_short_ratio_data"):
+        # Do not rely on optional market metadata to suppress an available series.
+        if True:
             end = int(time.time())
             ls = _get("/long-short-ratio-history", {"symbols": key, "interval": "5min",
                       "from": end - 3600, "to": end})
@@ -90,7 +92,7 @@ def snapshot(symbol):
                 if 0 <= time.time() - stamp <= 660 and ratio > 0:
                     out["long_short_ratio"] = ratio
                     out["ls_fresh"] = True
-    except (requests.RequestException, ValueError, TypeError, KeyError, StopIteration) as exc:
+    except (requests.RequestException, ValueError, TypeError, KeyError, StopIteration, IndexError) as exc:
         out["error_type"] = type(exc).__name__
     _cache[("snapshot", symbol)] = (time.monotonic(), out)
     return out
