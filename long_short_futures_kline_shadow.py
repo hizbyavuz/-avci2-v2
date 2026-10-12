@@ -226,7 +226,7 @@ def continuous_main():
                 backfill_done = True
             symbols = ["BTCUSDT", "ETHUSDT", "SOLUSDT"] + choose_symbols("", analyst_db=analyst, limit=9)
             symbols = list(dict.fromkeys(symbols))[:12]
-            bridge_recent_futures(db, symbols, intervals=("5m", "1h", "4h"))
+            bridge_recent_futures(db, symbols)
             result = collect(db, symbols, seconds=900, stop=stop)
             print("FUTURES_KLINE_FEED " + json.dumps(result), flush=True)
             # No signal source switch: only observe verified native Futures candles.
