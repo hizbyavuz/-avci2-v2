@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Read-only operational audit for Long/Short. Does not change trading rules."""
-import hashlib, json, os, sqlite3, subprocess
+import hashlib, json, os, sqlite3, subprocess, shutil
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -361,6 +361,21 @@ def main():
         "research_only":True,
     }
     print("LS_SIGNAL_FUNNEL_AUDIT "+json.dumps(summary,ensure_ascii=False,sort_keys=True))
+    # Read-only disk telemetry: distinguishes disk exhaustion from SQLite contention.
+    # Never deletes historical records or changes SQLite journal modes.
+    try:
+        disk=shutil.disk_usage(STATE)
+        result["disk_health"]={
+            "total_bytes":disk.total,
+            "used_bytes":disk.used,
+            "free_bytes":disk.free,
+            "free_pct":round(100*disk.free/disk.total,2) if disk.total else None,
+            "status":"LOW_FREE_SPACE" if disk.free<min(512*1024*1024,disk.total//10) else "OK",
+        }
+        print("LS_DISK_HEALTH "+json.dumps(result["disk_health"],sort_keys=True),flush=True)
+    except OSError as exc:
+        result["disk_health"]={"status":"UNAVAILABLE","error_type":type(exc).__name__}
+        print("LS_DISK_HEALTH "+json.dumps(result["disk_health"]),flush=True)
     print("LS_AUDIT "+json.dumps(result,ensure_ascii=False,sort_keys=True))
     return 0 if result["databases"] and all(x.get("integrity")=="ok" for x in result["databases"]) else 2
 
