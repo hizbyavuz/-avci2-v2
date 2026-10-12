@@ -209,7 +209,9 @@ def bridge_recent_futures(db, symbols, intervals=("1m", "5m", "15m", "30m", "1h"
                     conn.commit()
                     print("FUTURES_BRIDGE_OK", symbol, interval, flush=True)
                 except Exception as exc:
-                    print("FUTURES_BRIDGE_UNAVAILABLE", symbol, interval, type(exc).__name__, flush=True)
+                    # Log the HTTP status without changing fail-closed candle handling.
+                    status = getattr(exc, "code", None)
+                    print("FUTURES_BRIDGE_UNAVAILABLE", symbol, interval, type(exc).__name__, "http_status=" + str(status) if status is not None else "http_status=unknown", flush=True)
     finally:
         conn.close()
 
