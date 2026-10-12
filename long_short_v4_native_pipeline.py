@@ -57,7 +57,9 @@ def choose_symbols(argument, analyst_db=None, limit=MAX_DEEP_SYMBOLS):
                         (latest,limit))]
         except (sqlite3.Error,OSError):
             pass
-    symbols=["BTCUSDT","ETHUSDT"]+symbols
+    # Keep requested/live shortlisted symbols ahead of the fixed anchors.
+    # The previous prepend could evict the last two deep candidates at limit=24.
+    symbols=symbols+["BTCUSDT","ETHUSDT"]
     return list(dict.fromkeys(s for s in symbols if SYMBOL_RE.fullmatch(s)))[:limit]
 
 def streams_for(symbols):
