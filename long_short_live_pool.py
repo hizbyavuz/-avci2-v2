@@ -864,6 +864,10 @@ def native_futures_closed_bars(symbol, interval, count, max_age_seconds):
         if b[10] not in allowed or any(v is None or not math.isfinite(float(v))
                                            for v in b[:10]):
             raise RuntimeError("FUTURES_CANDLES_UNVERIFIED")
+        if (float(b[1]) <= 0 or float(b[3]) <= 0 or float(b[4]) <= 0
+                or float(b[5]) < 0 or float(b[7]) < 0 or float(b[8]) < 0
+                or float(b[9]) < 0 or float(b[9]) > float(b[7])):
+            raise RuntimeError("FUTURES_CANDLES_INVALID_VOLUME_OR_PRICE")
         if float(b[2]) < max(float(b[1]),float(b[4])) or float(b[3]) > min(float(b[1]),float(b[4])):
             raise RuntimeError("FUTURES_CANDLES_BAD_OHLC")
     return bars
