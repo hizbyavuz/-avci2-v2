@@ -24,6 +24,15 @@ class AlertTimingTests(unittest.TestCase):
         future = (now + timedelta(seconds=20)).isoformat()
         self.assertFalse(policy("TRIGGERED", now.isoformat(), future)["allowed"])
 
+    def test_send_time_recheck_blocks_delayed_delivery(self):
+        now=datetime.now(timezone.utc)
+        close=(now-timedelta(seconds=65)).isoformat()
+        self.assertTrue(policy("TRIGGERED",now.isoformat(),close)["allowed"])
+        send_later=(now+timedelta(seconds=15)).isoformat()
+        decision=policy("TRIGGERED",send_later,close)
+        self.assertFalse(decision["allowed"])
+        self.assertEqual(decision["reason"],"STALE_OR_FUTURE_5M_CLOSE")
+
     def test_unannounced_invalidation_stays_silent(self):
         now = datetime.now(timezone.utc).isoformat()
         self.assertFalse(policy("INVALIDATED", now, now, prior_visible=False)["allowed"])
