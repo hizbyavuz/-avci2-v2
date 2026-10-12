@@ -2606,7 +2606,11 @@ def main():
     init_db()
     update_paper()
     ts=now_iso()
-    regime=btc_regime()
+    try:
+        regime=btc_regime()
+    except (RuntimeError, ValueError, KeyError, IndexError, TypeError) as exc:
+        print("DATA_NOT_READY BTC_REGIME " + type(exc).__name__, flush=True)
+        return 2  # fail closed: never infer a BTC regime from missing candles
     uni=universe()
 
     # Stage 1: cheap broad scan. Keep Binance coverage wide without doing
