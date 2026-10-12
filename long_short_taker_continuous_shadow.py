@@ -97,13 +97,19 @@ def collect(db,symbols,stop,rotation_seconds=300):
             if time.monotonic()-last_event>120:
                 state="ERROR_STALE_FLOW"
                 break
-            if time.monotonic()-last_heartbeat>=60:
+            if time.monotonic()-last_heartbeat>=15:
+                conn.execute("INSERT INTO taker_collector_health VALUES(?,?,?,?,?)",
+                    (int(time.time()*1000),"CONNECTED",json.dumps(symbols),dropped,
+                     json.dumps({"connected_at_ms":connected_at,
+                                 "events_received":events_received})))
+                conn.commit()
+                last_heartbeat=time.monotonic()
+            if events_received and events_received%10000==0:
                 print("BINANCE_TAKER_SHADOW_HEARTBEAT "+json.dumps({
                     "state":state,"symbols":len(symbols),
                     "events_received":events_received,"dropped":dropped,
                     "seconds_since_last_event":round(time.monotonic()-last_event,1),
                     "connected_at_ms":connected_at}),flush=True)
-                last_heartbeat=time.monotonic()
             current=int(time.time()*1000)//60000*60000
             old=[key for key in totals if key[1]<current]
             if old:
@@ -146,14 +152,25 @@ def window(db,symbol,now_ms=None):
     gaps=[m for m in range(start,last_closed+1,60000) if m not in covered]
     # A minute containing trades is NOT proof of uninterrupted websocket coverage.
     # Fail closed until one uninterrupted collection session spans the full window.
-    uninterrupted=any(
-        h[1] in ("ROTATE","STOPPED") and h[2]==0 and
-        symbol in json.loads(h[3]) and
-        isinstance(json.loads(h[4] or "{}").get("connected_at_ms"),int) and
-        json.loads(h[4])["connected_at_ms"]<=start and h[0]>=last_closed+60000
-        for h in health
-    )
-    interruptions=not uninterrupted or any(
+    # Require the latest session to span the complete closed-minute window.
+    # A reconnect cannot borrow coverage from an older session.
+    latest=health[0] if health else None
+    session_ok=False
+    if latest:
+        try:
+            details=json.loads(latest[4] or "{}")
+            session_ok=(
+                latest[1] in ("CONNECTED","ROTATE","STOPPED")
+                and latest[2]==0
+                and symbol in json.loads(latest[3])
+                and isinstance(details.get("connected_at_ms"),int)
+                and details["connected_at_ms"]<=start
+                and latest[0]>=last_closed+60000
+                and (latest[1]!="CONNECTED" or now_ms-latest[0]<=30000)
+            )
+        except (ValueError,TypeError,KeyError):
+            session_ok=False
+    interruptions=not session_ok or any(
         start<=h[0]<=now_ms and (h[1].startswith("ERROR") or h[2]>0)
         for h in health
     )
