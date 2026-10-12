@@ -1768,6 +1768,9 @@ def loop_once():
                                     "book_source":str(trigger_proxy.get("source") or "UNKNOWN"),
                                     "proxy_available":bool(trigger_proxy.get("available")),
                                     "net_t1_r":execution_check.get("net_t1_r"),
+                                    "four_factor_tier":four_factor_check.get("tier"),
+                                    "available_factors":four_factor_check.get("available_factors"),
+                                    "missing_factors":four_factor_check.get("missing_factors"),
                                 },ensure_ascii=False))
                                 con.commit()
                                 continue
