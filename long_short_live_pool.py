@@ -150,7 +150,12 @@ def live_execution_gate(row,price,proxy):
     # A Binance futures book cannot approve a mixed-venue chart/derivatives setup.
     data_mode=str(row["data_mode"] or "UNKNOWN") if "data_mode" in row.keys() else "UNKNOWN"
     deriv_provider=str(row["derivatives_provider"] or "UNKNOWN") if "derivatives_provider" in row.keys() else "UNKNOWN"
-    if data_mode != "BINANCE_FUTURES" or not deriv_provider.upper().startswith("BINANCE"):
+    # 451 fallback: third-party derivatives are admissible as contextual evidence.
+    # Execution remains Binance-futures-only and still requires its actual order book.
+    # Do not mistake the source of positioning data for the execution venue.
+    valid_chart = data_mode in ("BINANCE_FUTURES", "BINANCE_SPOT")
+    valid_derivatives = deriv_provider.upper().startswith(("BINANCE", "GATE", "BYBIT", "OKX"))
+    if not (valid_chart and valid_derivatives):
         return {"qualified":False,"reason":"mixed_venue_execution_unverified",
                 "chart_venue":data_mode,"deriv_venue":deriv_provider,
                 "book_venue":proxy.get("source"),"decision_venue":"BINANCE_FUTURES",
