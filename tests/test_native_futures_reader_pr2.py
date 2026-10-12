@@ -6,7 +6,7 @@ import time
 import unittest
 from unittest.mock import patch
 from long_short_futures_kline_shadow import initialize
-from long_short_live_pool import native_futures_closed_bars, futures_closed_snapshot, futures_market_snapshot, market_snapshot
+from long_short_live_pool import native_futures_closed_bars, futures_closed_snapshot, futures_market_snapshot, market_snapshot, futures_24h_closed_stats
 
 
 class NativeFuturesReaderTests(unittest.TestCase):
@@ -82,13 +82,26 @@ class NativeFuturesReaderTests(unittest.TestCase):
                 "price":100.25}
         with patch.dict(os.environ, {"LS_NATIVE_FUTURES_SNAPSHOT":"1"}):
             with patch("long_short_live_pool.futures_market_snapshot",return_value=native):
-                with patch("long_short_live_pool.spot_get",side_effect=AssertionError("Spot accessed")):
-                    price,closed,close_time,early=market_snapshot("BTCUSDT")
+                with patch("long_short_live_pool.futures_24h_closed_stats",return_value={"quoteVolume":20000.0,"priceChangePercent":1.5,"source":"BINANCE_FUTURES_24_CLOSED_1H_BARS"}):
+                    with patch("long_short_live_pool.spot_get",side_effect=AssertionError("Spot accessed")):
+                        price,closed,close_time,early=market_snapshot("BTCUSDT")
         self.assertEqual(price,100.25)
         self.assertEqual(early["live_price_source"],"BINANCE_FUTURES")
         self.assertEqual(early["local_high"],101.0)
         self.assertTrue(early["native_futures_observation_only"])
-        self.assertFalse(early["rolling_24h_stats_verified"])
+        self.assertTrue(early["rolling_24h_stats_verified"])
+
+    def test_futures_24h_stats_from_closed_hourly_bars(self):
+        def make(i):
+            return (i*3600000,100,110,90,100+i,8,i*3600000+3599999,
+                    1000,12,500,"BINANCE_UM_FUTURES_WEBSOCKET")
+        with patch("long_short_live_pool.native_futures_closed_bars",
+                   return_value=[make(i) for i in range(25)]) as read:
+            stats=futures_24h_closed_stats("BTCUSDT")
+        read.assert_called_once_with("BTCUSDT","1h",25,7200)
+        self.assertEqual(stats["quoteVolume"],24000)
+        self.assertAlmostEqual(stats["priceChangePercent"],24)
+        self.assertFalse(stats["rolling_ticker"])
 
     def test_gap_rejected(self):
         with sqlite3.connect(self.db) as con:
