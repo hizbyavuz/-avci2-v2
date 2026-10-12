@@ -55,6 +55,8 @@ def collect(db,symbols,stop,rotation_seconds=300):
     dropped=0
     state="DISCONNECTED"
     connected_at=None
+    events_received=0
+    last_heartbeat=time.monotonic()
     try:
         initialize(conn)
         ws=websocket.create_connection(URL,timeout=8,enable_multithread=True)
@@ -83,10 +85,17 @@ def collect(db,symbols,stop,rotation_seconds=300):
                             row=totals[(sym,minute)]
                             row[1 if event.get("m") else 0]+=price*qty
                             row[2]+=1
+                            events_received+=1
                             row[3]=min(row[3] or now,now)
                             row[4]=max(row[4],now)
                 except (ValueError,TypeError,KeyError,AttributeError):
                     dropped+=1
+            if time.monotonic()-last_heartbeat>=60:
+                print("BINANCE_TAKER_SHADOW_HEARTBEAT "+json.dumps({
+                    "state":state,"symbols":len(symbols),
+                    "events_received":events_received,"dropped":dropped,
+                    "connected_at_ms":connected_at}),flush=True)
+                last_heartbeat=time.monotonic()
             current=int(time.time()*1000)//60000*60000
             old=[key for key in totals if key[1]<current]
             if old:
@@ -111,7 +120,7 @@ def collect(db,symbols,stop,rotation_seconds=300):
                       json.dumps({"connected_at_ms":connected_at})))
         conn.commit()
         conn.close()
-    return {"state":state,"symbols":len(symbols),"dropped":dropped}
+    return {"state":state,"symbols":len(symbols),"dropped":dropped,"events_received":events_received}
 
 def window(db,symbol,now_ms=None):
     now_ms=int(time.time()*1000) if now_ms is None else now_ms
