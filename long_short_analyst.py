@@ -1602,12 +1602,14 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
     if os.getenv("LS_BINANCE_FUTURES_ONLY", "0") == "1":
         from long_short_coinalyze_adapter import snapshot as coinalyze_binance_snapshot
         from long_short_coinalyze_funding_probe import funding_snapshot as coinalyze_binance_funding
-        from long_short_taker_continuous_shadow import window as binance_taker_window
+        from long_short_taker_continuous_shadow import window as binance_taker_window, window_from_verified_futures_klines
         from long_short_binance_derivative_gate import assess as assess_binance_evidence
         evidence = coinalyze_binance_snapshot(symbol)
         funding_evidence = coinalyze_binance_funding(symbol)
         state_root = os.getenv("LS_STATE_DIR") or os.getenv("RAILWAY_VOLUME_MOUNT_PATH") or ".long-short-state"
         taker_evidence = binance_taker_window(os.path.join(state_root, "long_short_taker_minute_shadow.db"), symbol)
+        if not taker_evidence.get("ready"):
+            taker_evidence = window_from_verified_futures_klines(os.path.join(state_root, "binance_futures_kline_shadow.db"), symbol)
         verified = dict(evidence)
         verified["funding_fresh"] = bool(funding_evidence.get("funding_fresh"))
         verified["taker_fresh"] = bool(taker_evidence.get("ready"))
