@@ -2548,11 +2548,30 @@ def main():
     except Exception as exc:
         print('BROAD_EARLY_OBSERVER_ERROR', type(exc).__name__, str(exc)[:160], flush=True)
 
+    class _FourFactorAuditThrottled(Exception):
+        pass
+
     # Binance-only four-factor verification on the actual deep-scan shortlist.
     # Observation-only: do not change frozen production decisions until Railway
     # confirms all four inputs are fresh and window coverage is reliable.
     if os.getenv("LS_BINANCE_FOUR_FACTOR_AUDIT", "1") == "1":
         try:
+            # Persistent budget: prevent the 5-minute analyst from exhausting
+            # the external provider quota when scans overlap/restart.
+            with sqlite3.connect(DB,timeout=15) as budget_db:
+                budget_db.execute("""CREATE TABLE IF NOT EXISTS binance_four_factor_audit_budget(
+                    key TEXT PRIMARY KEY, last_run_epoch INTEGER NOT NULL)""")
+                budget_db.execute("BEGIN IMMEDIATE")
+                prev=budget_db.execute("SELECT last_run_epoch FROM binance_four_factor_audit_budget WHERE key='deep'").fetchone()
+                now_epoch=int(time.time())
+                run_due=not prev or now_epoch-int(prev[0])>=300
+                if run_due:
+                    budget_db.execute("""INSERT INTO binance_four_factor_audit_budget VALUES('deep',?)
+                        ON CONFLICT(key) DO UPDATE SET last_run_epoch=excluded.last_run_epoch""",(now_epoch,))
+                budget_db.commit()
+            if not run_due:
+                raise _FourFactorAuditThrottled()
+
             from long_short_coinalyze_adapter import snapshot as binance_oi_ls
             from long_short_coinalyze_funding_probe import funding_snapshot as binance_funding
             from long_short_taker_continuous_shadow import window as binance_taker_window
@@ -2561,7 +2580,10 @@ def main():
             taker_db=os.path.join(state_root,"long_short_taker_minute_shadow.db")
             audit_rows=[]
             # API-budget limit; deep shortlist order remains unchanged.
-            for pre in shortlist[:8]:
+            # Rotate four symbols per 5-minute budget window (not eight per scan).
+            audit_offset=(int(time.time())//300*4)%max(1,len(shortlist))
+            audit_selection=(shortlist[audit_offset:]+shortlist[:audit_offset])[:4]
+            for pre in audit_selection:
                 sym=pre["symbol"]
                 try:
                     oi_ls=binance_oi_ls(sym)
@@ -2590,6 +2612,8 @@ def main():
                 "scan_time":ts,"checked":len(audit_rows),
                 "ready":sum(bool(x["ready"]) for x in audit_rows),
                 "rows":audit_rows,"production_unchanged":True}),flush=True)
+        except _FourFactorAuditThrottled:
+            pass
         except Exception as audit_exc:
             print("BINANCE_FOUR_FACTOR_DEEP_AUDIT_ERROR",type(audit_exc).__name__,str(audit_exc)[:160],flush=True)
 
