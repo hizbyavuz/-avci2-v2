@@ -1781,13 +1781,39 @@ def loop_once():
                                 if four_factor_check.get("tier")=="PARTIAL_3_OF_4":
                                     side="🟢" if row["direction"]=="LONG" else "🔴"
                                     missing=", ".join(four_factor_check.get("missing_factors") or [])
-                                    conditional_msg=(
-                                        f"🟡 KOŞULLU {row['direction']} | {row['symbol']}\n"
-                                        f"Veri: 3/4 — eksik: {missing}\n"
-                                        f"Fiyat: {price:.8g} | Yön: {side} {row['direction']}\n"
-                                        f"Durum: Fiyat/yapı tetiklendi; Binance türev verisi kısmi.\n"
-                                        "⚠️ TAM İŞLEM TEYİDİ DEĞİL. Otomatik emir yok."
-                                    )
+                                    # Display actual setup levels, never invented entry/targets.
+                                    entry=float(price)
+                                    stop=float(row["invalidation"] or 0)
+                                    tp1=float(row["target1"] or 0)
+                                    tp2=float(row["target2"] or 0)
+                                    is_long=row["direction"]=="LONG"
+                                    valid_levels=(entry>0 and stop>0 and tp1>0
+                                        and ((stop<entry<tp1) if is_long else (tp1<entry<stop)))
+                                    if valid_levels:
+                                        risk=abs(entry-stop)
+                                        reward=abs(tp1-entry)
+                                        rr=reward/risk if risk>0 else 0
+                                        tp2_text=(f"{tp2:.8g}" if tp2>0 and
+                                            ((tp2>tp1) if is_long else (tp2<tp1))
+                                            else "Belirlenmedi")
+                                        conditional_msg=(
+                                            f"{side} {row['direction']} ÖNERİSİ | {row['symbol']}\\n"
+                                            f"Binance Futures · 5 dk · KISMİ VERİ (3/4)\\n"
+                                            f"💰 Giriş: {entry:.8g} (sinyal anı fiyatı)\\n"
+                                            f"🛡️ Stop: {stop:.8g} (%{abs(stop/entry-1)*100:.2f})\\n"
+                                            f"🎯 Hedef 1: {tp1:.8g} (%{abs(tp1/entry-1)*100:.2f})\\n"
+                                            f"🎯 Hedef 2: {tp2_text}\\n"
+                                            f"📊 İlk hedef risk/ödül: {rr:.2f}R\\n"
+                                            f"📌 Neden: Fiyat/yapı tetiklendi; 3/4 veri grubu mevcut.\\n"
+                                            f"⚠️ Eksik veri: {missing}. Bu, 3 göstergenin yönü onayladığı anlamına gelmez.\\n"
+                                            "⚠️ Kısmi veriyle koşullu işlem planı; tam teyit değil. Otomatik emir yok."
+                                        )
+                                    else:
+                                        conditional_msg=(
+                                            f"🟡 {row['direction']} İZLE | {row['symbol']}\\n"
+                                            f"Veri: 3/4 · Eksik: {missing}\\n"
+                                            "⚠️ Giriş/stop/hedef seviyeleri geçersiz veya eksik; işlem önerisi verilmedi."
+                                        )
                                     try:
                                         receipt=send_telegram(conditional_msg)
                                         con.execute("""UPDATE events SET telegram_status='SENT'
