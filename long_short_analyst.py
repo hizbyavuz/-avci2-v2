@@ -1068,9 +1068,9 @@ def native_futures_websocket_universe():
 
 
 def universe():
+    global DISCOVERY_META
+    DISCOVERY_META={}
     if os.getenv("LS_BINANCE_FUTURES_ONLY", "1") == "1":
-        global DISCOVERY_META
-        DISCOVERY_META={}
         return native_futures_websocket_universe()
     if os.getenv("LS_BINANCE_FUTURES_ONLY", "1") == "1" and DATA_MODE != "BINANCE_FUTURES":
         raise RuntimeError("BINANCE_FUTURES_ONLY: Binance Futures universe unavailable; spot discovery forbidden")
@@ -1080,9 +1080,6 @@ def universe():
     invisible. The hard MIN_24H_QUOTE_VOL gate is enforced later before a symbol
     can become WAIT/LONG/SHORT; lower-liquidity or unverified names are radar-only.
     """
-    global DISCOVERY_META
-    DISCOVERY_META={}
-
     info=fget("/fapi/v1/exchangeInfo")
     if os.getenv("LS_BINANCE_FUTURES_ONLY", "1") == "1" and DATA_MODE != "BINANCE_FUTURES":
         raise RuntimeError("BINANCE_FUTURES_ONLY: Futures exchange info blocked; refusing Spot universe")
