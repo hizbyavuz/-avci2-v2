@@ -370,10 +370,13 @@ def fetch_klines(symbol, interval, limit=220):
     Spot history is too short), use Bybit/Gate USDT-perpetual candles for chart
     discovery instead of silently dropping the coin from the scanner.
     """
+    strict = os.getenv("LS_BINANCE_FUTURES_ONLY", "1") == "1"
     shadow = native_futures_shadow_klines(symbol, interval, limit)
     if shadow is not None:
         print(f"FUTURES_SHADOW_USED symbol={symbol} interval={interval} bars={len(shadow)}", flush=True)
         return parse_klines(shadow)
+    if strict:
+        raise RuntimeError(f"BINANCE_FUTURES_ONLY: verified native Futures history unavailable for {symbol} {interval}; no signal")
     rows=None
     primary_error=None
     try:
@@ -1027,6 +1030,8 @@ def fetch_depth_imbalance(symbol):
 
 
 def universe():
+    if os.getenv("LS_BINANCE_FUTURES_ONLY", "1") == "1" and DATA_MODE != "BINANCE_FUTURES":
+        raise RuntimeError("BINANCE_FUTURES_ONLY: Binance Futures universe unavailable; spot discovery forbidden")
     """Build a broad USDT-perpetual discovery universe.
 
     Discovery may go below the actionable liquidity floor so fast movers are not
