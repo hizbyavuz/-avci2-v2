@@ -121,6 +121,9 @@ def fget(path: str, params: dict | None = None):
         "/fapi/v1/depth": "/api/v3/depth",
     }
 
+    if os.getenv("LS_BINANCE_FUTURES_ONLY", "1") == "1" and DATA_MODE == "BINANCE_SPOT_GRAPH_ONLY":
+        raise RuntimeError("BINANCE_FUTURES_ONLY: native Futures REST unavailable; Spot fallback forbidden")
+
     # Once HTTP 451 confirms a location restriction, never retry a native
     # Futures-only endpoint on another Binance hostname in this process.
     # Fail closed: spot candles must never masquerade as Futures derivatives.
@@ -160,6 +163,8 @@ def fget(path: str, params: dict | None = None):
         except (requests.RequestException, ValueError) as exc:
             last = exc
 
+    if os.getenv("LS_BINANCE_FUTURES_ONLY", "1") == "1":
+        raise RuntimeError(f"BINANCE_FUTURES_ONLY: native REST unavailable for {path}; Spot fallback forbidden")
     spot_path = spot_map.get(path)
     if spot_path:
         for base in SPOT_BASES:
@@ -974,6 +979,8 @@ def fetch_depth_metrics(symbol):
     try:
         d=fget("/fapi/v1/depth",{"symbol":symbol,"limit":100})
     except Exception as primary_exc:
+        if os.getenv("LS_BINANCE_FUTURES_ONLY", "1") == "1":
+            raise RuntimeError(f"BINANCE_FUTURES_ONLY: Binance Futures orderbook unavailable for {symbol}") from primary_exc
         mv=_cached_multi_venue_derivatives(symbol)
         imbalance=mv.get("depth_imbalance")
         if imbalance is None:
