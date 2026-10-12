@@ -231,6 +231,17 @@ def continuous_main():
         try:
             selected = choose_symbols("", analyst_db=analyst, limit=30)
             symbols = list(dict.fromkeys(selected + ["BTCUSDT", "ETHUSDT", "SOLUSDT"]))[:30]
+            # Collector-only coverage: include the latest scanned market window.
+            # Signal selection and trading thresholds remain unchanged.
+            if os.path.isfile(analyst):
+                try:
+                    with sqlite3.connect("file:" + os.path.abspath(analyst) + "?mode=ro", uri=True) as scan_db:
+                        latest = scan_db.execute("SELECT MAX(scan_time_utc) FROM full_universe_stage_audit").fetchone()[0]
+                        if latest:
+                            extras = scan_db.execute("SELECT symbol FROM full_universe_stage_audit WHERE scan_time_utc=? ORDER BY quote_volume DESC LIMIT 30", (latest,)).fetchall()
+                            symbols = list(dict.fromkeys(symbols + [x[0] for x in extras]))[:30]
+                except (sqlite3.Error, OSError):
+                    pass
             if not symbols:
                 raise RuntimeError("DATA_NOT_READY: no analyst universe")
             # The analyst universe changes. A single startup backfill leaves
