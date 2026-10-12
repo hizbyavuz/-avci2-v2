@@ -167,8 +167,9 @@ def window(db,symbol,now_ms=None):
                 and symbol in json.loads(latest[3])
                 and isinstance(details.get("connected_at_ms"),int)
                 and details["connected_at_ms"]<=start
-                and latest[0]>=last_closed+60000
-                and now_ms-latest[0]<=30000
+                # A fresh 15-second heartbeat need not fall after the next
+                # minute boundary. Freshness is enforced below independently.
+                and 0<=now_ms-latest[0]<=30000
             )
         except (ValueError,TypeError,KeyError):
             session_ok=False
