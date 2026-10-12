@@ -37,7 +37,7 @@ def probe(symbols):
     for symbol, cz in selected.items():
         try:
             oi_rows = fetch("/open-interest", key, {"symbols": cz})
-            oi = next((x for x in oi_rows if x.get("symbol") == cz), None)
+            oi = next((x for x in oi_rows if isinstance(x, dict) and x.get("symbol") == cz), None)
             if oi:
                 stamp = float(oi["update"])
                 if stamp > 1e12: stamp /= 1000
@@ -47,7 +47,7 @@ def probe(symbols):
             out[symbol]["oi_error"] = type(exc).__name__
         try:
             rows = fetch("/long-short-ratio-history", key, {"symbols": cz, "interval": "5min", "from": now - 3600, "to": now})
-            row = next((x for x in rows if x.get("symbol") == cz), None)
+            row = next((x for x in rows if isinstance(x, dict) and x.get("symbol") == cz), None)
             hist = row.get("history") if row else None
             if hist:
                 point = max(hist, key=lambda x: float(x["t"]))
