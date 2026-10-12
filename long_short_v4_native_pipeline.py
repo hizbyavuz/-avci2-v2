@@ -139,7 +139,8 @@ def ingest(c, run_id, route, stream, obj, received_ms):
     if obj.get("st") not in (None,1,"1"):
         return 0
     symbol=str(obj.get("s") or (obj.get("k") or {}).get("s") or
-               (obj.get("o") or {}).get("s") or "").upper()
+               (obj.get("o") or {}).get("s") or
+               (stream.split("@",1)[0] if "depth20" in stream else "")).upper()
     if not SYMBOL_RE.fullmatch(symbol):
         return 0
     event_ms=int(obj.get("E") or obj.get("T") or received_ms)
