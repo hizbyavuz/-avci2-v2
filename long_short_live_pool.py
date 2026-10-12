@@ -401,8 +401,7 @@ def load_watchlist():
                 # Fail closed for every actionable candidate. Radar-only movers may
                 # still be observed with incomplete derivatives because the state
                 # machine below cannot advance radar to confirmation/trigger.
-                if not derivatives_ready and not radar_only:
-                    continue
+                # Binance 451 derivative gaps are logged, never an admission veto.
                 deriv_source=str(p.get("derivatives_source") or p.get("data_mode") or "UNKNOWN")
                 provider=str(p.get("derivatives_selected_provider") or "")
                 quality=str(p.get("derivatives_quality") or "UNKNOWN")
