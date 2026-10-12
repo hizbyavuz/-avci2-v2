@@ -408,7 +408,7 @@ def main() -> int:
     # Read-only end-to-end Binance-only derivative coverage audit.
     # Does not change signals; logs exactly which inputs remain missing.
     def binance_derivative_coverage_audit():
-        if STOP.wait(90):
+        if STOP.wait(420):
             return
         try:
             from long_short_coinalyze_adapter import snapshot
