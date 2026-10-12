@@ -2548,6 +2548,51 @@ def main():
     except Exception as exc:
         print('BROAD_EARLY_OBSERVER_ERROR', type(exc).__name__, str(exc)[:160], flush=True)
 
+    # Binance-only four-factor verification on the actual deep-scan shortlist.
+    # Observation-only: do not change frozen production decisions until Railway
+    # confirms all four inputs are fresh and window coverage is reliable.
+    if os.getenv("LS_BINANCE_FOUR_FACTOR_AUDIT", "1") == "1":
+        try:
+            from long_short_coinalyze_adapter import snapshot as binance_oi_ls
+            from long_short_coinalyze_funding_probe import funding_snapshot as binance_funding
+            from long_short_taker_continuous_shadow import window as binance_taker_window
+            from long_short_binance_derivative_gate import assess as assess_binance_evidence
+            state_root=os.getenv("LS_STATE_DIR") or os.getenv("RAILWAY_VOLUME_MOUNT_PATH") or os.path.dirname(os.path.abspath(DB))
+            taker_db=os.path.join(state_root,"long_short_taker_minute_shadow.db")
+            audit_rows=[]
+            # API-budget limit; deep shortlist order remains unchanged.
+            for pre in shortlist[:8]:
+                sym=pre["symbol"]
+                try:
+                    oi_ls=binance_oi_ls(sym)
+                    funding_row=binance_funding(sym)
+                    try:
+                        taker_row=binance_taker_window(taker_db,sym)
+                    except (OSError,sqlite3.Error):
+                        taker_row={"ready":False,"source":None,"taker_ratio":None}
+                    evidence=dict(oi_ls or {})
+                    evidence["funding_fresh"]=bool(funding_row.get("funding_fresh"))
+                    evidence["taker_fresh"]=bool(taker_row.get("ready"))
+                    evidence["taker_coverage_ready"]=bool(taker_row.get("ready"))
+                    gate=assess_binance_evidence(
+                        evidence,funding_pct=funding_row.get("funding_pct"),
+                        taker_ratio=taker_row.get("taker_ratio"),
+                        funding_source=funding_row.get("source"),
+                        taker_source=taker_row.get("source"))
+                    audit_rows.append({"symbol":sym,"ready":gate["ready"],
+                        "missing":gate["missing"],
+                        "taker_coverage_minutes":taker_row.get("coverage_minutes"),
+                        "taker_missing_minutes":taker_row.get("missing_minutes")})
+                except Exception as evidence_exc:
+                    audit_rows.append({"symbol":sym,"ready":False,
+                        "missing":["provider_error:"+type(evidence_exc).__name__]})
+            print("BINANCE_FOUR_FACTOR_DEEP_AUDIT "+json.dumps({
+                "scan_time":ts,"checked":len(audit_rows),
+                "ready":sum(bool(x["ready"]) for x in audit_rows),
+                "rows":audit_rows,"production_unchanged":True}),flush=True)
+        except Exception as audit_exc:
+            print("BINANCE_FOUR_FACTOR_DEEP_AUDIT_ERROR",type(audit_exc).__name__,str(audit_exc)[:160],flush=True)
+
     # Stage 2: bounded-concurrency deep scan of every successfully prefiltered symbol.\n    # No arbitrary candidate-count cutoff; data-health and frozen execution gates still apply.
     results=[]
     if shortlist:
