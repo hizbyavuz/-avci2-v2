@@ -406,6 +406,45 @@ def main() -> int:
             name="binance-futures-kline-shadow-loop", daemon=True,
         ).start()
 
+    # Read-only end-to-end Binance-only derivative coverage audit.
+    # Does not change signals; logs exactly which inputs remain missing.
+    def binance_derivative_coverage_audit():
+        if STOP.wait(90):
+            return
+        try:
+            from long_short_coinalyze_adapter import snapshot
+            from long_short_coinalyze_funding_probe import funding_snapshot
+            from long_short_taker_continuous_shadow import window
+            from long_short_binance_derivative_gate import assess
+            for symbol in ("BTCUSDT", "ETHUSDT"):
+                oi=snapshot(symbol)
+                funding=funding_snapshot(symbol)
+                try:
+                    taker=window(str(sd / "long_short_taker_minute_shadow.db"),symbol)
+                except Exception as exc:
+                    taker={"ready":False,"source":None,"error":type(exc).__name__}
+                evidence=dict(oi)
+                evidence["funding_fresh"]=bool(funding.get("funding_fresh"))
+                evidence["taker_fresh"]=bool(taker.get("ready"))
+                evidence["taker_coverage_ready"]=bool(taker.get("ready"))
+                gate=assess(evidence,funding_pct=funding.get("funding_pct"),
+                            taker_ratio=taker.get("taker_ratio"),
+                            funding_source=funding.get("source"),
+                            taker_source=taker.get("source"))
+                print("[daemon] BINANCE_ONLY_DERIVATIVE_AUDIT "+
+                      json.dumps({"symbol":symbol,"ready":gate["ready"],
+                                  "missing":gate["missing"],
+                                  "oi_fresh":oi.get("oi_fresh"),
+                                  "funding_fresh":funding.get("funding_fresh"),
+                                  "taker_ready":taker.get("ready"),
+                                  "ls_fresh":oi.get("ls_fresh")}),flush=True)
+        except Exception as exc:
+            print("[daemon] BINANCE_ONLY_DERIVATIVE_AUDIT_ERROR "+
+                  type(exc).__name__+":"+str(exc)[:160],flush=True)
+    if os.getenv("LS_BINANCE_DERIVATIVE_AUDIT_ENABLED","1")=="1":
+        threading.Thread(target=binance_derivative_coverage_audit,
+                         name="binance-derivative-coverage",daemon=True).start()
+
     # Single bounded read-only native taker connectivity check at startup.
     # Stores records in the existing persistent volume; never sends orders or alerts.
     def native_taker_boot_probe():
