@@ -140,33 +140,51 @@ def trigger_execution_proxy(symbol):
     }
 
 def binance_four_factor_confirmation_gate(symbol, now_epoch=None):
-    """Read-only Binance evidence lookup; never approve stale/missing data."""
+    """Classify evidence without equating missing data to contrary direction."""
     now_epoch=int(time.time()) if now_epoch is None else int(now_epoch)
+    factors=("oi","long_short","funding","taker")
     try:
         with sqlite3.connect("file:"+os.path.abspath(ANALYST_DB)+"?mode=ro",uri=True,timeout=5) as db:
             row=db.execute("""SELECT observed_epoch,ready,missing_json
                 FROM binance_four_factor_evidence
                 WHERE symbol=? ORDER BY observed_epoch DESC LIMIT 1""",(symbol,)).fetchone()
         if row is None:
-            return {"qualified":False,"reason":"binance_four_factor_no_evidence"}
+            return {"qualified":False,"tier":"NO_EVIDENCE","reason":"binance_four_factor_no_evidence"}
         age=now_epoch-int(row[0])
         if age<0 or age>300:
-            return {"qualified":False,"reason":"binance_four_factor_stale","age_seconds":age}
-        if int(row[1])!=1:
-            return {"qualified":False,"reason":"binance_four_factor_incomplete",
-                    "missing":json.loads(row[2] or "[]"),"age_seconds":age}
-        # Recheck the live websocket window at trigger time. An earlier
-        # healthy audit cannot certify a subsequently interrupted session.
+            return {"qualified":False,"tier":"STALE","reason":"binance_four_factor_stale","age_seconds":age}
+        missing=json.loads(row[2] or "[]")
+        if not isinstance(missing,list):
+            raise ValueError("invalid_missing_list")
+        if any(not isinstance(x,str) for x in missing):
+            raise ValueError("invalid_missing_item")
+        groups=set()
+        for name in missing:
+            if name in ("oi_unit_or_freshness","oi_change_1h"):
+                groups.add("oi")
+            elif name=="long_short_ratio":
+                groups.add("long_short")
+            elif name=="funding_pct":
+                groups.add("funding")
+            elif name=="taker_ratio":
+                groups.add("taker")
+            else:
+                # Unknown provider errors cannot be safely mapped to a factor.
+                return {"qualified":False,"tier":"UNKNOWN","reason":"binance_four_factor_unknown_error",
+                        "missing":missing}
+        # Audit taker may have become stale or reconnected since observation.
         from long_short_taker_continuous_shadow import window as taker_window
         state_root=os.getenv("LS_STATE_DIR") or os.getenv("RAILWAY_VOLUME_MOUNT_PATH") or os.path.dirname(os.path.abspath(ANALYST_DB))
         current=taker_window(os.path.join(state_root,"long_short_taker_minute_shadow.db"),symbol)
         if not current.get("ready"):
-            return {"qualified":False,"reason":"binance_taker_window_not_ready",
-                    "missing_minutes":current.get("missing_minutes"),
-                    "session_valid":current.get("session_valid")}
-        return {"qualified":True,"reason":"binance_four_factor_ready","age_seconds":age}
+            groups.add("taker")
+        available=4-len(groups)
+        tier="FULL_4_OF_4" if available==4 else ("PARTIAL_3_OF_4" if available==3 else "WATCH_ONLY")
+        return {"qualified":available==4,"tier":tier,"available_factors":available,
+                "missing_factors":sorted(groups),"age_seconds":age,
+                "reason":"binance_four_factor_ready" if available==4 else "binance_four_factor_partial"}
     except (sqlite3.Error,OSError,ValueError,TypeError) as exc:
-        return {"qualified":False,"reason":"binance_four_factor_unavailable",
+        return {"qualified":False,"tier":"UNAVAILABLE","reason":"binance_four_factor_unavailable",
                 "error":type(exc).__name__}
 
 
@@ -1707,15 +1725,19 @@ def loop_once():
                         # qualifying setups are preserved as shadow events, not sent.
                         if new=="TRIGGERED":
                             four_factor_check=binance_four_factor_confirmation_gate(row["symbol"])
+                            # Three of four is a conditional WATCH candidate,
+                            # not an unqualified trade confirmation. Preserve it
+                            # in the audit instead of silently discarding it.
                             if not four_factor_check["qualified"]:
                                 trigger_proxy={"available":False,"source":"NOT_QUERIED_FOUR_FACTOR_BLOCK"}
-                                execution_check=four_factor_check
+                                execution_check=dict(four_factor_check)
                             else:
                                 try:
                                     trigger_proxy=trigger_execution_proxy(row["symbol"])
                                 except Exception as exc:
                                     trigger_proxy={"available":False,"error":type(exc).__name__+":"+str(exc)[:120]}
                                 execution_check=live_execution_gate(row,price,trigger_proxy)
+                                execution_check["four_factor_tier"]=four_factor_check["tier"]
                             if not execution_check.get("qualified"):
                                 blocked_payload=dict(row)
                                 blocked_payload["_live_price_source"]=str(early.get("live_price_source") or "UNKNOWN")
