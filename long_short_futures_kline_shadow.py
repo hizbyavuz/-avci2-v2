@@ -181,6 +181,31 @@ def backfill_binance_archive(db, symbols, intervals=("1m", "5m", "15m", "30m", "
     print(f"FUTURES_ARCHIVE_BACKFILL rows_added={inserted}", flush=True)
 
 
+def bridge_recent_futures(db, symbols):
+    import urllib.parse
+    import urllib.request
+    conn = initialize(db)
+    try:
+        for symbol in symbols:
+            for interval in ("1m", "5m", "15m", "30m", "1h", "4h"):
+                query = urllib.parse.urlencode({"symbol": symbol, "interval": interval, "limit": 300})
+                try:
+                    with urllib.request.urlopen("https://fapi.binance.com/fapi/v1/klines?" + query, timeout=7) as response:
+                        bars = json.load(response)
+                    now = int(time.time() * 1000)
+                    for bar in bars:
+                        if int(bar[6]) >= now - 250:
+                            continue
+                        row = (symbol, interval, int(bar[0]), int(bar[6]), float(bar[1]), float(bar[2]), float(bar[3]), float(bar[4]), float(bar[5]), "BINANCE_UM_FUTURES_REST", now, float(bar[7]), int(bar[8]), float(bar[10]))
+                        conn.execute("INSERT OR IGNORE INTO futures_closed_klines (symbol,interval,open_ms,close_ms,open,high,low,close,volume,source,received_ms,quote_volume,trade_count,taker_buy_quote) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)", row)
+                    conn.commit()
+                    print("FUTURES_BRIDGE_OK", symbol, interval, flush=True)
+                except Exception as exc:
+                    print("FUTURES_BRIDGE_UNAVAILABLE", symbol, interval, type(exc).__name__, flush=True)
+    finally:
+        conn.close()
+
+
 def continuous_main():
     """Persistent Binance-only closed candle feed; observation-only until validated."""
     import signal
@@ -198,6 +223,7 @@ def continuous_main():
         try:
             if not backfill_done:
                 backfill_binance_archive(db, ["BTCUSDT", "ETHUSDT", "SOLUSDT"])
+                bridge_recent_futures(db, ["BTCUSDT", "ETHUSDT", "SOLUSDT"])
                 backfill_done = True
             symbols = ["BTCUSDT", "ETHUSDT", "SOLUSDT"] + choose_symbols("", analyst_db=analyst, limit=9)
             symbols = list(dict.fromkeys(symbols))[:12]
