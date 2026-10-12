@@ -1782,17 +1782,29 @@ def loop_once():
                                     side="🟢" if row["direction"]=="LONG" else "🔴"
                                     missing=", ".join(four_factor_check.get("missing_factors") or [])
                                     conditional_msg=(
-                                        f"🟡 KOŞULLU {row['direction']} | {row['symbol']}\\n"
-                                        f"Veri: 3/4 — eksik: {missing}\\n"
-                                        f"Fiyat: {price:.8g} | Yön: {side} {row['direction']}\\n"
-                                        f"Durum: Fiyat/yapı tetiklendi; Binance türev verisi kısmi.\\n"
+                                        f"🟡 KOŞULLU {row['direction']} | {row['symbol']}\n"
+                                        f"Veri: 3/4 — eksik: {missing}\n"
+                                        f"Fiyat: {price:.8g} | Yön: {side} {row['direction']}\n"
+                                        f"Durum: Fiyat/yapı tetiklendi; Binance türev verisi kısmi.\n"
                                         "⚠️ TAM İŞLEM TEYİDİ DEĞİL. Otomatik emir yok."
                                     )
                                     try:
-                                        send_telegram(conditional_msg)
+                                        receipt=send_telegram(conditional_msg)
+                                        con.execute("""UPDATE events SET telegram_status='SENT'
+                                            WHERE rowid=(SELECT MAX(rowid) FROM events
+                                                WHERE symbol=? AND event_time_utc=?
+                                                AND stage_to='EXECUTION_BLOCKED')""",
+                                            (row["symbol"],observed_time))
+                                        con.commit()
                                         print("LS_PARTIAL_3_OF_4_TELEGRAM_SENT",
                                               row["symbol"],row["direction"],flush=True)
                                     except Exception as exc:
+                                        con.execute("""UPDATE events SET telegram_status='ERROR'
+                                            WHERE rowid=(SELECT MAX(rowid) FROM events
+                                                WHERE symbol=? AND event_time_utc=?
+                                                AND stage_to='EXECUTION_BLOCKED')""",
+                                            (row["symbol"],observed_time))
+                                        con.commit()
                                         print("LS_PARTIAL_3_OF_4_TELEGRAM_ERROR",
                                               row["symbol"],type(exc).__name__,flush=True)
                                 continue
