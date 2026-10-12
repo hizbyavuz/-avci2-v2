@@ -488,6 +488,8 @@ def load_watchlist():
                     continue
                 deriv_source=str(p.get("derivatives_source") or p.get("data_mode") or "UNKNOWN")
                 provider=str(p.get("derivatives_selected_provider") or "")
+                if deriv_source == "BINANCE_FUTURES" and not provider:
+                    provider = "BINANCE_FUTURES"
                 quality=str(p.get("derivatives_quality") or "UNKNOWN")
                 # Binance-only production: reject cross-venue analyst candidates.
                 # Third-party vendors are acceptable only for Binance-specific
