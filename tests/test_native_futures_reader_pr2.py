@@ -6,7 +6,7 @@ import time
 import unittest
 from unittest.mock import patch
 from long_short_futures_kline_shadow import initialize
-from long_short_live_pool import native_futures_closed_bars
+from long_short_live_pool import native_futures_closed_bars, futures_closed_snapshot
 
 
 class NativeFuturesReaderTests(unittest.TestCase):
@@ -34,6 +34,21 @@ class NativeFuturesReaderTests(unittest.TestCase):
 
     def test_contiguous_fresh_futures_bars(self):
         self.assertEqual(len(self.read()), 4)
+
+    def test_snapshot_does_not_claim_live_price(self):
+        with patch("long_short_live_pool.native_futures_closed_bars") as read:
+            read.side_effect = lambda symbol, interval, count, max_age_seconds: [
+                (1000+i*(60000 if interval=="1m" else 300000),
+                 100,101,99,100.5,8,
+                 1000+i*(60000 if interval=="1m" else 300000)+59999,
+                 802,13,401,"BINANCE_UM_FUTURES_WEBSOCKET")
+                for i in range(count)]
+            snapshot = futures_closed_snapshot("BTCUSDT")
+        self.assertEqual(snapshot["source"], "BINANCE_FUTURES")
+        self.assertFalse(snapshot["price_is_live"])
+        self.assertEqual(len(snapshot["kl1"]), 30)
+        self.assertEqual(len(snapshot["kl5"]), 30)
+        self.assertEqual(snapshot["last_closed_5m"], 100.5)
 
     def test_gap_rejected(self):
         with sqlite3.connect(self.db) as con:
