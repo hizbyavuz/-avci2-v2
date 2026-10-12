@@ -1539,7 +1539,7 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
         evidence = coinalyze_binance_snapshot(symbol)
         funding_evidence = coinalyze_binance_funding(symbol)
         state_root = os.getenv("LS_STATE_DIR") or os.getenv("RAILWAY_VOLUME_MOUNT_PATH") or ".long-short-state"
-        taker_evidence = binance_taker_window(os.path.join(state_root, "binance_taker_shadow.db"), symbol)
+        taker_evidence = binance_taker_window(os.path.join(state_root, "long_short_taker_minute_shadow.db"), symbol)
         verified = dict(evidence)
         verified["funding_fresh"] = bool(funding_evidence.get("funding_fresh"))
         verified["taker_fresh"] = bool(taker_evidence.get("ready"))
