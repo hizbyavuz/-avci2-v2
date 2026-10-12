@@ -1,6 +1,7 @@
 """Read-only Coinalyze Binance USD-M funding probe; never sends orders."""
 import time
 import requests
+import sqlite3
 _CACHE = {}
 from long_short_coinalyze_adapter import _cached_request, _market
 
@@ -17,7 +18,7 @@ def funding_snapshot(symbol, now=None):
             return out
         key, _ = market
         rows = _cached_request("/funding-rate", {"symbols": key}, ttl=600)
-    except (requests.RequestException, RuntimeError, ValueError, TypeError, KeyError) as exc:
+    except (requests.RequestException, RuntimeError, ValueError, TypeError, KeyError, sqlite3.Error) as exc:
         out["error_type"] = type(exc).__name__
         return out
     if not isinstance(rows, list):
