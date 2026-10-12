@@ -2944,7 +2944,6 @@ def main():
         try:
             with sqlite3.connect(DB, timeout=15) as con:
                 con.execute("CREATE TABLE IF NOT EXISTS watch_451_symbol_notices (symbol TEXT NOT NULL, direction TEXT NOT NULL, sent_at_utc TEXT NOT NULL, PRIMARY KEY(symbol,direction))")
-                con.execute("BEGIN IMMEDIATE")
                 now_ts = time.time()
                 rows = []
                 for analysis in results:
@@ -2964,19 +2963,19 @@ def main():
                     rows.append(analysis)
                     if len(rows) >= 5:
                         break
-                sent_count = 0
-                for analysis in rows:
-                    notice = format_watch_digest([analysis])
-                    if not notice:
-                        continue
-                    try:
-                        send_telegram(notice)
-                    except Exception as delivery_exc:
-                        print("WATCH_451_DELIVERY_ERROR", analysis.symbol, type(delivery_exc).__name__, str(delivery_exc)[:120], flush=True)
-                        continue
-                    con.execute("INSERT OR REPLACE INTO watch_451_symbol_notices VALUES (?,?,?)", (analysis.symbol, analysis.payload["direction_engine"]["direction"], now_iso()))
-                    con.commit()
-                    sent_count += 1
+            sent_count = 0
+            for analysis in rows:
+                notice = format_watch_digest([analysis])
+                if not notice:
+                    continue
+                try:
+                    send_telegram(notice)
+                except Exception as delivery_exc:
+                    print("WATCH_451_DELIVERY_ERROR", analysis.symbol, type(delivery_exc).__name__, str(delivery_exc)[:120], flush=True)
+                    continue
+                with sqlite3.connect(DB, timeout=30) as notice_db:
+                    notice_db.execute("INSERT OR REPLACE INTO watch_451_symbol_notices VALUES (?,?,?)", (analysis.symbol, analysis.payload["direction_engine"]["direction"], now_iso()))
+                sent_count += 1
                 if sent_count:
                     print("WATCH_451_TELEGRAM_SENT", sent_count, flush=True)
         except Exception as exc:
