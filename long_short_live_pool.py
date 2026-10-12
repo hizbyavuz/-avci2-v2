@@ -112,8 +112,29 @@ def trigger_execution_proxy(symbol):
         r.raise_for_status()
         book=r.json()
     except Exception:
-        source="BINANCE_SPOT_BOOK_PROXY"
-        book=spot_get("/api/v3/depth",{"symbol":symbol,"limit":100})
+        # Public Binance Futures WebSocket fallback when REST is restricted.
+        try:
+            from websocket import create_connection
+            import json as _json
+            import re as _re
+            if not _re.fullmatch(r"[A-Z0-9]{3,30}", symbol):
+                raise ValueError("invalid_symbol")
+            ws=create_connection(
+                "wss://fstream.binance.com/public/ws/" + symbol.lower() + "@depth20@100ms",
+                timeout=5,
+            )
+            try:
+                ws.settimeout(5)
+                payload=_json.loads(ws.recv())
+            finally:
+                ws.close()
+            if not isinstance(payload,dict) or not payload.get("bids") or not payload.get("asks"):
+                raise ValueError("websocket_depth_snapshot_invalid")
+            book=payload
+            source="BINANCE_FUTURES_BOOK"
+        except Exception:
+            source="BINANCE_SPOT_BOOK_PROXY"
+            book=spot_get("/api/v3/depth",{"symbol":symbol,"limit":100})
 
     bids=book.get("bids",[]) or []
     asks=book.get("asks",[]) or []
