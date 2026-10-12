@@ -1109,10 +1109,25 @@ def universe():
     # do not monopolize every scan. Every eligible symbol is included in the
     # lightweight 24h snapshot, even when not selected for candle analysis.
     all_eligible=sorted(eligible,key=lambda z:(-float(z[1]),str(z[0])))
-    try:
-        audit_30m_coverage(now_iso(),all_eligible)
-    except Exception as exc:
-        print("OPPORTUNITY_30M_AUDIT_ERROR",type(exc).__name__,str(exc)[:180],flush=True)
+    # This audit is observational, never a reason to stall or fail a live scan.
+    # Retry only transient SQLite contention; keep the scan's original timestamp.
+    audit_ts=now_iso()
+    for audit_attempt in range(3):
+        try:
+            audit_30m_coverage(audit_ts,all_eligible)
+            break
+        except sqlite3.OperationalError as exc:
+            busy=("locked" in str(exc).lower() or "busy" in str(exc).lower())
+            if not busy:
+                print("OPPORTUNITY_30M_AUDIT_ERROR",type(exc).__name__,str(exc)[:180],flush=True)
+                break
+            if audit_attempt==2:
+                print("OPPORTUNITY_30M_AUDIT_DEFERRED SQLITE_BUSY attempts=3",flush=True)
+                break
+            time.sleep(0.25*(audit_attempt+1))
+        except Exception as exc:
+            print("OPPORTUNITY_30M_AUDIT_ERROR",type(exc).__name__,str(exc)[:180],flush=True)
+            break
 
     try:
         from pathlib import Path
