@@ -869,6 +869,26 @@ def native_futures_closed_bars(symbol, interval, count, max_age_seconds):
     return bars
 
 
+def futures_closed_snapshot(symbol):
+    """Closed-bar-only Futures snapshot for parity testing; never invent live ticks.
+
+    Uses the same OHLCV layout as Binance klines. It intentionally does not
+    produce a live trade approval: last closed 1m close is not a live quote.
+    """
+    kl1 = native_futures_closed_bars(symbol, "1m", 30, 180)
+    kl5 = native_futures_closed_bars(symbol, "5m", 30, 600)
+    def as_kline(bar):
+        return [bar[0],bar[1],bar[2],bar[3],bar[4],bar[5],
+                bar[6],bar[7],bar[8],None,bar[9]]
+    return {"source":"BINANCE_FUTURES","price_is_live":False,
+            "kl1":[as_kline(b) for b in kl1],
+            "kl5":[as_kline(b) for b in kl5],
+            "last_closed_1m":float(kl1[-1][4]),
+            "last_closed_5m":float(kl5[-1][4]),
+            "last_closed_5m_at":datetime.fromtimestamp(
+                int(kl5[-1][6])/1000.0,tz=timezone.utc).isoformat()}
+
+
 def market_snapshot(symbol):
     # 1m data lets the observational layer see a breakout while it is forming.
     # The frozen continuation engine still uses the last completed 5m close below.
