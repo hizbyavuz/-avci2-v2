@@ -99,10 +99,33 @@ def _book_vwap_quote(levels,quote_notional):
     return spent/base_qty
 
 
-def trigger_execution_proxy(symbol):
-    """Capture one execution-cost snapshot after a TRIGGERED alert is sent."""
+def trigger_execution_proxy(symbol, preferred_venue=None):
+    """Capture venue-specific perpetual depth; never substitute spot for approval."""
     source="BINANCE_FUTURES_BOOK"
-    try:
+    if preferred_venue == "GATE_FUTURES":
+        contract = symbol[:-4] + "_USDT" if symbol.endswith("USDT") else symbol
+        try:
+            r=requests.get("https://api.gateio.ws/api/v4/futures/usdt/order_book",
+                           params={"contract":contract,"limit":100,"with_id":"false"},timeout=5)
+            r.raise_for_status()
+            payload=r.json()
+            bids=[[v["p"],v["s"]] for v in payload.get("bids",[]) if float(v["s"])>0]
+            asks=[[v["p"],abs(float(v["s"]))] for v in payload.get("asks",[]) if float(v["s"])<0]
+            # Gate futures size is contracts, not base-coin quantity. Convert using quanto_multiplier.
+            spec=requests.get("https://api.gateio.ws/api/v4/futures/usdt/contracts/"+contract,timeout=5)
+            spec.raise_for_status()
+            multiplier=float(spec.json().get("quanto_multiplier") or 0)
+            if multiplier<=0: raise ValueError("gate_contract_multiplier_missing")
+            book={"bids":[[p,float(q)*multiplier] for p,q in bids],
+                  "asks":[[p,float(q)*multiplier] for p,q in asks]}
+            source="GATE_FUTURES_BOOK"
+        except Exception as exc:
+            return {"source":"GATE_FUTURES_BOOK","observed_at_utc":now_iso(),
+                    "available":False,"error":type(exc).__name__+":"+str(exc)[:100]}
+    else:
+        book=None
+    if book is None:
+      try:
         r=requests.get(
             FUTURES_DEPTH_URL,
             params={"symbol":symbol,"limit":100},
@@ -111,7 +134,7 @@ def trigger_execution_proxy(symbol):
         )
         r.raise_for_status()
         book=r.json()
-    except Exception:
+      except Exception:
         source="BINANCE_SPOT_BOOK_PROXY"
         book=spot_get("/api/v3/depth",{"symbol":symbol,"limit":100})
 
@@ -145,15 +168,17 @@ def live_execution_gate(row,price,proxy):
         return {"qualified":False,"reason":"execution_proxy_unavailable"}
     # A spot order book is not proof of executable futures liquidity.
     # Keep it for research, but never turn it into a futures trade approval.
-    if proxy.get("source") != "BINANCE_FUTURES_BOOK":
+    if proxy.get("source") not in ("BINANCE_FUTURES_BOOK","GATE_FUTURES_BOOK"):
         return {"qualified":False,"reason":"futures_execution_venue_unverified","proxy":proxy}
     # A Binance futures book cannot approve a mixed-venue chart/derivatives setup.
     data_mode=str(row["data_mode"] or "UNKNOWN") if "data_mode" in row.keys() else "UNKNOWN"
     deriv_provider=str(row["derivatives_provider"] or "UNKNOWN") if "derivatives_provider" in row.keys() else "UNKNOWN"
-    if data_mode != "BINANCE_FUTURES" or not deriv_provider.upper().startswith("BINANCE"):
+    matching_binance = (proxy.get("source") == "BINANCE_FUTURES_BOOK" and data_mode == "BINANCE_FUTURES" and deriv_provider.upper().startswith("BINANCE"))
+    matching_gate = (proxy.get("source") == "GATE_FUTURES_BOOK" and data_mode == "GATE_FUTURES" and deriv_provider.upper().startswith("GATE"))
+    if not (matching_binance or matching_gate):
         return {"qualified":False,"reason":"mixed_venue_execution_unverified",
                 "chart_venue":data_mode,"deriv_venue":deriv_provider,
-                "book_venue":proxy.get("source"),"decision_venue":"BINANCE_FUTURES",
+                "book_venue":proxy.get("source"),"decision_venue":("GATE_FUTURES" if matching_gate else "BINANCE_FUTURES"),
                 "proxy":proxy}
     size=str(int(float(proxy.get("notional_usdt") or EXECUTION_PROXY_NOTIONAL)))
     costs=(proxy.get("costs") or {}).get(size) or {}
@@ -1676,7 +1701,7 @@ def loop_once():
                         # qualifying setups are preserved as shadow events, not sent.
                         if new=="TRIGGERED":
                             try:
-                                trigger_proxy=trigger_execution_proxy(row["symbol"])
+                                trigger_proxy=trigger_execution_proxy(row["symbol"], "GATE_FUTURES" if str(row["data_mode"] or "") == "GATE_FUTURES" else None)
                             except Exception as exc:
                                 trigger_proxy={"available":False,"error":type(exc).__name__+":"+str(exc)[:120]}
                             execution_check=live_execution_gate(row,price,trigger_proxy)
