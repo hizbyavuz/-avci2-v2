@@ -889,6 +889,26 @@ def futures_closed_snapshot(symbol):
                 int(kl5[-1][6])/1000.0,tz=timezone.utc).isoformat()}
 
 
+def futures_market_snapshot(symbol):
+    """Read-only Binance USD-M candle + executable-book snapshot.
+
+    Only genuine Futures observations are used. The book midpoint is a
+    contemporaneous indicative price, not a fill or trade execution.
+    """
+    snap = futures_closed_snapshot(symbol)
+    book = trigger_execution_proxy(symbol)
+    if book.get("source") != "BINANCE_FUTURES_BOOK" or not book.get("available"):
+        raise RuntimeError("FUTURES_LIVE_BOOK_UNAVAILABLE")
+    mid = float(book.get("mid") or 0.0)
+    if not math.isfinite(mid) or mid <= 0:
+        raise RuntimeError("FUTURES_LIVE_PRICE_INVALID")
+    return {"source":"BINANCE_FUTURES","price":mid,
+            "price_type":"futures_orderbook_mid_indicative",
+            "kl1":snap["kl1"],"kl5":snap["kl5"],
+            "closed_5m_at":snap["last_closed_5m_at"],
+            "book_source":book["source"]}
+
+
 def market_snapshot(symbol):
     # 1m data lets the observational layer see a breakout while it is forming.
     # The frozen continuation engine still uses the last completed 5m close below.
