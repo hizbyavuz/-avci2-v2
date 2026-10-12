@@ -226,16 +226,22 @@ def continuous_main():
     os.makedirs(root, exist_ok=True)
     db = os.path.join(root, "binance_futures_kline_shadow.db")
     analyst = os.getenv("LS_ANALYST_DB") or os.path.join(root, "long_short_analyst.db")
-    backfill_done = False
+    backfilled_symbols = set()
     while not stop.is_set():
         try:
             selected = choose_symbols("", analyst_db=analyst, limit=30)
             symbols = list(dict.fromkeys(selected + ["BTCUSDT", "ETHUSDT", "SOLUSDT"]))[:30]
             if not symbols:
                 raise RuntimeError("DATA_NOT_READY: no analyst universe")
-            if not backfill_done:
-                backfill_binance_archive(db, symbols)
-                backfill_done = True
+            # The analyst universe changes. A single startup backfill leaves
+            # newly selected symbols without enough history indefinitely.
+            missing = [sym for sym in symbols if sym not in backfilled_symbols]
+            if missing:
+                print("FUTURES_KLINE_NEW_SYMBOL_BACKFILL " +
+                      json.dumps({"symbols":missing}), flush=True)
+                for sym in missing:
+                    backfill_binance_archive(db, [sym])
+                    backfilled_symbols.add(sym)
             bridge_recent_futures(db, symbols)
             result = collect(db, symbols, seconds=900, stop=stop)
             print("FUTURES_KLINE_FEED " + json.dumps(result), flush=True)
