@@ -12,7 +12,7 @@ class FundingTests(unittest.TestCase):
         self.assertTrue(x["funding_fresh"])
         self.assertEqual(x["funding_pct"],0.01)
 
-    @patch("long_short_coinalyze_funding_probe._get")
+    @patch("long_short_coinalyze_funding_probe._cached_request")
     @patch("long_short_coinalyze_funding_probe._market")
     def test_stale_funding(self, market, get):
         market.return_value=("BTCUSDT_PERP.A",{})
