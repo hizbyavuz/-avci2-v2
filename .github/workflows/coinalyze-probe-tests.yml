@@ -8,6 +8,9 @@ on:
       - 'test_long_short_coinalyze_adapter.py'
       - 'long_short_coinalyze_funding_probe.py'
       - 'test_long_short_coinalyze_funding_probe.py'
+      - 'long_short_daemon.py'
+      - 'long_short_v4_native_pipeline.py'
+      - 'requirements.txt'
       - 'long_short_native_taker_health.py'
       - 'test_long_short_native_taker_health.py'
       - 'long_short_binance_derivative_gate.py'
@@ -25,4 +28,5 @@ jobs:
         with:
           python-version: '3.11'
       - run: python -m pip install requests==2.32.5
+      - run: python -m py_compile long_short_daemon.py long_short_v4_native_pipeline.py long_short_native_taker_health.py
       - run: python -m unittest -v test_coinalyze_binance_probe test_long_short_coinalyze_adapter test_long_short_binance_derivative_gate test_long_short_coinalyze_funding_probe test_long_short_native_taker_health
