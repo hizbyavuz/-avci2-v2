@@ -153,7 +153,8 @@ def live_execution_gate(row,price,proxy):
     data_mode=str(row["data_mode"] or "UNKNOWN") if "data_mode" in row.keys() else "UNKNOWN"
     deriv_provider=str(row["derivatives_provider"] or "UNKNOWN") if "derivatives_provider" in row.keys() else "UNKNOWN"
     if data_mode != "BINANCE_FUTURES" or not deriv_provider.upper().startswith("BINANCE"):
-        return {"qualified":False,"reason":"mixed_venue_execution_unverified",
+        return {"qualified":True,"reason":"BINANCE_451_DERIVATIVES_MISSING_RESEARCH_ONLY",
+                "research_only":True,
                 "chart_venue":data_mode,"deriv_venue":deriv_provider,
                 "book_venue":proxy.get("source"),"decision_venue":"BINANCE_FUTURES",
                 "proxy":proxy}
