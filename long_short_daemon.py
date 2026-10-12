@@ -379,6 +379,32 @@ def main() -> int:
 
     threading.Thread(target=coinalyze_funding_shadow, name="coinalyze-funding-shadow", daemon=True).start()
 
+    # Single bounded read-only native taker connectivity check at startup.
+    # Stores records in the existing persistent volume; never sends orders or alerts.
+    def native_taker_boot_probe():
+        try:
+            from long_short_v4_native_pipeline import observe
+            from long_short_native_taker_health import check
+            path = str(sd / "long_short_v4_native.db")
+            outcome = observe(path, ["BTCUSDT", "ETHUSDT"], 30)
+            health = {symbol: check(path, symbol) for symbol in ("BTCUSDT", "ETHUSDT")}
+            safe = {
+                "state": outcome.get("state"),
+                "accepted": outcome.get("accepted"),
+                "market_connected": outcome.get("health", {}).get("market"),
+                "public_connected": outcome.get("health", {}).get("public"),
+                "taker": {symbol: {"ready": row["ready"],
+                                    "reason": row["reason"],
+                                    "trade_count_2m": row["trade_count_2m"]}
+                          for symbol, row in health.items()},
+                "continuous_coverage": False,
+            }
+            print("[daemon] BINANCE_NATIVE_TAKER_BOOT " + json.dumps(safe), flush=True)
+        except Exception as exc:
+            print("[daemon] BINANCE_NATIVE_TAKER_BOOT_FAILED " + type(exc).__name__, flush=True)
+
+    threading.Thread(target=native_taker_boot_probe, name="native-taker-boot", daemon=True).start()
+
     # One initial analyst pass gives both live watchers a fresh plan before they
     # start. Failure is not fatal; the analyst loop will keep retrying.
     initial_rc = run_child("analyst_initial", "long_short_analyst.py")
