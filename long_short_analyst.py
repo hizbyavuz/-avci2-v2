@@ -353,13 +353,17 @@ def native_futures_shadow_klines(symbol, interval, limit):
         print("FUTURES_SHADOW_READ_ERROR " + type(exc).__name__, flush=True)
         return None
     if len(rows) < limit:
+        print(f"FUTURES_SHADOW_DIAG symbol={symbol} interval={interval} reason=short_history count={len(rows)} required={limit}", flush=True)
         return None
     rows.reverse()
     if rows[-1][1] > now_ms - 250 or now_ms - rows[-1][1] > period_ms * 2:
+        print(f"FUTURES_SHADOW_DIAG symbol={symbol} interval={interval} reason=stale last_close={rows[-1][1]} age_ms={now_ms-rows[-1][1]}", flush=True)
         return None
     if any(r[7] not in ("BINANCE_UM_FUTURES_WEBSOCKET", "BINANCE_UM_FUTURES_ARCHIVE") or any(v is None for v in r[8:11]) for r in rows):
+        print(f"FUTURES_SHADOW_DIAG symbol={symbol} interval={interval} reason=invalid_source_or_fields", flush=True)
         return None
     if any(b[0] - a[0] != period_ms for a, b in zip(rows, rows[1:])):
+        print(f"FUTURES_SHADOW_DIAG symbol={symbol} interval={interval} reason=gap first={rows[0][0]} last={rows[-1][0]}", flush=True)
         return None
     result = []
     for start, end, op, hi, lo, cl, vol, _, quote_vol, trades, taker_quote in rows:
