@@ -2976,8 +2976,8 @@ def main():
                 with sqlite3.connect(DB, timeout=30) as notice_db:
                     notice_db.execute("INSERT OR REPLACE INTO watch_451_symbol_notices VALUES (?,?,?)", (analysis.symbol, analysis.payload["direction_engine"]["direction"], now_iso()))
                 sent_count += 1
-                if sent_count:
-                    print("WATCH_451_TELEGRAM_SENT", sent_count, flush=True)
+            if sent_count:
+                print("WATCH_451_TELEGRAM_SENT", sent_count, flush=True)
         except Exception as exc:
             print("WATCH_451_TELEGRAM_ERROR", type(exc).__name__, str(exc)[:160], flush=True)
     send_health_once(results)
