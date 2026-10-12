@@ -1377,7 +1377,7 @@ def fetch_htf_cached(symbol, interval, limit=220):
     ttl = HTF_CACHE_TTL_1D if interval=="1d" else (HTF_CACHE_TTL_4H if interval=="4h" else HTF_CACHE_TTL_1H)
     now_ts = time.time()
     try:
-        with sqlite3.connect(DB) as con:
+        with sqlite3.connect(DB, timeout=60) as con:
             row=con.execute(
                 "SELECT fetched_at_epoch,payload_json FROM htf_cache WHERE symbol=? AND interval=?",
                 (symbol,interval)
@@ -1388,7 +1388,7 @@ def fetch_htf_cached(symbol, interval, limit=220):
         pass
     data=fetch_klines(symbol,interval,limit)
     try:
-        with sqlite3.connect(DB) as con:
+        with sqlite3.connect(DB, timeout=60) as con:
             con.execute("""INSERT OR REPLACE INTO htf_cache(symbol,interval,fetched_at_epoch,payload_json)
                            VALUES(?,?,?,?)""",
                         (symbol,interval,now_ts,json.dumps(data,separators=(",",":"))))
@@ -2081,7 +2081,7 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
 
 
 def init_db():
-    with sqlite3.connect(DB) as con:
+    with sqlite3.connect(DB, timeout=60) as con:
         con.execute("""CREATE TABLE IF NOT EXISTS htf_cache(
             symbol TEXT NOT NULL,
             interval TEXT NOT NULL,
@@ -2205,7 +2205,7 @@ def save_universe_observations(ts, preselected, shortlist):
     prevents selection/survivorship bias from disappearing from the database.
     """
     selected={x["symbol"] for x in shortlist}
-    with sqlite3.connect(DB) as con:
+    with sqlite3.connect(DB, timeout=60) as con:
         for x in preselected:
             try:
                 t5=x["t5"]; t15=x["t15"]
@@ -2277,7 +2277,7 @@ def save_reversal_candidates(ts, pres):
 
 
 def save_scan(ts, regime, n, results):
-    with sqlite3.connect(DB) as con:
+    with sqlite3.connect(DB, timeout=60) as con:
         con.execute("INSERT INTO scans(scan_time_utc,version,btc_regime,universe_size) VALUES(?,?,?,?)",
                     (ts,VERSION,regime,n))
         for a in results:
@@ -2334,7 +2334,7 @@ def save_scan(ts, regime, n, results):
 
 
 def update_paper():
-    with sqlite3.connect(DB) as con:
+    with sqlite3.connect(DB, timeout=60) as con:
         rows=con.execute("""SELECT id,symbol,direction,signal_time_utc,signal_price,
                             signal_score,stop,tp1,tp2,expires_at_utc,
                             fee_bps_per_side,slippage_bps_per_side,
@@ -2397,7 +2397,7 @@ def update_paper():
 
 
 def performance_summary():
-    with sqlite3.connect(DB) as con:
+    with sqlite3.connect(DB, timeout=60) as con:
         rows=con.execute("""SELECT signal_score,outcome,net_return_pct,r_multiple,episode_id
                             FROM paper_setups
                             WHERE status='CLOSED' AND net_return_pct IS NOT NULL
@@ -2558,7 +2558,7 @@ def send_health_once(results):
     if not token or not results:
         return
     notice_key=f"DEPLOY_HEALTH|{VERSION}"
-    with sqlite3.connect(DB) as con:
+    with sqlite3.connect(DB, timeout=60) as con:
         if con.execute("SELECT 1 FROM system_notices WHERE notice_key=?",(notice_key,)).fetchone():
             return
 
@@ -2578,7 +2578,7 @@ def send_health_once(results):
         f"🤖 Otomatik emir KAPALI — Telegram analiz/uyarı modu."
     )
     send_telegram(msg)
-    with sqlite3.connect(DB) as con:
+    with sqlite3.connect(DB, timeout=60) as con:
         con.execute("INSERT OR REPLACE INTO system_notices(notice_key,sent_at_utc,payload_json) VALUES(?,?,?)",
                     (notice_key,now_iso(),json.dumps({"ready":ready,"total":len(results),"native":native,"multi":multi})))
         con.commit()
