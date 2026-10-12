@@ -182,4 +182,8 @@ def window(db,symbol,now_ms=None):
     return {"ready":ready,"source":SOURCE,"symbol":symbol,
             "taker_ratio":buy/sell if ready else None,
             "coverage_minutes":len(covered),"missing_minutes":len(gaps),
-            "interruptions_detected":interruptions}
+            "interruptions_detected":interruptions,
+            "session_valid":session_ok,
+            "collector_state":latest[1] if latest else "NO_HEALTH",
+            "collector_health_age_ms":now_ms-latest[0] if latest else None,
+            "session_started_before_window":bool(latest and isinstance(json.loads(latest[4] or "{}").get("connected_at_ms"),int) and json.loads(latest[4] or "{}")["connected_at_ms"]<=start)}
