@@ -1036,7 +1036,42 @@ def fetch_depth_imbalance(symbol):
     return float(fetch_depth_metrics(symbol)["imbalance"])
 
 
+def native_futures_websocket_universe():
+    """Read fresh Binance USD-M Futures all-market tickers; never use Spot."""
+    root=os.getenv("LS_STATE_DIR") or os.getenv("RAILWAY_VOLUME_MOUNT_PATH") or ".long-short-state"
+    db=os.path.join(root,"binance_futures_universe.db")
+    if not os.path.isfile(db):
+        raise RuntimeError("BINANCE_FUTURES_ONLY: WebSocket universe database missing")
+    with sqlite3.connect("file:"+os.path.abspath(db)+"?mode=ro",uri=True,timeout=4) as c:
+        rows=c.execute("""SELECT symbol,quote_volume,last_price,change_pct,received_ms
+                          FROM futures_tickers WHERE received_ms>=?""",
+                       (int(time.time()*1000)-120000,)).fetchall()
+    if not rows:
+        raise RuntimeError("BINANCE_FUTURES_ONLY: no fresh Futures ticker snapshots")
+    eligible=[]
+    for sym,qv,price,change,stamp in rows:
+        if not sym.endswith("USDT") or not sym[:-4].isalnum():
+            continue
+        base=sym[:-4]
+        if base in EXCLUDED_BASES or any(base.endswith(x) for x in EXCLUDED_MARKERS):
+            continue
+        if qv is None or price is None or change is None or qv<DISCOVERY_MIN_24H_QUOTE_VOL or price<=0:
+            continue
+        DISCOVERY_META[sym]={"source":"BINANCE_FUTURES_WEBSOCKET",
+            "binance_native_verified":True,"binance_spot_member":True,
+            "external_only_unverified":False,"provider_count":1}
+        eligible.append((sym,float(qv),float(price),float(change)))
+    if not eligible:
+        raise RuntimeError("BINANCE_FUTURES_ONLY: no eligible fresh Futures tickers")
+    eligible.sort(key=lambda x:x[1],reverse=True)
+    return eligible[:max(1,int(MAX_SYMBOLS))]
+
+
 def universe():
+    if os.getenv("LS_BINANCE_FUTURES_ONLY", "1") == "1":
+        global DISCOVERY_META
+        DISCOVERY_META={}
+        return native_futures_websocket_universe()
     if os.getenv("LS_BINANCE_FUTURES_ONLY", "1") == "1" and DATA_MODE != "BINANCE_FUTURES":
         raise RuntimeError("BINANCE_FUTURES_ONLY: Binance Futures universe unavailable; spot discovery forbidden")
     """Build a broad USDT-perpetual discovery universe.
