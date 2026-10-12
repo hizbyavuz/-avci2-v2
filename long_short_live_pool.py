@@ -139,6 +139,28 @@ def trigger_execution_proxy(symbol):
         },
     }
 
+def binance_four_factor_confirmation_gate(symbol, now_epoch=None):
+    """Read-only Binance evidence lookup; never approve stale/missing data."""
+    now_epoch=int(time.time()) if now_epoch is None else int(now_epoch)
+    try:
+        with sqlite3.connect("file:"+os.path.abspath(ANALYST_DB)+"?mode=ro",uri=True,timeout=5) as db:
+            row=db.execute("""SELECT observed_epoch,ready,missing_json
+                FROM binance_four_factor_evidence
+                WHERE symbol=? ORDER BY observed_epoch DESC LIMIT 1""",(symbol,)).fetchone()
+        if row is None:
+            return {"qualified":False,"reason":"binance_four_factor_no_evidence"}
+        age=now_epoch-int(row[0])
+        if age<0 or age>300:
+            return {"qualified":False,"reason":"binance_four_factor_stale","age_seconds":age}
+        if int(row[1])!=1:
+            return {"qualified":False,"reason":"binance_four_factor_incomplete",
+                    "missing":json.loads(row[2] or "[]"),"age_seconds":age}
+        return {"qualified":True,"reason":"binance_four_factor_ready","age_seconds":age}
+    except (sqlite3.Error,OSError,ValueError,TypeError) as exc:
+        return {"qualified":False,"reason":"binance_four_factor_unavailable",
+                "error":type(exc).__name__}
+
+
 def live_execution_gate(row,price,proxy):
     """Fail closed if the trigger-time executable cost destroys net T1 R."""
     if not proxy or not proxy.get("available"):
@@ -1675,11 +1697,16 @@ def loop_once():
                         # signals per direction in a rolling 15m market wave. Extra
                         # qualifying setups are preserved as shadow events, not sent.
                         if new=="TRIGGERED":
-                            try:
-                                trigger_proxy=trigger_execution_proxy(row["symbol"])
-                            except Exception as exc:
-                                trigger_proxy={"available":False,"error":type(exc).__name__+":"+str(exc)[:120]}
-                            execution_check=live_execution_gate(row,price,trigger_proxy)
+                            four_factor_check=binance_four_factor_confirmation_gate(row["symbol"])
+                            if not four_factor_check["qualified"]:
+                                trigger_proxy={"available":False,"source":"NOT_QUERIED_FOUR_FACTOR_BLOCK"}
+                                execution_check=four_factor_check
+                            else:
+                                try:
+                                    trigger_proxy=trigger_execution_proxy(row["symbol"])
+                                except Exception as exc:
+                                    trigger_proxy={"available":False,"error":type(exc).__name__+":"+str(exc)[:120]}
+                                execution_check=live_execution_gate(row,price,trigger_proxy)
                             if not execution_check.get("qualified"):
                                 blocked_payload=dict(row)
                                 blocked_payload["_live_price_source"]=str(early.get("live_price_source") or "UNKNOWN")
