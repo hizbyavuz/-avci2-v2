@@ -1773,6 +1773,28 @@ def loop_once():
                                     "missing_factors":four_factor_check.get("missing_factors"),
                                 },ensure_ascii=False))
                                 con.commit()
+                                # 3/4 is a conditional research alert, NOT a
+                                # trade-qualified TRIGGERED event. Send once
+                                # on this stage transition; keep the blocked
+                                # state so outcome metrics cannot count it as
+                                # an approved trade.
+                                if four_factor_check.get("tier")=="PARTIAL_3_OF_4":
+                                    side="🟢" if row["direction"]=="LONG" else "🔴"
+                                    missing=", ".join(four_factor_check.get("missing_factors") or [])
+                                    conditional_msg=(
+                                        f"🟡 KOŞULLU {row['direction']} | {row['symbol']}\\n"
+                                        f"Veri: 3/4 — eksik: {missing}\\n"
+                                        f"Fiyat: {price:.8g} | Yön: {side} {row['direction']}\\n"
+                                        f"Durum: Fiyat/yapı tetiklendi; Binance türev verisi kısmi.\\n"
+                                        "⚠️ TAM İŞLEM TEYİDİ DEĞİL. Otomatik emir yok."
+                                    )
+                                    try:
+                                        send_telegram(conditional_msg)
+                                        print("LS_PARTIAL_3_OF_4_TELEGRAM_SENT",
+                                              row["symbol"],row["direction"],flush=True)
+                                    except Exception as exc:
+                                        print("LS_PARTIAL_3_OF_4_TELEGRAM_ERROR",
+                                              row["symbol"],type(exc).__name__,flush=True)
                                 continue
 
                             allowed,cluster_count=cluster_trigger_allowed(con,row["direction"],observed_time,2)
