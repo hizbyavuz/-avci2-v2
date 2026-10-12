@@ -1797,21 +1797,21 @@ def loop_once():
                                             ((tp2>tp1) if is_long else (tp2<tp1))
                                             else "Belirlenmedi")
                                         conditional_msg=(
-                                            f"{side} {row['direction']} ÖNERİSİ | {row['symbol']}\\n"
-                                            f"Binance Futures · 5 dk · KISMİ VERİ (3/4)\\n"
-                                            f"💰 Giriş: {entry:.8g} (sinyal anı fiyatı)\\n"
-                                            f"🛡️ Stop: {stop:.8g} (%{abs(stop/entry-1)*100:.2f})\\n"
-                                            f"🎯 Hedef 1: {tp1:.8g} (%{abs(tp1/entry-1)*100:.2f})\\n"
-                                            f"🎯 Hedef 2: {tp2_text}\\n"
-                                            f"📊 İlk hedef risk/ödül: {rr:.2f}R\\n"
-                                            f"📌 Neden: Fiyat/yapı tetiklendi; 3/4 veri grubu mevcut.\\n"
-                                            f"⚠️ Eksik veri: {missing}. Bu, 3 göstergenin yönü onayladığı anlamına gelmez.\\n"
+                                            f"{side} {row['direction']} ÖNERİSİ | {row['symbol']}\n"
+                                            f"Binance Futures · 5 dk · KISMİ VERİ (3/4)\n"
+                                            f"💰 Giriş: {entry:.8g} (sinyal anı fiyatı)\n"
+                                            f"🛡️ Stop: {stop:.8g} (%{abs(stop/entry-1)*100:.2f})\n"
+                                            f"🎯 Hedef 1: {tp1:.8g} (%{abs(tp1/entry-1)*100:.2f})\n"
+                                            f"🎯 Hedef 2: {tp2_text}\n"
+                                            f"📊 İlk hedef risk/ödül: {rr:.2f}R\n"
+                                            f"📌 Neden: Fiyat/yapı tetiklendi; 3/4 veri grubu mevcut.\n"
+                                            f"⚠️ Eksik veri: {missing}. Bu, 3 göstergenin yönü onayladığı anlamına gelmez.\n"
                                             "⚠️ Kısmi veriyle koşullu işlem planı; tam teyit değil. Otomatik emir yok."
                                         )
                                     else:
                                         conditional_msg=(
-                                            f"🟡 {row['direction']} İZLE | {row['symbol']}\\n"
-                                            f"Veri: 3/4 · Eksik: {missing}\\n"
+                                            f"🟡 {row['direction']} İZLE | {row['symbol']}\n"
+                                            f"Veri: 3/4 · Eksik: {missing}\n"
                                             "⚠️ Giriş/stop/hedef seviyeleri geçersiz veya eksik; işlem önerisi verilmedi."
                                         )
                                     try:
