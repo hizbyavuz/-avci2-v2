@@ -6,7 +6,7 @@ import time
 import unittest
 from unittest.mock import patch
 from long_short_futures_kline_shadow import initialize
-from long_short_live_pool import native_futures_closed_bars, futures_closed_snapshot, futures_market_snapshot, market_snapshot, futures_24h_closed_stats
+from long_short_live_pool import native_futures_closed_bars, futures_closed_snapshot, futures_market_snapshot, market_snapshot, futures_24h_closed_stats, futures_signal_authorization
 
 
 class NativeFuturesReaderTests(unittest.TestCase):
@@ -102,6 +102,30 @@ class NativeFuturesReaderTests(unittest.TestCase):
         self.assertEqual(stats["quoteVolume"],24000)
         self.assertAlmostEqual(stats["priceChangePercent"],24)
         self.assertFalse(stats["rolling_ticker"])
+
+    def test_native_futures_never_authorizes_trade(self):
+        evidence={"live_price_source":"BINANCE_FUTURES",
+                  "native_futures_observation_only":True,
+                  "rolling_24h_stats_verified":True}
+        gate=futures_signal_authorization(evidence,{"qualified":True})
+        self.assertFalse(gate["qualified"])
+        self.assertEqual(gate["reason"],"native_futures_observation_only")
+
+    def test_spot_price_cannot_authorize_futures_trade(self):
+        evidence={"live_price_source":"BINANCE_SPOT",
+                  "native_futures_observation_only":False,
+                  "rolling_24h_stats_verified":True}
+        gate=futures_signal_authorization(evidence,{"qualified":True})
+        self.assertFalse(gate["qualified"])
+        self.assertEqual(gate["reason"],"live_price_venue_mismatch")
+
+    def test_missing_stats_cannot_authorize_futures_trade(self):
+        evidence={"live_price_source":"BINANCE_FUTURES",
+                  "native_futures_observation_only":False,
+                  "rolling_24h_stats_verified":False}
+        gate=futures_signal_authorization(evidence,{"qualified":True})
+        self.assertFalse(gate["qualified"])
+        self.assertEqual(gate["reason"],"futures_24h_stats_unverified")
 
     def test_gap_rejected(self):
         with sqlite3.connect(self.db) as con:
