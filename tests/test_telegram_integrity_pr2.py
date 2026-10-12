@@ -12,12 +12,12 @@ class AlertTimingTests(unittest.TestCase):
         self.assertFalse(decision["allowed"])
         self.assertEqual(decision["reason"], "STALE_OR_FUTURE_5M_CLOSE")
 
-    def test_fresh_trigger_after_retest_not_suppressed(self):
+    def test_old_confirmation_cannot_authorize_late_trigger(self):
         now = datetime.now(timezone.utc)
         original_close = (now - timedelta(seconds=280)).isoformat()
         decision = policy("TRIGGERED", now.isoformat(), original_close)
-        self.assertTrue(decision["allowed"])
-        self.assertEqual(decision["reason"], "TRIGGER_OBSERVED_NOW")
+        self.assertFalse(decision["allowed"])
+        self.assertEqual(decision["reason"], "STALE_OR_FUTURE_5M_CLOSE")
 
     def test_trigger_future_candle_is_rejected(self):
         now = datetime.now(timezone.utc)
