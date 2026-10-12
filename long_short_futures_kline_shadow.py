@@ -109,6 +109,78 @@ if __name__ == "__main__":
     raise SystemExit(main())
 
 
+
+def backfill_binance_archive(db, symbols, intervals=("1m", "5m", "15m", "30m", "1h", "4h")):
+    """Bootstrap authentic USD-M Futures history from Binance's public ZIP archive.
+
+    Archive is an independent Binance source, not spot or another exchange.
+    Only completed UTC days/months are imported. Fail closed if unavailable.
+    """
+    import csv
+    import datetime as dt
+    import io
+    import urllib.request
+    import zipfile
+    now = dt.datetime.now(dt.timezone.utc)
+    conn = initialize(db)
+    inserted = 0
+    try:
+        for symbol in symbols:
+            for interval in intervals:
+                period = {"1m": 60, "5m": 300, "15m": 900, "30m": 1800, "1h": 3600, "4h": 14400}[interval]
+                days = min(42, max(2, int((220 * period + 86399) // 86400) + 2))
+                today = now.date()
+                first = today - dt.timedelta(days=days)
+                months = []
+                cursor = first.replace(day=1)
+                while cursor < today.replace(day=1):
+                    months.append((cursor.year, cursor.month))
+                    cursor = (cursor.replace(day=28) + dt.timedelta(days=4)).replace(day=1)
+                archives = []
+                for year, month in months:
+                    name = f"{symbol}-{interval}-{year:04d}-{month:02d}.zip"
+                    archives.append(f"https://data.binance.vision/data/futures/um/monthly/klines/{symbol}/{interval}/{name}")
+                day = max(first, today.replace(day=1))
+                while day < today:
+                    name = f"{symbol}-{interval}-{day.isoformat()}.zip"
+                    archives.append(f"https://data.binance.vision/data/futures/um/daily/klines/{symbol}/{interval}/{name}")
+                    day += dt.timedelta(days=1)
+                for url in archives:
+                    try:
+                        req = urllib.request.Request(url, headers={"User-Agent": "Binance-Futures-Archive-Backfill/1.0"})
+                        with urllib.request.urlopen(req, timeout=9) as response:
+                            blob = response.read(6_000_000)
+                        with zipfile.ZipFile(io.BytesIO(blob)) as archive:
+                            for filename in archive.namelist():
+                                if not filename.endswith(".csv"):
+                                    continue
+                                for fields in csv.reader(io.TextIOWrapper(archive.open(filename), encoding="utf-8-sig")):
+                                    if len(fields) < 11 or not fields[0].isdigit():
+                                        continue
+                                    try:
+                                        open_ms = int(fields[0])
+                                        close_ms = int(fields[6])
+                                        if close_ms >= int(time.time() * 1000) - 250:
+                                            continue
+                                        row = (symbol, interval, open_ms, close_ms,
+                                               *[float(fields[i]) for i in (1,2,3,4,5)],
+                                               "BINANCE_UM_FUTURES_ARCHIVE", int(time.time()*1000),
+                                               float(fields[7]), int(fields[8]), float(fields[10]))
+                                        conn.execute("""INSERT OR IGNORE INTO futures_closed_klines
+                                            (symbol,interval,open_ms,close_ms,open,high,low,close,volume,source,received_ms,quote_volume,trade_count,taker_buy_quote)
+                                            VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", row)
+                                        inserted += 1
+                                    except (ValueError, OverflowError):
+                                        continue
+                        conn.commit()
+                    except Exception as exc:
+                        print(f"FUTURES_ARCHIVE_MISS symbol={symbol} interval={interval} error={type(exc).__name__}", flush=True)
+                print(f"FUTURES_ARCHIVE_INTERVAL symbol={symbol} interval={interval} rows_added={inserted}", flush=True)
+    finally:
+        conn.close()
+    print(f"FUTURES_ARCHIVE_BACKFILL rows_added={inserted}", flush=True)
+
+
 def continuous_main():
     """Persistent Binance-only closed candle feed; observation-only until validated."""
     import signal
@@ -121,8 +193,12 @@ def continuous_main():
     os.makedirs(root, exist_ok=True)
     db = os.path.join(root, "binance_futures_kline_shadow.db")
     analyst = os.getenv("LS_ANALYST_DB") or os.path.join(root, "long_short_analyst.db")
+    backfill_done = False
     while not stop.is_set():
         try:
+            if not backfill_done:
+                backfill_binance_archive(db, ["BTCUSDT", "ETHUSDT", "SOLUSDT"])
+                backfill_done = True
             symbols = ["BTCUSDT", "ETHUSDT", "SOLUSDT"] + choose_symbols("", analyst_db=analyst, limit=9)
             symbols = list(dict.fromkeys(symbols))[:12]
             result = collect(db, symbols, seconds=900, stop=stop)
