@@ -50,6 +50,7 @@ def run():
             with sqlite3.connect(db,timeout=8) as conn:
                 initialize(conn)
                 ws=websocket.create_connection(URL,timeout=12,enable_multithread=True)
+                last_report=0
                 try:
                     ws.send(json.dumps({"method":"SUBSCRIBE","params":["!ticker@arr"],"id":81}))
                     ws.settimeout(15)
@@ -67,6 +68,14 @@ def run():
                                 received_ms=excluded.received_ms,
                                 source=excluded.source""",rows)
                             conn.commit()
+                            if time.monotonic()-last_report>=60:
+                                count,fresh=conn.execute(
+                                    "SELECT COUNT(*),SUM(CASE WHEN received_ms>=? THEN 1 ELSE 0 END) FROM futures_tickers WHERE source=?",
+                                    (int(time.time()*1000)-120000,SOURCE)).fetchone()
+                                print("FUTURES_UNIVERSE_HEALTH "+json.dumps(
+                                    {"state":"CONNECTED","symbols_total":count,
+                                     "symbols_fresh":fresh or 0,"last_update_ms":rows[-1][4]}),flush=True)
+                                last_report=time.monotonic()
                 finally:
                     ws.close()
         except Exception as exc:
