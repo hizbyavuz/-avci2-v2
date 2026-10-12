@@ -379,6 +379,15 @@ def main() -> int:
 
     threading.Thread(target=coinalyze_funding_shadow, name="coinalyze-funding-shadow", daemon=True).start()
 
+    # Binance Futures all-market WebSocket ticker feed for strict universe discovery.
+    # Does not affect production decisions until LS_BINANCE_FUTURES_ONLY is enabled.
+    if os.getenv("LS_FUTURES_UNIVERSE_SHADOW_ENABLED", "1") == "1":
+        threading.Thread(
+            target=watcher_loop,
+            args=("binance_futures_universe", "long_short_futures_universe_worker.py"),
+            name="binance-futures-universe-loop", daemon=True,
+        ).start()
+
     # Continuous, storage-bounded taker observation; independent of production signals.
     # Operator may disable via LS_TAKER_SHADOW_ENABLED=0.
     if os.getenv("LS_TAKER_SHADOW_ENABLED", "1") == "1":

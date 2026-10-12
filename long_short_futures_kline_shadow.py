@@ -21,7 +21,7 @@ def parse_closed_kline(packet):
         return None
     symbol = str(event.get("s") or bar.get("s") or "").upper()
     interval = str(bar.get("i") or "")
-    if not symbol.endswith("USDT") or interval not in ("1m", "5m"):
+    if not symbol.endswith("USDT") or interval not in ("1m", "5m", "15m", "30m", "1h", "4h"):
         return None
     start = int(bar["t"])
     end = int(bar["T"])
@@ -68,7 +68,7 @@ def collect(db, symbols, seconds=90, stop=None):
     count = 0
     try:
         ws = websocket.create_connection(URL, timeout=8, enable_multithread=True)
-        params = [s.lower() + "@kline_" + interval for s in symbols for interval in ("1m", "5m")]
+        params = [s.lower() + "@kline_" + interval for s in symbols for interval in ("1m", "5m", "15m", "30m", "1h", "4h")]
         ws.send(json.dumps({"method": "SUBSCRIBE", "params": params, "id": 71}))
         ws.settimeout(2)
         deadline = time.monotonic() + seconds
@@ -121,9 +121,14 @@ def continuous_main():
     os.makedirs(root, exist_ok=True)
     db = os.path.join(root, "binance_futures_kline_shadow.db")
     analyst = os.getenv("LS_ANALYST_DB") or os.path.join(root, "long_short_analyst.db")
+    pinned_symbols = None
     while not stop.is_set():
         try:
-            symbols = choose_symbols("", analyst_db=analyst, limit=12)
+            configured = os.getenv("LS_KLINE_PROBE_SYMBOLS", "").strip()
+            if pinned_symbols is None:
+                pinned_symbols = ([x.strip().upper() for x in configured.split(",") if x.strip()]
+                                  if configured else choose_symbols("", analyst_db=analyst, limit=12))
+            symbols = pinned_symbols
             if not symbols:
                 symbols = ["BTCUSDT", "ETHUSDT", "SOLUSDT"]
             result = collect(db, symbols, seconds=900, stop=stop)
