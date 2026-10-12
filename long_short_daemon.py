@@ -335,6 +335,28 @@ def main() -> int:
 
     threading.Thread(target=coinalyze_boot_probe, name="coinalyze-boot-probe", daemon=True).start()
 
+    # Observe Coinalyze Binance-only OI history without changing any signal.
+    # Only two symbols at startup: avoids consuming the provider's 40/min quota.
+    def coinalyze_shadow_check():
+        try:
+            from long_short_coinalyze_adapter import snapshot
+            for symbol in ("BTCUSDT", "ETHUSDT"):
+                result = snapshot(symbol)
+                safe = {
+                    "symbol": symbol,
+                    "source": result.get("source"),
+                    "oi_fresh": result.get("oi_fresh", False),
+                    "oi_change_1h_available": result.get("oi_change_1h") is not None,
+                    "ls_fresh": result.get("ls_fresh", False),
+                    "oi_unit": result.get("oi_unit"),
+                    "error_type": result.get("error_type"),
+                }
+                print("[daemon] COINALYZE_SHADOW " + json.dumps(safe), flush=True)
+        except Exception as exc:
+            print("[daemon] COINALYZE_SHADOW_FAILED " + type(exc).__name__, flush=True)
+
+    threading.Thread(target=coinalyze_shadow_check, name="coinalyze-shadow", daemon=True).start()
+
     # One initial analyst pass gives both live watchers a fresh plan before they
     # start. Failure is not fatal; the analyst loop will keep retrying.
     initial_rc = run_child("analyst_initial", "long_short_analyst.py")
