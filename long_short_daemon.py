@@ -388,6 +388,15 @@ def main() -> int:
             name="binance-taker-shadow-loop", daemon=True,
         ).start()
 
+    # Persistent native Binance Futures 1m/5m closed candles, shadow only.
+    # Never promote to signal price until freshness, coverage and provenance pass.
+    if os.getenv("LS_FUTURES_KLINE_SHADOW_ENABLED", "1") == "1":
+        threading.Thread(
+            target=watcher_loop,
+            args=("binance_futures_kline_shadow", "long_short_futures_kline_worker.py"),
+            name="binance-futures-kline-shadow-loop", daemon=True,
+        ).start()
+
     # Single bounded read-only native taker connectivity check at startup.
     # Stores records in the existing persistent volume; never sends orders or alerts.
     def native_taker_boot_probe():

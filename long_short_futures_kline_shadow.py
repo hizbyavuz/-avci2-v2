@@ -53,7 +53,7 @@ def store(conn, row):
     conn.commit()
 
 
-def collect(db, symbols, seconds=90):
+def collect(db, symbols, seconds=90, stop=None):
     import websocket
     symbols = sorted({s.upper() for s in symbols if s.upper().endswith("USDT")})[:24]
     if not symbols:
@@ -68,7 +68,7 @@ def collect(db, symbols, seconds=90):
         ws.send(json.dumps({"method": "SUBSCRIBE", "params": params, "id": 71}))
         ws.settimeout(2)
         deadline = time.monotonic() + seconds
-        while time.monotonic() < deadline:
+        while time.monotonic() < deadline and not (stop and stop.is_set()):
             try:
                 raw = ws.recv()
             except websocket.WebSocketTimeoutException:
@@ -103,3 +103,29 @@ def main():
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
+
+def continuous_main():
+    """Persistent Binance-only closed candle feed; observation-only until validated."""
+    import signal
+    import threading
+    from long_short_v4_native_pipeline import choose_symbols
+    stop = threading.Event()
+    signal.signal(signal.SIGTERM, lambda *_: stop.set())
+    signal.signal(signal.SIGINT, lambda *_: stop.set())
+    root = os.getenv("LS_STATE_DIR") or os.getenv("RAILWAY_VOLUME_MOUNT_PATH") or ".long-short-state"
+    os.makedirs(root, exist_ok=True)
+    db = os.path.join(root, "binance_futures_kline_shadow.db")
+    analyst = os.getenv("LS_ANALYST_DB") or os.path.join(root, "long_short_analyst.db")
+    while not stop.is_set():
+        try:
+            symbols = choose_symbols("", analyst_db=analyst, limit=12)
+            if not symbols:
+                symbols = ["BTCUSDT", "ETHUSDT", "SOLUSDT"]
+            result = collect(db, symbols, seconds=900, stop=stop)
+            print("FUTURES_KLINE_FEED " + json.dumps(result), flush=True)
+            # No signal source switch: only observe verified native Futures candles.
+        except Exception as exc:
+            print("FUTURES_KLINE_FEED_ERROR " + type(exc).__name__ + ": " + str(exc)[:160], flush=True)
+        stop.wait(5)
+    return 0
