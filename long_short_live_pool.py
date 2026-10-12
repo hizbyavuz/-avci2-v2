@@ -1757,7 +1757,7 @@ def loop_once():
                         condition_time = closed_candle_time if new=="CLOSE_CONFIRMED" else observed_time
                         msg=message_for(row,new,price,closed)
                         if new=="TRIGGERED" and execution_check and execution_check.get("research_only") and msg:
-                            msg="⚠️ ARAŞTIRMA SİNYALİ — Binance türev verisi eksik (451); işlem teyidi değildir.\\n"+msg
+                            msg="⚠️ ARAŞTIRMA SİNYALİ — Binance türev verisi eksik (451); işlem teyidi değildir.\n"+msg
                         # A 5m confirmation that reaches the user's phone 3-4
                         # minutes after its CLOSED candle is stale research, not
                         # an actionable alert. Do not erase the V3.1 stage or
