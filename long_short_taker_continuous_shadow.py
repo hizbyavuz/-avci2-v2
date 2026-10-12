@@ -54,12 +54,14 @@ def collect(db,symbols,stop,rotation_seconds=300):
     totals=defaultdict(lambda:[0.0,0.0,0,0,0])
     dropped=0
     state="DISCONNECTED"
+    connected_at=None
     try:
         initialize(conn)
         ws=websocket.create_connection(URL,timeout=8,enable_multithread=True)
         ws.send(json.dumps({"method":"SUBSCRIBE","params":[x.lower()+"@aggTrade" for x in symbols],"id":9}))
         ws.settimeout(1)
         state="CONNECTED"
+        connected_at=int(time.time()*1000)
         end=time.monotonic()+rotation_seconds
         while not stop.is_set() and time.monotonic()<end:
             try:
@@ -103,7 +105,8 @@ def collect(db,symbols,stop,rotation_seconds=300):
             for (sym,minute),(buy,sell,n,first,last) in totals.items():
                 record_minute(conn,sym,minute,buy,sell,n,first,last)
         conn.execute("INSERT INTO taker_collector_health VALUES(?,?,?,?,?)",
-                     (int(time.time()*1000),state,json.dumps(symbols),dropped,None))
+                     (int(time.time()*1000),state,json.dumps(symbols),dropped,
+                      json.dumps({"connected_at_ms":connected_at})))
         conn.commit()
         conn.close()
     return {"state":state,"symbols":len(symbols),"dropped":dropped}
@@ -116,13 +119,24 @@ def window(db,symbol,now_ms=None):
         rows=c.execute("""SELECT minute_ms,buy_quote,sell_quote,trades
            FROM taker_minute_shadow WHERE symbol=? AND minute_ms BETWEEN ? AND ?
            ORDER BY minute_ms""",(symbol,start,last_closed)).fetchall()
-        health=c.execute("""SELECT observed_ms,state,dropped,symbols_json
-           FROM taker_collector_health ORDER BY observed_ms DESC LIMIT 15""").fetchall()
+        health=c.execute("""SELECT observed_ms,state,dropped,symbols_json,details
+           FROM taker_collector_health WHERE observed_ms>=? ORDER BY observed_ms DESC LIMIT 30""",
+           (start-300000,)).fetchall()
     covered={x[0] for x in rows}
     gaps=[m for m in range(start,last_closed+1,60000) if m not in covered]
-    interruptions=any(start<=h[0]<=now_ms and
-                      (h[1].startswith("ERROR") or h[2]>0 or
-                       symbol not in json.loads(h[3])) for h in health)
+    # A minute containing trades is NOT proof of uninterrupted websocket coverage.
+    # Fail closed until one uninterrupted collection session spans the full window.
+    uninterrupted=any(
+        h[1] in ("ROTATE","STOPPED") and h[2]==0 and
+        symbol in json.loads(h[3]) and
+        isinstance(json.loads(h[4] or "{}").get("connected_at_ms"),int) and
+        json.loads(h[4])["connected_at_ms"]<=start and h[0]>=last_closed+60000
+        for h in health
+    )
+    interruptions=not uninterrupted or any(
+        start<=h[0]<=now_ms and (h[1].startswith("ERROR") or h[2]>0)
+        for h in health
+    )
     buy=sum(x[1] for x in rows)
     sell=sum(x[2] for x in rows)
     ready=not gaps and not interruptions and buy>0 and sell>0
