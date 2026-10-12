@@ -1,9 +1,13 @@
 """Read-only Coinalyze Binance USD-M funding probe; never sends orders."""
 import time
+_CACHE = {}
 from long_short_coinalyze_adapter import _get, _market
 
 def funding_snapshot(symbol, now=None):
     now = time.time() if now is None else float(now)
+    cached = _CACHE.get(symbol.upper())
+    if cached and now - cached[0] < 120:
+        return dict(cached[1])
     out = {"source": "COINALYZE_BINANCE_A", "symbol": symbol.upper(),
            "funding_pct": None, "funding_fresh": False, "funding_age_seconds": None}
     market = _market(symbol)
@@ -25,4 +29,5 @@ def funding_snapshot(symbol, now=None):
         # Coinalyze documents its funding rates in percentage units.
         out["funding_pct"] = float(row["value"])
         out["funding_fresh"] = True
+        _CACHE[symbol.upper()] = (now, dict(out))
     return out
