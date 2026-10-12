@@ -90,8 +90,8 @@ def snapshot(symbol):
     symbol = symbol.upper()
     now = time.monotonic()
     hit = _cache.get(("snapshot", symbol))
-    if hit and now - hit[0] < 300:
-        return hit[1]
+    if hit and now - hit[0] < 60:
+        return dict(hit[1])
     out = {"source": "COINALYZE_BINANCE_A", "symbol": symbol,
            "oi_now": None, "oi_change_1h": None, "long_short_ratio": None,
            "oi_fresh": False, "ls_fresh": False}
@@ -102,7 +102,7 @@ def snapshot(symbol):
         key, meta = market
         unit = meta.get("oi_lq_vol_denominated_in")
         out["oi_unit"] = unit
-        current = _cached_request("/open-interest", {"symbols": key}, ttl=300)
+        current = _cached_request("/open-interest", {"symbols": key}, ttl=60)
         row = next((r for r in current if isinstance(r, dict) and r.get("symbol") == key), None)
         if row:
             stamp = float(row["update"])
