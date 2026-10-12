@@ -57,6 +57,7 @@ def collect(db,symbols,stop,rotation_seconds=300):
     connected_at=None
     events_received=0
     last_heartbeat=time.monotonic()
+    last_event=time.monotonic()
     try:
         initialize(conn)
         ws=websocket.create_connection(URL,timeout=8,enable_multithread=True)
@@ -86,14 +87,21 @@ def collect(db,symbols,stop,rotation_seconds=300):
                             row[1 if event.get("m") else 0]+=price*qty
                             row[2]+=1
                             events_received+=1
+                            last_event=time.monotonic()
                             row[3]=min(row[3] or now,now)
                             row[4]=max(row[4],now)
                 except (ValueError,TypeError,KeyError,AttributeError):
                     dropped+=1
+            # A silent socket can remain open without delivering market events.
+            # Force reconnect instead of claiming continuous coverage.
+            if time.monotonic()-last_event>120:
+                state="ERROR_STALE_FLOW"
+                break
             if time.monotonic()-last_heartbeat>=60:
                 print("BINANCE_TAKER_SHADOW_HEARTBEAT "+json.dumps({
                     "state":state,"symbols":len(symbols),
                     "events_received":events_received,"dropped":dropped,
+                    "seconds_since_last_event":round(time.monotonic()-last_event,1),
                     "connected_at_ms":connected_at}),flush=True)
                 last_heartbeat=time.monotonic()
             current=int(time.time()*1000)//60000*60000
@@ -103,7 +111,8 @@ def collect(db,symbols,stop,rotation_seconds=300):
                     buy,sell,n,first,last=totals.pop((sym,minute))
                     record_minute(conn,sym,minute,buy,sell,n,first,last)
                 conn.commit()
-        state="STOPPED" if stop.is_set() else "ROTATE"
+        if state=="CONNECTED":
+            state="STOPPED" if stop.is_set() else "ROTATE"
     except Exception as exc:
         state="ERROR_"+type(exc).__name__
     finally:
