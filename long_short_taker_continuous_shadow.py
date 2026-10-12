@@ -45,7 +45,7 @@ def record_minute(conn,symbol,minute,buy,sell,count,first,last):
 
 def collect(db,symbols,stop,rotation_seconds=300):
     import websocket
-    symbols=sorted({x.upper() for x in symbols if x.endswith("USDT")})[:30]
+    symbols=sorted({x.upper() for x in symbols if x.upper().endswith("USDT")})[:30]
     if not symbols:
         return {"state":"NO_SYMBOLS"}
     os.makedirs(os.path.dirname(os.path.abspath(db)),exist_ok=True)
@@ -98,6 +98,8 @@ def collect(db,symbols,stop,rotation_seconds=300):
     except Exception as exc:
         state="ERROR_"+type(exc).__name__
     finally:
+        # Record an explicit boundary so a reconnect/rotation cannot be mistaken
+        # for uninterrupted market-data coverage.
         if ws:
             try: ws.close()
             except Exception: pass
