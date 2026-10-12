@@ -221,8 +221,7 @@ def continuous_main():
     backfill_done = False
     while not stop.is_set():
         try:
-            if not backfill_done:
-                symbols = list(dict.fromkeys(["BTCUSDT", "ETHUSDT", "SOLUSDT"] + choose_symbols("", analyst_db=analyst, limit=30)))[:30]
+            symbols = list(dict.fromkeys(["BTCUSDT", "ETHUSDT", "SOLUSDT"] + choose_symbols("", analyst_db=analyst, limit=30)))[:30]
             if not symbols:
                 raise RuntimeError("DATA_NOT_READY: no analyst universe")
             if not backfill_done:
