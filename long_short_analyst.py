@@ -357,7 +357,7 @@ def native_futures_shadow_klines(symbol, interval, limit):
     rows.reverse()
     if rows[-1][1] > now_ms - 250 or now_ms - rows[-1][1] > period_ms * 2:
         return None
-    if any(r[7] != "BINANCE_UM_FUTURES_WEBSOCKET" or any(v is None for v in r[8:11]) for r in rows):
+    if any(r[7] not in ("BINANCE_UM_FUTURES_WEBSOCKET", "BINANCE_UM_FUTURES_ARCHIVE") or any(v is None for v in r[8:11]) for r in rows):
         return None
     if any(b[0] - a[0] != period_ms for a, b in zip(rows, rows[1:])):
         return None
