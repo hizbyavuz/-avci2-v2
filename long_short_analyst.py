@@ -359,7 +359,7 @@ def native_futures_shadow_klines(symbol, interval, limit):
     if rows[-1][1] > now_ms - 250 or now_ms - rows[-1][1] > period_ms * 2:
         print(f"FUTURES_SHADOW_DIAG symbol={symbol} interval={interval} reason=stale last_close={rows[-1][1]} age_ms={now_ms-rows[-1][1]}", flush=True)
         return None
-    if any(r[7] not in ("BINANCE_UM_FUTURES_WEBSOCKET", "BINANCE_UM_FUTURES_ARCHIVE") or any(v is None for v in r[8:11]) for r in rows):
+    if any(r[7] not in ("BINANCE_UM_FUTURES_WEBSOCKET", "BINANCE_UM_FUTURES_ARCHIVE", "BINANCE_UM_FUTURES_REST") or any(v is None for v in r[8:11]) for r in rows):
         print(f"FUTURES_SHADOW_DIAG symbol={symbol} interval={interval} reason=invalid_source_or_fields", flush=True)
         return None
     if any(b[0] - a[0] != period_ms for a, b in zip(rows, rows[1:])):
