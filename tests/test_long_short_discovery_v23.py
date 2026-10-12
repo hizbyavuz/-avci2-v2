@@ -304,9 +304,9 @@ class DiscoveryV23Tests(unittest.TestCase):
                                 ("2026-10-06T00:00:00+00:00","WAITUSDT","WAIT",55,20,50,99.7,
                                  json.dumps(p2)))
                 items=live.load_watchlist()
-                self.assertEqual([x["symbol"] for x in items],["RADARUSDT"])
-                self.assertTrue(items[0]["radar_only"])
-                self.assertFalse(items[0]["structure_gate"]["_derivatives_ready"])
+                # Binance-only policy rejects even research radar from
+                # another exchange; incomplete native Binance is separate.
+                self.assertEqual(items,[])
         finally:
             live.ANALYST_DB=old_db
 
