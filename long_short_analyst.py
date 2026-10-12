@@ -2487,8 +2487,6 @@ def send_telegram(msg):
 
 
 def main():
-    if os.getenv("LS_BINANCE_FUTURES_ONLY", "1") == "1":
-        raise RuntimeError("BINANCE_FUTURES_ONLY: production signal path disabled until verified native Futures universe, 15m/30m/1h/4h candles, OI, funding, taker, long-short and depth are all available; no mixed-venue signal permitted")
     started=time.time()
     init_db()
     update_paper()
