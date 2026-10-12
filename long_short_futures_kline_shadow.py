@@ -228,7 +228,25 @@ def continuous_main():
     os.makedirs(root, exist_ok=True)
     db = os.path.join(root, "binance_futures_kline_shadow.db")
     analyst = os.getenv("LS_ANALYST_DB") or os.path.join(root, "long_short_analyst.db")
-    backfilled_symbols = set()
+    # Archive imports must never block the live closed-candle WebSocket.
+    # One bounded worker handles new symbols, using SQLite WAL connections.
+    import queue
+    pending_backfills = queue.Queue(maxsize=60)
+    scheduled_backfills = set()
+    def archive_worker():
+        while not stop.is_set():
+            try:
+                symbol = pending_backfills.get(timeout=1)
+            except queue.Empty:
+                continue
+            try:
+                backfill_binance_archive(db, [symbol])
+                print("FUTURES_KLINE_BACKFILL_FINISHED " + symbol, flush=True)
+            except Exception as exc:
+                print("FUTURES_KLINE_BACKFILL_ERROR " + symbol + " " + type(exc).__name__, flush=True)
+            finally:
+                pending_backfills.task_done()
+    threading.Thread(target=archive_worker, name="futures-archive-backfill", daemon=True).start()
     while not stop.is_set():
         try:
             selected = choose_symbols("", analyst_db=analyst, limit=30)
@@ -248,13 +266,16 @@ def continuous_main():
                 raise RuntimeError("DATA_NOT_READY: no analyst universe")
             # The analyst universe changes. A single startup backfill leaves
             # newly selected symbols without enough history indefinitely.
-            missing = [sym for sym in symbols if sym not in backfilled_symbols]
+            missing = [sym for sym in symbols if sym not in scheduled_backfills]
             if missing:
                 print("FUTURES_KLINE_NEW_SYMBOL_BACKFILL " +
                       json.dumps({"symbols":missing}), flush=True)
                 for sym in missing:
-                    backfill_binance_archive(db, [sym])
-                    backfilled_symbols.add(sym)
+                    try:
+                        pending_backfills.put_nowait(sym)
+                        scheduled_backfills.add(sym)
+                    except queue.Full:
+                        print("FUTURES_KLINE_BACKFILL_QUEUE_FULL " + sym, flush=True)
             # Binance REST returned HTTP 418 (IP restriction). Do not retry
             # REST on each cycle: preserve archive history and collect native
             # closed Futures candles over WebSocket. Missing bars fail closed.
