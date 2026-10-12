@@ -6,6 +6,8 @@ on:
       - 'test_coinalyze_binance_probe.py'
       - 'long_short_coinalyze_adapter.py'
       - 'test_long_short_coinalyze_adapter.py'
+      - 'long_short_coinalyze_coverage.py'
+      - 'test_long_short_coinalyze_coverage.py'
       - 'long_short_coinalyze_funding_probe.py'
       - 'test_long_short_coinalyze_funding_probe.py'
       - 'long_short_binance_derivative_gate.py'
@@ -23,4 +25,4 @@ jobs:
         with:
           python-version: '3.11'
       - run: python -m pip install requests==2.32.5
-      - run: python -m unittest -v test_coinalyze_binance_probe test_long_short_coinalyze_adapter test_long_short_binance_derivative_gate test_long_short_coinalyze_funding_probe
+      - run: python -m unittest -v test_coinalyze_binance_probe test_long_short_coinalyze_adapter test_long_short_binance_derivative_gate test_long_short_coinalyze_funding_probe test_long_short_coinalyze_coverage
