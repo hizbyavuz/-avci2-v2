@@ -912,23 +912,35 @@ def futures_market_snapshot(symbol):
 def market_snapshot(symbol):
     # 1m data lets the observational layer see a breakout while it is forming.
     # The frozen continuation engine still uses the last completed 5m close below.
-    price_source="BINANCE_SPOT"
-    try:
-        kl5=spot_get("/api/v3/klines",{"symbol":symbol,"interval":"5m","limit":30})
-        kl1=spot_get("/api/v3/klines",{"symbol":symbol,"interval":"1m","limit":30})
-        ticker=spot_get("/api/v3/ticker/price",{"symbol":symbol})
-        stats=spot_get("/api/v3/ticker/24hr",{"symbol":symbol})
-        price=float(ticker["price"])
-    except Exception as exc:
-        # Binance-only mode: never replace a missing Binance price with
-        # Bybit/Gate/OKX candles. Record the missing Binance feed instead.
-        raise RuntimeError(f"{symbol}: Binance price unavailable; cross-venue fallback disabled") from exc
-    row=kl5[-2] if len(kl5)>=2 else kl5[-1]
+    # Shadow mode is opt-in until end-to-end forward validation is complete.
+    # A failed Futures read must NEVER fall back to Spot.
+    use_native=os.getenv("LS_NATIVE_FUTURES_SNAPSHOT","0").strip().lower() in ("1","true","yes","on")
+    if use_native:
+        native=futures_market_snapshot(symbol)
+        price_source="BINANCE_FUTURES"
+        kl5=native["kl5"]
+        kl1=native["kl1"]
+        price=native["price"]
+        # Rolling 24h Futures stats must be independently sourced and verified.
+        # Until then, mark these fields unavailable rather than borrowing Spot.
+        stats={"quoteVolume":0.0,"priceChangePercent":0.0}
+        row=kl5[-1]  # Native store contains CLOSED candles only.
+    else:
+        price_source="BINANCE_SPOT"
+        try:
+            kl5=spot_get("/api/v3/klines",{"symbol":symbol,"interval":"5m","limit":30})
+            kl1=spot_get("/api/v3/klines",{"symbol":symbol,"interval":"1m","limit":30})
+            ticker=spot_get("/api/v3/ticker/price",{"symbol":symbol})
+            stats=spot_get("/api/v3/ticker/24hr",{"symbol":symbol})
+            price=float(ticker["price"])
+        except Exception as exc:
+            raise RuntimeError(f"{symbol}: Binance price unavailable; cross-venue fallback disabled") from exc
+        row=kl5[-2] if len(kl5)>=2 else kl5[-1]
     closed=float(row[4])
     close_ms=int(row[6])
     close_time=datetime.fromtimestamp(close_ms/1000.0,tz=timezone.utc).isoformat()
 
-    prev5=kl5[-7:-1] if len(kl5)>=7 else kl5[:-1]
+    prev5=(kl5[-6:] if use_native else kl5[-7:-1]) if len(kl5)>=7 else kl5[:-1]
     highs=[float(x[2]) for x in prev5]
     lows=[float(x[3]) for x in prev5]
     local_high=max(highs) if highs else price
@@ -940,7 +952,7 @@ def market_snapshot(symbol):
     ema7_prev=_ema(c1[-13:-1],7) if len(c1)>=13 else ema7_now
     ema7_slope=(ema7_now-ema7_prev)/price*100.0 if price else 0.0
 
-    forming=kl1[-1]
+    forming=kl1[-1]  # Native mode: most recent CLOSED 1m, not a forming bar.
     qvol=float(forming[7] or 0)
     base=[float(x[7] or 0) for x in kl1[-12:-2]]
     vol_base=(sum(base)/len(base)) if base else 0.0
@@ -956,7 +968,7 @@ def market_snapshot(symbol):
     cbody=abs(cc-co)/cr
     cclose_loc=(cc-cl)/cr
     cqvol=float(row[7] or 0.0)
-    cbase_rows=kl5[-22:-2] if len(kl5)>=22 else kl5[:-2]
+    cbase_rows=(kl5[-21:-1] if use_native else kl5[-22:-2]) if len(kl5)>=22 else kl5[:-2]
     cbase=(sum(float(x[7] or 0.0) for x in cbase_rows)/len(cbase_rows)) if cbase_rows else 0.0
     cvol_mult=cqvol/cbase if cbase>0 else 1.0
 
@@ -972,7 +984,9 @@ def market_snapshot(symbol):
         "quote_volume_24h":float(stats.get("quoteVolume") or 0.0),
         "day_change_pct":float(stats.get("priceChangePercent") or 0.0),
         "short_range_pct":short_range_pct,
-        "recent_closed_5m_closes":[float(x[4]) for x in kl5[-4:-1]] if len(kl5)>=4 else [closed],
+        "recent_closed_5m_closes":[float(x[4]) for x in (kl5[-3:] if use_native else kl5[-4:-1])] if len(kl5)>=4 else [closed],
+        "native_futures_observation_only":use_native,
+        "rolling_24h_stats_verified":not use_native,
     }
     return price,closed,close_time,early
 
