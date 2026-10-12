@@ -185,6 +185,16 @@ def ingest(c, run_id, route, stream, obj, received_ms):
             c.execute("INSERT OR IGNORE INTO taker_trades VALUES(?,?,?,?,?,?,?,?)",
                       (eid,symbol,int(obj.get("T") or event_ms),received_ms,
                        price,qty,(1 if buy else -1)*price*qty,SOURCE))
+    elif "depth20" in stream:
+        bids=obj.get("bids") or obj.get("b")
+        asks=obj.get("asks") or obj.get("a")
+        if isinstance(bids,list) and isinstance(asks,list) and bids and asks:
+            bid,ask=finite_price(bids[0][0]),finite_price(asks[0][0])
+            if bid and ask and ask>=bid:
+                mid=(bid+ask)/2
+                c.execute("INSERT OR IGNORE INTO book_top VALUES(?,?,?,?,?,?,?,?,?,?)",
+                    (eid,symbol,event_ms,received_ms,bid,ask,
+                     float(bids[0][1]),float(asks[0][1]),(ask-bid)/mid*10000,SOURCE))
     elif "bookTicker" in stream or obj.get("e")=="bookTicker":
         bid,ask=finite_price(obj.get("b")),finite_price(obj.get("a"))
         if bid and ask and ask>=bid:
