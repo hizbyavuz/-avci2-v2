@@ -2611,6 +2611,27 @@ def main():
                 except Exception as evidence_exc:
                     audit_rows.append({"symbol":sym,"ready":False,
                         "missing":["provider_error:"+type(evidence_exc).__name__]})
+            # Append-only evidence for downstream trade-confirmation integration.
+            # A stale/missing row MUST NEVER count as ready; consumers must
+            # check observed_epoch and the full per-symbol gate before use.
+            with sqlite3.connect(DB,timeout=15) as evidence_db:
+                evidence_db.execute("""CREATE TABLE IF NOT EXISTS binance_four_factor_evidence(
+                    scan_time_utc TEXT NOT NULL,
+                    symbol TEXT NOT NULL,
+                    observed_epoch INTEGER NOT NULL,
+                    ready INTEGER NOT NULL,
+                    missing_json TEXT NOT NULL,
+                    details_json TEXT NOT NULL,
+                    PRIMARY KEY(scan_time_utc,symbol))""")
+                observed_epoch=int(time.time())
+                evidence_db.executemany(
+                    """INSERT OR IGNORE INTO binance_four_factor_evidence
+                       (scan_time_utc,symbol,observed_epoch,ready,missing_json,details_json)
+                       VALUES(?,?,?,?,?,?)""",
+                    [(ts,row["symbol"],observed_epoch,int(bool(row["ready"])),
+                      json.dumps(row["missing"]),json.dumps(row,ensure_ascii=False))
+                     for row in audit_rows])
+                evidence_db.commit()
             print("BINANCE_FOUR_FACTOR_DEEP_AUDIT "+json.dumps({
                 "scan_time":ts,"checked":len(audit_rows),
                 "ready":sum(bool(x["ready"]) for x in audit_rows),
