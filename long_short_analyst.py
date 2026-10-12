@@ -2604,7 +2604,10 @@ def main():
                     audit_rows.append({"symbol":sym,"ready":gate["ready"],
                         "missing":gate["missing"],
                         "taker_coverage_minutes":taker_row.get("coverage_minutes"),
-                        "taker_missing_minutes":taker_row.get("missing_minutes")})
+                        "taker_missing_minutes":taker_row.get("missing_minutes"),
+                        "taker_session_valid":taker_row.get("session_valid"),
+                        "taker_collector_state":taker_row.get("collector_state"),
+                        "taker_health_age_ms":taker_row.get("collector_health_age_ms")})
                 except Exception as evidence_exc:
                     audit_rows.append({"symbol":sym,"ready":False,
                         "missing":["provider_error:"+type(evidence_exc).__name__]})
