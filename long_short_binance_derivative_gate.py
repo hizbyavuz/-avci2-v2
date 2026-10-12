@@ -23,7 +23,7 @@ def assess(snapshot, funding_pct=None, taker_ratio=None,
         missing.append("long_short_ratio")
     if funding_pct is None or funding_source != "COINALYZE_BINANCE_A" or not snapshot.get("funding_fresh"):
         missing.append("funding_pct")
-    if taker_ratio is None or taker_source != "BINANCE_UM_FUTURES_WEBSOCKET" or not snapshot.get("taker_fresh") or not snapshot.get("taker_coverage_ready"):
+    if taker_ratio is None or taker_source not in ("BINANCE_UM_FUTURES_WEBSOCKET", "BINANCE_UM_FUTURES_KLINE") or not snapshot.get("taker_fresh") or not snapshot.get("taker_coverage_ready"):
         missing.append("taker_ratio")
     return {"ready": not missing, "missing": missing,
             "source": "BINANCE_ONLY", "automatic_orders": False}
