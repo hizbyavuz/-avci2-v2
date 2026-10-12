@@ -62,7 +62,7 @@ def track(now_ts=None):
                 if result is None:continue
                 db.execute("""INSERT OR IGNORE INTO early_results
                   (observation_id,horizon_sec,status,end_ts,end_price,return_pct,mfe_pct,mae_pct,hit3,hit5)
-                  VALUES(?,?,'RESOLVED',?,?,?,?,?,?,?,?)""",(o["id"],h,*result))
+                  VALUES(?,?,'RESOLVED',?,?,?,?,?,?,?)""",(o["id"],h,*result))
                 resolved+=1
         if resolved:print("EARLY_RESULTS_RESOLVED",resolved,flush=True)
     return resolved
