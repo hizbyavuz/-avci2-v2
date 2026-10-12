@@ -1,0 +1,29 @@
+name: Long Short PR1 Regression
+on:
+  pull_request:
+    paths:
+      - 'long_short_coinalyze_adapter.py'
+      - 'long_short_coinalyze_funding_probe.py'
+      - 'long_short_analyst.py'
+      - 'long_short_futures_kline_shadow.py'
+      - 'long_short_research_validation.py'
+      - 'long_short_v2_shadow.py'
+      - 'tests/test_coinalyze_pr1.py'
+      - '.github/workflows/long-short-pr1-check.yml'
+  workflow_dispatch:
+jobs:
+  pr1:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Syntax check
+        run: python -m compileall -q long_short_coinalyze_adapter.py long_short_coinalyze_funding_probe.py long_short_analyst.py long_short_futures_kline_shadow.py long_short_research_validation.py long_short_v2_shadow.py tests/test_coinalyze_pr1.py
+      - name: Install test dependency
+        run: python -m pip install requests
+      - name: Coinalyze regression
+        run: python -m unittest discover -s tests -p test_coinalyze_pr1.py -v
