@@ -27,7 +27,7 @@ def main():
     backoff=5
     while not STOP.is_set():
         symbols=choose_symbols("",analyst_db=analyst,limit=24)
-        result=collect(db,symbols,STOP,rotation_seconds=900)
+        result=collect(db,symbols,STOP,rotation_seconds=3600)
         print("BINANCE_TAKER_SHADOW "+json.dumps(result),flush=True)
         if result.get("state")=="ROTATE":
             backoff=5
