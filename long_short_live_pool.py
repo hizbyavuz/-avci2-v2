@@ -112,8 +112,15 @@ def trigger_execution_proxy(symbol):
         r.raise_for_status()
         book=r.json()
     except Exception:
+        # 451: Binance spot depth is useful for research, never futures execution.
+        # Failure of both feeds must not abort the entire live scan.
         source="BINANCE_SPOT_BOOK_PROXY"
-        book=spot_get("/api/v3/depth",{"symbol":symbol,"limit":100})
+        try:
+            book=spot_get("/api/v3/depth",{"symbol":symbol,"limit":100})
+        except Exception as exc:
+            return {"source":"UNAVAILABLE","observed_at_utc":now_iso(),
+                    "available":False,"reason":"binance_depth_unavailable",
+                    "error_type":type(exc).__name__}
 
     bids=book.get("bids",[]) or []
     asks=book.get("asks",[]) or []
@@ -146,7 +153,8 @@ def live_execution_gate(row,price,proxy):
     # A spot order book is not proof of executable futures liquidity.
     # Keep it for research, but never turn it into a futures trade approval.
     if proxy.get("source") != "BINANCE_FUTURES_BOOK":
-        return {"qualified":False,"reason":"futures_execution_venue_unverified","proxy":proxy}
+        return {"qualified":False,"reason":"futures_execution_venue_unverified",
+                "research_only":True,"proxy":proxy}
     # A Binance futures book cannot approve a mixed-venue chart/derivatives setup.
     data_mode=str(row["data_mode"] or "UNKNOWN") if "data_mode" in row.keys() else "UNKNOWN"
     deriv_provider=str(row["derivatives_provider"] or "UNKNOWN") if "derivatives_provider" in row.keys() else "UNKNOWN"
@@ -1691,6 +1699,16 @@ def loop_once():
                                 blocked_payload["_live_structure_quality"]=structure_quality
                                 blocked_payload["_live_alert_version"]=STRUCTURE_GATE_VERSION
                                 blocked_payload["_trigger_execution_gate"]=execution_check
+                                # Preserve valid technical triggers for 451 recall studies.
+                                # Never label them executable or count as confirmed trades.
+                                blocked_payload["_research_trigger"]=bool(
+                                    execution_check.get("reason") in (
+                                        "futures_execution_venue_unverified",
+                                        "execution_proxy_unavailable",
+                                    )
+                                )
+                                blocked_payload["_research_trigger_price"]=float(price)
+                                blocked_payload["_research_trigger_time_utc"]=observed_time
                                 con.execute("""INSERT INTO events(
                                     event_time_utc,symbol,direction,stage_from,stage_to,price,closed_5m,
                                     condition_time_utc,telegram_status,payload_json
