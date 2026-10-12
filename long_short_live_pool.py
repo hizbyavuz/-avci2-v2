@@ -1857,8 +1857,8 @@ def loop_once():
                                 # Never approve a FUTURES entry from mixed-venue
                                 # price/structure even if the futures book is valid.
                                 if early.get("native_futures_observation_only") or not early.get("rolling_24h_stats_verified", True):
-        execution_check={"qualified":False,"reason":"native_futures_observation_only_missing_24h_stats"}
-    if str(early.get("live_price_source") or "") != "BINANCE_FUTURES":
+                                    execution_check={"qualified":False,"reason":"native_futures_observation_only_missing_24h_stats"}
+                                if str(early.get("live_price_source") or "") != "BINANCE_FUTURES":
                                     execution_check={"qualified":False,
                                         "reason":"live_price_venue_mismatch",
                                         "live_price_source":str(early.get("live_price_source") or "UNKNOWN"),
