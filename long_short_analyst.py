@@ -1044,8 +1044,8 @@ def native_futures_websocket_universe():
         raise RuntimeError("BINANCE_FUTURES_ONLY: WebSocket universe database missing")
     with sqlite3.connect("file:"+os.path.abspath(db)+"?mode=ro",uri=True,timeout=4) as c:
         rows=c.execute("""SELECT symbol,quote_volume,last_price,change_pct,received_ms
-                          FROM futures_tickers WHERE received_ms>=?""",
-                       (int(time.time()*1000)-120000,)).fetchall()
+                          FROM futures_tickers WHERE source=? AND received_ms>=?""",
+                       ("BINANCE_UM_FUTURES_WEBSOCKET",int(time.time()*1000)-120000,)).fetchall()
     if not rows:
         raise RuntimeError("BINANCE_FUTURES_ONLY: no fresh Futures ticker snapshots")
     eligible=[]
@@ -1072,8 +1072,6 @@ def universe():
     DISCOVERY_META={}
     if os.getenv("LS_BINANCE_FUTURES_ONLY", "1") == "1":
         return native_futures_websocket_universe()
-    if os.getenv("LS_BINANCE_FUTURES_ONLY", "1") == "1" and DATA_MODE != "BINANCE_FUTURES":
-        raise RuntimeError("BINANCE_FUTURES_ONLY: Binance Futures universe unavailable; spot discovery forbidden")
     """Build a broad USDT-perpetual discovery universe.
 
     Discovery may go below the actionable liquidity floor so fast movers are not
