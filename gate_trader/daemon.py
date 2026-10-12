@@ -11,7 +11,7 @@ def main():
     with LG.connect() as db:
         first = LG.get_meta(db, "started_version") != C.VERSION
         LG.set_meta(db, "started_version", C.VERSION)
-    print("GATE_TRADER_BASLADI", C.VERSION, "RAM_ONLY", flush=True)
+    print("GATE_TRADER_BASLADI", C.VERSION, "PERSISTENT_SQLITE", flush=True)
     # Startup details stay in Railway logs, never spam Telegram.
     last_scan_bar = None
     last_track = 0.0
