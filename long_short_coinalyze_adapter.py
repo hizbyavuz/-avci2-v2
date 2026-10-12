@@ -73,10 +73,12 @@ def snapshot(symbol):
             row = next((r for r in hist if isinstance(r, dict) and r.get("symbol") == key), None)
             candles = row.get("history", []) if row else []
             candles = sorted((x for x in candles if isinstance(x, dict)), key=lambda x: x["t"])
-            if len(candles) >= 12:
-                first = float(candles[-12]["c"])
-                last = float(candles[-1]["c"])
-                if first > 0 and last > 0 and 0 <= time.time()-float(candles[-1]["t"]) <= 660:
+            if len(candles) >= 13:
+                first_candle, last_candle = candles[-13], candles[-1]
+                first = float(first_candle["c"])
+                last = float(last_candle["c"])
+                interval = float(last_candle["t"]) - float(first_candle["t"])
+                if first > 0 and last > 0 and 3540 <= interval <= 3660 and 0 <= time.time()-float(last_candle["t"]) <= 660:
                     out["oi_change_1h"] = (last / first - 1) * 100
         # Do not rely on optional market metadata to suppress an available series.
         if out["oi_fresh"]:
