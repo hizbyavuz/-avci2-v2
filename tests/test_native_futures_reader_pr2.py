@@ -6,7 +6,7 @@ import time
 import unittest
 from unittest.mock import patch
 from long_short_futures_kline_shadow import initialize
-from long_short_live_pool import native_futures_closed_bars, futures_closed_snapshot
+from long_short_live_pool import native_futures_closed_bars, futures_closed_snapshot, futures_market_snapshot
 
 
 class NativeFuturesReaderTests(unittest.TestCase):
@@ -49,6 +49,26 @@ class NativeFuturesReaderTests(unittest.TestCase):
         self.assertEqual(len(snapshot["kl1"]), 30)
         self.assertEqual(len(snapshot["kl5"]), 30)
         self.assertEqual(snapshot["last_closed_5m"], 100.5)
+
+    def test_native_book_mid_is_indicative_not_fill(self):
+        with patch("long_short_live_pool.futures_closed_snapshot", return_value={
+            "kl1":[[1]],"kl5":[[2]],"last_closed_5m_at":"2026-10-13T00:00:00+00:00"
+        }), patch("long_short_live_pool.trigger_execution_proxy", return_value={
+            "source":"BINANCE_FUTURES_BOOK","available":True,"mid":100.25
+        }):
+            snapshot = futures_market_snapshot("BTCUSDT")
+        self.assertEqual(snapshot["price"],100.25)
+        self.assertEqual(snapshot["source"],"BINANCE_FUTURES")
+        self.assertEqual(snapshot["price_type"],"futures_orderbook_mid_indicative")
+
+    def test_spot_book_never_approves_futures_price(self):
+        with patch("long_short_live_pool.futures_closed_snapshot", return_value={
+            "kl1":[],"kl5":[],"last_closed_5m_at":"2026-10-13T00:00:00+00:00"
+        }), patch("long_short_live_pool.trigger_execution_proxy", return_value={
+            "source":"BINANCE_SPOT_BOOK_PROXY","available":True,"mid":100.25
+        }):
+            with self.assertRaisesRegex(RuntimeError,"FUTURES_LIVE_BOOK_UNAVAILABLE"):
+                futures_market_snapshot("BTCUSDT")
 
     def test_gap_rejected(self):
         with sqlite3.connect(self.db) as con:
