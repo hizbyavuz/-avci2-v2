@@ -4,6 +4,7 @@ No orders, no Telegram, no fallback to other exchanges. Closed candles only.
 Run separately before considering production integration.
 """
 import json
+import math
 import os
 import sqlite3
 import time
@@ -26,9 +27,16 @@ def parse_closed_kline(packet):
     start = int(bar["t"])
     end = int(bar["T"])
     values = tuple(float(bar[key]) for key in ("o", "h", "l", "c", "v"))
-    if start <= 0 or end <= start or min(values[:4]) <= 0 or values[4] < 0:
+    quote = float(bar["q"])
+    taker = float(bar["Q"])
+    trades = int(bar["n"])
+    if (start <= 0 or end <= start or not all(math.isfinite(v) for v in (*values, quote, taker))
+            or min(values[:4]) <= 0 or values[4] < 0 or quote < 0 or taker < 0
+            or taker > quote or trades < 0
+            or values[1] < max(values[0], values[3], values[2])
+            or values[2] > min(values[0], values[3])):
         return None
-    return (symbol, interval, start, end, *values, SOURCE, int(time.time() * 1000), float(bar["q"]), int(bar["n"]), float(bar["Q"]))
+    return (symbol, interval, start, end, *values, SOURCE, int(time.time() * 1000), quote, trades, taker)
 
 
 def initialize(db):
