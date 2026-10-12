@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 import time
 from contextlib import contextmanager
@@ -31,14 +32,17 @@ CREATE TABLE IF NOT EXISTS scans(
 );
 """
 
-# Process-local SQLite RAM only: no disk files, no backups, lost on restart.
+# Persistent SQLite on Railway-mounted volume. Never silently fall back to RAM.
+_DB_PATH = os.environ.get('GATE_TRADER_DB_PATH', '/app/.gate-trader-state/gate_trader.sqlite3')
 _RAM_DB = None
 
 @contextmanager
 def connect(path: str | None = None):
     global _RAM_DB
     if _RAM_DB is None:
-        _RAM_DB = sqlite3.connect(":memory:", timeout=30)
+        os.makedirs(os.path.dirname(_DB_PATH), exist_ok=True)
+        _RAM_DB = sqlite3.connect(_DB_PATH, timeout=30)
+        _RAM_DB.execute("PRAGMA journal_mode=WAL")
         _RAM_DB.row_factory = sqlite3.Row
         _RAM_DB.executescript(SCHEMA)
     try:
