@@ -6,7 +6,7 @@ import time
 import unittest
 from unittest.mock import patch
 from long_short_futures_kline_shadow import initialize
-from long_short_live_pool import native_futures_closed_bars, futures_closed_snapshot, futures_market_snapshot
+from long_short_live_pool import native_futures_closed_bars, futures_closed_snapshot, futures_market_snapshot, market_snapshot
 
 
 class NativeFuturesReaderTests(unittest.TestCase):
@@ -69,6 +69,26 @@ class NativeFuturesReaderTests(unittest.TestCase):
         }):
             with self.assertRaisesRegex(RuntimeError,"FUTURES_LIVE_BOOK_UNAVAILABLE"):
                 futures_market_snapshot("BTCUSDT")
+
+    def test_native_snapshot_excludes_current_breakout_bar(self):
+        now=int(time.time()*1000)
+        def bar(i, minutes):
+            t=now-(30-i)*minutes*60000
+            high=200.0 if i==29 and minutes==5 else 101.0
+            return [t,100.0,high,99.0,100.5,8.0,t+minutes*60000-1,
+                    800.0,12,None,400.0]
+        native={"kl1":[bar(i,1) for i in range(30)],
+                "kl5":[bar(i,5) for i in range(30)],
+                "price":100.25}
+        with patch.dict(os.environ, {"LS_NATIVE_FUTURES_SNAPSHOT":"1"}):
+            with patch("long_short_live_pool.futures_market_snapshot",return_value=native):
+                with patch("long_short_live_pool.spot_get",side_effect=AssertionError("Spot accessed")):
+                    price,closed,close_time,early=market_snapshot("BTCUSDT")
+        self.assertEqual(price,100.25)
+        self.assertEqual(early["live_price_source"],"BINANCE_FUTURES")
+        self.assertEqual(early["local_high"],101.0)
+        self.assertTrue(early["native_futures_observation_only"])
+        self.assertFalse(early["rolling_24h_stats_verified"])
 
     def test_gap_rejected(self):
         with sqlite3.connect(self.db) as con:
