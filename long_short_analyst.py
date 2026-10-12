@@ -1166,24 +1166,31 @@ def universe():
 
 
 def audit_30m_coverage(ts, all_eligible):
-    """Research-only 30-minute opportunity coverage audit.
+    """Research-only audit: read on a separate connection, then write briefly.
 
-    Compares full-universe ticker snapshots with the scan selection history.
-    Does not infer actual executable returns or modify trading decisions.
+    Do not hold a write transaction while querying the full universe. If SQLite
+    is busy, fail this optional audit without delaying the signal scanner.
     """
     now=datetime.fromisoformat(ts)
     previous=(now-timedelta(minutes=30)).isoformat()
     count={"NOT_PREFILTERED":0,"PREFILTERED_NOT_DEEP":0,
            "DEEP_ANALYZED":0,"PREFILTER_DATA_MISSING":0}
     moves=0
-    with sqlite3.connect(DB,timeout=15) as con:
+    snapshots=[]
+    audit_rows=[]
+    # Read-only snapshot: avoids holding the SQLite writer lock for N queries.
+    with sqlite3.connect("file:"+os.path.abspath(DB)+"?mode=ro",
+                         uri=True,timeout=5) as con:
+        con.execute("PRAGMA busy_timeout=5000")
         for sym,qv,price,ch in all_eligible:
-            if float(price)<=0: continue
+            if float(price)<=0:
+                continue
+            price=float(price)
             prior=con.execute("""SELECT scan_time_utc,price FROM opportunity_price_snapshots
                 WHERE symbol=? AND scan_time_utc<=? ORDER BY scan_time_utc DESC LIMIT 1""",
                 (sym,previous)).fetchone()
             if prior and float(prior[1])>0:
-                move=(float(price)/float(prior[1])-1)*100
+                move=(price/float(prior[1])-1)*100
                 if abs(move)>=3:
                     moves+=1
                     observed=con.execute("""SELECT shortlisted FROM universe_observations
@@ -1200,16 +1207,22 @@ def audit_30m_coverage(ts, all_eligible):
                             LIMIT 1""",(sym,prior[0],ts)).fetchone()
                         classification="DEEP_ANALYZED" if analyzed else "PREFILTER_DATA_MISSING"
                     count[classification]+=1
-                    con.execute("""INSERT OR IGNORE INTO opportunity_30m_audit
-                        (scan_time_utc,symbol,prior_time_utc,prior_price,current_price,
-                         move_pct,classification,detail) VALUES(?,?,?,?,?,?,?,?)""",
-                        (ts,sym,prior[0],float(prior[1]),float(price),move,
-                         classification,"absolute 30m ticker movement >=3%; observational"))
-            con.execute("""INSERT OR IGNORE INTO opportunity_price_snapshots
-                (scan_time_utc,symbol,price) VALUES(?,?,?)""",(ts,sym,float(price)))
+                    audit_rows.append((ts,sym,prior[0],float(prior[1]),price,move,
+                                       classification,"absolute 30m ticker movement >=3%; observational"))
+            snapshots.append((ts,sym,price))
+    # One short bounded write transaction, rather than N read/write round trips.
+    # Preserve all existing audit rows and the original ten-day snapshot policy.
+    with sqlite3.connect(DB,timeout=5) as con:
+        con.execute("PRAGMA busy_timeout=5000")
+        if audit_rows:
+            con.executemany("""INSERT OR IGNORE INTO opportunity_30m_audit
+                (scan_time_utc,symbol,prior_time_utc,prior_price,current_price,
+                 move_pct,classification,detail) VALUES(?,?,?,?,?,?,?,?)""",audit_rows)
+        if snapshots:
+            con.executemany("""INSERT OR IGNORE INTO opportunity_price_snapshots
+                (scan_time_utc,symbol,price) VALUES(?,?,?)""",snapshots)
         con.execute("""DELETE FROM opportunity_price_snapshots
             WHERE scan_time_utc<?""",((now-timedelta(days=10)).isoformat(),))
-        con.commit()
     print("OPPORTUNITY_30M_AUDIT",json.dumps({"movers_3pct":moves,
           "coverage":count,"universe":len(all_eligible)},ensure_ascii=False),flush=True)
 
