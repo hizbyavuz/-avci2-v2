@@ -121,7 +121,7 @@ def fget(path: str, params: dict | None = None):
         "/fapi/v1/depth": "/api/v3/depth",
     }
 
-    if os.getenv("LS_BINANCE_FUTURES_ONLY", "1") == "1" and DATA_MODE == "BINANCE_SPOT_GRAPH_ONLY":
+    if os.getenv("LS_BINANCE_FUTURES_ONLY", "0") == "1" and DATA_MODE == "BINANCE_SPOT_GRAPH_ONLY":
         raise RuntimeError("BINANCE_FUTURES_ONLY: native Futures REST unavailable; Spot fallback forbidden")
 
     # Once HTTP 451 confirms a location restriction, never retry a native
@@ -163,7 +163,7 @@ def fget(path: str, params: dict | None = None):
         except (requests.RequestException, ValueError) as exc:
             last = exc
 
-    if os.getenv("LS_BINANCE_FUTURES_ONLY", "1") == "1":
+    if os.getenv("LS_BINANCE_FUTURES_ONLY", "0") == "1":
         raise RuntimeError(f"BINANCE_FUTURES_ONLY: native REST unavailable for {path}; Spot fallback forbidden")
     spot_path = spot_map.get(path)
     if spot_path:
@@ -375,7 +375,7 @@ def fetch_klines(symbol, interval, limit=220):
     Spot history is too short), use Bybit/Gate USDT-perpetual candles for chart
     discovery instead of silently dropping the coin from the scanner.
     """
-    strict = os.getenv("LS_BINANCE_FUTURES_ONLY", "1") == "1"
+    strict = os.getenv("LS_BINANCE_FUTURES_ONLY", "0") == "1"
     shadow = native_futures_shadow_klines(symbol, interval, limit)
     if shadow is not None:
         print(f"FUTURES_SHADOW_USED symbol={symbol} interval={interval} bars={len(shadow)}", flush=True)
@@ -979,7 +979,7 @@ def fetch_depth_metrics(symbol):
     try:
         d=fget("/fapi/v1/depth",{"symbol":symbol,"limit":100})
     except Exception as primary_exc:
-        if os.getenv("LS_BINANCE_FUTURES_ONLY", "1") == "1":
+        if os.getenv("LS_BINANCE_FUTURES_ONLY", "0") == "1":
             raise RuntimeError(f"BINANCE_FUTURES_ONLY: Binance Futures orderbook unavailable for {symbol}") from primary_exc
         mv=_cached_multi_venue_derivatives(symbol)
         imbalance=mv.get("depth_imbalance")
@@ -1070,7 +1070,7 @@ def native_futures_websocket_universe():
 def universe():
     global DISCOVERY_META
     DISCOVERY_META={}
-    if os.getenv("LS_BINANCE_FUTURES_ONLY", "1") == "1":
+    if os.getenv("LS_BINANCE_FUTURES_ONLY", "0") == "1":
         return native_futures_websocket_universe()
     """Build a broad USDT-perpetual discovery universe.
 
@@ -1079,10 +1079,10 @@ def universe():
     can become WAIT/LONG/SHORT; lower-liquidity or unverified names are radar-only.
     """
     info=fget("/fapi/v1/exchangeInfo")
-    if os.getenv("LS_BINANCE_FUTURES_ONLY", "1") == "1" and DATA_MODE != "BINANCE_FUTURES":
+    if os.getenv("LS_BINANCE_FUTURES_ONLY", "0") == "1" and DATA_MODE != "BINANCE_FUTURES":
         raise RuntimeError("BINANCE_FUTURES_ONLY: Futures exchange info blocked; refusing Spot universe")
     tick=fget("/fapi/v1/ticker/24hr")
-    if os.getenv("LS_BINANCE_FUTURES_ONLY", "1") == "1" and DATA_MODE != "BINANCE_FUTURES":
+    if os.getenv("LS_BINANCE_FUTURES_ONLY", "0") == "1" and DATA_MODE != "BINANCE_FUTURES":
         raise RuntimeError("BINANCE_FUTURES_ONLY: Futures tickers blocked; refusing Spot universe")
 
     tradable={}
@@ -1561,7 +1561,7 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
     t1h=timeframe_features(k1h)
     t4h=timeframe_features(k4h)
     htf_gate=build_htf_gate(symbol,t4h)
-    if os.getenv("LS_BINANCE_FUTURES_ONLY", "1") == "1":
+    if os.getenv("LS_BINANCE_FUTURES_ONLY", "0") == "1":
         from long_short_coinalyze_adapter import snapshot as coinalyze_binance_snapshot
         from long_short_coinalyze_funding_probe import funding_snapshot as coinalyze_binance_funding
         from long_short_taker_continuous_shadow import window as binance_taker_window
@@ -1588,7 +1588,7 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
         ls_raw = evidence["long_short_ratio"]
     else:
         oi_raw=fetch_oi(symbol)
-    if os.getenv("LS_BINANCE_FUTURES_ONLY", "1") != "1":
+    if os.getenv("LS_BINANCE_FUTURES_ONLY", "0") != "1":
         funding_raw=fetch_funding(symbol)
         taker_raw=fetch_taker(symbol)
         ls_raw=fetch_long_short(symbol)
@@ -1606,7 +1606,7 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
     # V3 native derivatives fail closed: a failed API field is missing, not a
     # fabricated neutral zero/one. Order-book depth is diagnostic only.
     native_ready=bool(
-        (DATA_MODE=="BINANCE_FUTURES" or os.getenv("LS_BINANCE_FUTURES_ONLY", "1") == "1")
+        (DATA_MODE=="BINANCE_FUTURES" or os.getenv("LS_BINANCE_FUTURES_ONLY", "0") == "1")
         and oi_raw.get("oi_change_1h") is not None
         and funding_raw is not None
         and taker_raw is not None
@@ -1637,7 +1637,7 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
     else:
         risks_native=[]
 
-    if DATA_MODE!="BINANCE_FUTURES" and os.getenv("LS_BINANCE_FUTURES_ONLY", "1") != "1":
+    if DATA_MODE!="BINANCE_FUTURES" and os.getenv("LS_BINANCE_FUTURES_ONLY", "0") != "1":
         multi_deriv=_cached_multi_venue_derivatives(symbol)
         cross=(multi_deriv.get("sources") or {}).get("okx")
         if bool(multi_deriv.get("v3_core_ready")) and bool(multi_deriv.get("source_consistent")):
