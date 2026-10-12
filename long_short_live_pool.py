@@ -841,9 +841,9 @@ def native_futures_closed_bars(symbol, interval, count, max_age_seconds):
     db = os.getenv("LS_FUTURES_KLINE_DB") or os.path.join(
         os.getenv("LS_STATE_DIR") or os.getenv("RAILWAY_VOLUME_MOUNT_PATH") or ".long-short-state",
         "binance_futures_kline_shadow.db")
-    if interval not in ("1m", "5m") or count < 2:
+    if interval not in ("1m", "5m", "1h") or count < 2:
         raise ValueError("unsupported futures candle request")
-    step = {"1m": 60000, "5m": 300000}[interval]
+    step = {"1m": 60000, "5m": 300000, "1h": 3600000}[interval]
     with sqlite3.connect(f"file:{os.path.abspath(db)}?mode=ro", uri=True, timeout=3) as con:
         bars = con.execute("""SELECT open_ms,open,high,low,close,volume,close_ms,
                           quote_volume,trade_count,taker_buy_quote,source
@@ -889,6 +889,23 @@ def futures_closed_snapshot(symbol):
                 int(kl5[-1][6])/1000.0,tz=timezone.utc).isoformat()}
 
 
+def futures_24h_closed_stats(symbol):
+    """Fully closed 24h Futures candle aggregates; NOT exchange rolling ticker.
+
+    25 consecutive 1h closes provide 24h close-to-close change, while
+    the most recent 24 closed bars provide actual 24h quote turnover.
+    """
+    bars=native_futures_closed_bars(symbol,"1h",25,7200)
+    previous=float(bars[0][4])
+    current=float(bars[-1][4])
+    quote=sum(float(b[7]) for b in bars[-24:])
+    if previous<=0 or not math.isfinite(quote) or quote<0:
+        raise RuntimeError("FUTURES_24H_STATS_INVALID")
+    return {"quoteVolume":quote,"priceChangePercent":(current/previous-1.0)*100.0,
+            "source":"BINANCE_FUTURES_24_CLOSED_1H_BARS",
+            "rolling_ticker":False}
+
+
 def futures_market_snapshot(symbol):
     """Read-only Binance USD-M candle + executable-book snapshot.
 
@@ -921,9 +938,8 @@ def market_snapshot(symbol):
         kl5=native["kl5"]
         kl1=native["kl1"]
         price=native["price"]
-        # Rolling 24h Futures stats must be independently sourced and verified.
-        # Until then, mark these fields unavailable rather than borrowing Spot.
-        stats={"quoteVolume":0.0,"priceChangePercent":0.0}
+        # Closed-hour Futures statistics, explicitly NOT the exchange rolling ticker.
+        stats=futures_24h_closed_stats(symbol)
         row=kl5[-1]  # Native store contains CLOSED candles only.
     else:
         price_source="BINANCE_SPOT"
@@ -988,7 +1004,8 @@ def market_snapshot(symbol):
         "short_range_pct":short_range_pct,
         "recent_closed_5m_closes":[float(x[4]) for x in (kl5[-3:] if use_native else kl5[-4:-1])] if len(kl5)>=4 else [closed],
         "native_futures_observation_only":use_native,
-        "rolling_24h_stats_verified":not use_native,
+        "rolling_24h_stats_verified":True,
+        "24h_stats_source":stats.get("source","BINANCE_SPOT_ROLLING_TICKER"),
     }
     return price,closed,close_time,early
 
