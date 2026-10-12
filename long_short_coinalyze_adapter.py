@@ -33,24 +33,34 @@ def _cache_connection():
 
 
 def _cached_request(path, params=None, ttl=300):
-    """Cross-process TTL cache and conservative, fail-closed rolling quota."""
+    """Cross-process TTL cache with atomic quota reservation; no network in DB transaction."""
     key = json.dumps([path, params or {}], sort_keys=True, separators=(",", ":"))
     with _CACHE_LOCK:
-        with _cache_connection() as conn:
+        conn = _cache_connection()
+        try:
+            # BEGIN IMMEDIATE serializes quota checks across processes. The
+            # reservation commits BEFORE HTTP so slow providers never lock SQLite.
             conn.execute("BEGIN IMMEDIATE")
             now = time.time()
             hit = conn.execute("SELECT stored_at,payload FROM api_cache WHERE key=?", (key,)).fetchone()
             if hit and 0 <= now - hit[0] < ttl:
+                conn.commit()
                 return json.loads(hit[1])
             conn.execute("DELETE FROM api_budget WHERE request_at < ?", (now - 60,))
             used = conn.execute("SELECT COUNT(*) FROM api_budget").fetchone()[0]
             if used >= _MAX_REQUESTS_PER_MINUTE:
+                conn.rollback()
                 raise RuntimeError("COINALYZE_RATE_BUDGET_EXHAUSTED")
             conn.execute("INSERT INTO api_budget(request_at) VALUES(?)", (now,))
+            conn.commit()
+            # A failed HTTP attempt still consumes the reservation (conservative).
             result = _get(path, params)
             conn.execute("INSERT OR REPLACE INTO api_cache VALUES(?,?,?)",
                          (key, time.time(), json.dumps(result)))
+            conn.commit()
             return result
+        finally:
+            conn.close()
 
 
 BASE = "https://api.coinalyze.net/v1"
