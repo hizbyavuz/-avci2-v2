@@ -314,6 +314,27 @@ def main() -> int:
         except Exception as exc:
             print("[daemon] TELEGRAM_CHAT_RESOLUTION_ERROR", type(exc).__name__, flush=True)
 
+    # One-shot read-only Coinalyze connectivity check; never blocks trading loops.
+    # Prints only market identity, freshness and whether values are available.
+    def coinalyze_boot_probe():
+        try:
+            from coinalyze_binance_probe import probe
+            result = probe(["BTCUSDT", "ETHUSDT"])
+            safe = {symbol: {
+                "market_verified": data.get("market_verified", False),
+                "oi_ok": data.get("oi_ok", False),
+                "ls_ok": data.get("ls_ok", False),
+                "oi_age_seconds": data.get("oi_age_seconds"),
+                "ls_age_seconds": data.get("ls_age_seconds"),
+                "oi_error": data.get("oi_error"),
+                "ls_error": data.get("ls_error"),
+            } for symbol, data in result.items()}
+            print("[daemon] COINALYZE_BINANCE_PROBE " + json.dumps(safe), flush=True)
+        except Exception as exc:
+            print("[daemon] COINALYZE_BINANCE_PROBE_FAILED " + type(exc).__name__, flush=True)
+
+    threading.Thread(target=coinalyze_boot_probe, name="coinalyze-boot-probe", daemon=True).start()
+
     # One initial analyst pass gives both live watchers a fresh plan before they
     # start. Failure is not fatal; the analyst loop will keep retrying.
     initial_rc = run_child("analyst_initial", "long_short_analyst.py")
