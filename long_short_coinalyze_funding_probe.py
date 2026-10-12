@@ -2,7 +2,7 @@
 import time
 import requests
 _CACHE = {}
-from long_short_coinalyze_adapter import _get, _market
+from long_short_coinalyze_adapter import _cached_request, _market
 
 def funding_snapshot(symbol, now=None):
     now = time.time() if now is None else float(now)
@@ -16,7 +16,7 @@ def funding_snapshot(symbol, now=None):
         if not market:
             return out
         key, _ = market
-        rows = _get("/funding-rate", {"symbols": key})
+        rows = _cached_request("/funding-rate", {"symbols": key}, ttl=600)
     except (requests.RequestException, RuntimeError, ValueError, TypeError, KeyError) as exc:
         out["error_type"] = type(exc).__name__
         return out
