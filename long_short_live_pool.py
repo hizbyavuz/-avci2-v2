@@ -1740,6 +1740,10 @@ def loop_once():
                                 con.commit()
                                 continue
 
+                        if new=="TRIGGERED" and execution_check and execution_check.get("research_only"):
+                            # Do not present unverified futures execution as a confirmed trade.
+                            print("BINANCE_451_RESEARCH_ONLY_TRIGGER",row["symbol"],row["direction"],flush=True)
+
                         # APPROACHING is a user-facing watch state. Previously it was
                         # stored in DB but never queued to Telegram.
                         if new=="APPROACHING" and not TELEGRAM_TRADE_ONLY and not _row_is_radar(row):
