@@ -90,7 +90,9 @@ def main():
     from long_short_v4_native_pipeline import choose_symbols
     root = os.getenv("LS_STATE_DIR") or os.getenv("RAILWAY_VOLUME_MOUNT_PATH") or ".long-short-state"
     analyst_db = os.getenv("LS_ANALYST_DB") or os.path.join(root, "long_short_analyst.db")
-    symbols = choose_symbols("", analyst_db=analyst_db, limit=12)
+    configured = os.getenv("LS_KLINE_PROBE_SYMBOLS", "").strip()
+    symbols = ([s.strip().upper() for s in configured.split(",") if s.strip()]
+               if configured else choose_symbols("", analyst_db=analyst_db, limit=12))
     if not symbols:
         print("FUTURES_KLINE_SHADOW_NO_SYMBOLS", flush=True)
         return 2
