@@ -453,6 +453,9 @@ def main() -> int:
             path = str(sd / "long_short_v4_native.db")
             outcome = observe(path, ["BTCUSDT", "ETHUSDT"], 30)
             health = {symbol: check(path, symbol) for symbol in ("BTCUSDT", "ETHUSDT")}
+            import sqlite3
+            with sqlite3.connect(path, timeout=5) as depth_db:
+                depth_rows = depth_db.execute("SELECT symbol, COUNT(*), MAX(received_ms) FROM raw_events WHERE stream LIKE ? GROUP BY symbol", ("%depth20%",)).fetchall()
             safe = {
                 "state": outcome.get("state"),
                 "accepted": outcome.get("accepted"),
@@ -463,6 +466,7 @@ def main() -> int:
                                     "trade_count_2m": row["trade_count_2m"]}
                           for symbol, row in health.items()},
                 "continuous_coverage": False,
+                "depth20_events": {sym: count for sym, count, _ in depth_rows},
             }
             print("[daemon] BINANCE_NATIVE_TAKER_BOOT " + json.dumps(safe), flush=True)
         except Exception as exc:
