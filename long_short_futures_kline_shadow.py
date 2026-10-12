@@ -121,11 +121,14 @@ def continuous_main():
     os.makedirs(root, exist_ok=True)
     db = os.path.join(root, "binance_futures_kline_shadow.db")
     analyst = os.getenv("LS_ANALYST_DB") or os.path.join(root, "long_short_analyst.db")
+    pinned_symbols = None
     while not stop.is_set():
         try:
             configured = os.getenv("LS_KLINE_PROBE_SYMBOLS", "").strip()
-            symbols = ([x.strip().upper() for x in configured.split(",") if x.strip()]
-                       if configured else choose_symbols("", analyst_db=analyst, limit=12))
+            if pinned_symbols is None:
+                pinned_symbols = ([x.strip().upper() for x in configured.split(",") if x.strip()]
+                                  if configured else choose_symbols("", analyst_db=analyst, limit=12))
+            symbols = pinned_symbols
             if not symbols:
                 symbols = ["BTCUSDT", "ETHUSDT", "SOLUSDT"]
             result = collect(db, symbols, seconds=900, stop=stop)
