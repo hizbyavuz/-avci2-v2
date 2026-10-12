@@ -59,7 +59,7 @@ def store(conn, row):
 
 def collect(db, symbols, seconds=90, stop=None):
     import websocket
-    symbols = sorted({s.upper() for s in symbols if s.upper().endswith("USDT")})[:24]
+    symbols = sorted({s.upper() for s in symbols if s.upper().endswith("USDT")})[:30]
     if not symbols:
         raise ValueError("No Binance USDT symbols")
     os.makedirs(os.path.dirname(os.path.abspath(db)), exist_ok=True)
@@ -222,10 +222,12 @@ def continuous_main():
     while not stop.is_set():
         try:
             if not backfill_done:
-                backfill_binance_archive(db, ["BTCUSDT", "ETHUSDT", "SOLUSDT"])
+                symbols = list(dict.fromkeys(["BTCUSDT", "ETHUSDT", "SOLUSDT"] + choose_symbols("", analyst_db=analyst, limit=30)))[:30]
+            if not symbols:
+                raise RuntimeError("DATA_NOT_READY: no analyst universe")
+            if not backfill_done:
+                backfill_binance_archive(db, symbols)
                 backfill_done = True
-            symbols = ["BTCUSDT", "ETHUSDT", "SOLUSDT"] + choose_symbols("", analyst_db=analyst, limit=9)
-            symbols = list(dict.fromkeys(symbols))[:12]
             bridge_recent_futures(db, symbols)
             result = collect(db, symbols, seconds=900, stop=stop)
             print("FUTURES_KLINE_FEED " + json.dumps(result), flush=True)
