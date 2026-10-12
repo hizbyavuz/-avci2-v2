@@ -1531,10 +1531,37 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
     t1h=timeframe_features(k1h)
     t4h=timeframe_features(k4h)
     htf_gate=build_htf_gate(symbol,t4h)
-    oi_raw=fetch_oi(symbol)
-    funding_raw=fetch_funding(symbol)
-    taker_raw=fetch_taker(symbol)
-    ls_raw=fetch_long_short(symbol)
+    if os.getenv("LS_BINANCE_FUTURES_ONLY", "1") == "1":
+        from long_short_coinalyze_adapter import snapshot as coinalyze_binance_snapshot
+        from long_short_coinalyze_funding_probe import funding_snapshot as coinalyze_binance_funding
+        from long_short_taker_continuous_shadow import window as binance_taker_window
+        from long_short_binance_derivative_gate import assess as assess_binance_evidence
+        evidence = coinalyze_binance_snapshot(symbol)
+        funding_evidence = coinalyze_binance_funding(symbol)
+        state_root = os.getenv("LS_STATE_DIR") or os.getenv("RAILWAY_VOLUME_MOUNT_PATH") or ".long-short-state"
+        taker_evidence = binance_taker_window(os.path.join(state_root, "binance_taker_shadow.db"), symbol)
+        verified = dict(evidence)
+        verified["funding_fresh"] = bool(funding_evidence.get("funding_fresh"))
+        verified["taker_fresh"] = bool(taker_evidence.get("ready"))
+        verified["taker_coverage_ready"] = bool(taker_evidence.get("ready"))
+        gate = assess_binance_evidence(
+            verified, funding_pct=funding_evidence.get("funding_pct"),
+            taker_ratio=taker_evidence.get("taker_ratio"),
+            funding_source=funding_evidence.get("source"),
+            taker_source=taker_evidence.get("source"))
+        if not gate["ready"]:
+            raise RuntimeError("BINANCE_FUTURES_ONLY: derivative evidence incomplete for "
+                               + symbol + ": " + ",".join(gate["missing"]))
+        oi_raw = {"oi_change_1h": evidence["oi_change_1h"], "oi_now": evidence["oi_now"]}
+        funding_raw = funding_evidence["funding_pct"]
+        taker_raw = taker_evidence["taker_ratio"]
+        ls_raw = evidence["long_short_ratio"]
+    else:
+        oi_raw=fetch_oi(symbol)
+    if os.getenv("LS_BINANCE_FUTURES_ONLY", "1") != "1":
+        funding_raw=fetch_funding(symbol)
+        taker_raw=fetch_taker(symbol)
+        ls_raw=fetch_long_short(symbol)
     try:
         depth_metrics=fetch_depth_metrics(symbol)
         depth=float(depth_metrics.get("imbalance") or 0.0)
@@ -1549,7 +1576,7 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
     # V3 native derivatives fail closed: a failed API field is missing, not a
     # fabricated neutral zero/one. Order-book depth is diagnostic only.
     native_ready=bool(
-        DATA_MODE=="BINANCE_FUTURES"
+        (DATA_MODE=="BINANCE_FUTURES" or os.getenv("LS_BINANCE_FUTURES_ONLY", "1") == "1")
         and oi_raw.get("oi_change_1h") is not None
         and funding_raw is not None
         and taker_raw is not None
@@ -1580,7 +1607,7 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
     else:
         risks_native=[]
 
-    if DATA_MODE!="BINANCE_FUTURES":
+    if DATA_MODE!="BINANCE_FUTURES" and os.getenv("LS_BINANCE_FUTURES_ONLY", "1") != "1":
         multi_deriv=_cached_multi_venue_derivatives(symbol)
         cross=(multi_deriv.get("sources") or {}).get("okx")
         if bool(multi_deriv.get("v3_core_ready")) and bool(multi_deriv.get("source_consistent")):
