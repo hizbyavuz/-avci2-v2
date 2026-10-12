@@ -940,7 +940,9 @@ def market_snapshot(symbol):
     close_ms=int(row[6])
     close_time=datetime.fromtimestamp(close_ms/1000.0,tz=timezone.utc).isoformat()
 
-    prev5=(kl5[-6:] if use_native else kl5[-7:-1]) if len(kl5)>=7 else kl5[:-1]
+    # The breakout reference must exclude the candle being evaluated.
+    # Native data contains only closed candles, while Spot includes a forming one.
+    prev5=(kl5[-7:-1] if use_native else kl5[-7:-1]) if len(kl5)>=7 else kl5[:-1]
     highs=[float(x[2]) for x in prev5]
     lows=[float(x[3]) for x in prev5]
     local_high=max(highs) if highs else price
@@ -954,7 +956,7 @@ def market_snapshot(symbol):
 
     forming=kl1[-1]  # Native mode: most recent CLOSED 1m, not a forming bar.
     qvol=float(forming[7] or 0)
-    base=[float(x[7] or 0) for x in kl1[-12:-2]]
+    base=[float(x[7] or 0) for x in (kl1[-11:-1] if use_native else kl1[-12:-2])]
     vol_base=(sum(base)/len(base)) if base else 0.0
     vol_mult=qvol/vol_base if vol_base>0 else 1.0
     taker_buy=float(forming[10] or 0)
