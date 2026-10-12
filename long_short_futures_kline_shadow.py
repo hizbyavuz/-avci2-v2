@@ -255,7 +255,10 @@ def continuous_main():
                 for sym in missing:
                     backfill_binance_archive(db, [sym])
                     backfilled_symbols.add(sym)
-            bridge_recent_futures(db, symbols)
+            # Binance REST returned HTTP 418 (IP restriction). Do not retry
+            # REST on each cycle: preserve archive history and collect native
+            # closed Futures candles over WebSocket. Missing bars fail closed.
+            print("FUTURES_REST_BRIDGE_DISABLED_HTTP_418", flush=True)
             result = collect(db, symbols, seconds=900, stop=stop)
             print("FUTURES_KLINE_FEED " + json.dumps(result), flush=True)
             # No signal source switch: only observe verified native Futures candles.
