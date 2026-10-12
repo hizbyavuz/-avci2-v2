@@ -379,6 +379,15 @@ def main() -> int:
 
     threading.Thread(target=coinalyze_funding_shadow, name="coinalyze-funding-shadow", daemon=True).start()
 
+    # Continuous, storage-bounded taker observation; independent of production signals.
+    # Operator may disable via LS_TAKER_SHADOW_ENABLED=0.
+    if os.getenv("LS_TAKER_SHADOW_ENABLED", "1") == "1":
+        threading.Thread(
+            target=watcher_loop,
+            args=("binance_taker_shadow", "long_short_taker_shadow_worker.py"),
+            name="binance-taker-shadow-loop", daemon=True,
+        ).start()
+
     # Single bounded read-only native taker connectivity check at startup.
     # Stores records in the existing persistent volume; never sends orders or alerts.
     def native_taker_boot_probe():
