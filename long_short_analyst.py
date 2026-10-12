@@ -1335,6 +1335,9 @@ def audit_30m_coverage(ts, all_eligible):
 
 
 def fetch_htf_cached(symbol, interval, limit=220):
+    # Never reuse legacy multi-venue/Spot higher-timeframe cache in Futures-only mode.
+    if os.getenv("LS_BINANCE_FUTURES_ONLY", "0") == "1":
+        return fetch_klines(symbol, interval, limit)
     """Persist 1h/4h candles across runs so slow higher-timeframe data is not refetched every 5m."""
     ttl = HTF_CACHE_TTL_1D if interval=="1d" else (HTF_CACHE_TTL_4H if interval=="4h" else HTF_CACHE_TTL_1H)
     now_ts = time.time()
