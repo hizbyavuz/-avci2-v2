@@ -47,7 +47,10 @@ def choose_symbols(argument, analyst_db=None, limit=MAX_DEEP_SYMBOLS):
                             FROM full_universe_stage_audit
                             WHERE scan_time_utc=? AND shortlisted=1
                             ORDER BY rank DESC LIMIT ?""",(stage_latest,limit))]
-                latest=c.execute("SELECT MAX(scan_time_utc) FROM analyses").fetchone()[0]
+                has_analyses=c.execute("""SELECT 1 FROM sqlite_master
+                    WHERE type='table' AND name='analyses'""").fetchone()
+                latest=(c.execute("SELECT MAX(scan_time_utc) FROM analyses").fetchone()[0]
+                        if has_analyses else None)
                 if latest:
                     symbols += [r[0] for r in c.execute(
                         "SELECT symbol FROM analyses WHERE scan_time_utc=? ORDER BY confidence DESC LIMIT ?",
