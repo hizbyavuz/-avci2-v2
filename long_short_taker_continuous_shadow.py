@@ -188,3 +188,37 @@ def window(db,symbol,now_ms=None):
             "collector_state":latest[1] if latest else "NO_HEALTH",
             "collector_health_age_ms":now_ms-latest[0] if latest else None,
             "session_started_before_window":bool(latest and isinstance(json.loads(latest[4] or "{}").get("connected_at_ms"),int) and json.loads(latest[4] or "{}")["connected_at_ms"]<=start)}
+
+
+def window_from_verified_futures_klines(db, symbol, now_ms=None):
+    """Independent Binance USD-M 1m candle taker evidence, fail closed on gaps/metadata."""
+    now_ms = int(time.time()*1000) if now_ms is None else int(now_ms)
+    last_open = (now_ms//60000)*60000-60000
+    first_open = last_open-4*60000
+    result = {"ready":False,"source":"BINANCE_UM_FUTURES_KLINE",
+              "symbol":symbol,"taker_ratio":None}
+    if not os.path.isfile(db):
+        return result
+    try:
+        with sqlite3.connect("file:"+os.path.abspath(db)+"?mode=ro",uri=True,timeout=5) as conn:
+            rows=conn.execute("""SELECT open_ms,close_ms,quote_volume,taker_buy_quote,
+                trade_count,source FROM futures_closed_klines
+                WHERE symbol=? AND interval='1m' AND open_ms BETWEEN ? AND ?
+                ORDER BY open_ms""",(symbol,first_open,last_open)).fetchall()
+        if len(rows)!=5:
+            return result
+        buy=sell=0.0
+        allowed={"BINANCE_UM_FUTURES_WEBSOCKET","BINANCE_UM_FUTURES_REST",
+                 "BINANCE_UM_FUTURES_ARCHIVE"}
+        for i,(opened,closed,quote,taker,trades,source) in enumerate(rows):
+            if (opened!=first_open+i*60000 or closed!=opened+59999 or
+                source not in allowed or quote is None or taker is None or
+                trades is None or trades<=0 or quote<=0 or not 0<=taker<=quote):
+                return result
+            buy+=taker
+            sell+=quote-taker
+        if buy>0 and sell>0:
+            result.update(ready=True,taker_ratio=buy/sell,coverage_minutes=5)
+    except (sqlite3.Error,OSError,TypeError,ValueError):
+        pass
+    return result
