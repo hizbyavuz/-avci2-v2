@@ -968,7 +968,38 @@ def _cached_multi_venue_derivatives(symbol):
     return result
 
 
+def native_futures_depth_metrics(symbol):
+    """Read fresh Binance USD-M partial depth20 WebSocket snapshots, fail closed."""
+    root=os.getenv("LS_STATE_DIR") or os.getenv("RAILWAY_VOLUME_MOUNT_PATH") or ".long-short-state"
+    db=os.path.join(root,"binance_futures_depth_shadow.db")
+    with sqlite3.connect("file:"+os.path.abspath(db)+"?mode=ro",uri=True,timeout=3) as c:
+        row=c.execute("SELECT bids_json,asks_json,received_ms,source FROM futures_depth WHERE symbol=?",(symbol,)).fetchone()
+    if not row or row[3]!="BINANCE_UM_FUTURES_WEBSOCKET" or int(time.time()*1000)-row[2]>15000:
+        raise RuntimeError("BINANCE_FUTURES_ONLY: no fresh native depth20 for "+symbol)
+    bids=json.loads(row[0]); asks=json.loads(row[1])
+    if not bids or not asks:
+        raise RuntimeError("BINANCE_FUTURES_ONLY: empty depth20")
+    bid=float(bids[0][0]); ask=float(asks[0][0])
+    if bid<=0 or ask<=bid:
+        raise RuntimeError("BINANCE_FUTURES_ONLY: invalid book")
+    mid=(bid+ask)/2
+    bid_notional=sum(float(p)*float(q) for p,q in bids)
+    ask_notional=sum(float(p)*float(q) for p,q in asks)
+    total=bid_notional+ask_notional
+    costs={}
+    for n in (100.0,PAPER_NOTIONAL_USDT,500.0):
+        buy=_book_vwap(asks,n,"BUY")
+        sell=_book_vwap(bids,n,"SELL")
+        costs[str(int(n))]={"buy_bps":(buy/mid-1)*10000 if buy is not None else None,
+                            "sell_bps":(1-sell/mid)*10000 if sell is not None else None}
+    return {"source":"BINANCE_UM_FUTURES_WEBSOCKET_DEPTH20",
+            "imbalance":(bid_notional-ask_notional)/total if total else 0.0,
+            "spread_bps":(ask-bid)/mid*10000,"costs":costs}
+
+
 def fetch_depth_metrics(symbol):
+    if os.getenv("LS_BINANCE_FUTURES_ONLY", "0") == "1":
+        return native_futures_depth_metrics(symbol)
     """Order-book imbalance plus executable-cost proxy.
 
     Native/Spot Binance depth is preferred. Futures-only symbols can be absent
