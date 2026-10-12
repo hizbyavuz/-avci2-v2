@@ -79,7 +79,7 @@ def snapshot(symbol):
                 if first > 0 and last > 0 and 0 <= time.time()-float(candles[-1]["t"]) <= 660:
                     out["oi_change_1h"] = (last / first - 1) * 100
         # Do not rely on optional market metadata to suppress an available series.
-        if True:
+        if out["oi_fresh"]:
             end = int(time.time())
             ls = _get("/long-short-ratio-history", {"symbols": key, "interval": "5min",
                       "from": end - 3600, "to": end})
