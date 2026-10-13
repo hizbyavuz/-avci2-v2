@@ -1550,7 +1550,7 @@ def queue_approaching_alert(row,price,structure_quality=None):
          f"Durum: 🟡 {status_line}\n"
          f"🛡️ SL: {fmtp(inv)}\n"
          f"🎯 TP1: {fmtp(t1)}\n"
-         f"🎯 TP2: {fmtp(t2)}")
+         f"🎯 TP2: {fmtp(t2) if t2 > 0 else 'belirlenmedi'}")
     payload={
         "stage":"WATCH_ALERT",
         "early_state":"APPROACHING",
@@ -1630,7 +1630,7 @@ def message_for(row,stage,price,closed):
                 f"Tetik seviyesi: {fmtp(trig)} | Gözlenen fiyat: {fmtp(price)}\n"
                 f"🛡️ SL: {fmtp(inv)}\n"
                 f"🎯 TP1: {fmtp(t1)}\n"
-                f"🎯 TP2: {fmtp(t2)}\n"
+                f"🎯 TP2: {fmtp(t2) if t2 > 0 else 'belirlenmedi'}\n"
                 f"Tip: {coin_type}\n"
                 f"Veri: {data_note}\n"
                 "⚠️ Analiz uyarısı; otomatik emir açılmadı.")
@@ -1650,7 +1650,7 @@ def message_for(row,stage,price,closed):
                 f"Sıradaki koşul: fiyatın {next_step}.\n"
                 f"🛡️ SL: {fmtp(inv)}\n"
                 f"🎯 TP1: {fmtp(t1)}\n"
-                f"🎯 TP2: {fmtp(t2)}\n"
+                f"🎯 TP2: {fmtp(t2) if t2 > 0 else 'belirlenmedi'}\n"
                 "⛔ ŞİMDİ İŞLEM AÇMA: Bu sadece ilk grafik teyidi; henüz işlem sinyali değil. Güncel vadeli veri ve diğer işlem koşulları ayrıca doğrulanmalı.")
 
     if stage=="RETESTING":
@@ -1668,7 +1668,7 @@ def message_for(row,stage,price,closed):
                 f"Fiyat: {fmtp(price)}\n"
                 f"🛡️ SL: {fmtp(inv)}\n"
                 f"🎯 TP1: {fmtp(t1)}\n"
-                f"🎯 TP2: {fmtp(t2)}")
+                f"🎯 TP2: {fmtp(t2) if t2 > 0 else 'belirlenmedi'}")
 
     if stage=="INVALIDATED":
         return (f"➡️ DEVAM MOTORU\n"
