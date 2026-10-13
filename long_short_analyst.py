@@ -2958,8 +2958,9 @@ def main():
                         except (ValueError, TypeError):
                             pass
                     rows.append(analysis)
-                    if len(rows) >= 5:
-                        break
+                    # Keep every qualifying 451-only observation; the existing
+                    # per-symbol/direction 2h cooldown prevents repeated notices.
+                    # Do not cap the qualifying set at five per scan.
                 sent_count = 0
                 for analysis in rows:
                     notice = format_watch_digest([analysis])
