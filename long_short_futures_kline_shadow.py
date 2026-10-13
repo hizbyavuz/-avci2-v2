@@ -99,6 +99,93 @@ def collect(db, symbols, seconds=90, stop=None):
         conn.close()
 
 
+
+def collect_continuous(db, requested_fn, stop):
+    """One long-lived native Futures stream with in-place symbol subscriptions.
+
+    The old 900-second disconnect created holes in closed-candle history.
+    This collector never substitutes Spot/other-venue data for missing bars.
+    """
+    import websocket
+    intervals = ("1m", "5m", "15m", "30m", "1h", "4h")
+    os.makedirs(os.path.dirname(os.path.abspath(db)), exist_ok=True)
+    conn = initialize(db)
+    conn.execute("PRAGMA busy_timeout=30000")
+    ws = None
+    subscribed = set()
+    last_refresh = 0.0
+    opened_at = 0.0
+    backoff = 1.0
+    control_id = 100
+    try:
+        while not stop.is_set():
+            try:
+                if ws is None:
+                    ws = websocket.create_connection(URL, timeout=10, enable_multithread=True)
+                    ws.settimeout(1)
+                    subscribed.clear()
+                    opened_at = time.monotonic()
+                    last_refresh = 0.0
+                    backoff = 1.0
+                    print("FUTURES_KLINE_WS_CONNECTED", flush=True)
+                now = time.monotonic()
+                if now - last_refresh >= 60:
+                    requested = list(dict.fromkeys(
+                        sym.upper() for sym in requested_fn()
+                        if isinstance(sym, str) and sym.upper().endswith("USDT")))[:90]
+                    target = set(requested)
+                    for method, changed in (("UNSUBSCRIBE", sorted(subscribed - target)),
+                                            ("SUBSCRIBE", sorted(target - subscribed))):
+                        params = [sym.lower() + "@kline_" + iv for sym in changed for iv in intervals]
+                        for offset in range(0, len(params), 100):
+                            control_id += 1
+                            ws.send(json.dumps({"method": method,
+                                                "params": params[offset:offset + 100],
+                                                "id": control_id}))
+                            stop.wait(0.25)
+                    subscribed = target
+                    last_refresh = now
+                    print("FUTURES_KLINE_STICKY_COVERAGE " + json.dumps(
+                        {"tracked": len(subscribed), "requested": len(requested),
+                         "covered": sum(sym in subscribed for sym in requested)}), flush=True)
+                # Planned reconnect happens mid-minute, never at a candle close.
+                if now - opened_at >= 23 * 3600 and 15 <= int(time.time()) % 60 <= 40:
+                    print("FUTURES_KLINE_PLANNED_RECONNECT", flush=True)
+                    ws.close()
+                    ws = None
+                    continue
+                try:
+                    raw = ws.recv()
+                except websocket.WebSocketTimeoutException:
+                    continue
+                if not raw:
+                    raise ConnectionError("empty Futures websocket frame")
+                try:
+                    packet = json.loads(raw)
+                    row = parse_closed_kline(packet)
+                except (ValueError, TypeError, KeyError, OverflowError, AttributeError) as exc:
+                    print("FUTURES_KLINE_INVALID_FRAME " + type(exc).__name__, flush=True)
+                    continue
+                if row and row[0] in subscribed:
+                    store(conn, row)
+            except Exception as exc:
+                print("FUTURES_KLINE_WS_RECONNECT " + type(exc).__name__ + " " +
+                      str(exc)[:120], flush=True)
+                if ws is not None:
+                    try:
+                        ws.close()
+                    except Exception:
+                        pass
+                ws = None
+                stop.wait(backoff)
+                backoff = min(backoff * 2, 30.0)
+    finally:
+        if ws is not None:
+            ws.close()
+        conn.close()
+
+
+
 def main():
     """Optional one-shot Railway probe; never starts with production daemon."""
     from long_short_v4_native_pipeline import choose_symbols
@@ -312,8 +399,29 @@ def continuous_main():
             # REST on each cycle: preserve archive history and collect native
             # closed Futures candles over WebSocket. Missing bars fail closed.
             print("FUTURES_REST_BRIDGE_DISABLED_HTTP_418", flush=True)
-            result = collect(db, symbols, seconds=900, stop=stop)
-            print("FUTURES_KLINE_FEED " + json.dumps(result), flush=True)
+            def current_symbols():
+                nonlocal tracked_symbols
+                # Re-read the latest scan without disconnecting the socket.
+                fresh = []
+                if os.path.isfile(analyst):
+                    try:
+                        with sqlite3.connect("file:" + os.path.abspath(analyst) + "?mode=ro", uri=True, timeout=5) as read_db:
+                            latest = read_db.execute("SELECT MAX(scan_time_utc) FROM full_universe_stage_audit").fetchone()[0]
+                            if latest:
+                                fresh = [r[0] for r in read_db.execute("SELECT symbol FROM full_universe_stage_audit WHERE scan_time_utc=? ORDER BY quote_volume DESC LIMIT 30", (latest,))]
+                    except (sqlite3.Error, OSError):
+                        pass
+                wanted = list(dict.fromkeys(fresh + choose_symbols("", analyst_db=analyst, limit=30) + ["BTCUSDT", "ETHUSDT", "SOLUSDT"]))
+                tracked_symbols = list(dict.fromkeys(wanted + tracked_symbols))[:90]
+                for sym in tracked_symbols:
+                    if sym not in scheduled_backfills and time.monotonic() - completed_backfills.get(sym, -1e12) >= retry_seconds:
+                        try:
+                            pending_backfills.put_nowait(sym)
+                            scheduled_backfills.add(sym)
+                        except queue.Full:
+                            break
+                return tracked_symbols
+            collect_continuous(db, current_symbols, stop)
             # No signal source switch: only observe verified native Futures candles.
         except Exception as exc:
             print("FUTURES_KLINE_FEED_ERROR " + type(exc).__name__ + ": " + str(exc)[:160], flush=True)
