@@ -730,6 +730,36 @@ def load_watchlist():
                     present+=1
         return selected
 
+def latest_analyst_scan():
+    if not os.path.isfile(ANALYST_DB):
+        return None
+    with sqlite3.connect('file:'+os.path.abspath(ANALYST_DB)+'?mode=ro',uri=True,timeout=5) as con:
+        return con.execute('SELECT MAX(scan_time_utc) FROM analyses').fetchone()[0]
+
+
+def refresh_live_watchlist(last_scan):
+    """Consume new committed analyses without waiting for the 7m worker restart.
+
+    Existing synchronization keeps active trigger/stop/target levels locked.
+    A failed sync retains its marker, so the next poll retries the same scan.
+    """
+    try:
+        scan=latest_analyst_scan()
+        if not scan or scan==last_scan:
+            return last_scan
+        items=load_watchlist()
+        sync_watchlist(items)
+        with sqlite3.connect(LIVE_DB,timeout=30) as con:
+            con.row_factory=sqlite3.Row
+            dual=sync_dual_v32(con,ANALYST_DB,now_iso())
+        print('LIVE_ANALYST_SCAN_REFRESH',json.dumps({
+            'scan_time_utc':scan,'watch_symbols':len(items),'dual':dual},default=str),flush=True)
+        return scan
+    except Exception as exc:
+        print('LIVE_ANALYST_SCAN_REFRESH_FAILED',type(exc).__name__,str(exc)[:160],flush=True)
+        return last_scan
+
+
 def _close_open_watch_episode(con,symbol,reason,last_price=None):
     ts=now_iso()
     con.execute("""UPDATE watch_episodes SET ended_at_utc=?,end_reason=?,
@@ -2494,6 +2524,7 @@ def main():
                 print("TELEGRAM_DELIVERY_TEST_FAILED",type(exc).__name__,str(exc)[:200],flush=True)
     except Exception as exc:
         print("TELEGRAM_DELIVERY_TEST_SETUP_ERROR",type(exc).__name__,str(exc)[:200],flush=True)
+    last_scan=latest_analyst_scan()
     items=load_watchlist()
     sync_watchlist(items)
     try:
@@ -2515,6 +2546,7 @@ def main():
           f"full_window_seconds={RUN_SECONDS}, "
           f"until={datetime.fromtimestamp(end,tz=timezone.utc).isoformat()}",flush=True)
     while time.time()<end:
+        last_scan=refresh_live_watchlist(last_scan)
         loop_once()
         time.sleep(POLL_SECONDS)
 
