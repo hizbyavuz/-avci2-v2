@@ -88,6 +88,10 @@ def configure_state_paths() -> Path:
     # deep-scan budget. This does not weaken any trade safety gates.
     os.environ.setdefault("LS_PRESELECT_MAX", "24")
     os.environ.setdefault("LS_MIN_24H_QUOTE_VOL", "25000000")
+    # Versioned observational worker + one persistent notification per coin.
+    # Core scoring, execution and risk thresholds are unchanged.
+    if os.getenv('LS_EARLY_BREAKOUT_V1_ENABLED','0')=='1':
+        os.environ.setdefault('LS_UNIFIED_CARD_ENABLED','1')
     enforce_futures_only()
     return sd
 
@@ -492,6 +496,10 @@ def main() -> int:
                          name="binance-derivative-coverage",daemon=True).start()
 
     if os.getenv('LS_NATIVE_CHAIN_V2','0')=='1':
+        if os.getenv('LS_EARLY_BREAKOUT_V1_ENABLED','0')=='1':
+            threading.Thread(target=watcher_loop,
+                args=('early_breakout_observer','long_short_breakout_observer.py'),
+                name='early-breakout-observer-v1',daemon=True).start()
         if os.getenv('LS_DATA_OPPORTUNITY_V2','0')=='1':
             threading.Thread(target=watcher_loop,
                 args=('data_opportunity_research','long_short_data_opportunity_v2.py'),

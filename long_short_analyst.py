@@ -1175,7 +1175,7 @@ def fetch_depth_imbalance(symbol):
     return float(fetch_depth_metrics(symbol)["imbalance"])
 
 
-def native_futures_websocket_universe(slot=None, slot_offsets=(0,), quiet=False):
+def native_futures_websocket_universe(slot=None, slot_offsets=(0,), quiet=False, all_eligible=False):
     """Read fresh Binance USD-M Futures all-market tickers; never use Spot."""
     root=os.getenv("LS_STATE_DIR") or os.getenv("RAILWAY_VOLUME_MOUNT_PATH") or ".long-short-state"
     db=os.path.join(root,"binance_futures_universe.db")
@@ -1213,15 +1213,50 @@ def native_futures_websocket_universe(slot=None, slot_offsets=(0,), quiet=False)
     if not eligible:
         raise RuntimeError("BINANCE_FUTURES_ONLY: no eligible fresh Futures tickers")
     eligible.sort(key=lambda x:x[1],reverse=True)
+    if all_eligible:
+        # Independent observational scanner; frozen rotating trade selection
+        # below is deliberately unchanged.
+        return eligible
     slot=int(time.time()//300) if slot is None else int(slot)
     selected=[]
     for offset in slot_offsets:
-        selected.extend(native_rotating_window(eligible,MAX_SYMBOLS,slot=slot+offset,quiet=quiet))
+        window=native_rotating_window(eligible,MAX_SYMBOLS,slot=slot+offset,quiet=quiet)
+        if os.getenv('LS_EARLY_BREAKOUT_V1_ENABLED','0')=='1':
+            window=prioritize_early_observations(eligible,window,MAX_SYMBOLS,root,quiet=quiet)
+        selected.extend(window)
     if not quiet:
         print("FUTURES_UNIVERSE_COVERAGE",json.dumps({"fresh_tickers":len(rows),
           "eligible":len(eligible),"scan_window":min(len(eligible),max(1,int(MAX_SYMBOLS))),
           "selection":"rotating_verified_universe"}),flush=True)
     return selected
+
+
+def prioritize_early_observations(eligible,window,cap,root,quiet=False):
+    """Reserve up to six existing scan slots for fresh observational breaks.
+
+    This is scheduling only. No observation authorizes a direction, bypasses
+    a data gate, changes scoring or replaces the full observer's universe.
+    """
+    path=os.path.join(root,'long_short_breakout_observer.db')
+    if not os.path.isfile(path):return window
+    try:
+        with sqlite3.connect('file:'+os.path.abspath(path)+'?mode=ro',uri=True,timeout=3) as c:
+            fresh=c.execute('''SELECT symbol FROM episodes
+                WHERE state IN ('EARLY','CONFIRMED') AND ended_ms IS NULL
+                AND early_ms>=? AND early_ms<=? AND config_version=?
+                ORDER BY early_ms DESC,id DESC LIMIT 6''',
+                (int(time.time()*1000)-300000,int(time.time()*1000),
+                 'EARLY_BREAKOUT_OBSERVER_V1_2026-10-13')).fetchall()
+        lookup={r[0]:r for r in eligible}
+        priority=list(dict.fromkeys(r[0] for r in fresh if r[0] in lookup))
+        output=[lookup[s] for s in priority]
+        output.extend(r for r in window if r[0] not in priority)
+        output=output[:max(1,int(cap))]
+        if not quiet and priority:
+            print('EARLY_OBSERVER_SCAN_PRIORITY',json.dumps({'symbols':priority,
+                'reserved':len(priority),'scan_cap':cap,'score_override':False}),flush=True)
+        return output
+    except (sqlite3.Error,OSError):return window
 
 
 def native_rotating_window(eligible,cap,slot=None,quiet=False):
@@ -2801,6 +2836,10 @@ def send_telegram(msg):
         print(msg)
         return
     chat=resolve_telegram_chat(token,configured)
+    if os.getenv('LS_UNIFIED_CARD_ENABLED','0')=='1':
+        from long_short_message_card import route_core_message
+        if route_core_message(token,chat,msg):
+            return
     r=requests.post(f"https://api.telegram.org/bot{token}/sendMessage",
         json={"chat_id":chat,"text":msg,"disable_web_page_preview":True},
         timeout=REQUEST_TIMEOUT)
