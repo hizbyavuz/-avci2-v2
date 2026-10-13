@@ -1292,6 +1292,31 @@ def early_message(row,estate,price,metrics):
         return (f"🔴 BOZULDU | {sym}\nErken {d} gözlemi geçersizleşti.")
     return None
 
+def _telegram_data_brief(row, structure_quality=None):
+    """Display only verified snapshot fields; missing values are not inferred."""
+    sq=structure_quality or {}
+    if not sq:
+        try:
+            sq=json.loads(row["structure_gate_json"] or "{}")
+        except (KeyError, TypeError, ValueError, json.JSONDecodeError):
+            sq={}
+    def metric(key, suffix="", precision=2):
+        v=sq.get(key)
+        try:
+            return f"{float(v):.{precision}f}{suffix}" if v is not None else "veri yok"
+        except (TypeError, ValueError, OverflowError):
+            return "veri yok"
+    direction=str(row["direction"])
+    return ("📊 KISA VERİ ÖZETİ\\n"
+            f"• Grafik seviyesi: {fmtp(row['trigger_level'])} ({'direnç' if direction=='LONG' else 'destek'})\\n"
+            f"• Hacim / normal: {metric('volume_mult','x')}\\n"
+            f"• Mum gövdesi: {metric('body_ratio')} | Kapanış konumu: {metric('close_location')}\\n"
+            f"• Sahte kırılım: {'grafik filtresi geçti' if sq.get('qualified') else 'henüz teyit yok'}\\n"
+            "• EMA / RSI: bu bildirimde doğrulanmadı\\n"
+            "• OI / Funding: bu bildirimde doğrulanmadı\\n"
+            "• Taker / Long-Short oranı: bu bildirimde doğrulanmadı\\n"
+            "• BTC yönü: bu bildirimde doğrulanmadı\\n")
+
 def queue_approaching_alert(row,price,structure_quality=None):
     """Queue one non-actionable watch message when price first approaches the trigger.
 
@@ -1347,6 +1372,7 @@ def queue_approaching_alert(row,price,structure_quality=None):
     msg=(f"{side_ball} {d} İÇİN İZLE | {sym}\n"
          f"5 dk mum {fmtp(level)} {relation} kapanırsa {d} güçlenir.\n"
          f"Şu an fiyat: {fmtp(price)}\n"
+         f"{_telegram_data_brief(row,sq)}"
          f"Ne bekleniyor? {expectation}\n"
          f"Durum: 🟡 {status_line}\n"
          f"🛡️ SL: {fmtp(inv)}\n"
@@ -1447,6 +1473,7 @@ def message_for(row,stage,price,closed):
                 f"Ne oldu? 5 dk mum {fmtp(trig)} seviyesinin {relation} kapandı.\n"
                 "✅ Grafik kontrolü: önemli seviye kırılımı, mum/hacim uyumu ve sahte kırılım elemesi geçti.\n"
                 f"Kapanış: {fmtp(closed)} | Şu an: {fmtp(price)}\n"
+                f"{_telegram_data_brief(row)}"
                 f"Sıradaki koşul: fiyatın {next_step}.\n"
                 f"🛡️ SL: {fmtp(inv)}\n"
                 f"🎯 TP1: {fmtp(t1)}\n"
