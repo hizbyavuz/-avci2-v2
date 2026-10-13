@@ -67,7 +67,7 @@ def store(conn, row):
 
 def collect(db, symbols, seconds=90, stop=None):
     import websocket
-    symbols = sorted({s.upper() for s in symbols if s.upper().endswith("USDT")})[:30]
+    symbols = sorted({s.upper() for s in symbols if s.upper().endswith("USDT")})[:90]
     if not symbols:
         raise ValueError("No Binance USDT symbols")
     os.makedirs(os.path.dirname(os.path.abspath(db)), exist_ok=True)
@@ -259,6 +259,7 @@ def continuous_main():
                 scheduled_backfills.discard(symbol)
                 pending_backfills.task_done()
     threading.Thread(target=archive_worker, name="futures-archive-backfill", daemon=True).start()
+    tracked_symbols = []  # Keep native Futures feeds across 15m scan rotations.
     while not stop.is_set():
         try:
             # Give the analyst's actual rotating scan window priority.
@@ -276,7 +277,12 @@ def continuous_main():
                 except (sqlite3.Error, OSError):
                     pass
             selected = choose_symbols("", analyst_db=analyst, limit=30)
-            symbols = list(dict.fromkeys(scan_symbols + selected + ["BTCUSDT", "ETHUSDT", "SOLUSDT"]))[:30]
+            requested = list(dict.fromkeys(scan_symbols + selected + ["BTCUSDT", "ETHUSDT", "SOLUSDT"]))
+            for sym in requested:
+                if sym not in tracked_symbols and len(tracked_symbols) < 90:
+                    tracked_symbols.append(sym)
+            symbols = tracked_symbols[:]
+            print("FUTURES_KLINE_STICKY_COVERAGE " + json.dumps({"tracked": len(symbols), "requested": len(requested), "covered": sum(s in symbols for s in requested)}), flush=True)
             if not symbols:
                 raise RuntimeError("DATA_NOT_READY: no analyst universe")
             # The analyst universe changes. A single startup backfill leaves
