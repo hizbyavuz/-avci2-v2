@@ -59,7 +59,7 @@ def initialize(db):
 
 
 def store(conn, row):
-    conn.execute("""INSERT INTO futures_closed_klines
+    conn.execute("""INSERT OR IGNORE INTO futures_closed_klines
         (symbol,interval,open_ms,close_ms,open,high,low,close,volume,source,received_ms,quote_volume,trade_count,taker_buy_quote)
         VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", row)
     conn.commit()
