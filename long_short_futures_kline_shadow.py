@@ -46,6 +46,25 @@ def log(tag, payload=None):
         print(tag + " " + json.dumps(payload, sort_keys=True, default=str), flush=True)
 
 
+def parse_last_price(packet):
+    """(symbol, last price, event_ms) from any 1m kline update, else None."""
+    try:
+        event = packet.get("data", packet)
+        if not isinstance(event, dict) or event.get("e") != "kline":
+            return None
+        bar = event.get("k") or {}
+        if str(bar.get("i")) != "1m":
+            return None
+        symbol = str(event.get("s") or bar.get("s") or "").upper()
+        price = float(bar["c"])
+        event_ms = int(event["E"])
+    except (KeyError, TypeError, ValueError, OverflowError, AttributeError):
+        return None
+    if not symbol.endswith("USDT") or not math.isfinite(price) or price <= 0 or event_ms <= 0:
+        return None
+    return symbol, price, event_ms
+
+
 def parse_closed_kline(packet):
     """Return a storable row for a closed, internally consistent candle, else None.
 
@@ -99,6 +118,11 @@ def initialize(db):
         source TEXT NOT NULL, received_ms INTEGER NOT NULL,
         PRIMARY KEY(symbol,interval,open_ms)
     )""")
+    # Latest traded price from the forming 1m kline (Binance Futures native,
+    # indicative only; never a closed candle and never written as one).
+    conn.execute("""CREATE TABLE IF NOT EXISTS futures_last_price (
+        symbol TEXT PRIMARY KEY, price REAL NOT NULL, event_ms INTEGER NOT NULL,
+        received_ms INTEGER NOT NULL, source TEXT NOT NULL)""")
     columns = {r[1] for r in conn.execute("PRAGMA table_info(futures_closed_klines)")}
     for name, dtype in (("quote_volume", "REAL"), ("trade_count", "INTEGER"), ("taker_buy_quote", "REAL")):
         if name not in columns:
@@ -220,6 +244,7 @@ class FuturesKlineStream:
         self.last_requested = {}      # symbol -> clock() of the last request
         self.uncovered = []
         self.buffer = []
+        self.last_price = {}
         self.gaps = GapTracker()
         self.next_id = 100
         self.totals = {"rows_written": 0, "duplicates": 0, "repaired": 0, "conflicts": 0,
@@ -278,12 +303,19 @@ class FuturesKlineStream:
 
     # ---- persistence ---------------------------------------------------
     def flush(self, conn):
-        if not self.buffer:
+        if not self.buffer and not self.last_price:
             return True
         rows = self.buffer
+        prices = self.last_price
         try:
             gaps = [g for g in (self.gaps.observe(conn, r) for r in sorted(rows, key=lambda r: r[2])) if g]
             stats = upsert_rows(conn, rows)
+            now_ms = int(time.time() * 1000)
+            conn.executemany("""INSERT INTO futures_last_price(symbol,price,event_ms,received_ms,source)
+                VALUES(?,?,?,?,?) ON CONFLICT(symbol) DO UPDATE SET price=excluded.price,
+                event_ms=excluded.event_ms, received_ms=excluded.received_ms, source=excluded.source
+                WHERE excluded.event_ms>=futures_last_price.event_ms""",
+                             [(sym, px, ev, now_ms, SOURCE) for sym, (px, ev) in prices.items()])
             conn.commit()
         except sqlite3.OperationalError as exc:
             try:
@@ -294,6 +326,7 @@ class FuturesKlineStream:
             log("FUTURES_KLINE_WRITE_RETRY", {"pending_rows": len(rows), "error": str(exc)[:120]})
             return False  # rows stay buffered; nothing is dropped
         self.buffer = []
+        self.last_price = {}
         self.totals["rows_written"] += stats["inserted"]
         self.totals["duplicates"] += stats["duplicate"]
         self.totals["repaired"] += stats["repaired"]
@@ -318,7 +351,12 @@ class FuturesKlineStream:
         if isinstance(packet, dict) and packet.get("error"):
             log("FUTURES_KLINE_CONTROL_ERROR", {"error": str(packet.get("error"))[:200]})
             return
-        row = parse_closed_kline(packet) if isinstance(packet, dict) else None
+        if not isinstance(packet, dict):
+            return
+        tick = parse_last_price(packet)
+        if tick and tick[0] in self.subscribed:
+            self.last_price[tick[0]] = (tick[1], tick[2])
+        row = parse_closed_kline(packet)
         if row and row[0] in self.subscribed:
             self.buffer.append(row)
 

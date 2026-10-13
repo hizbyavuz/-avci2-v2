@@ -129,6 +129,10 @@ def _futures_ws_depth(symbol):
         ws.close()
 
 
+def _native_futures_mode():
+    return os.getenv("LS_NATIVE_FUTURES_SNAPSHOT","0").strip().lower() in ("1","true","yes","on")
+
+
 def trigger_execution_proxy(symbol):
     """Capture one execution-cost snapshot after a TRIGGERED alert is sent."""
     source="BINANCE_FUTURES_BOOK"
@@ -146,6 +150,10 @@ def trigger_execution_proxy(symbol):
             book=_futures_ws_depth(symbol)
             source="BINANCE_FUTURES_BOOK"
         except Exception:
+            if _native_futures_mode():
+                # Futures-only: a Spot book is never used, not even as a proxy.
+                return {"source":"BINANCE_FUTURES_BOOK","observed_at_utc":now_iso(),
+                        "available":False,"error":"FUTURES_BOOK_UNAVAILABLE_SPOT_FORBIDDEN"}
             source="BINANCE_SPOT_BOOK_PROXY"
             book=spot_get("/api/v3/depth",{"symbol":symbol,"limit":100})
 
@@ -944,6 +952,46 @@ def futures_signal_authorization(early, execution_check):
     return result
 
 
+def native_futures_path_bars(symbol, start_ms, count):
+    """Closed Binance USD-M 1m bars after a signal, for outcome labelling.
+
+    Returns only authentic stored bars; missing minutes stay missing so the
+    caller keeps the event pending instead of inventing a path.
+    """
+    db = os.getenv("LS_FUTURES_KLINE_DB") or os.path.join(
+        os.getenv("LS_STATE_DIR") or os.getenv("RAILWAY_VOLUME_MOUNT_PATH") or ".long-short-state",
+        "binance_futures_kline_shadow.db")
+    with sqlite3.connect(f"file:{os.path.abspath(db)}?mode=ro", uri=True, timeout=3) as con:
+        rows = con.execute("""SELECT open_ms,open,high,low,close,volume,close_ms,source
+            FROM futures_closed_klines WHERE symbol=? AND interval='1m'
+            AND open_ms>=? AND open_ms<? ORDER BY open_ms""",
+            (symbol.upper(), int(start_ms), int(start_ms) + int(count) * 60000)).fetchall()
+    allowed = {"BINANCE_UM_FUTURES_WEBSOCKET","BINANCE_UM_FUTURES_ARCHIVE","BINANCE_UM_FUTURES_REST"}
+    return [list(r[:7]) for r in rows if r[7] in allowed]
+
+
+def native_futures_last_price(symbol, max_age_ms=5000):
+    """Fresh Binance USD-M last-trade price from the kline WebSocket, else None."""
+    db = os.getenv("LS_FUTURES_KLINE_DB") or os.path.join(
+        os.getenv("LS_STATE_DIR") or os.getenv("RAILWAY_VOLUME_MOUNT_PATH") or ".long-short-state",
+        "binance_futures_kline_shadow.db")
+    if not os.path.isfile(db):
+        return None
+    try:
+        with sqlite3.connect(f"file:{os.path.abspath(db)}?mode=ro", uri=True, timeout=3) as con:
+            row = con.execute("SELECT price,event_ms,source FROM futures_last_price WHERE symbol=?",
+                              (symbol.upper(),)).fetchone()
+    except sqlite3.Error:
+        return None
+    if not row or row[2] != "BINANCE_UM_FUTURES_WEBSOCKET":
+        return None
+    age = int(time.time()*1000) - int(row[1])
+    price = float(row[0])
+    if not (0 <= age <= max_age_ms) or not math.isfinite(price) or price <= 0:
+        return None
+    return {"price":price, "age_ms":age, "source":"BINANCE_UM_FUTURES_WEBSOCKET_LAST_TRADE"}
+
+
 def futures_market_snapshot(symbol):
     """Read-only Binance USD-M candle + executable-book snapshot.
 
@@ -951,6 +999,15 @@ def futures_market_snapshot(symbol):
     contemporaneous indicative price, not a fill or trade execution.
     """
     snap = futures_closed_snapshot(symbol)
+    # Prefer the native Futures last-trade price recorded from the kline
+    # WebSocket (no REST call, so no repeated 451/418 hits every poll).
+    last = native_futures_last_price(symbol)
+    if last is not None:
+        return {"source":"BINANCE_FUTURES","price":last["price"],
+                "price_type":"futures_last_trade_indicative",
+                "kl1":snap["kl1"],"kl5":snap["kl5"],
+                "closed_5m_at":snap["last_closed_5m_at"],
+                "book_source":last["source"],"price_age_ms":last["age_ms"]}
     book = trigger_execution_proxy(symbol)
     if book.get("source") != "BINANCE_FUTURES_BOOK" or not book.get("available"):
         raise RuntimeError("FUTURES_LIVE_BOOK_UNAVAILABLE")
@@ -1722,6 +1779,9 @@ def resolve_confirmed_trade_outcomes():
                 if venue=="BINANCE_SPOT":
                     candles=spot_get("/api/v3/klines",{"symbol":ev["symbol"],"interval":"1m",
                         "startTime":int(start.timestamp()*1000),"limit":240})
+                elif venue=="BINANCE_FUTURES":
+                    candles=native_futures_path_bars(ev["symbol"],
+                        math.ceil(start.timestamp()/60)*60000,180)
                 elif venue in ("GATE_FUTURES","BYBIT_LINEAR"):
                     feed=multi_venue_perp_klines(ev["symbol"],"1m",180,start_ms=math.ceil(start.timestamp()/60)*60000,provider=venue)
                     if feed.get("provider")!=venue:

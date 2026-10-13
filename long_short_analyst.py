@@ -187,6 +187,11 @@ def spot_delta_proxy(symbol: str) -> dict[str, Any]:
     delta_share = sum(2*taker_buy_quote - quote_volume) / sum(quote_volume).
     Never uses normalized external candles, so missing Spot data stays missing.
     """
+    if os.getenv("LS_BINANCE_FUTURES_ONLY", "0") == "1":
+        # Futures-only: Spot flow must not enter the decision. Use the engine's
+        # existing missing-evidence path (no bonus either way), no HTTP call.
+        return {"available":False,"provider":"DISABLED_FUTURES_ONLY","delta_share":None,
+                "error":None}
     last=None
     for base in SPOT_BASES:
         try:

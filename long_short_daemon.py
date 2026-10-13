@@ -88,7 +88,32 @@ def configure_state_paths() -> Path:
     # deep-scan budget. This does not weaken any trade safety gates.
     os.environ.setdefault("LS_PRESELECT_MAX", "24")
     os.environ.setdefault("LS_MIN_24H_QUOTE_VOL", "25000000")
+    enforce_futures_only()
     return sd
+
+
+FUTURES_ONLY_ENV = {
+    # Analyst: verified native USD-M candles only; no Spot/Bybit/Gate fallback.
+    "LS_BINANCE_FUTURES_ONLY": "1",
+    # Live pool: native USD-M candles + price. Spot snapshot path is forbidden.
+    # Its existing native_futures_observation_only gate stays in force.
+    "LS_NATIVE_FUTURES_SNAPSHOT": "1",
+    # Reversal watcher reads Binance Spot candles: research log only, never Telegram.
+    "LS_REVERSAL_TELEGRAM": "0",
+}
+
+
+def enforce_futures_only() -> dict:
+    """Signal data must be Binance UM Futures only. Not configurable to Spot."""
+    overridden = {}
+    for key, value in FUTURES_ONLY_ENV.items():
+        current = os.environ.get(key)
+        if current is not None and current.strip() != value:
+            overridden[key] = current
+        os.environ[key] = value
+    print("[daemon] FUTURES_ONLY_ENFORCED " + json.dumps(
+        {"settings": FUTURES_ONLY_ENV, "ignored_env_overrides": overridden}), flush=True)
+    return overridden
 
 
 def set_status(name: str, **updates) -> None:
