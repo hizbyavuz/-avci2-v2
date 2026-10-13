@@ -362,8 +362,9 @@ def native_futures_shadow_klines(symbol, interval, limit):
     if any(r[7] not in ("BINANCE_UM_FUTURES_WEBSOCKET", "BINANCE_UM_FUTURES_ARCHIVE", "BINANCE_UM_FUTURES_REST") or any(v is None for v in r[8:11]) for r in rows):
         print(f"FUTURES_SHADOW_DIAG symbol={symbol} interval={interval} reason=invalid_source_or_fields", flush=True)
         return None
-    if any(b[0] - a[0] != period_ms for a, b in zip(rows, rows[1:])):
-        print(f"FUTURES_SHADOW_DIAG symbol={symbol} interval={interval} reason=gap first={rows[0][0]} last={rows[-1][0]}", flush=True)
+    gaps = [(a[0], b[0], b[0] - a[0]) for a, b in zip(rows, rows[1:]) if b[0] - a[0] != period_ms]
+    if gaps:
+        print(f"FUTURES_SHADOW_DIAG symbol={symbol} interval={interval} reason=gap count={len(gaps)} first_pair={gaps[0]} expected_step_ms={period_ms} first={rows[0][0]} last={rows[-1][0]}", flush=True)
         return None
     result = []
     for start, end, op, hi, lo, cl, vol, _, quote_vol, trades, taker_quote in rows:
