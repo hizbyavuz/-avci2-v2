@@ -261,19 +261,22 @@ def continuous_main():
     threading.Thread(target=archive_worker, name="futures-archive-backfill", daemon=True).start()
     while not stop.is_set():
         try:
-            selected = choose_symbols("", analyst_db=analyst, limit=30)
-            symbols = list(dict.fromkeys(selected + ["BTCUSDT", "ETHUSDT", "SOLUSDT"]))[:30]
-            # Collector-only coverage: include the latest scanned market window.
-            # Signal selection and trading thresholds remain unchanged.
+            # Give the analyst's actual rotating scan window priority.
+            # Previously choose_symbols filled all 30 slots before the scan
+            # window was appended, so none of those symbols could enter.
+            scan_symbols = []
             if os.path.isfile(analyst):
                 try:
                     with sqlite3.connect("file:" + os.path.abspath(analyst) + "?mode=ro", uri=True) as scan_db:
                         latest = scan_db.execute("SELECT MAX(scan_time_utc) FROM full_universe_stage_audit").fetchone()[0]
                         if latest:
-                            extras = scan_db.execute("SELECT symbol FROM full_universe_stage_audit WHERE scan_time_utc=? ORDER BY quote_volume DESC LIMIT 30", (latest,)).fetchall()
-                            symbols = list(dict.fromkeys(symbols + [x[0] for x in extras]))[:30]
+                            scan_symbols = [row[0] for row in scan_db.execute(
+                                "SELECT symbol FROM full_universe_stage_audit WHERE scan_time_utc=? ORDER BY quote_volume DESC LIMIT 30",
+                                (latest,)).fetchall()]
                 except (sqlite3.Error, OSError):
                     pass
+            selected = choose_symbols("", analyst_db=analyst, limit=30)
+            symbols = list(dict.fromkeys(scan_symbols + selected + ["BTCUSDT", "ETHUSDT", "SOLUSDT"]))[:30]
             if not symbols:
                 raise RuntimeError("DATA_NOT_READY: no analyst universe")
             # The analyst universe changes. A single startup backfill leaves
