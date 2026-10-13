@@ -277,6 +277,25 @@ def audit_loop() -> None:
             return
 
 
+def data_health_loop(sd: Path) -> None:
+    """Read-only coverage/readiness/outcome report every 15 minutes."""
+    interval = int(os.getenv("LS_DATA_HEALTH_INTERVAL_SECONDS", "900"))
+    if STOP.wait(120):
+        return
+    while not STOP.is_set():
+        try:
+            from long_short_data_health import build, summary_line
+            report = build(str(sd))
+            (sd / "long_short_data_health.json").write_text(
+                json.dumps(report, ensure_ascii=False, sort_keys=True), encoding="utf-8")
+            print("[daemon] DATA_HEALTH " + json.dumps(summary_line(report), sort_keys=True), flush=True)
+            print("[daemon] SIGNAL_HEALTH " + json.dumps(report.get("signals"), sort_keys=True), flush=True)
+        except Exception as exc:
+            print("[daemon] DATA_HEALTH_ERROR", type(exc).__name__, str(exc)[:160], flush=True)
+        if STOP.wait(interval):
+            return
+
+
 def heartbeat_loop(sd: Path) -> None:
     health_path = sd / "long_short_daemon_health.json"
     while not STOP.is_set():
@@ -511,6 +530,7 @@ def main() -> int:
         threading.Thread(target=watcher_loop, args=("reversal", "long_short_reversal_live.py"), name="reversal-loop", daemon=True),
         threading.Thread(target=research_loop, name="research-loop", daemon=True),
         threading.Thread(target=heartbeat_loop, args=(sd,), name="heartbeat-loop", daemon=True),
+        threading.Thread(target=data_health_loop, args=(sd,), name="data-health-loop", daemon=True),
         threading.Thread(target=backup_loop, name="backup-loop", daemon=True),
         threading.Thread(target=audit_loop, name="audit-loop", daemon=True),
     ]
