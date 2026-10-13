@@ -50,10 +50,13 @@ def validated_rows(payload, symbol, interval, now_ms=None):
 
 
 def repair(db, base_url, symbol, interval):
+    # A candle forming when the request starts may close while the response
+    # travels; its fetched contents must still be rejected as forming.
+    request_started_ms = int(time.time()*1000)
     query = urlencode({'symbol':symbol,'interval':interval})
     with urlopen(base_url+'/klines?'+query,timeout=18) as response:
         payload = json.loads(response.read(1000000))
-    rows = validated_rows(payload,symbol,interval)
+    rows = validated_rows(payload,symbol,interval,now_ms=request_started_ms)
     with initialize(db) as conn:
         result = upsert_rows(conn,rows)
     conn.close()

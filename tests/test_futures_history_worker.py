@@ -1,8 +1,10 @@
 import copy
 import tempfile
 import unittest
+import json
+from unittest.mock import patch, MagicMock
 from pathlib import Path
-from long_short_futures_history_worker import validated_rows, ENDPOINT
+from long_short_futures_history_worker import validated_rows, ENDPOINT, repair
 from long_short_futures_kline_shadow import initialize, upsert_rows, REST_SOURCE
 
 
@@ -39,5 +41,13 @@ class HistoryRepairTests(unittest.TestCase):
     def test_duplicate_or_short_row_rejected(self):
         p=self.payload();p['bars'].append(copy.deepcopy(p['bars'][0]))
         with self.assertRaises(ValueError):validated_rows(p,'BTCUSDT','5m',700000)
+
+    def test_candle_closing_in_transit_is_not_imported(self):
+        response=MagicMock()
+        response.__enter__.return_value.read.return_value=json.dumps(self.payload()).encode()
+        with tempfile.TemporaryDirectory() as d, patch('long_short_futures_history_worker.urlopen',return_value=response), \
+                patch('long_short_futures_history_worker.time.time',return_value=500):
+            result=repair(str(Path(d)/'history.db'),'http://test.railway.internal:8080','BTCUSDT','5m')
+            self.assertEqual(result['inserted'],0)
         p=self.payload();p['bars'][0]=p['bars'][0][:7]
         with self.assertRaises(ValueError):validated_rows(p,'BTCUSDT','5m',700000)
