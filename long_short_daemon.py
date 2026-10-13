@@ -88,6 +88,12 @@ def configure_state_paths() -> Path:
     # deep-scan budget. This does not weaken any trade safety gates.
     os.environ.setdefault("LS_PRESELECT_MAX", "24")
     os.environ.setdefault("LS_MIN_24H_QUOTE_VOL", "25000000")
+    # Binance USD-M Futures is the sole signal source; Spot cannot be used by live pool.
+    for key, value in {"LS_BINANCE_FUTURES_ONLY": "1", "LS_NATIVE_FUTURES_SNAPSHOT": "1", "LS_REVERSAL_TELEGRAM": "0"}.items():
+        previous = os.environ.get(key)
+        if previous is not None and previous != value:
+            print(f"FUTURES_ONLY_OVERRIDE key={key} previous={previous} enforced={value}", flush=True)
+        os.environ[key] = value
     return sd
 
 
