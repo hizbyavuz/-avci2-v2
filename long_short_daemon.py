@@ -488,6 +488,15 @@ def main() -> int:
         threading.Thread(target=binance_derivative_coverage_audit,
                          name="binance-derivative-coverage",daemon=True).start()
 
+    # Optional closed-candle repair via private official Binance Futures relay.
+    # Separate worker keeps history requests off the live WebSocket thread.
+    if os.getenv("LS_FUTURES_HISTORY_RELAY_URL", ""):
+        threading.Thread(
+            target=watcher_loop,
+            args=("binance_futures_history", "long_short_futures_history_worker.py"),
+            name="binance-futures-history-loop", daemon=True,
+        ).start()
+
     # Single bounded read-only native taker connectivity check at startup.
     # Stores records in the existing persistent volume; never sends orders or alerts.
     def native_taker_boot_probe():
