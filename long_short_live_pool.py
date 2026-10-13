@@ -681,6 +681,19 @@ def _open_watch_episode(con,x):
 
 
 def sync_watchlist(items):
+    """Retry transient SQLite writer contention without dropping the live-pool cycle."""
+    for attempt in range(4):
+        try:
+            return _sync_watchlist_once(items)
+        except sqlite3.OperationalError as exc:
+            if "locked" not in str(exc).lower() or attempt == 3:
+                raise
+            wait_seconds = min(2.0 * (attempt + 1), 6.0)
+            print(f"LIVE_DB_LOCK_RETRY attempt={attempt + 1} wait={wait_seconds}s", flush=True)
+            time.sleep(wait_seconds)
+
+
+def _sync_watchlist_once(items):
     """Synchronize analyst observations without moving an active setup's goalposts.
 
     Core rule:
