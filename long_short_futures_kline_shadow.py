@@ -288,9 +288,9 @@ def continuous_main():
                     pass
             selected = choose_symbols("", analyst_db=analyst, limit=30)
             requested = list(dict.fromkeys(scan_symbols + selected + ["BTCUSDT", "ETHUSDT", "SOLUSDT"]))
-            for sym in requested:
-                if sym not in tracked_symbols and len(tracked_symbols) < 90:
-                    tracked_symbols.append(sym)
+            # Prioritize the current scan, then retain older feeds up to capacity.
+            # Do not let the first 90 observed symbols permanently block newcomers.
+            tracked_symbols = list(dict.fromkeys(requested + tracked_symbols))[:90]
             symbols = tracked_symbols[:]
             print("FUTURES_KLINE_STICKY_COVERAGE " + json.dumps({"tracked": len(symbols), "requested": len(requested), "covered": sum(s in symbols for s in requested)}), flush=True)
             if not symbols:
