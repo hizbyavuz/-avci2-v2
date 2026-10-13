@@ -88,6 +88,35 @@ class DataGateTests(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError, r"BINANCE_FUTURES_ONLY.*reason=gap"):
                     a.fetch_klines("BTCUSDT", "5m", 220)
 
+    def test_complete_symbol_reaches_prefilter_analysis_without_other_venues(self):
+        import random
+        rnd = random.Random(7)
+        con = initialize(self.db)
+        now = int(time.time() * 1000)
+        for interval, period in (("5m", P5), ("15m", 3 * P5)):
+            last = (now // period) * period - period
+            price = 100.0
+            rows = []
+            for i in range(240):
+                o = price
+                c = max(1.0, o * (1 + rnd.uniform(-0.004, 0.004)))
+                hi, lo = max(o, c) * 1.001, min(o, c) * 0.999
+                qv = rnd.uniform(1e5, 3e5)
+                start = last - (239 - i) * period
+                rows.append(("BTCUSDT", interval, start, start + period - 1, o, hi, lo, c, qv / c,
+                             SOURCE, 1, qv, 100 + i, qv * rnd.uniform(0.3, 0.7)))
+                price = c
+            upsert_rows(con, rows)
+        con.commit(); con.close()
+        with patch.object(a, "fget", side_effect=AssertionError("REST/Spot")), \
+             patch.object(a, "multi_venue_perp_klines", side_effect=AssertionError("other venue")), \
+             redirect_stdout(io.StringIO()) as out:
+            result = a.prefilter_symbol("BTCUSDT", 1.2, 5e8)
+        self.assertEqual(result["symbol"], "BTCUSDT")
+        self.assertEqual(len(result["k5"]["close"]), 120)
+        self.assertIn("FUTURES_SHADOW_USED symbol=BTCUSDT interval=5m bars=120", out.getvalue())
+        self.assertIn("FUTURES_SHADOW_USED symbol=BTCUSDT interval=15m bars=120", out.getvalue())
+
     def test_summary_counts_reasons(self):
         self.write(self.bars(240, skip=(3,)))
         self.read()
