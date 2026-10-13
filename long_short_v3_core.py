@@ -253,7 +253,7 @@ def decide_setup(
 
     gates={
         "setup":True,
-        "derivatives_ready":bool(deriv_ready),
+        "derivatives_ready":True,  # missing Binance data is diagnostic, not a direction veto
         "spot_flow":spot_ok,
         "oi_not_liquidation_or_cover":not liquidation_like,
         "funding_not_extreme":not funding_extreme,

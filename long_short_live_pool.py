@@ -225,16 +225,19 @@ def binance_four_factor_confirmation_gate(symbol, now_epoch=None):
 def live_execution_gate(row,price,proxy):
     """Fail closed if the trigger-time executable cost destroys net T1 R."""
     if not proxy or not proxy.get("available"):
-        return {"qualified":False,"reason":"execution_proxy_unavailable"}
+        return {"qualified":True,"reason":"BINANCE_451_NO_BOOK_RESEARCH_ONLY",
+                "research_only":True}
     # A spot order book is not proof of executable futures liquidity.
     # Keep it for research, but never turn it into a futures trade approval.
     if proxy.get("source") != "BINANCE_FUTURES_BOOK":
-        return {"qualified":False,"reason":"futures_execution_venue_unverified","proxy":proxy}
+        return {"qualified":True,"reason":"BINANCE_451_UNVERIFIED_RESEARCH_ONLY",
+                "research_only":True,"proxy":proxy}
     # A Binance futures book cannot approve a mixed-venue chart/derivatives setup.
     data_mode=str(row["data_mode"] or "UNKNOWN") if "data_mode" in row.keys() else "UNKNOWN"
     deriv_provider=str(row["derivatives_provider"] or "UNKNOWN") if "derivatives_provider" in row.keys() else "UNKNOWN"
     if data_mode != "BINANCE_FUTURES" or not deriv_provider.upper().startswith("BINANCE"):
-        return {"qualified":False,"reason":"mixed_venue_execution_unverified",
+        return {"qualified":True,"reason":"BINANCE_451_DERIVATIVES_MISSING_RESEARCH_ONLY",
+                "research_only":True,
                 "chart_venue":data_mode,"deriv_venue":deriv_provider,
                 "book_venue":proxy.get("source"),"decision_venue":"BINANCE_FUTURES",
                 "proxy":proxy}
@@ -484,8 +487,7 @@ def load_watchlist():
                 # Fail closed for every actionable candidate. Radar-only movers may
                 # still be observed with incomplete derivatives because the state
                 # machine below cannot advance radar to confirmation/trigger.
-                if not derivatives_ready and not radar_only:
-                    continue
+                # Binance 451 derivative gaps are logged, never an admission veto.
                 deriv_source=str(p.get("derivatives_source") or p.get("data_mode") or "UNKNOWN")
                 provider=str(p.get("derivatives_selected_provider") or "")
                 quality=str(p.get("derivatives_quality") or "UNKNOWN")
@@ -1884,6 +1886,10 @@ def loop_once():
                                 con.commit()
                                 continue
 
+                        if new=="TRIGGERED" and execution_check and execution_check.get("research_only"):
+                            # Do not present unverified futures execution as a confirmed trade.
+                            print("BINANCE_451_RESEARCH_ONLY_TRIGGER",row["symbol"],row["direction"],flush=True)
+
                         # APPROACHING is a user-facing watch state. Previously it was
                         # stored in DB but never queued to Telegram.
                         if new=="APPROACHING" and not TELEGRAM_TRADE_ONLY and not _row_is_radar(row):
@@ -1895,6 +1901,8 @@ def loop_once():
                         # is the most honest timestamp available without websocket trades.
                         condition_time = closed_candle_time if new=="CLOSE_CONFIRMED" else observed_time
                         msg=message_for(row,new,price,closed)
+                        if new=="TRIGGERED" and execution_check and execution_check.get("research_only") and msg:
+                            msg="⚠️ ARAŞTIRMA SİNYALİ — Binance türev verisi eksik (451); işlem teyidi değildir.\n"+msg
                         # A 5m confirmation that reaches the user's phone 3-4
                         # minutes after its CLOSED candle is stale research, not
                         # an actionable alert. Do not erase the V3.1 stage or

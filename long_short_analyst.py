@@ -1702,7 +1702,7 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
     long=short=0
     reasons=[]; risks=[]
     if risks_native:
-        risks.append("Native türev veri eksik; V3 giriş kilitli: "+",".join(risks_native))
+        risks.append("⚠️ Binance türev verisi eksik (451): "+",".join(risks_native))
     components={}
 
     # Higher timeframe trend: max 28 points each side.
@@ -1768,7 +1768,7 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
                 if (multi_deriv or {}).get(k) is None
             ]
             risks.append(
-                "Türev veri eksik; sinyal kilitli"
+                "⚠️ Binance türev verisi eksik (451); diğer verilerle izleniyor"
                 + (": " + ",".join(missing) if missing else "")
             )
 
@@ -1899,8 +1899,7 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
     # but only native Binance Futures or a complete multi-venue bundle can issue
     # an entry-qualified paper signal.
     if not deriv_ready and status in ("LONG","SHORT"):
-        risks.append("Türev veri paketi tam değil; giriş sinyali kilitli")
-        status="WAIT"
+        risks.append("⚠️ Binance türev verisi eksik (451); otomatik ret uygulanmadı")
 
     # Volatility risk gate. High-ATR names stay visible through the radar layer
     # but cannot silently become actionable merely because the live watcher sees

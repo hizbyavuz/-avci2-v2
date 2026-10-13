@@ -516,6 +516,12 @@ def _finish(out: dict[str, Any]) -> dict[str, Any]:
 
 
 def multi_venue_derivatives(symbol: str) -> dict[str, Any]:
+    # Binance-only policy: cross-exchange derivative substitution is disabled.
+    return {"provider":"BINANCE_ONLY_UNAVAILABLE","symbol":symbol,"v3_core_ready":False,
+            "source_consistent":False,"oi_change_1h":None,"oi_now":None,
+            "funding_pct":None,"taker_ratio":None,"long_short_ratio":None,
+            "depth_imbalance":None,"sources":{},"missing_reason":"BINANCE_451_NO_CROSS_VENUE"}
+
     """Return a complete single-venue derivatives bundle or fail closed.
 
     Priority:
@@ -655,6 +661,9 @@ def multi_venue_derivatives(symbol: str) -> dict[str, Any]:
 
 
 def multi_venue_perp_universe() -> list[dict[str, Any]]:
+    # Do not discover Binance trading candidates using other exchanges.
+    return []
+
     """Broad USDT-perpetual discovery feed for geo-blocked Binance runners.
 
     This is a discovery layer only. It never claims that a symbol is Binance-native.
@@ -732,6 +741,9 @@ def multi_venue_perp_universe() -> list[dict[str, Any]]:
 
 
 def multi_venue_perp_klines(symbol: str, interval: str, limit: int = 220, *, start_ms: int | None = None, provider: str | None = None) -> dict[str, Any]:
+    # Never substitute Bybit/Gate candles for Binance chart data.
+    return {"provider":"BINANCE_ONLY_UNAVAILABLE","rows":[]}
+
     """Return normalized perpetual candles from Bybit, then Gate.
 
     Rows follow Binance-kline positions used by long_short_analyst.parse_klines:
