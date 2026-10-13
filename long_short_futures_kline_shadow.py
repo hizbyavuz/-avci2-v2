@@ -598,6 +598,25 @@ def bridge_recent_futures(db, symbols, intervals=INTERVALS):
         conn.close()
 
 
+def live_watch_symbols(analyst_db):
+    """Protect retained live setups when the analyst rotates to another window."""
+    live_db = os.getenv("LS_LIVE_DB") or os.path.join(
+        os.path.dirname(os.path.abspath(analyst_db)), "long_short_live_pool.db")
+    if not os.path.isfile(live_db):
+        return []
+    try:
+        with sqlite3.connect("file:" + os.path.abspath(live_db) + "?mode=ro",
+                             uri=True, timeout=5) as conn:
+            rows = conn.execute("""SELECT symbol FROM watch_state
+                WHERE stage IN ('WATCH','APPROACHING','CLOSE_CONFIRMED','RETESTING','TRIGGERED')
+                ORDER BY analyst_active DESC, analyst_confidence DESC, symbol""").fetchall()
+        return list(dict.fromkeys(row[0] for row in rows
+                    if isinstance(row[0], str) and row[0].endswith('USDT')))
+    except (sqlite3.Error, OSError) as exc:
+        log('FUTURES_LIVE_WATCH_UNAVAILABLE', {'error': str(exc)[:160]})
+        return []
+
+
 def requested_symbols(analyst_db):
     """Prepare the current and next scan before the analyst reaches them.
 
@@ -637,11 +656,16 @@ def requested_symbols(analyst_db):
         pending=pending_symbols()
     # Live shortlisted coins precede future/research-only requests. Never
     # silently describe an oversized forecast as fully covered.
-    ordered = list(dict.fromkeys(current + selected + ["BTCUSDT", "ETHUSDT", "SOLUSDT"]
+    # choose_symbols reads the analyst shortlist, not the retained live pool.
+    # Without this reservation, a rotated-out setup loses its WS subscription
+    # and REST repairs even while the live watcher still evaluates it.
+    live = live_watch_symbols(analyst_db)
+    ordered = list(dict.fromkeys(live + current + selected + ["BTCUSDT", "ETHUSDT", "SOLUSDT"]
                                 + upcoming + scan_symbols + pending))
     if len(ordered) > MAX_SYMBOLS:
         log('FUTURES_REQUEST_CAPACITY', {'capacity':MAX_SYMBOLS,
             'deferred':ordered[MAX_SYMBOLS:],
+            'deferred_live':[s for s in live if s not in ordered[:MAX_SYMBOLS]],
             'deferred_forecast':[s for s in forecast if s not in ordered[:MAX_SYMBOLS]]})
     return ordered[:MAX_SYMBOLS]
 

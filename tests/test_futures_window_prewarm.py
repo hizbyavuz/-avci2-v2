@@ -13,6 +13,39 @@ import long_short_futures_kline_shadow as shadow
 
 
 class PrewarmTests(unittest.TestCase):
+    def test_rotated_live_watch_keeps_subscription_and_repair_priority(self):
+        forecast = [(f'C{i:03d}USDT', 1e9, 1, 0) for i in range(60)]
+        with tempfile.TemporaryDirectory() as root, patch.dict('os.environ', {
+                'LS_LIVE_DB': str(Path(root)/'live.db'),
+                'LS_NATIVE_CHAIN_V2':'1', 'LS_DATA_OPPORTUNITY_V2':'0'}), \
+                patch.object(analyst, 'MAX_SYMBOLS', 30), \
+                patch.object(analyst, 'native_futures_websocket_universe', return_value=forecast), \
+                patch('long_short_v4_native_pipeline.choose_symbols',
+                      return_value=[f'L{i:03d}USDT' for i in range(30)]), \
+                patch.object(shadow, 'log'):
+            with sqlite3.connect(str(Path(root)/'live.db')) as c:
+                c.execute('CREATE TABLE watch_state(symbol,stage,analyst_active,analyst_confidence)')
+                c.executemany('INSERT INTO watch_state VALUES(?,?,?,?)', [
+                    ('VVVUSDT','WATCH',0,50), ('OPUSDT','APPROACHING',1,60),
+                    ('DONEUSDT','INVALIDATED',1,99)])
+            requested = shadow.requested_symbols(str(Path(root)/'analyst.db'))
+            self.assertEqual(requested[:2], ['OPUSDT','VVVUSDT'])
+            self.assertNotIn('DONEUSDT', requested)
+            self.assertTrue(set(s[0] for s in forecast[:30]).issubset(requested))
+            stream = shadow.FuturesKlineStream(str(Path(root)/'candles.db'))
+            target, uncovered = stream.plan(requested)
+            self.assertIn('VVVUSDT', target)
+            self.assertIn('OPUSDT', target)
+            self.assertEqual(uncovered, [])
+            self.assertLessEqual(len(requested), shadow.MAX_SYMBOLS)
+
+    def test_missing_or_uninitialized_live_database_keeps_requests_available(self):
+        with tempfile.TemporaryDirectory() as root, patch.dict('os.environ', {
+                'LS_LIVE_DB': str(Path(root)/'live.db')}), patch.object(shadow, 'log'):
+            self.assertEqual(shadow.live_watch_symbols(str(Path(root)/'analyst.db')), [])
+            sqlite3.connect(str(Path(root)/'live.db')).close()
+            self.assertEqual(shadow.live_watch_symbols(str(Path(root)/'analyst.db')), [])
+
     def test_real_catalogue_and_tickers_match_two_analyst_windows(self):
         now=3000
         symbols=[f'C{i:03d}USDT' for i in range(95)]
