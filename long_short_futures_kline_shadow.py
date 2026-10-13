@@ -168,6 +168,14 @@ def backfill_binance_archive(db, symbols, intervals=("1m", "5m", "15m", "30m", "
                                     try:
                                         open_ms = int(fields[0])
                                         close_ms = int(fields[6])
+                                        # Binance Vision ZIP timestamps can be microseconds.
+                                        if open_ms >= 10**15 and close_ms >= 10**15:
+                                            open_ms //= 1000
+                                            close_ms //= 1000
+                                        duration_ms = period * 1000
+                                        if (open_ms < 10**12 or open_ms % duration_ms != 0
+                                                or close_ms != open_ms + duration_ms - 1):
+                                            continue
                                         if close_ms >= int(time.time() * 1000) - 250:
                                             continue
                                         row = (symbol, interval, open_ms, close_ms,
