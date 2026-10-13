@@ -77,6 +77,7 @@ def main():
     log('FUTURES_HISTORY_WORKER_STARTED',{'source':REST_SOURCE})
     while not stop.is_set():
         symbols = requested_symbols(analyst)[:90]
+        failed = False
         # Fix the admission data first, then higher-timeframe context.
         for interval in INTERVALS:
             for symbol in symbols:
@@ -84,6 +85,7 @@ def main():
                 try:
                     repair(db,base,symbol,interval)
                 except Exception as exc:
+                    failed = True
                     log('FUTURES_HISTORY_UNAVAILABLE',{'symbol':symbol,'interval':interval,
                         'error':type(exc).__name__,'detail':str(exc)[:100]})
                     # Stop the pass on any failed source, do not hammer it.
@@ -92,8 +94,9 @@ def main():
             else:
                 continue
             break
-        log('FUTURES_HISTORY_PASS_FINISHED',{'symbols':len(symbols)})
-        stop.wait(900)
+        delay = 60 if failed else 900
+        log('FUTURES_HISTORY_PASS_FINISHED',{'symbols':len(symbols),'retry_seconds':delay})
+        stop.wait(delay)
     return 0
 
 

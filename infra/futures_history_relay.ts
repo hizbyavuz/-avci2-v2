@@ -8,7 +8,7 @@ Bun.serve({hostname:'::', port:Number(Bun.env.PORT || 8080), async fetch(request
   if (request.method !== 'GET' || u.pathname !== '/klines') return new Response('Not found',{status:404});
   const symbol = u.searchParams.get('symbol') || '';
   const interval = u.searchParams.get('interval') || '';
-  if (!/^[A-Z0-9]{2,25}USDT$/.test(symbol) || !intervals.has(interval)) return new Response('Invalid query',{status:400});
+  if (!/^[A-Z0-9]{1,25}USDT$/.test(symbol) || !intervals.has(interval)) return new Response('Invalid query',{status:400});
   if (Date.now() < blockedUntil) return new Response('Upstream cooldown',{status:503});
   const slot = Math.max(Date.now(), nextRequest);
   if (slot - Date.now() > 10000) return new Response('Busy',{status:429});
