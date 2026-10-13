@@ -77,23 +77,32 @@ def render(sections):
                          if line.startswith(('İlk erken uyarı:','Son ölçülen fiyat:')))
     elif early:
         parts.extend(early_body)
-    if evidence:parts.append('📊 '+' | '.join(evidence.values()))
     if risks:parts.append(' | '.join(dict.fromkeys(risks)))
+    if evidence:parts.append('📊 '+' | '.join(evidence.values()))
     if core and 'Analiz' not in evidence:
         parts.append('Ana motor mesajı: '+local_time(core['observed_at']))
     text='\n'.join(parts)
     return text if len(text)<=4096 else text[:4093]+'…'
 
 
-def publish(token, chat, symbol, source, text, direction, *, observed_at=None, post=None):
+def publish(token, chat, symbol, source, text, direction, *, observed_at=None, post=None, message_key=None):
     if source not in ('CORE','EARLY') or direction not in ('LONG','SHORT'):
         raise ValueError('invalid message card source/direction')
+    trade_only=os.getenv('LS_TELEGRAM_TRADE_ONLY','0').lower() in ('1','true','yes','on')
+    if trade_only and source=='EARLY':
+        return {'status':'SILENT_POLICY','message_id':None}
+    if trade_only and source=='CORE' and not message_key:
+        raise RuntimeError('CONFIRMED_ENTRY_KEY_REQUIRED')
     if not token or not chat or not re.fullmatch(r'[^\W_]+USDT', symbol):
         raise ValueError('verified Telegram destination and symbol required')
     expected = os.getenv('LS_TELEGRAM_EXPECTED_CHAT_ID','').strip()
     if expected and str(chat) != expected:
         raise RuntimeError('TELEGRAM_CHAT_MISMATCH_PRE_SEND')
     destination = hashlib.sha256((token.split(':',1)[0] + ':' + str(chat)).encode()).hexdigest()
+    # A confirmed entry gets one NEW notification per immutable setup. Never
+    # silently edit an old early-observation card into an entry alert.
+    if message_key:
+        destination+=':'+hashlib.sha256(message_key.encode()).hexdigest()
     now = time.time()
     stamp = observed_at or datetime.now(timezone.utc).isoformat()
     post = post or requests.post
@@ -105,6 +114,7 @@ def publish(token, chat, symbol, source, text, direction, *, observed_at=None, p
         row = c.execute('SELECT * FROM cards WHERE destination=? AND symbol=?',
                         (destination,symbol)).fetchone()
         sections = json.loads(row['sections_json']) if row else {}
+        if trade_only:sections.pop('EARLY',None)
         previous = sections.get(source)
         if previous and stamp < previous['observed_at']:
             c.rollback()
@@ -194,17 +204,21 @@ def publish(token, chat, symbol, source, text, direction, *, observed_at=None, p
         c.close()
 
 
-def route_core_message(token, chat, text):
+def route_core_message(token, chat, text, entry_key=None):
     header = text.splitlines()[0] if text else ''
     match = re.search(r'\|\s*([^\W_]+USDT)\b',header)
     if not match or not re.search(r'\b(LONG|SHORT)\b',text):
         return False  # startup/health/smoke messages keep their existing path
+    trade_only=os.getenv('LS_TELEGRAM_TRADE_ONLY','0').lower() in ('1','true','yes','on')
+    if trade_only and not entry_key:
+        raise RuntimeError('CONFIRMED_ENTRY_KEY_REQUIRED')
     direction = 'LONG' if re.search(r'\bLONG\b',header or '') else 'SHORT'
     if not re.search(r'\b(LONG|SHORT)\b',header):
         side=re.search(r'Yön eğilimi:.*?\b(LONG|SHORT)\b',text)
         if not side:return False
         direction=side.group(1)
-    result = publish(token,chat,match.group(1),'CORE',text,direction)
+    result = publish(token,chat,match.group(1),'CORE',text,direction,
+                     message_key=entry_key if trade_only else None)
     if result['status'] not in ('ACK','UNCHANGED'):
         raise RuntimeError('MESSAGE_CARD_NOT_DELIVERED')
     return True

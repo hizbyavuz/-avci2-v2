@@ -1624,8 +1624,8 @@ def message_for(row,stage,price,closed,structure_quality=None):
         coin_type={"STABLE":"🟦 Güçlü/Stabil","FAST_FRESH":"⚡ Hızlı/Taze",
                    "FAST_EXTENDED":"🔥 Hızlı/Uzamış","FAST_QUIET":"⚪ Hızlı/Sakin"}[mclass]
         return (f"{side_ball} {d} SİNYALİ | {sym}\n"
-                f"5 dk kapanış + devam koşulları tamamlandı.\n"
-                f"Tetik seviyesi: {fmtp(trig)} | Gözlenen fiyat: {fmtp(price)}\n"
+                f"Giriş kontrolleri tamamlandı.\n"
+                f"Giriş seviyesi: {fmtp(trig)} | Son fiyat: {fmtp(price)}\n"
                 f"🛡️ SL: {fmtp(inv)}\n"
                 f"🎯 TP1: {fmtp(t1)}\n"
                 f"🎯 TP2: {fmtp(t2) if t2 > 0 else 'belirlenmedi'}\n"
@@ -1685,7 +1685,7 @@ def resolve_live_chat_id(token, configured=""):
     return resolve_chat_id(token, "", NOTIFY_DB, "Long/Short Live Pool")
 
 
-def send_telegram(msg):
+def send_telegram(msg,entry_key=None):
     token=(os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
     configured=(os.getenv("TELEGRAM_CHAT_ID") or "").strip()
     if not token:
@@ -1701,7 +1701,7 @@ def send_telegram(msg):
                 raise RuntimeError("TELEGRAM_CHAT_MISMATCH_PRE_SEND")
             if os.getenv('LS_UNIFIED_CARD_ENABLED','0')=='1':
                 from long_short_message_card import route_core_message
-                if route_core_message(token,chat,msg):
+                if route_core_message(token,chat,msg,entry_key=entry_key):
                     return now_iso()
             r=requests.post(f"https://api.telegram.org/bot{token}/sendMessage",
                             json={"chat_id":chat,"text":msg[:TELEGRAM_LIMIT],"disable_web_page_preview":True},
@@ -2312,7 +2312,9 @@ def loop_once():
                         if msg:
                             print(msg)
                             try:
-                                sent_time=send_telegram(msg)
+                                entry_key=(f"{row['symbol']}|{row['direction']}|{row['setup_locked_at_utc']}|TRIGGERED"
+                                           if new=='TRIGGERED' else None)
+                                sent_time=send_telegram(msg,entry_key=entry_key)
                                 telegram_status="SENT"
                             except Exception as exc:
                                 telegram_status="FAILED"

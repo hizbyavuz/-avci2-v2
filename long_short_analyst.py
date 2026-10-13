@@ -2799,6 +2799,8 @@ def resolve_telegram_chat(token, configured=""):
 
 def send_health_once(results):
     """Send one deployment/data-health card per version after a real successful scan."""
+    if os.getenv('LS_TELEGRAM_TRADE_ONLY','0').lower() in ('1','true','yes','on'):
+        return  # only the live pool's fully approved entries notify the user
     token=(os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
     if not token or not results:
         return
@@ -3214,7 +3216,8 @@ def main():
     save_scan(ts,regime,len(uni),results)
     # Missing Futures derivatives do not hide chart-only watch suggestions.
     # These are never trade confirmations; all existing execution gates remain intact.
-    if os.getenv("LS_451_WATCH_TELEGRAM", "1").strip().lower() in ("1", "true", "yes", "on"):
+    trade_only=os.getenv('LS_TELEGRAM_TRADE_ONLY','0').lower() in ('1','true','yes','on')
+    if not trade_only and os.getenv("LS_451_WATCH_TELEGRAM", "1").strip().lower() in ("1", "true", "yes", "on"):
         try:
             with sqlite3.connect(DB, timeout=15) as con:
                 con.execute("CREATE TABLE IF NOT EXISTS watch_451_symbol_notices (symbol TEXT NOT NULL, direction TEXT NOT NULL, sent_at_utc TEXT NOT NULL, PRIMARY KEY(symbol,direction))")
@@ -3260,7 +3263,7 @@ def main():
     print(msg)
     # Keep the full analyst summary in logs/DB, but silence Telegram by default.
     # The live pool now owns state-change alerts (early/confirmed/chase/broken).
-    if TELEGRAM_SUMMARY:
+    if TELEGRAM_SUMMARY and not trade_only:
         send_telegram(msg)
     print(f"SCAN_RUNTIME_SECONDS {time.time()-started:.1f}")
 
