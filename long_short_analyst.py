@@ -1181,7 +1181,17 @@ def native_futures_websocket_universe():
     if not rows:
         raise RuntimeError("BINANCE_FUTURES_ONLY: no fresh Futures ticker snapshots")
     eligible=[]
+    native_allowed=None
+    if native_v2_enabled():
+        from long_short_native_derivatives import database
+        c=database()
+        try:catalogue=c.execute('SELECT observed_ms,payload FROM markets WHERE id=1').fetchone()
+        finally:c.close()
+        if not catalogue or not 0<=time.time()*1000-catalogue[0]<=3600000:
+            raise RuntimeError('NATIVE_CHAIN_V2: verified market catalogue not ready')
+        native_allowed=set(json.loads(catalogue[1]))
     for sym,qv,price,change,stamp in rows:
+        if native_allowed is not None and sym not in native_allowed:continue
         if not sym.endswith("USDT") or not sym[:-4].isalnum():
             continue
         base=sym[:-4]

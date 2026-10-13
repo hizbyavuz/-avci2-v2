@@ -41,6 +41,11 @@ async function derivatives(symbol:string){
 Bun.serve({hostname:'::',port:Number(Bun.env.PORT||8080),async fetch(request){
  const u=new URL(request.url);
  if(u.pathname==='/health')return Response.json({source:'BINANCE_UM_FUTURES_REST',read_only:true});
+ if(request.method==='GET'&&u.pathname==='/markets'){
+  try{const info:any=await exchangeInfo();return Response.json({source:'BINANCE_UM_FUTURES_REST',observed_ms:Date.now(),
+   markets:info.symbols.filter((m:any)=>m.status==='TRADING'&&m.contractType==='PERPETUAL'&&m.quoteAsset==='USDT'&&m.marginAsset==='USDT')});
+  }catch(e){return new Response('Market catalogue unavailable',{status:503});}
+ }
  if(request.method!=='GET'||!['/klines','/derivatives','/depth','/funding'].includes(u.pathname))return new Response('Not found',{status:404});
  const symbol=u.searchParams.get('symbol')||'';
  if(!/^[A-Z0-9]{1,25}USDT$/.test(symbol))return new Response('Invalid symbol',{status:400});

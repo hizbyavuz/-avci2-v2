@@ -86,6 +86,14 @@ def main():
             for symbol in symbols:
                 if stop.is_set(): return 0
                 try:
+                    if os.getenv('LS_NATIVE_CHAIN_V2','0')=='1':
+                        from long_short_data_health import interval_status
+                        from long_short_futures_kline_shadow import connect
+                        c=connect(db,timeout=5)
+                        try:status=interval_status(c,symbol,interval,int(time.time()*1000),
+                            required=300 if interval=='1m' else None)
+                        finally:c.close()
+                        if status['ready']:continue
                     repair(db,base,symbol,interval)
                 except Exception as exc:
                     failed = True
@@ -97,7 +105,7 @@ def main():
             else:
                 continue
             break
-        delay = 60 if failed else 900
+        delay = 60 if failed or os.getenv('LS_NATIVE_CHAIN_V2','0')=='1' else 900
         log('FUTURES_HISTORY_PASS_FINISHED',{'symbols':len(symbols),'retry_seconds':delay})
         stop.wait(delay)
     return 0

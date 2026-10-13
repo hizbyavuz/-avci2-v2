@@ -85,6 +85,7 @@ def database():
     c.execute('PRAGMA journal_mode=WAL')
     c.execute('CREATE TABLE IF NOT EXISTS snapshots(symbol TEXT PRIMARY KEY, received_ms INTEGER, payload TEXT)')
     c.execute('CREATE TABLE IF NOT EXISTS issues(time_ms INTEGER,symbol TEXT,error TEXT)')
+    c.execute('CREATE TABLE IF NOT EXISTS markets(id INTEGER PRIMARY KEY,observed_ms INTEGER,payload TEXT)')
     return c
 
 def refresh(symbol):
@@ -127,7 +128,18 @@ def main():
     stop=threading.Event()
     for sig in (signal.SIGTERM,signal.SIGINT):signal.signal(sig,lambda *_:stop.set())
     while not stop.is_set():
-        symbols=requested_symbols(os.path.join(root(),'long_short_analyst.db'))[:90]
+        try:
+            p=relay_get('/markets',{})
+            if p.get('source')!=SOURCE or not isinstance(p.get('markets'),list):raise ValueError('invalid market catalogue')
+            allowed={m['symbol'] for m in p['markets'] if m.get('status')=='TRADING' and m.get('contractType')=='PERPETUAL'
+                and m.get('quoteAsset')=='USDT' and m.get('marginAsset')=='USDT'}
+            c=database()
+            try:
+                with c:c.execute('INSERT OR REPLACE INTO markets VALUES(1,?,?)',(int(time.time()*1000),json.dumps(sorted(allowed))))
+            finally:c.close()
+        except Exception as e:
+            log('NATIVE_MARKET_CATALOGUE_UNAVAILABLE',{'error':str(e)[:160]});stop.wait(30);continue
+        symbols=[s for s in requested_symbols(os.path.join(root(),'long_short_analyst.db')) if s in allowed][:90]
         ready=0
         for symbol in symbols:
             if stop.is_set():return 0
