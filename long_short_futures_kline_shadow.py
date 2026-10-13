@@ -40,7 +40,7 @@ def parse_closed_kline(packet):
 
 
 def initialize(db):
-    conn = sqlite3.connect(db, timeout=5)
+    conn = sqlite3.connect(db, timeout=30)
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("""CREATE TABLE IF NOT EXISTS futures_closed_klines (
         symbol TEXT NOT NULL, interval TEXT NOT NULL,
