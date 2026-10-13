@@ -59,7 +59,7 @@ def initialize(db):
 
 
 def store(conn, row):
-    conn.execute("""INSERT OR REPLACE INTO futures_closed_klines
+    conn.execute("""INSERT INTO futures_closed_klines
         (symbol,interval,open_ms,close_ms,open,high,low,close,volume,source,received_ms,quote_volume,trade_count,taker_buy_quote)
         VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", row)
     conn.commit()
@@ -176,7 +176,15 @@ def backfill_binance_archive(db, symbols, intervals=("1m", "5m", "15m", "30m", "
                                                float(fields[7]), int(fields[8]), float(fields[10]))
                                         conn.execute("""INSERT OR REPLACE INTO futures_closed_klines
                                             (symbol,interval,open_ms,close_ms,open,high,low,close,volume,source,received_ms,quote_volume,trade_count,taker_buy_quote)
-                                            VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", row)
+                                            VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                                            ON CONFLICT(symbol,interval,open_ms) DO UPDATE SET
+                                            quote_volume=excluded.quote_volume,
+                                            trade_count=excluded.trade_count,
+                                            taker_buy_quote=excluded.taker_buy_quote
+                                            WHERE futures_closed_klines.source='BINANCE_UM_FUTURES_ARCHIVE'
+                                              AND (futures_closed_klines.quote_volume IS NULL
+                                                OR futures_closed_klines.trade_count IS NULL
+                                                OR futures_closed_klines.taker_buy_quote IS NULL)""", row)
                                         inserted += 1
                                     except (ValueError, OverflowError):
                                         continue
