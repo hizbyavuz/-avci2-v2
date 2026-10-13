@@ -4,6 +4,7 @@ No orders, no Telegram, no fallback to other exchanges. Closed candles only.
 Run separately before considering production integration.
 """
 import json
+import math
 import os
 import sqlite3
 import time
@@ -26,13 +27,22 @@ def parse_closed_kline(packet):
     start = int(bar["t"])
     end = int(bar["T"])
     values = tuple(float(bar[key]) for key in ("o", "h", "l", "c", "v"))
-    if start <= 0 or end <= start or min(values[:4]) <= 0 or values[4] < 0:
+    quote = float(bar["q"])
+    taker = float(bar["Q"])
+    trades = int(bar["n"])
+    period_ms = {"1m":60000,"5m":300000,"15m":900000,"30m":1800000,"1h":3600000,"4h":14400000}[interval]
+    if (start <= 0 or start % period_ms != 0 or end != start + period_ms - 1
+            or not all(math.isfinite(v) for v in (*values, quote, taker))
+            or min(values[:4]) <= 0 or values[4] < 0 or quote < 0 or taker < 0
+            or taker > quote or trades < 0
+            or values[1] < max(values[0], values[3], values[2])
+            or values[2] > min(values[0], values[3])):
         return None
-    return (symbol, interval, start, end, *values, SOURCE, int(time.time() * 1000), float(bar["q"]), int(bar["n"]), float(bar["Q"]))
+    return (symbol, interval, start, end, *values, SOURCE, int(time.time() * 1000), quote, trades, taker)
 
 
 def initialize(db):
-    conn = sqlite3.connect(db, timeout=5)
+    conn = sqlite3.connect(db, timeout=30)
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("""CREATE TABLE IF NOT EXISTS futures_closed_klines (
         symbol TEXT NOT NULL, interval TEXT NOT NULL,
@@ -51,7 +61,7 @@ def initialize(db):
 
 
 def store(conn, row):
-    conn.execute("""INSERT OR REPLACE INTO futures_closed_klines
+    conn.execute("""INSERT OR IGNORE INTO futures_closed_klines
         (symbol,interval,open_ms,close_ms,open,high,low,close,volume,source,received_ms,quote_volume,trade_count,taker_buy_quote)
         VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", row)
     conn.commit()
@@ -59,7 +69,7 @@ def store(conn, row):
 
 def collect(db, symbols, seconds=90, stop=None):
     import websocket
-    symbols = sorted({s.upper() for s in symbols if s.upper().endswith("USDT")})[:24]
+    symbols = sorted({s.upper() for s in symbols if s.upper().endswith("USDT")})[:90]
     if not symbols:
         raise ValueError("No Binance USDT symbols")
     os.makedirs(os.path.dirname(os.path.abspath(db)), exist_ok=True)
@@ -87,6 +97,93 @@ def collect(db, symbols, seconds=90, stop=None):
         if ws:
             ws.close()
         conn.close()
+
+
+
+def collect_continuous(db, requested_fn, stop):
+    """One long-lived native Futures stream with in-place symbol subscriptions.
+
+    The old 900-second disconnect created holes in closed-candle history.
+    This collector never substitutes Spot/other-venue data for missing bars.
+    """
+    import websocket
+    intervals = ("1m", "5m", "15m", "30m", "1h", "4h")
+    os.makedirs(os.path.dirname(os.path.abspath(db)), exist_ok=True)
+    conn = initialize(db)
+    conn.execute("PRAGMA busy_timeout=30000")
+    ws = None
+    subscribed = set()
+    last_refresh = 0.0
+    opened_at = 0.0
+    backoff = 1.0
+    control_id = 100
+    try:
+        while not stop.is_set():
+            try:
+                if ws is None:
+                    ws = websocket.create_connection(URL, timeout=10, enable_multithread=True)
+                    ws.settimeout(1)
+                    subscribed.clear()
+                    opened_at = time.monotonic()
+                    last_refresh = 0.0
+                    backoff = 1.0
+                    print("FUTURES_KLINE_WS_CONNECTED", flush=True)
+                now = time.monotonic()
+                if now - last_refresh >= 60:
+                    requested = list(dict.fromkeys(
+                        sym.upper() for sym in requested_fn()
+                        if isinstance(sym, str) and sym.upper().endswith("USDT")))[:90]
+                    target = set(requested)
+                    for method, changed in (("UNSUBSCRIBE", sorted(subscribed - target)),
+                                            ("SUBSCRIBE", sorted(target - subscribed))):
+                        params = [sym.lower() + "@kline_" + iv for sym in changed for iv in intervals]
+                        for offset in range(0, len(params), 100):
+                            control_id += 1
+                            ws.send(json.dumps({"method": method,
+                                                "params": params[offset:offset + 100],
+                                                "id": control_id}))
+                            stop.wait(0.25)
+                    subscribed = target
+                    last_refresh = now
+                    print("FUTURES_KLINE_STICKY_COVERAGE " + json.dumps(
+                        {"tracked": len(subscribed), "requested": len(requested),
+                         "covered": sum(sym in subscribed for sym in requested)}), flush=True)
+                # Planned reconnect happens mid-minute, never at a candle close.
+                if now - opened_at >= 23 * 3600 and 15 <= int(time.time()) % 60 <= 40:
+                    print("FUTURES_KLINE_PLANNED_RECONNECT", flush=True)
+                    ws.close()
+                    ws = None
+                    continue
+                try:
+                    raw = ws.recv()
+                except websocket.WebSocketTimeoutException:
+                    continue
+                if not raw:
+                    raise ConnectionError("empty Futures websocket frame")
+                try:
+                    packet = json.loads(raw)
+                    row = parse_closed_kline(packet)
+                except (ValueError, TypeError, KeyError, OverflowError, AttributeError) as exc:
+                    print("FUTURES_KLINE_INVALID_FRAME " + type(exc).__name__, flush=True)
+                    continue
+                if row and row[0] in subscribed:
+                    store(conn, row)
+            except Exception as exc:
+                print("FUTURES_KLINE_WS_RECONNECT " + type(exc).__name__ + " " +
+                      str(exc)[:120], flush=True)
+                if ws is not None:
+                    try:
+                        ws.close()
+                    except Exception:
+                        pass
+                ws = None
+                stop.wait(backoff)
+                backoff = min(backoff * 2, 30.0)
+    finally:
+        if ws is not None:
+            ws.close()
+        conn.close()
+
 
 
 def main():
@@ -160,15 +257,31 @@ def backfill_binance_archive(db, symbols, intervals=("1m", "5m", "15m", "30m", "
                                     try:
                                         open_ms = int(fields[0])
                                         close_ms = int(fields[6])
+                                        # Binance Vision ZIP timestamps can be microseconds.
+                                        if open_ms >= 10**15 and close_ms >= 10**15:
+                                            open_ms //= 1000
+                                            close_ms //= 1000
+                                        duration_ms = period * 1000
+                                        if (open_ms < 10**12 or open_ms % duration_ms != 0
+                                                or close_ms != open_ms + duration_ms - 1):
+                                            continue
                                         if close_ms >= int(time.time() * 1000) - 250:
                                             continue
                                         row = (symbol, interval, open_ms, close_ms,
                                                *[float(fields[i]) for i in (1,2,3,4,5)],
                                                "BINANCE_UM_FUTURES_ARCHIVE", int(time.time()*1000),
                                                float(fields[7]), int(fields[8]), float(fields[10]))
-                                        conn.execute("""INSERT OR IGNORE INTO futures_closed_klines
+                                        conn.execute("""INSERT OR REPLACE INTO futures_closed_klines
                                             (symbol,interval,open_ms,close_ms,open,high,low,close,volume,source,received_ms,quote_volume,trade_count,taker_buy_quote)
-                                            VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", row)
+                                            VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                                            ON CONFLICT(symbol,interval,open_ms) DO UPDATE SET
+                                            quote_volume=excluded.quote_volume,
+                                            trade_count=excluded.trade_count,
+                                            taker_buy_quote=excluded.taker_buy_quote
+                                            WHERE futures_closed_klines.source='BINANCE_UM_FUTURES_ARCHIVE'
+                                              AND (futures_closed_klines.quote_volume IS NULL
+                                                OR futures_closed_klines.trade_count IS NULL
+                                                OR futures_closed_klines.taker_buy_quote IS NULL)""", row)
                                         inserted += 1
                                     except (ValueError, OverflowError):
                                         continue
@@ -201,7 +314,9 @@ def bridge_recent_futures(db, symbols, intervals=("1m", "5m", "15m", "30m", "1h"
                     conn.commit()
                     print("FUTURES_BRIDGE_OK", symbol, interval, flush=True)
                 except Exception as exc:
-                    print("FUTURES_BRIDGE_UNAVAILABLE", symbol, interval, type(exc).__name__, flush=True)
+                    # Log the HTTP status without changing fail-closed candle handling.
+                    status = getattr(exc, "code", None)
+                    print("FUTURES_BRIDGE_UNAVAILABLE", symbol, interval, type(exc).__name__, "http_status=" + str(status) if status is not None else "http_status=unknown", flush=True)
     finally:
         conn.close()
 
@@ -218,17 +333,95 @@ def continuous_main():
     os.makedirs(root, exist_ok=True)
     db = os.path.join(root, "binance_futures_kline_shadow.db")
     analyst = os.getenv("LS_ANALYST_DB") or os.path.join(root, "long_short_analyst.db")
-    backfill_done = False
+    # Archive imports must never block the live closed-candle WebSocket.
+    # One bounded worker handles new symbols, using SQLite WAL connections.
+    import queue
+    pending_backfills = queue.Queue(maxsize=60)
+    scheduled_backfills = set()
+    completed_backfills = {}
+    retry_seconds = 6 * 3600
+    def archive_worker():
+        while not stop.is_set():
+            try:
+                symbol = pending_backfills.get(timeout=1)
+            except queue.Empty:
+                continue
+            try:
+                backfill_binance_archive(db, [symbol])
+                completed_backfills[symbol] = time.monotonic()
+                print("FUTURES_KLINE_BACKFILL_FINISHED " + symbol, flush=True)
+            except Exception as exc:
+                print("FUTURES_KLINE_BACKFILL_ERROR " + symbol + " " + type(exc).__name__, flush=True)
+            finally:
+                scheduled_backfills.discard(symbol)
+                pending_backfills.task_done()
+    threading.Thread(target=archive_worker, name="futures-archive-backfill", daemon=True).start()
+    tracked_symbols = []  # Keep native Futures feeds across 15m scan rotations.
     while not stop.is_set():
         try:
-            if not backfill_done:
-                backfill_binance_archive(db, ["BTCUSDT", "ETHUSDT", "SOLUSDT"])
-                backfill_done = True
-            symbols = ["BTCUSDT", "ETHUSDT", "SOLUSDT"] + choose_symbols("", analyst_db=analyst, limit=9)
-            symbols = list(dict.fromkeys(symbols))[:12]
-            bridge_recent_futures(db, symbols)
-            result = collect(db, symbols, seconds=900, stop=stop)
-            print("FUTURES_KLINE_FEED " + json.dumps(result), flush=True)
+            # Give the analyst's actual rotating scan window priority.
+            # Previously choose_symbols filled all 30 slots before the scan
+            # window was appended, so none of those symbols could enter.
+            scan_symbols = []
+            if os.path.isfile(analyst):
+                try:
+                    with sqlite3.connect("file:" + os.path.abspath(analyst) + "?mode=ro", uri=True) as scan_db:
+                        latest = scan_db.execute("SELECT MAX(scan_time_utc) FROM full_universe_stage_audit").fetchone()[0]
+                        if latest:
+                            scan_symbols = [row[0] for row in scan_db.execute(
+                                "SELECT symbol FROM full_universe_stage_audit WHERE scan_time_utc=? ORDER BY quote_volume DESC LIMIT 30",
+                                (latest,)).fetchall()]
+                except (sqlite3.Error, OSError):
+                    pass
+            selected = choose_symbols("", analyst_db=analyst, limit=30)
+            requested = list(dict.fromkeys(scan_symbols + selected + ["BTCUSDT", "ETHUSDT", "SOLUSDT"]))
+            # Prioritize the current scan, then retain older feeds up to capacity.
+            # Do not let the first 90 observed symbols permanently block newcomers.
+            tracked_symbols = list(dict.fromkeys(requested + tracked_symbols))[:90]
+            symbols = tracked_symbols[:]
+            print("FUTURES_KLINE_STICKY_COVERAGE " + json.dumps({"tracked": len(symbols), "requested": len(requested), "covered": sum(s in symbols for s in requested)}), flush=True)
+            if not symbols:
+                raise RuntimeError("DATA_NOT_READY: no analyst universe")
+            # The analyst universe changes. A single startup backfill leaves
+            # newly selected symbols without enough history indefinitely.
+            missing = [sym for sym in symbols if sym not in scheduled_backfills
+                       and time.monotonic() - completed_backfills.get(sym, -1e12) >= retry_seconds]
+            if missing:
+                print("FUTURES_KLINE_NEW_SYMBOL_BACKFILL " +
+                      json.dumps({"symbols":missing}), flush=True)
+                for sym in missing:
+                    try:
+                        pending_backfills.put_nowait(sym)
+                        scheduled_backfills.add(sym)
+                    except queue.Full:
+                        print("FUTURES_KLINE_BACKFILL_QUEUE_FULL " + sym, flush=True)
+            # Binance REST returned HTTP 418 (IP restriction). Do not retry
+            # REST on each cycle: preserve archive history and collect native
+            # closed Futures candles over WebSocket. Missing bars fail closed.
+            print("FUTURES_REST_BRIDGE_DISABLED_HTTP_418", flush=True)
+            def current_symbols():
+                nonlocal tracked_symbols
+                # Re-read the latest scan without disconnecting the socket.
+                fresh = []
+                if os.path.isfile(analyst):
+                    try:
+                        with sqlite3.connect("file:" + os.path.abspath(analyst) + "?mode=ro", uri=True, timeout=5) as read_db:
+                            latest = read_db.execute("SELECT MAX(scan_time_utc) FROM full_universe_stage_audit").fetchone()[0]
+                            if latest:
+                                fresh = [r[0] for r in read_db.execute("SELECT symbol FROM full_universe_stage_audit WHERE scan_time_utc=? ORDER BY quote_volume DESC LIMIT 30", (latest,))]
+                    except (sqlite3.Error, OSError):
+                        pass
+                wanted = list(dict.fromkeys(fresh + choose_symbols("", analyst_db=analyst, limit=30) + ["BTCUSDT", "ETHUSDT", "SOLUSDT"]))
+                tracked_symbols = list(dict.fromkeys(wanted + tracked_symbols))[:90]
+                for sym in tracked_symbols:
+                    if sym not in scheduled_backfills and time.monotonic() - completed_backfills.get(sym, -1e12) >= retry_seconds:
+                        try:
+                            pending_backfills.put_nowait(sym)
+                            scheduled_backfills.add(sym)
+                        except queue.Full:
+                            break
+                return tracked_symbols
+            collect_continuous(db, current_symbols, stop)
             # No signal source switch: only observe verified native Futures candles.
         except Exception as exc:
             print("FUTURES_KLINE_FEED_ERROR " + type(exc).__name__ + ": " + str(exc)[:160], flush=True)

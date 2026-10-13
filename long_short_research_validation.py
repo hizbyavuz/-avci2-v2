@@ -871,7 +871,10 @@ def main():
         return
     acon = sqlite3.connect(f"file:{os.path.abspath(ANALYST_DB)}?mode=ro", uri=True)
     lcon = sqlite3.connect(f"file:{os.path.abspath(LIVE_DB)}?mode=ro", uri=True)
-    rcon = sqlite3.connect(RESEARCH_DB)
+    rcon = sqlite3.connect(RESEARCH_DB, timeout=30)
+    rcon.execute("PRAGMA busy_timeout=30000")
+    rcon.execute("PRAGMA journal_mode=WAL")
+    rcon.execute("PRAGMA synchronous=NORMAL")
     try:
         frozen = init_db(rcon)
         pstats = evaluate_primary(rcon, acon, lcon)
