@@ -10,6 +10,7 @@ import threading
 import time
 from urllib.parse import urlencode, urlsplit
 from urllib.request import urlopen
+from urllib.error import HTTPError
 
 from long_short_futures_kline_shadow import (
     INTERVALS, PERIOD_MS, REST_SOURCE, initialize, log, parse_closed_kline,
@@ -81,10 +82,13 @@ def main():
     while not stop.is_set():
         symbols = requested_symbols(analyst)[:90]
         failed = False
+        rejected_symbols = set()
         # Fix the admission data first, then higher-timeframe context.
         for interval in INTERVALS:
             for symbol in symbols:
                 if stop.is_set(): return 0
+                if symbol in rejected_symbols:
+                    continue
                 try:
                     if os.getenv('LS_NATIVE_CHAIN_V2','0')=='1':
                         from long_short_data_health import interval_status
@@ -99,6 +103,13 @@ def main():
                     failed = True
                     log('FUTURES_HISTORY_UNAVAILABLE',{'symbol':symbol,'interval':interval,
                         'error':type(exc).__name__,'detail':str(exc)[:100]})
+                    # A rejected symbol is not a relay-wide outage. Keep it
+                    # unresolved and retry next pass, but service other symbols.
+                    # Rate limits, transport failures and invalid data still
+                    # stop the pass and retain the existing backoff.
+                    if isinstance(exc,HTTPError) and exc.code==400:
+                        rejected_symbols.add(symbol)
+                        continue
                     # Stop the pass on any failed source, do not hammer it.
                     break
                 stop.wait(0.4)
