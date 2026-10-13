@@ -294,6 +294,14 @@ def fmtp(x):
     return f"{x:.8f}".rstrip("0")
 
 def init_db():
+    # WAL allows audit readers and the live writer to coexist.
+    try:
+        with sqlite3.connect(LIVE_DB, timeout=30) as setup:
+            mode = setup.execute('PRAGMA journal_mode=WAL').fetchone()[0]
+            setup.execute('PRAGMA synchronous=NORMAL')
+            print('LIVE_DB_JOURNAL_MODE ' + str(mode), flush=True)
+    except sqlite3.OperationalError as exc:
+        print('LIVE_DB_WAL_DEFERRED ' + str(exc)[:120], flush=True)
     with sqlite3.connect(LIVE_DB,timeout=30) as con:
         con.execute("""CREATE TABLE IF NOT EXISTS watch_state(
             symbol TEXT PRIMARY KEY,
