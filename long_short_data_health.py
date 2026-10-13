@@ -53,7 +53,7 @@ def interval_status(con, symbol, interval, now_ms, required=None):
     # Same order as long_short_analyst.native_futures_shadow_klines().
     if len(rows) < required:
         reason = "short_history"
-    elif age > 2 * period or age < 0:
+    elif age > 2 * period or age < 250:
         reason = "stale"
     elif bad_rows or null_rows:
         reason = "invalid_source_or_fields"

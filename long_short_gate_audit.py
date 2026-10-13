@@ -16,6 +16,8 @@ def record_setup_gates(symbol, setup):
         failed = [str(key) for key, ok in gates.items() if not ok]
         reasons = setup.get("veto_reasons") or failed
         event = {
+            "scope": "LEGACY_V3_SHADOW",
+            "production_authority": False,
             "timestamp_utc": datetime.now(timezone.utc).isoformat(),
             "symbol": str(symbol),
             "direction": setup.get("direction", "NONE"),
@@ -30,6 +32,7 @@ def record_setup_gates(symbol, setup):
         with path.open("a", encoding="utf-8") as stream:
             stream.write(json.dumps(event, ensure_ascii=False, default=str) + "\n")
         print("SIGNAL_GATE_AUDIT", json.dumps({
+            "scope": "LEGACY_V3_SHADOW", "production_authority": False,
             "symbol": event["symbol"], "direction": event["direction"],
             "eligible": event["eligible"], "veto": reasons,
         }, ensure_ascii=False), flush=True)

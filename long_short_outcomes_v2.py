@@ -1,10 +1,16 @@
 """Cost-aware outcomes for V2 delivered signals, isolated from legacy labels."""
 import json
+import math
 import sqlite3
 from datetime import datetime,timezone,timedelta
 
 def label_path(direction,entry,stop,target,bars,cost_pct,funding_pct=0.0):
     """Executable gap stop, stop-first ambiguity, and post-entry excursions."""
+    if direction not in ('LONG','SHORT'):
+        raise ValueError('invalid signal direction')
+    if (any(not math.isfinite(float(v)) for v in (entry,stop,target,cost_pct,funding_pct))
+            or min(entry,stop,target)<=0 or cost_pct<0):
+        raise ValueError('invalid price or costs')
     long=direction=='LONG'
     if not ((stop<entry<target) if long else (target<entry<stop)):
         raise ValueError('invalid signal geometry')
@@ -18,11 +24,16 @@ def label_path(direction,entry,stop,target,bars,cost_pct,funding_pct=0.0):
         gap_stop=opened<=stop if long else opened>=stop
         stop_hit=low<=stop if long else high>=stop
         target_hit=high>=target if long else low<=target
-        mae=min(mae,adverse)
         # Intraminute ordering is unknown. Do not count a possible rally after
         # an earlier stop as favorable performance of an open position.
         if gap_stop or stop_hit:
-            result='STOP';exit_price=opened if gap_stop else stop;exit_ms=int(b[0])+(0 if gap_stop else 60000);break
+            result='STOP';exit_price=opened if gap_stop else stop
+            # The rest of a stopped candle is after exit (or unordered).
+            # Its deeper low/high must not inflate open-position MAE.
+            exit_adverse=(exit_price/entry-1)*100*(1 if long else -1)
+            mae=min(mae,exit_adverse)
+            exit_ms=int(b[0])+(0 if gap_stop else 60000);break
+        mae=min(mae,adverse)
         mfe=max(mfe,favorable)
         if target_hit:
             mfe=min(mfe,abs(target/entry-1)*100)
@@ -32,6 +43,8 @@ def label_path(direction,entry,stop,target,bars,cost_pct,funding_pct=0.0):
     return dict(result=result,exit_price=exit_price,exit_ms=exit_ms,gross_return_pct=gross,
                 net_return_pct=gross-cost_pct-funding_pct,round_trip_cost_pct=cost_pct,
                 funding_cost_pct=funding_pct,mfe_pct=mfe,mae_pct=mae,
+                excursion_method='CONSERVATIVE_1M_OHLC_EXIT_CLIPPED',
+                intrabar_excursion_exact=False,
                 net_r=(gross-cost_pct-funding_pct)/(risk+cost_pct))
 
 def resolve(db_path):
@@ -75,6 +88,7 @@ def resolve(db_path):
                     if start.timestamp()*1000<=int(r['fundingTime'])<result['exit_ms'])
                 result=label_path(ev['direction'],entry,stop,target,path,cost,funding)
                 result.update(symbol=ev['symbol'],direction=ev['direction'],entry_price=entry,
+                    entry_minute_excluded=True,
                     entry_time_utc=start.isoformat(),version='LS_NATIVE_CHAIN_V2_2026-10-13',source=SOURCE)
                 c.execute('INSERT INTO confirmed_outcomes_v2 VALUES(?,?,?)',(ev['id'],now.isoformat(),json.dumps(result)))
                 c.execute('DELETE FROM outcome_issues_v2 WHERE event_id=?',(ev['id'],))

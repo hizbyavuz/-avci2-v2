@@ -1175,7 +1175,7 @@ def fetch_depth_imbalance(symbol):
     return float(fetch_depth_metrics(symbol)["imbalance"])
 
 
-def native_futures_websocket_universe():
+def native_futures_websocket_universe(slot=None, slot_offsets=(0,), quiet=False):
     """Read fresh Binance USD-M Futures all-market tickers; never use Spot."""
     root=os.getenv("LS_STATE_DIR") or os.getenv("RAILWAY_VOLUME_MOUNT_PATH") or ".long-short-state"
     db=os.path.join(root,"binance_futures_universe.db")
@@ -1213,14 +1213,18 @@ def native_futures_websocket_universe():
     if not eligible:
         raise RuntimeError("BINANCE_FUTURES_ONLY: no eligible fresh Futures tickers")
     eligible.sort(key=lambda x:x[1],reverse=True)
-    selected=native_rotating_window(eligible,MAX_SYMBOLS)
-    print("FUTURES_UNIVERSE_COVERAGE",json.dumps({"fresh_tickers":len(rows),
+    slot=int(time.time()//300) if slot is None else int(slot)
+    selected=[]
+    for offset in slot_offsets:
+        selected.extend(native_rotating_window(eligible,MAX_SYMBOLS,slot=slot+offset,quiet=quiet))
+    if not quiet:
+        print("FUTURES_UNIVERSE_COVERAGE",json.dumps({"fresh_tickers":len(rows),
           "eligible":len(eligible),"scan_window":min(len(eligible),max(1,int(MAX_SYMBOLS))),
           "selection":"rotating_verified_universe"}),flush=True)
     return selected
 
 
-def native_rotating_window(eligible,cap,slot=None):
+def native_rotating_window(eligible,cap,slot=None,quiet=False):
     """Bound scan cost while covering every verified eligible instrument.
 
     Symbol order avoids 24h volume rank churn restarting the coverage cycle.
@@ -1233,8 +1237,9 @@ def native_rotating_window(eligible,cap,slot=None):
     slot=int(time.time()//300) if slot is None else int(slot)
     start=(slot*cap)%len(rows)
     selected=(rows+rows)[start:start+cap]
-    print("NATIVE_ROTATING_WINDOW",json.dumps({"eligible":len(rows),
-        "slot":slot,"start":start,"selected":[x[0] for x in selected]}),flush=True)
+    if not quiet:
+        print("NATIVE_ROTATING_WINDOW",json.dumps({"eligible":len(rows),
+            "slot":slot,"start":start,"selected":[x[0] for x in selected]}),flush=True)
     return selected
 
 

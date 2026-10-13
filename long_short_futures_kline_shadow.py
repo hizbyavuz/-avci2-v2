@@ -208,10 +208,12 @@ class GapTracker:
         key = (row[0], row[1])
         period = PERIOD_MS[row[1]]
         last = self.last_open.get(key)
-        if last is None:
-            prev = conn.execute("""SELECT MAX(open_ms) FROM futures_closed_klines
-                WHERE symbol=? AND interval=? AND open_ms<?""", (row[0], row[1], row[2])).fetchone()[0]
-            last = prev
+        # REST/archive may have repaired the tail since this stream last
+        # saw a candle. Reconcile the cache before reporting missing bars.
+        prev = conn.execute("""SELECT MAX(open_ms) FROM futures_closed_klines
+            WHERE symbol=? AND interval=? AND open_ms<?""", (row[0], row[1], row[2])).fetchone()[0]
+        if prev is not None:
+            last = prev if last is None else max(last, prev)
         gap = None
         if last is not None and row[2] - last > period:
             gap = {"symbol": row[0], "interval": row[1],
@@ -597,8 +599,26 @@ def bridge_recent_futures(db, symbols, intervals=INTERVALS):
 
 
 def requested_symbols(analyst_db):
-    """Analyst's latest scan window first, then shortlist/analyses, then anchors."""
+    """Prepare the current and next scan before the analyst reaches them.
+
+    Use the analyst's exact eligibility filters and rotation, not a second
+    universe. All collectors share this bounded request list.
+    """
     from long_short_v4_native_pipeline import choose_symbols
+    forecast = []
+    current = []
+    upcoming = []
+    if os.getenv('LS_NATIVE_CHAIN_V2','0') == '1':
+        try:
+            from long_short_analyst import native_futures_websocket_universe, MAX_SYMBOLS as scan_cap
+            slot = int(time.time() // 300)
+            # Both windows must use one catalogue/ticker snapshot: two reads
+            # can disagree when eligibility changes near the volume floor.
+            forecast = [row[0] for row in native_futures_websocket_universe(
+                slot=slot, slot_offsets=(0, 1), quiet=True)]
+            current, upcoming = forecast[:max(1,scan_cap)], forecast[max(1,scan_cap):]
+        except (sqlite3.Error, OSError, RuntimeError, ValueError) as exc:
+            log('FUTURES_WINDOW_PREWARM_UNAVAILABLE', {'error':str(exc)[:160]})
     scan_symbols = []
     if os.path.isfile(analyst_db):
         try:
@@ -615,7 +635,15 @@ def requested_symbols(analyst_db):
     if os.getenv('LS_DATA_OPPORTUNITY_V2','0')=='1':
         from long_short_data_opportunity_v2 import pending_symbols
         pending=pending_symbols()
-    return list(dict.fromkeys(scan_symbols + selected + ["BTCUSDT", "ETHUSDT", "SOLUSDT"] + pending))[:90]
+    # Live shortlisted coins precede future/research-only requests. Never
+    # silently describe an oversized forecast as fully covered.
+    ordered = list(dict.fromkeys(current + selected + ["BTCUSDT", "ETHUSDT", "SOLUSDT"]
+                                + upcoming + scan_symbols + pending))
+    if len(ordered) > MAX_SYMBOLS:
+        log('FUTURES_REQUEST_CAPACITY', {'capacity':MAX_SYMBOLS,
+            'deferred':ordered[MAX_SYMBOLS:],
+            'deferred_forecast':[s for s in forecast if s not in ordered[:MAX_SYMBOLS]]})
+    return ordered[:MAX_SYMBOLS]
 
 
 def continuous_main():

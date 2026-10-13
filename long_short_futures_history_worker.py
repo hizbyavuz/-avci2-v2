@@ -18,6 +18,75 @@ from long_short_futures_kline_shadow import (
 )
 
 ENDPOINT = 'https://fapi.binance.com/fapi/v1/klines'
+ADMISSION_INTERVALS = ('5m', '15m', '1m')
+
+
+def needs_repair(db, symbol, interval, now_ms=None):
+    from long_short_data_health import interval_status
+    from long_short_futures_kline_shadow import connect
+    now_ms = int(time.time()*1000) if now_ms is None else now_ms
+    c = connect(db, timeout=5)
+    try:
+        status = interval_status(c, symbol, interval, now_ms)
+    finally:
+        c.close()
+    # Refresh a delayed feed before the existing two-period stale gate trips.
+    return (not status['ready'] or
+            status.get('last_close_age_s', 0) > PERIOD_MS[interval]/1000 + 30)
+
+
+def priority_pass(db, base, analyst, stop):
+    """Keep admission candles fresh while repairing slow context histories.
+
+    Requests remain sequential and retain the source-wide failure backoff.
+    Re-read the shared list between batches so a rotation is not delayed by
+    a whole six-timeframe pass. A symbol-specific 400 stays isolated.
+    """
+    rejected = set()
+    failed = False
+    last_admission = float('-inf')
+
+    def batch(symbols, intervals, follow_requests=False):
+        nonlocal failed
+        for iv in intervals:
+            queue = list(symbols)
+            visited = set()
+            refreshed = time.monotonic()
+            while queue:
+                if follow_requests and time.monotonic() - refreshed >= 20:
+                    # Reprioritize between individual HTTP requests, not only
+                    # after an entire 90-symbol admission batch.
+                    queue = [s for s in requested_symbols(analyst)[:90] if s not in visited]
+                    refreshed = time.monotonic()
+                    if not queue: break
+                sym = queue.pop(0)
+                visited.add(sym)
+                if stop.is_set(): return False
+                if sym in rejected: continue
+                try:
+                    if not needs_repair(db, sym, iv): continue
+                    repair(db, base, sym, iv)
+                except Exception as exc:
+                    failed = True
+                    log('FUTURES_HISTORY_UNAVAILABLE', {'symbol':sym, 'interval':iv,
+                        'error':type(exc).__name__, 'detail':str(exc)[:100]})
+                    if isinstance(exc, HTTPError) and exc.code == 400:
+                        rejected.add(sym)
+                        continue
+                    return False
+                stop.wait(0.4)
+        return True
+
+    symbols = requested_symbols(analyst)[:90]
+    log('FUTURES_HISTORY_PREWARM', {'requested':len(symbols), 'priority_symbols':symbols[:60]})
+    for iv in ('30m', '1h', '4h'):
+        for sym in symbols:
+            if time.monotonic() - last_admission >= 20:
+                if not batch(requested_symbols(analyst)[:90], ADMISSION_INTERVALS, follow_requests=True):
+                    return True
+                last_admission = time.monotonic()
+            if not batch([sym], [iv]): return True
+    return failed
 
 
 def validated_rows(payload, symbol, interval, now_ms=None):
@@ -75,11 +144,18 @@ def main():
     db = os.path.join(root,'binance_futures_kline_shadow.db')
     analyst = os.getenv('LS_ANALYST_DB') or os.path.join(root,'long_short_analyst.db')
     os.makedirs(root,exist_ok=True)
+    initialize(db).close()
     stop = threading.Event()
     for sig in (signal.SIGINT,signal.SIGTERM):
         signal.signal(sig,lambda *_:stop.set())
     log('FUTURES_HISTORY_WORKER_STARTED',{'source':REST_SOURCE})
     while not stop.is_set():
+        if os.getenv('LS_NATIVE_CHAIN_V2','0') == '1':
+            failed = priority_pass(db, base, analyst, stop)
+            delay = 60 if failed else 15
+            log('FUTURES_HISTORY_PASS_FINISHED', {'mode':'prewarm_priority', 'retry_seconds':delay})
+            stop.wait(delay)
+            continue
         symbols = requested_symbols(analyst)[:90]
         failed = False
         rejected_symbols = set()
@@ -90,14 +166,6 @@ def main():
                 if symbol in rejected_symbols:
                     continue
                 try:
-                    if os.getenv('LS_NATIVE_CHAIN_V2','0')=='1':
-                        from long_short_data_health import interval_status
-                        from long_short_futures_kline_shadow import connect
-                        c=connect(db,timeout=5)
-                        try:status=interval_status(c,symbol,interval,int(time.time()*1000),
-                            required=None)
-                        finally:c.close()
-                        if status['ready']:continue
                     repair(db,base,symbol,interval)
                 except Exception as exc:
                     failed = True
@@ -116,7 +184,7 @@ def main():
             else:
                 continue
             break
-        delay = 60 if failed else (15 if os.getenv('LS_NATIVE_CHAIN_V2','0')=='1' else 900)
+        delay = 60 if failed else 900
         log('FUTURES_HISTORY_PASS_FINISHED',{'symbols':len(symbols),'retry_seconds':delay})
         stop.wait(delay)
     return 0
