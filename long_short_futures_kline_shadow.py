@@ -241,6 +241,8 @@ def continuous_main():
     import queue
     pending_backfills = queue.Queue(maxsize=60)
     scheduled_backfills = set()
+    completed_backfills = {}
+    retry_seconds = 6 * 3600
     def archive_worker():
         while not stop.is_set():
             try:
@@ -249,10 +251,12 @@ def continuous_main():
                 continue
             try:
                 backfill_binance_archive(db, [symbol])
+                completed_backfills[symbol] = time.monotonic()
                 print("FUTURES_KLINE_BACKFILL_FINISHED " + symbol, flush=True)
             except Exception as exc:
                 print("FUTURES_KLINE_BACKFILL_ERROR " + symbol + " " + type(exc).__name__, flush=True)
             finally:
+                scheduled_backfills.discard(symbol)
                 pending_backfills.task_done()
     threading.Thread(target=archive_worker, name="futures-archive-backfill", daemon=True).start()
     while not stop.is_set():
@@ -274,7 +278,8 @@ def continuous_main():
                 raise RuntimeError("DATA_NOT_READY: no analyst universe")
             # The analyst universe changes. A single startup backfill leaves
             # newly selected symbols without enough history indefinitely.
-            missing = [sym for sym in symbols if sym not in scheduled_backfills]
+            missing = [sym for sym in symbols if sym not in scheduled_backfills
+                       and time.monotonic() - completed_backfills.get(sym, -1e12) >= retry_seconds]
             if missing:
                 print("FUTURES_KLINE_NEW_SYMBOL_BACKFILL " +
                       json.dumps({"symbols":missing}), flush=True)
