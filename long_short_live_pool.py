@@ -1307,15 +1307,15 @@ def _telegram_data_brief(row, structure_quality=None):
         except (TypeError, ValueError, OverflowError):
             return "veri yok"
     direction=str(row["direction"])
-    return ("📊 KISA VERİ ÖZETİ\\n"
-            f"• Grafik seviyesi: {fmtp(row['trigger_level'])} ({'direnç' if direction=='LONG' else 'destek'})\\n"
-            f"• Hacim / normal: {metric('volume_mult','x')}\\n"
-            f"• Mum gövdesi: {metric('body_ratio')} | Kapanış konumu: {metric('close_location')}\\n"
-            f"• Sahte kırılım: {'grafik filtresi geçti' if sq.get('qualified') else 'henüz teyit yok'}\\n"
-            "• EMA / RSI: bu bildirimde doğrulanmadı\\n"
-            "• OI / Funding: bu bildirimde doğrulanmadı\\n"
-            "• Taker / Long-Short oranı: bu bildirimde doğrulanmadı\\n"
-            "• BTC yönü: bu bildirimde doğrulanmadı\\n")
+    return ("📊 KISA VERİ ÖZETİ\n"
+            f"• Grafik seviyesi: {fmtp(row['trigger_level'])} ({'direnç' if direction=='LONG' else 'destek'})\n"
+            f"• Hacim / normal: {metric('volume_mult','x')}\n"
+            f"• Mum gövdesi: {metric('body_ratio')} | Kapanış konumu: {metric('close_location')}\n"
+            f"• Sahte kırılım: {'grafik filtresi geçti' if sq.get('qualified') else 'henüz teyit yok'}\n"
+            "• EMA / RSI: bu bildirimde doğrulanmadı\n"
+            "• OI / Funding: bu bildirimde doğrulanmadı\n"
+            "• Taker / Long-Short oranı: bu bildirimde doğrulanmadı\n"
+            "• BTC yönü: bu bildirimde doğrulanmadı\n")
 
 def queue_approaching_alert(row,price,structure_quality=None):
     """Queue one non-actionable watch message when price first approaches the trigger.
