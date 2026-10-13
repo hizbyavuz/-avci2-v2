@@ -274,15 +274,19 @@ def format_update(item,now_ms):
             'BROKEN':'KIRILIM BOZULDU','CHASE':'GEÇ / KOVALAMA','EXPIRED':'İZLEME SÜRESİ DOLDU'}
     title=states.get(item['state'],'TEYİT BEKLİYOR')
     icon='🟢' if d=='LONG' else '🔴'
+    from long_short_display import analysis_fields,analysis_line,local_time
+    analyst_db=os.getenv('LS_ANALYST_DB') or os.getenv('LS_DB') or os.path.join(
+        os.getenv('LS_STATE_DIR') or os.getenv('RAILWAY_VOLUME_MOUNT_PATH') or '.long-short-state',
+        'long_short_analyst.db')
+    values=analysis_line(analysis_fields(item['symbol'],analyst_db))
     lines=[f'{icon} {d} | {item["symbol"]} — {title}',
-           f'Son ölçülen fiyat: {f["price"]:.8g}',f'Kırılım seviyesi: {level:.8g}',
-           f'İlk erken uyarı: {item["early_price"]:.8g} | {datetime.fromtimestamp(item["early_ms"]/1000,timezone.utc).astimezone(__import__("zoneinfo").ZoneInfo("Europe/Istanbul")).strftime("%H:%M:%S")}',
-           f'Hacim: normalin {f["volume_mult"]:.2f} katı (kapanmış 1 dk mum)',
-           f'Alış payı: %{f["taker_buy_share"]*100:.0f} | Kısa yön: {"yukarı" if f["ema7_slope_pct"]>0 else "aşağı"}']
+           f'Son ölçülen fiyat: {f["price"]:.8g} | Kırılım: {level:.8g}',
+           f'İlk erken uyarı: {item["early_price"]:.8g} | {local_time(stamp(item["early_ms"]))}',
+           f'📊 Kısa yön: {"yukarı" if f["ema7_slope_pct"]>0 else "aşağı"} | Hacim 1 dk: {f["volume_mult"]:.2f}× | Alış payı: %{f["taker_buy_share"]*100:.0f} | {values}']
     if item['state']=='EARLY':
         lines.append(f'Beklenen: 5 dk mum {level:.8g} {side} kapanmalı, ardından seviyeyi korumalı.')
     elif item['state']=='CONFIRMED':
-        lines.append('Kapanış teyidi oluştu; ana motorun yapı, türev ve risk/ödül onayı ayrıca bekleniyor.')
+        lines.append('Kapanış teyidi oluştu; ana motorun giriş onayı ayrıca bekleniyor.')
     elif item['state']=='BROKEN':
         lines.append('İlk kırılım korunamadı; bu erken fikir artık geçerli değil.')
     elif item['state']=='CHASE':

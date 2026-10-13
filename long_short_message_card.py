@@ -37,33 +37,58 @@ def connect():
 
 
 def render(sections):
-    # The original core message is preserved verbatim; it alone may claim a
-    # trade signal. The early observer never appends invented SL/TP values.
-    core = sections.get('CORE')
-    early = sections.get('EARLY')
-    parts = []
+    """One header, one evidence line and one risk line; decisions stay explicit."""
+    from long_short_display import local_time
+    core,early=sections.get('CORE'),sections.get('EARLY')
+    parts=[]; evidence={}; risks=[]
+    def collect(text):
+        body=[]
+        for line in text.splitlines():
+            line=line.strip()
+            if not line:continue
+            if line.startswith(('📊','•','Tip:','Veri:')):
+                clean=line.removeprefix('📊').removeprefix('•').strip()
+                if clean=='KISA VERİ ÖZETİ':continue
+                clean=clean.replace('Veri:','Kaynak:',1)
+                for field in clean.split(' | '):
+                    key=field.split(':',1)[0].strip()
+                    evidence[key]=field.strip()
+            elif line.startswith(('🛡️','🎯')):
+                risks.append(line.replace('SL:','Stop:').replace('TP1:','Hedef 1:').replace('TP2:','Hedef 2:'))
+            else:
+                body.append(line)
+        return body
+    core_body=collect(core['text']) if core else []
+    early_body=collect(early['text']) if early else []
     opposite=bool(core and early and core['direction']!=early['direction'])
     if opposite:
-        match=re.search(r'\|\s*([A-Z0-9]+USDT)\b',core['text'].splitlines()[0])
+        match=re.search(r'\|\s*([^\W_]+USDT)\b',core['text'].splitlines()[0])
         symbol=match.group(1) if match else ''
         parts.append(f'⚪ YÖNLER FARKLI | {symbol}\nAna motor: {core["direction"]} | Erken gözlem: {early["direction"]}\nKarşı yöndeki gözlem yeni işlem teyidi değildir.')
     if core:
-        parts.append(core['text'] + '\nAna motor mesaj zamanı: ' + core['observed_at'])
-    if early:
-        label = ('KARŞI YÖNDE KIRILIM GÖZLEMİ — GİRİŞ TEYİDİ DEĞİL' if opposite else
-                 'KIRILIM TAKİBİ — GİRİŞ TEYİDİ DEĞİL' if core else '')
-        parts.append((label + '\n' if label else '') + early['text'])
-    text = '\n\n'.join(parts)
-    if len(text) > 4096:
-        # Keep the core decision intact, trim only the observational section.
-        text = text[:4093] + '…'
-    return text
+        parts.extend(core_body)
+        if early:
+            if early_body:
+                header=early_body[0]
+                state=header.split('—',1)[-1].strip() if '—' in header else header
+                parts.append(('Karşı yöndeki erken takip: ' if opposite else 'Erken takip: ')+state)
+            # Early prices/references are distinct from the core's locked plan.
+            parts.extend(line for line in early_body[1:]
+                         if line.startswith(('İlk erken uyarı:','Son ölçülen fiyat:')))
+    elif early:
+        parts.extend(early_body)
+    if evidence:parts.append('📊 '+' | '.join(evidence.values()))
+    if risks:parts.append(' | '.join(dict.fromkeys(risks)))
+    if core and 'Analiz' not in evidence:
+        parts.append('Ana motor mesajı: '+local_time(core['observed_at']))
+    text='\n'.join(parts)
+    return text if len(text)<=4096 else text[:4093]+'…'
 
 
 def publish(token, chat, symbol, source, text, direction, *, observed_at=None, post=None):
     if source not in ('CORE','EARLY') or direction not in ('LONG','SHORT'):
         raise ValueError('invalid message card source/direction')
-    if not token or not chat or not re.fullmatch(r'[A-Z0-9]+USDT', symbol):
+    if not token or not chat or not re.fullmatch(r'[^\W_]+USDT', symbol):
         raise ValueError('verified Telegram destination and symbol required')
     expected = os.getenv('LS_TELEGRAM_EXPECTED_CHAT_ID','').strip()
     if expected and str(chat) != expected:
@@ -88,7 +113,7 @@ def publish(token, chat, symbol, source, text, direction, *, observed_at=None, p
             old_header=previous['text'].splitlines()[0]
             new_header=text.splitlines()[0]
             old_trade=('SİNYALİ' in old_header or 'İŞLEM' in old_header)
-            new_watch=('İÇİN İZLE' in new_header)
+            new_watch=('İÇİN İZLE' in new_header or 'RADAR' in new_header)
             age=now-datetime.fromisoformat(previous['observed_at'].replace('Z','+00:00')).timestamp()
             if old_trade and new_watch and age<600:
                 c.rollback()
@@ -171,10 +196,14 @@ def publish(token, chat, symbol, source, text, direction, *, observed_at=None, p
 
 def route_core_message(token, chat, text):
     header = text.splitlines()[0] if text else ''
-    match = re.search(r'\|\s*([A-Z0-9]+USDT)\b',header)
-    if not match or not re.search(r'\b(LONG|SHORT)\b',header):
+    match = re.search(r'\|\s*([^\W_]+USDT)\b',header)
+    if not match or not re.search(r'\b(LONG|SHORT)\b',text):
         return False  # startup/health/smoke messages keep their existing path
-    direction = 'LONG' if re.search(r'\bLONG\b',header) else 'SHORT'
+    direction = 'LONG' if re.search(r'\bLONG\b',header or '') else 'SHORT'
+    if not re.search(r'\b(LONG|SHORT)\b',header):
+        side=re.search(r'Yön eğilimi:.*?\b(LONG|SHORT)\b',text)
+        if not side:return False
+        direction=side.group(1)
     result = publish(token,chat,match.group(1),'CORE',text,direction)
     if result['status'] not in ('ACK','UNCHANGED'):
         raise RuntimeError('MESSAGE_CARD_NOT_DELIVERED')

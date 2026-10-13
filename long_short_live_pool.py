@@ -1462,42 +1462,9 @@ def early_message(row,estate,price,metrics):
     return None
 
 def _telegram_analysis_brief(symbol):
-    """Read-only display of the latest recorded analysis, never a trade gate."""
-    try:
-        with sqlite3.connect(f"file:{ANALYST_DB}?mode=ro", uri=True, timeout=2) as con:
-            record=con.execute("SELECT scan_time_utc,payload_json FROM analyses WHERE symbol=? ORDER BY scan_time_utc DESC LIMIT 1",(symbol,)).fetchone()
-        if not record:
-            return "• Ayrıntılı analiz kaydı bulunamadı; veri teyidi gösterilemiyor.\n"
-        stamp=datetime.fromisoformat(record[0]).astimezone(timezone.utc)
-        age=(datetime.now(timezone.utc)-stamp).total_seconds()
-        if age < -2 or age > 600:
-            return "• Son ayrıntılı analiz eski; güncel veri teyidi gösterilemiyor.\n"
-        p=json.loads(record[1] or "{}")
-        def value(v, suffix="", precision=2):
-            try:
-                n=float(v)
-                return f"{n:.{precision}f}{suffix}" if math.isfinite(n) and not isinstance(v,bool) else "kayıtta yok"
-            except (TypeError,ValueError,OverflowError):
-                return "kayıtta yok"
-        t=p.get('t15') or {}
-        evidence=p.get('native_derivative_evidence') or {}
-        oi=p.get('oi') or {}
-        try:
-            trend='yukarı' if float(t['price'])>float(t['ema20'])>float(t['ema50']) else ('aşağı' if float(t['price'])<float(t['ema20'])<float(t['ema50']) else 'karışık')
-        except (KeyError,TypeError,ValueError):
-            trend='kayıtta yok'
-        regime={'UP':'yukarı','DOWN':'aşağı','RANGE':'yatay'}.get(p.get('market_regime'),'kayıtta yok')
-        # A recorded analysis is not a new current four-factor authorization.
-        label='4/4 kayıtlı' if evidence.get('ready') else 'tamlık teyidi kayıtlı değil'
-        return (f"• Son analiz: {(stamp+timedelta(hours=3)).strftime('%H:%M')} Türkiye saati — giriş teyidi değildir.\n"
-                f"• 15 dk trend: {trend} | RSI (hareket gücü): {value(t.get('rsi'),precision=0)}\n"
-                f"• OI (açık pozisyon), 1 saat: {value(oi.get('oi_change_1h'),'%')}\n"
-                f"• Funding (dönemsel ödeme): {value(p.get('funding_pct'),'%',precision=4)}\n"
-                f"• Alış/satış işlem hacmi oranı: {value(p.get('taker_ratio'))}x\n"
-                f"• LONG/SHORT hesap sayısı oranı: {value(p.get('long_short_ratio'))}x\n"
-                f"• BTC yönü: {regime} | Türev veri: {label}\n")
-    except (sqlite3.Error,OSError,ValueError,TypeError):
-        return "• Ayrıntılı analiz kaydı okunamadı; veri teyidi gösterilemiyor.\n"
+    """One plain display line from the latest fresh recorded analysis."""
+    from long_short_display import analysis_fields, analysis_line
+    return analysis_line(analysis_fields(symbol,ANALYST_DB))
 
 
 def _telegram_data_brief(row, structure_quality=None):
@@ -1514,11 +1481,12 @@ def _telegram_data_brief(row, structure_quality=None):
         volume_text=f"normalin %{volume:.0f}" if math.isfinite(volume) else 'kayıtta yok'
     except (KeyError,TypeError,ValueError,OverflowError):
         volume_text='kayıtta yok'
-    return ("📊 KISA VERİ ÖZETİ\n"
-            f"• Grafik seviyesi: {fmtp(row['trigger_level'])} ({'direnç' if direction=='LONG' else 'destek'})\n"
-            f"• Hacim: {volume_text}\n"
-            f"• Grafik teyidi: {'filtre geçti' if sq.get('qualified') else 'henüz tamamlanmadı'}\n"
-            + _telegram_analysis_brief(str(row['symbol'])))
+    graph=(f"Grafik: {'uygun' if sq.get('qualified') else 'teyit bekliyor'} | "
+           if 'qualified' in sq else '')
+    return (f"📊 Seviye: {fmtp(row['trigger_level'])} | Hacim 5 dk: {volume_text} | "
+            + graph
+            + _telegram_analysis_brief(str(row['symbol'])) + "\n")
+
 
 def queue_approaching_alert(row,price,structure_quality=None):
     """Queue one non-actionable watch message when price first approaches the trigger.
@@ -1548,8 +1516,8 @@ def queue_approaching_alert(row,price,structure_quality=None):
              f"24s hareket: %{day_change:+.1f} | Yön eğilimi: {side_ball} {d}\n"
              f"5 dk izleme seviyesi: {fmtp(level)} | Şu an: {fmtp(price)}\n"
              f"{data_line}\n"
-             "Durum: V3 hard-gate şartları tamamlanmadı; bu bir işlem teyidi değildir.\n"
-             "Güvenlik filtresi ve normal LONG/SHORT teyidi aynen korunuyor.")
+             "Durum: Ön izleme; giriş koşulları henüz tamamlanmadı.\n"
+             "Henüz işlem sinyali değil.")
         payload={
             "stage":"RADAR_ALERT",
             "radar_only":True,
@@ -1569,14 +1537,14 @@ def queue_approaching_alert(row,price,structure_quality=None):
                  f"{fmtp(level)} altı kapanış → ardından seviyenin altında kalması.")
     sq=structure_quality or {}
     full_gate=bool(sq.get("qualified"))
-    status_line=("Yapı + hacim + fake-breakout kapısı geçti."
+    status_line=("Kırılım kontrolü uygun; seviyenin korunması bekleniyor."
                  if full_gate else
-                 "Henüz işlem teyidi değil: grafik yapısı, risk/ödül ve 5 dk kapanış teyidi henüz tamamlanmadı.")
+                 "Henüz işlem teyidi değil; kapanış ve son kontroller bekleniyor.")
     msg=(f"{side_ball} {d} İÇİN İZLE | {sym}\n"
-         f"5 dk mum {fmtp(level)} {relation} kapanırsa {d} güçlenir.\n"
+
          f"Şu an fiyat: {fmtp(price)}\n"
          f"{_telegram_data_brief(row,sq)}"
-         f"Ne bekleniyor? {expectation}\n"
+         f"Beklenen: {expectation}\n"
          f"Durum: 🟡 {status_line}\n"
          f"🛡️ SL: {fmtp(inv)}\n"
          f"🎯 TP1: {fmtp(t1)}\n"
@@ -1631,7 +1599,7 @@ def _has_sent_confirmation_for_this_setup(con,row):
         return False
 
 
-def message_for(row,stage,price,closed):
+def message_for(row,stage,price,closed,structure_quality=None):
     sym=row["symbol"]; d=row["direction"]
     trig=float(row["trigger_level"]); rl=float(row["retest_low"]); rh=float(row["retest_high"])
     inv=float(row["invalidation"] or 0); t1=float(row["target1"] or 0); t2=float(row["target2"] or 0)
@@ -1661,6 +1629,7 @@ def message_for(row,stage,price,closed):
                 f"🛡️ SL: {fmtp(inv)}\n"
                 f"🎯 TP1: {fmtp(t1)}\n"
                 f"🎯 TP2: {fmtp(t2) if t2 > 0 else 'belirlenmedi'}\n"
+                f"{_telegram_data_brief(row,structure_quality)}"
                 f"Tip: {coin_type}\n"
                 f"Veri: {data_note}\n"
                 "⚠️ Analiz uyarısı; otomatik emir açılmadı.")
@@ -1674,36 +1643,24 @@ def message_for(row,stage,price,closed):
         next_step="seviyeyi koruması / retestten güç alması" if d=="LONG" else "seviyenin altında kalması / retestten reddedilmesi"
         return (f"{side_ball} {d} TEYİT GELDİ | {sym}\n"
                 f"Ne oldu? 5 dk mum {fmtp(trig)} seviyesinin {relation} kapandı.\n"
-                "✅ Grafik kontrolü: önemli seviye kırılımı, mum/hacim uyumu ve sahte kırılım elemesi geçti.\n"
+                "Kırılım kontrolü geçti.\n"
                 f"Kapanış: {fmtp(closed)} | Şu an: {fmtp(price)}\n"
-                f"{_telegram_data_brief(row)}"
+                f"{_telegram_data_brief(row,structure_quality)}"
                 f"Sıradaki koşul: fiyatın {next_step}.\n"
                 f"🛡️ SL: {fmtp(inv)}\n"
                 f"🎯 TP1: {fmtp(t1)}\n"
                 f"🎯 TP2: {fmtp(t2) if t2 > 0 else 'belirlenmedi'}\n"
-                "⛔ ŞİMDİ İŞLEM AÇMA: Bu sadece ilk grafik teyidi; henüz işlem sinyali değil. Güncel vadeli veri ve diğer işlem koşulları ayrıca doğrulanmalı.")
+                "Bu kapanış teyidi; henüz işlem sinyali değil. Seviyenin korunması ve son kontroller bekleniyor.")
 
     if stage=="RETESTING":
         # Retest itself is recorded but not messaged; the next actionable state
         # is TRIGGERED or INVALIDATED.
         return None
 
-    if stage=="TRIGGERED":
-        data_mode=(row["data_mode"] or "UNKNOWN") if "data_mode" in row.keys() else "UNKNOWN"
-        warn="" if data_mode=="BINANCE_FUTURES" else "\nℹ️ Binance native Futures akışı yok; spot grafik + çoklu-venue türev teyidi kullanılıyor."
-        return (f"➡️ DEVAM MOTORU\n"
-                f"{coin} — {side_word} ŞARTLARI TAMAM\n"
-                f"{side_ball} {d} DEĞERLENDİRİLEBİLİR{warn}\n"
-                f"✅ Destek/direnç bölgesi + hacim/mum uyumu + fake breakout filtresi geçti.\n"
-                f"Fiyat: {fmtp(price)}\n"
-                f"🛡️ SL: {fmtp(inv)}\n"
-                f"🎯 TP1: {fmtp(t1)}\n"
-                f"🎯 TP2: {fmtp(t2) if t2 > 0 else 'belirlenmedi'}")
-
     if stage=="INVALIDATED":
-        return (f"➡️ DEVAM MOTORU\n"
-                f"⚪ {sym} — ESKİ {side_word} FİKRİ İPTAL\n"
-                f"Bu setup artık kullanılmamalı.")
+        return (f"{side_ball} {d} BOZULDU | {sym}\n"
+                "Önceki işlem fikri geçersizleşti.\n"
+                f"{_telegram_data_brief(row,structure_quality)}")
 
     return None
 
@@ -2271,7 +2228,7 @@ def loop_once():
                         # completed candle close. For intrabar states, first observation
                         # is the most honest timestamp available without websocket trades.
                         condition_time = closed_candle_time if new=="CLOSE_CONFIRMED" else observed_time
-                        msg=message_for(row,new,price,closed)
+                        msg=message_for(row,new,price,closed,structure_quality)
                         # A 5m confirmation that reaches the user's phone 3-4
                         # minutes after its CLOSED candle is stale research, not
                         # an actionable alert. Do not erase the V3.1 stage or
@@ -2299,7 +2256,8 @@ def loop_once():
                             fresh=con.execute("SELECT early_signal_price,early_signal_time,direction FROM watch_state WHERE symbol=?",(row["symbol"],)).fetchone()
                             if fresh and fresh[0] is not None:
                                 ep=float(fresh[0]); et=fresh[1]
-                                gain=((price/ep-1.0)*100.0) if fresh[2]=="LONG" else ((ep/price-1.0)*100.0)
+                                from long_short_display import signed_return_pct
+                                gain=signed_return_pct(fresh[2],ep,price)
                                 try:
                                     dt=(datetime.fromisoformat(observed_time)-datetime.fromisoformat(et)).total_seconds() if et else None
                                 except Exception:
