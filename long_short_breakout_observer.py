@@ -268,35 +268,49 @@ def observe(conn,symbol,snapshot,now_ms,cfg=CONFIG):
 
 
 def format_update(item,now_ms):
+    """Explain the next action without changing detection or confirmation rules."""
     d=item['direction']; f=item['features']; level=f['level']
+    state=item['state']; symbol=item['symbol']
     side='üstünde' if d=='LONG' else 'altında'
-    states={'EARLY':'ERKEN KIRILIM','CONFIRMED':'5 DK KAPANIŞ TEYİDİ',
-            'BROKEN':'KIRILIM BOZULDU','CHASE':'GEÇ / KOVALAMA','EXPIRED':'İZLEME SÜRESİ DOLDU'}
-    title=states.get(item['state'],'TEYİT BEKLİYOR')
     icon='🟢' if d=='LONG' else '🔴'
     from long_short_display import analysis_fields,analysis_line,local_time
     analyst_db=os.getenv('LS_ANALYST_DB') or os.getenv('LS_DB') or os.path.join(
         os.getenv('LS_STATE_DIR') or os.getenv('RAILWAY_VOLUME_MOUNT_PATH') or '.long-short-state',
         'long_short_analyst.db')
-    values=analysis_line(analysis_fields(item['symbol'],analyst_db))
-    lines=[f'{icon} {d} | {item["symbol"]} — {title}',
-           f'Son ölçülen fiyat: {f["price"]:.8g} | Kırılım: {level:.8g}',
-           f'İlk erken uyarı: {item["early_price"]:.8g} | {local_time(stamp(item["early_ms"]))}',
-           f'📊 Kısa yön: {"yukarı" if f["ema7_slope_pct"]>0 else "aşağı"} | Hacim 1 dk: {f["volume_mult"]:.2f}× | Alış payı: %{f["taker_buy_share"]*100:.0f} | {values}']
-    if item['state']=='EARLY':
-        lines.append(f'Beklenen: 5 dk mum {level:.8g} {side} kapanmalı, ardından seviyeyi korumalı.')
-    elif item['state']=='CONFIRMED':
-        lines.append('Kapanış teyidi oluştu; ana motorun giriş onayı ayrıca bekleniyor.')
-    elif item['state']=='BROKEN':
-        lines.append('İlk kırılım korunamadı; bu erken fikir artık geçerli değil.')
-    elif item['state']=='CHASE':
-        lines.append('Hareket uzadı veya sonraki seviyeye alan daraldı; erken fırsat sınıfından çıktı.')
+    evidence=analysis_line(analysis_fields(symbol,analyst_db))
+    price=f['price']
+    if state=='EARLY':
+        title=f'{d} İÇİN İZLE'
+        decision=(f'{d} ne zaman düşünülür? 5 dk mum {level:.8g} {side} kapanır, '
+                  f'fiyat bu seviyeyi korur ve diğer giriş kontrolleri tamamlanırsa.')
+        status='Şimdi işlem açma: Erken hareket görüldü, giriş teyidi henüz yok.'
+    elif state=='CONFIRMED':
+        title=f'{d} KAPANIŞ TEYİDİ'
+        decision=(f'5 dk mum {level:.8g} {side} kapandı. '
+                  'Şimdi seviyenin korunması ve ana motorun giriş onayı bekleniyor.')
+        status='Henüz kesin işlem giriş sinyali değil.'
+    elif state=='BROKEN':
+        title=f'{d} FİKRİ BOZULDU'
+        decision=('İlk kırılım korunamadı. Eski giriş seviyesi artık tek başına '
+                  'işlem gerekçesi değil; yeni bir hazırlık ve yeni teyit bekleniyor.')
+        status=f'Şimdi {d} açma: Bu erken fikir iptal edildi.'
+    elif state=='CHASE':
+        title=f'{d} İÇİN GEÇ / KOVALAMA'
+        decision=('Hareket uzadı veya güvenli giriş alanı daraldı. '
+                  'Yeni uygun giriş alanı ve yeni teyit oluşursa tekrar değerlendirilecek.')
+        status=f'Şimdi {d} açma: Eski kırılım seviyesi yeni giriş onayı değildir.'
     else:
-        lines.append('Bu gözlem kapandı; yeni hazırlık bekleniyor.')
-    lines.append('Erken kırılım gözlemi; işlem giriş teyidi değildir.')
-    lines.append('Güncelleme: '+datetime.fromtimestamp(now_ms/1000,timezone.utc).astimezone(__import__('zoneinfo').ZoneInfo('Europe/Istanbul')).strftime('%H:%M:%S'))
+        title=f'{d} İZLEME KAPANDI'
+        decision='Bu gözlem sona erdi; yeni hazırlık ve yeni teyit bekleniyor.'
+        status='Şimdi işlem açma: Güncel giriş onayı yok.'
+    lines=[f'{icon} {title} | {symbol}',
+           f'Şu an fiyat: {price:.8g} | İzlenen seviye: {level:.8g}',
+           decision,status,
+           f'İlk gözlem: {item["early_price"]:.8g} | {local_time(stamp(item["early_ms"]))}',
+           f'📊 Kısa yön: {"yukarı" if f["ema7_slope_pct"]>0 else "aşağı"} | Hacim: {f["volume_mult"]:.2f}× | Alış payı: %{f["taker_buy_share"]*100:.0f} | {evidence}',
+           'Bu bir erken gözlem mesajıdır; onaylı işlem girişi değildir.',
+           'Güncelleme: '+datetime.fromtimestamp(now_ms/1000,timezone.utc).astimezone(__import__('zoneinfo').ZoneInfo('Europe/Istanbul')).strftime('%H:%M:%S')]
     return '\n'.join(lines)
-
 
 def label_outcomes(state,candles,now_ms,cfg=CONFIG):
     """Post-observation 1m paths only; raw outcomes, never simulated trade PnL.
