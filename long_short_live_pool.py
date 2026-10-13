@@ -1343,7 +1343,7 @@ def queue_approaching_alert(row,price,structure_quality=None):
     full_gate=bool(sq.get("qualified"))
     status_line=("Yapı + hacim + fake-breakout kapısı geçti."
                  if full_gate else
-                 "Sadece izleme: grafik yapısı, risk/ödül ve 5 dk kapanış teyidi henüz tamamlanmadı.")
+                 "Henüz işlem teyidi değil: grafik yapısı, risk/ödül ve 5 dk kapanış teyidi henüz tamamlanmadı.")
     msg=(f"{side_ball} {d} İÇİN İZLE | {sym}\n"
          f"5 dk mum {fmtp(level)} {relation} kapanırsa {d} güçlenir.\n"
          f"Şu an fiyat: {fmtp(price)}\n"
