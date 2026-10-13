@@ -344,6 +344,11 @@ def label_outcomes(state,candles,now_ms,cfg=CONFIG):
 
 
 def deliver_pending(state,token,chat,now_ms,publisher=None):
+    if os.getenv('LS_TELEGRAM_TRADE_ONLY','0').lower() in ('1','true','yes','on'):
+        state.execute("""UPDATE transitions SET delivery_status='SILENT_POLICY'
+            WHERE delivery_status='PENDING' OR delivery_status LIKE 'FAILED:%'""")
+        state.commit()
+        return  # observation/outcome tracking continues; no user notifications
     from long_short_message_card import publish
     publisher=publisher or publish
     # At most three distinct coins per poll; state updates edit existing cards.
