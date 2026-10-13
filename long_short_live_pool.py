@@ -505,6 +505,8 @@ def load_watchlist():
         for r in rows:
             try:
                 p=json.loads(r["payload_json"] or "{}")
+                if p.get('partial_research_only'):
+                    continue
                 if native_v2_enabled() and not p.get('native_chain_v2'):
                     continue
                 plan=p.get("setup_plan") or {}

@@ -1,0 +1,22 @@
+{
+  "version": "LS_DATA_OPPORTUNITY_V2_2026-10-13",
+  "mode": "RESEARCH_ONLY_NO_TELEGRAM_NO_ORDERS",
+  "production_four_factor_gate": "unchanged",
+  "partial_model": "same_weighted_direction_scores_available_verified_factors_only",
+  "partial_admission": "exactly_three_verified_native_factors_with_verified_contract",
+  "missing_factor": "omitted_no_fabricated_value_no_trade_permission",
+  "qualification": "direction_and_structure_precheck_not_entry_confirmation",
+  "reference_price": "native_futures_websocket_max_age_30_seconds",
+  "horizons_minutes": [15, 30, 60, 180],
+  "reach_thresholds_pct": [3, 5, 7, 10, 15],
+  "forward_scope": "gross_price_observations_not_executable_net_pnl",
+  "first_bar": "next_full_minute_after_observation",
+  "missing_path": "explicit_unresolved_preserved_and_retried",
+  "cohorts": ["DATA_BLOCKED", "PARTIAL_3_OF_4", "FULL_4_OF_4"],
+  "controls": "observed_full_data_cohort_with_regime_and_liquidity_metadata_not_randomized",
+  "recovery_time": "first_subsequent_successful_full_analysis_observed_duration",
+  "research_feed_retention_minutes": 185,
+  "research_retention_symbol_cap": 60,
+  "total_native_feed_symbol_cap": 90,
+  "repair": "15_second_health_checks_only_unhealthy_intervals_fetched_60_second_failure_backoff"
+}

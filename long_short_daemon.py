@@ -492,6 +492,10 @@ def main() -> int:
                          name="binance-derivative-coverage",daemon=True).start()
 
     if os.getenv('LS_NATIVE_CHAIN_V2','0')=='1':
+        if os.getenv('LS_DATA_OPPORTUNITY_V2','0')=='1':
+            threading.Thread(target=watcher_loop,
+                args=('data_opportunity_research','long_short_data_opportunity_v2.py'),
+                name='data-opportunity-research-v2',daemon=True).start()
         threading.Thread(target=watcher_loop,
             args=('binance_native_derivatives','long_short_native_derivatives.py'),
             name='native-derivatives-v2',daemon=True).start()

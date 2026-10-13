@@ -1694,7 +1694,7 @@ class Analysis:
     payload: dict[str,Any]
 
 
-def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
+def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None, *, _partial_research=False, _research_evidence=None):
     t1=timeframe_features(fetch_klines(symbol,"1m",120))
     if pre:
         k5=pre["k5"]; t5=pre["t5"]; k15=pre["k15"]; t15=pre["t15"]
@@ -1711,11 +1711,27 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
     htf_gate=build_htf_gate(symbol,t4h)
     if native_v2_enabled():
         from long_short_native_derivatives import evidence as native_evidence
-        evidence=native_evidence(symbol)
+        evidence=dict(_research_evidence) if _partial_research else native_evidence(symbol)
         if not evidence['ready']:
-            raise RuntimeError('NATIVE_CHAIN_V2: derivative evidence incomplete for '+symbol+': '+','.join(evidence['missing'])+'; '+str(evidence.get('error') or ''))
-        oi_raw={'oi_change_1h':evidence['oi_change_1h'],'oi_now':evidence['oi_now']}
-        funding_raw=evidence['funding_pct'];taker_raw=evidence['taker_ratio'];ls_raw=evidence['long_short_ratio']
+            if not _partial_research and os.getenv('LS_DATA_OPPORTUNITY_V2','0')=='1':
+                try:
+                    from long_short_data_opportunity_v2 import blocked,partial_fields,record_analysis
+                    blocked(symbol,','.join(evidence['missing']))
+                    if partial_fields(evidence):
+                        research=score_symbol(symbol,market_regime,day_change_pct,pre,
+                            _partial_research=True,_research_evidence=evidence)
+                        record_analysis(research,partial=True)
+                except Exception as research_error:
+                    print('V2_PARTIAL_RESEARCH_ERROR',symbol,type(research_error).__name__,str(research_error)[:120],flush=True)
+            if not _partial_research:
+                raise RuntimeError('NATIVE_CHAIN_V2: derivative evidence incomplete for '+symbol+': '+','.join(evidence['missing'])+'; '+str(evidence.get('error') or ''))
+            from long_short_data_opportunity_v2 import partial_fields
+            missing=partial_fields(evidence)
+            if not missing:raise ValueError('partial research requires exactly three verified native fields')
+            # Stale/missing fields contribute nothing. Preserve None provenance.
+            for field in missing:evidence[field]=None
+        oi_raw={'oi_change_1h':evidence.get('oi_change_1h'),'oi_now':evidence.get('oi_now')}
+        funding_raw=evidence.get('funding_pct');taker_raw=evidence.get('taker_ratio');ls_raw=evidence.get('long_short_ratio')
     elif os.getenv("LS_BINANCE_FUTURES_ONLY", "0") == "1":
         from long_short_coinalyze_adapter import snapshot as coinalyze_binance_snapshot
         from long_short_coinalyze_funding_probe import funding_snapshot as coinalyze_binance_funding
@@ -1890,7 +1906,7 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
             )
 
     _l0,_s0=long,short
-    if deriv_ready:
+    if deriv_ready or _partial_research:
         oic=oi["oi_change_1h"]
         if price1h>0 and oic>1.5:
             long+=8; reasons.append(f"Fiyat↑ + OI↑ ({oic:+.1f}%): yeni kaldıraçlı talep")
@@ -2052,8 +2068,9 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
     # The legacy V3 shadow gate is NOT the production veto. Keep its audit
     # distinct to avoid diagnosing spot-flow shadow disagreements as live blocks.
     try:
-        from long_short_gate_audit import record_setup_gates
-        record_setup_gates(symbol, v3_hard_gate_shadow)
+        if not _partial_research:
+            from long_short_gate_audit import record_setup_gates
+            record_setup_gates(symbol, v3_hard_gate_shadow)
     except Exception as exc:
         print('SIGNAL_GATE_AUDIT_IMPORT_ERROR', type(exc).__name__, str(exc)[:120], flush=True)
 
@@ -2068,7 +2085,7 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
         phase=str(v3_hard_gate_shadow.get("phase") or "NONE"),
     )
 
-    print("PRODUCTION_DIRECTION_AUDIT",json.dumps({
+    print("V2_PARTIAL_DIRECTION_RESEARCH" if _partial_research else "PRODUCTION_DIRECTION_AUDIT",json.dumps({
         "symbol":symbol,"direction":v3.get("direction"),
         "eligible":v3.get("eligible"),"hard_blockers":v3.get("hard_blockers"),
         "decision_reasons":v3.get("decision_reasons"),
@@ -2159,7 +2176,7 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
     reversal_plan=build_reversal_plan(price,k5,t5,t15,day_change_pct)
     payload={
         "version":("LS_NATIVE_CHAIN_V2_2026-10-13" if native_v2_enabled() else VERSION),"frozen_config_hash":FROZEN_CONFIG_HASH,"data_mode":DATA_MODE,"market_regime":market_regime,
-        "native_chain_v2":native_v2_enabled(),
+        "native_chain_v2":native_v2_enabled(),"partial_research_only":_partial_research,
         "native_derivative_evidence":evidence if native_v2_enabled() else None,
         "day_change_pct":day_change_pct,"quote_volume_24h":pre_qv,"actionable_liquidity_ok":actionable_liquidity_ok,
         "discovery_meta":discovery_meta,
@@ -2171,8 +2188,8 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
         "v32_dual_sides":v32_dual_sides,
         "live_alert_version":STRUCTURE_GATE_VERSION,
         "t1":t1,"t5":t5,"t15":t15,"t1h":t1h,"t4h":t4h,
-        "oi":oi,"funding_pct":funding,"taker_ratio":taker,
-        "long_short_ratio":ls,"depth_imbalance":depth,
+        "oi":oi_raw if _partial_research else oi,"funding_pct":funding_raw if _partial_research else funding,"taker_ratio":taker_raw if _partial_research else taker,
+        "long_short_ratio":ls_raw if _partial_research else ls,"depth_imbalance":depth,
         "execution_proxy":depth_metrics,
         "score_components":components,
         "ablations":ablations,
@@ -2189,7 +2206,7 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
         "derivatives_coverage":1.0 if DATA_MODE=="BINANCE_FUTURES" else float((multi_deriv or {}).get("coverage") or 0.0),
         "derivatives_quality":"NATIVE" if DATA_MODE=="BINANCE_FUTURES" else str((multi_deriv or {}).get("quality") or "UNAVAILABLE"),
         "derivatives_v3_core_ready":bool(deriv_ready),
-        "derivatives_v3_core_coverage":1.0 if DATA_MODE=="BINANCE_FUTURES" else float((multi_deriv or {}).get("v3_core_coverage") or 0.0),
+        "derivatives_v3_core_coverage":(0.75 if _partial_research else 1.0) if DATA_MODE=="BINANCE_FUTURES" else float((multi_deriv or {}).get("v3_core_coverage") or 0.0),
         "derivatives_selected_provider":None if DATA_MODE=="BINANCE_FUTURES" else (multi_deriv or {}).get("selected_provider"),
         "derivatives_source_age_seconds":None if DATA_MODE=="BINANCE_FUTURES" else (multi_deriv or {}).get("source_age_seconds"),
         "spot_vs_selected_mark_basis_pct":None if DATA_MODE=="BINANCE_FUTURES" else (multi_deriv or {}).get("spot_vs_selected_mark_basis_pct"),
@@ -2758,6 +2775,12 @@ def main():
                     errors+=1
                     prefilter_failures[symbol]={"error_type":type(e).__name__,"error_message":str(e)[:160]}
                     print(f"prefilter {symbol}: {type(e).__name__}: {e}")
+                    if native_v2_enabled() and os.getenv('LS_DATA_OPPORTUNITY_V2','0')=='1':
+                        try:
+                            from long_short_data_opportunity_v2 import blocked
+                            blocked(symbol,str(e))
+                        except Exception as observation_error:
+                            print('V2_DATA_OPPORTUNITY_RECORD_ERROR',symbol,str(observation_error)[:120],flush=True)
     preselected.sort(key=lambda x:x["rank"], reverse=True)
     save_reversal_candidates(ts,preselected)
 
@@ -2959,10 +2982,23 @@ def main():
             for fut in as_completed(futs):
                 symbol=futs[fut]
                 try:
-                    results.append(fut.result())
+                    analysis=fut.result()
+                    results.append(analysis)
+                    if native_v2_enabled() and os.getenv('LS_DATA_OPPORTUNITY_V2','0')=='1':
+                        try:
+                            from long_short_data_opportunity_v2 import record_analysis
+                            record_analysis(analysis)
+                        except Exception as observation_error:
+                            print('V2_DATA_OPPORTUNITY_RECORD_ERROR',symbol,str(observation_error)[:120],flush=True)
                 except Exception as e:
                     errors+=1
                     print(f"deep {symbol}: {type(e).__name__}: {e}")
+                    if native_v2_enabled() and os.getenv('LS_DATA_OPPORTUNITY_V2','0')=='1' and not str(e).startswith('NATIVE_CHAIN_V2:'):
+                        try:
+                            from long_short_data_opportunity_v2 import blocked
+                            blocked(symbol,str(e))
+                        except Exception as observation_error:
+                            print('V2_DATA_OPPORTUNITY_RECORD_ERROR',symbol,str(observation_error)[:120],flush=True)
         order={x["symbol"]:i for i,x in enumerate(shortlist)}
         results.sort(key=lambda x:order.get(x.symbol,9999))
 

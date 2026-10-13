@@ -611,7 +611,11 @@ def requested_symbols(analyst_db):
         except (sqlite3.Error, OSError):
             pass
     selected = choose_symbols("", analyst_db=analyst_db, limit=30)
-    return list(dict.fromkeys(scan_symbols + selected + ["BTCUSDT", "ETHUSDT", "SOLUSDT"]))
+    pending=[]
+    if os.getenv('LS_DATA_OPPORTUNITY_V2','0')=='1':
+        from long_short_data_opportunity_v2 import pending_symbols
+        pending=pending_symbols()
+    return list(dict.fromkeys(scan_symbols + selected + ["BTCUSDT", "ETHUSDT", "SOLUSDT"] + pending))[:90]
 
 
 def continuous_main():
