@@ -377,7 +377,8 @@ def main() -> int:
         except Exception as exc:
             print("[daemon] COINALYZE_BINANCE_PROBE_FAILED " + type(exc).__name__, flush=True)
 
-    threading.Thread(target=coinalyze_boot_probe, name="coinalyze-boot-probe", daemon=True).start()
+    if os.getenv('LS_NATIVE_CHAIN_V2','0')!='1':
+        threading.Thread(target=coinalyze_boot_probe, name="coinalyze-boot-probe", daemon=True).start()
 
     # Observe Coinalyze Binance-only OI history without changing any signal.
     # Only two symbols at startup: avoids consuming the provider's 40/min quota.
@@ -399,7 +400,8 @@ def main() -> int:
         except Exception as exc:
             print("[daemon] COINALYZE_SHADOW_FAILED " + type(exc).__name__, flush=True)
 
-    threading.Thread(target=coinalyze_shadow_check, name="coinalyze-shadow", daemon=True).start()
+    if os.getenv('LS_NATIVE_CHAIN_V2','0')!='1':
+        threading.Thread(target=coinalyze_shadow_check, name="coinalyze-shadow", daemon=True).start()
 
     # Funding shadow: two Binance-only symbols; no scoring, orders or DB writes.
     def coinalyze_funding_shadow():
@@ -421,7 +423,8 @@ def main() -> int:
         except Exception as exc:
             print("[daemon] COINALYZE_FUNDING_SHADOW_FAILED " + type(exc).__name__, flush=True)
 
-    threading.Thread(target=coinalyze_funding_shadow, name="coinalyze-funding-shadow", daemon=True).start()
+    if os.getenv('LS_NATIVE_CHAIN_V2','0')!='1':
+        threading.Thread(target=coinalyze_funding_shadow, name="coinalyze-funding-shadow", daemon=True).start()
 
     # Read-only Binance Futures all-market ticker collector; no signal changes.
     if os.getenv("LS_FUTURES_UNIVERSE_SHADOW_ENABLED", "1") == "1":
@@ -487,6 +490,14 @@ def main() -> int:
     if os.getenv("LS_BINANCE_DERIVATIVE_AUDIT_ENABLED","1")=="1":
         threading.Thread(target=binance_derivative_coverage_audit,
                          name="binance-derivative-coverage",daemon=True).start()
+
+    if os.getenv('LS_NATIVE_CHAIN_V2','0')=='1':
+        threading.Thread(target=watcher_loop,
+            args=('binance_native_derivatives','long_short_native_derivatives.py'),
+            name='native-derivatives-v2',daemon=True).start()
+        if os.getenv('LS_NATIVE_V2_VERIFY','0')=='1':
+            threading.Thread(target=run_child,args=('native_transport_check','long_short_native_verify.py'),
+                name='native-transport-check',daemon=True).start()
 
     # Optional closed-candle repair via private official Binance Futures relay.
     # Separate worker keeps history requests off the live WebSocket thread.

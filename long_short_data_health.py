@@ -108,6 +108,13 @@ def signal_summary(live_db, now_s):
                 transitions[key] = transitions.get(key, 0) + 1
             out = {"available": True, "window_hours": 24,
                    "transitions_stage|telegram|price_source": transitions}
+            if 'confirmed_outcomes_v2' in tables:
+                values=[json.loads(r[0]) for r in con.execute('SELECT payload FROM confirmed_outcomes_v2')]
+                out['v2_outcomes']={'completed':len(values),'by_result':{
+                    k:sum(v['result']==k for v in values) for k in ('TP1','STOP','TIMEOUT')},
+                    'mean_net_pct':sum(v['net_return_pct'] for v in values)/len(values) if values else None}
+                out['v2_pending']=con.execute("""SELECT COUNT(*) FROM events e LEFT JOIN confirmed_outcomes_v2 o
+                    ON o.event_id=e.id WHERE e.stage_to='TRIGGERED' AND e.telegram_status='SENT' AND o.event_id IS NULL""").fetchone()[0]
             if "confirmed_trade_outcomes" in tables:
                 by_venue = {}
                 for venue, result, n, net in con.execute("""SELECT venue,result,COUNT(*),AVG(net_return_pct)

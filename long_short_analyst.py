@@ -25,6 +25,7 @@ from binance_notify import resolve_chat_id
 from long_short_data_router import multi_venue_derivatives, multi_venue_perp_universe, multi_venue_perp_klines
 from long_short_v3_core import V3_VERSION, discovery_rank as v3_discovery_rank, beta_residual_3h, decide_setup as v3_decide_setup
 from long_short_direction_engine import DIRECTION_ENGINE_VERSION, decide_direction as production_decide_direction
+from long_short_native_derivatives import enabled as native_v2_enabled
 from long_short_451_watch_digest import format_watch_digest
 from long_short_room_v32_shadow import from_analyst_snapshots as v32_room_shadow
 from long_short_dual_v32 import build_both_sides as build_v32_dual_scenarios
@@ -659,7 +660,8 @@ def structure_net_t1_r(direction, trigger, invalidation, target1):
     else:
         reward_pct=(1.0-target1/trigger)*100.0
     net_reward_pct=reward_pct-structure_min_round_trip_cost_pct()
-    return net_reward_pct/risk_pct
+    denominator=risk_pct+structure_min_round_trip_cost_pct() if native_v2_enabled() else risk_pct
+    return net_reward_pct/denominator
 
 
 def build_structure_gate(direction, price, setup_plan, k5, k15, k30, k1h, k4h=None):
@@ -701,9 +703,11 @@ def build_structure_gate(direction, price, setup_plan, k5, k15, k30, k1h, k4h=No
         opposing=[z for z in zones if z["side"]=="SUPPORT" and float(z["high"])<min(price,trigger)*(0.9997)]
         opposing.sort(key=lambda z:float(z["high"]),reverse=True)
         next_zone=opposing[0] if opposing else None
-        zone_room=((price/float(next_zone["high"])-1.0)*100.0) if next_zone else None
+        zone_room=(((1.0-float(next_zone['high'])/price)*100.0) if native_v2_enabled() else
+                   ((price/float(next_zone['high'])-1.0)*100.0)) if next_zone else None
         target=float(setup_plan.get("target1") or 0.0)
-        target_room=((price/target-1.0)*100.0) if 0<target<price else 0.0
+        target_room=(((1.0-target/price)*100.0) if native_v2_enabled() else
+                     ((price/target-1.0)*100.0)) if 0<target<price else 0.0
 
     room_candidates=[x for x in (zone_room,target_room) if x is not None and x>=0]
     room_pct=min(room_candidates) if room_candidates else 0.0
@@ -777,6 +781,11 @@ def build_setup_plan(direction, price, t5k, t15, chart):
         structural_t1=levels["support2"]
         target1=structural_t1 if structural_t1 <= trigger-min_t1_gap else trigger-min_t1_gap
         target2=min(target1-min_t2_gap, trigger-(min_t1_gap+min_t2_gap))
+        if native_v2_enabled():
+            # A target must be an observed structural level, not moved merely
+            # to manufacture an attractive reward/risk ratio.
+            target1=structural_t1
+            target2=0.0
         candle="5dk"
         text=(
             f"{candle} mum {trigger:.10g} altında kapanırsa ve "
@@ -801,6 +810,9 @@ def build_setup_plan(direction, price, t5k, t15, chart):
     structural_t1=levels["resistance2"]
     target1=structural_t1 if structural_t1 >= trigger+min_t1_gap else trigger+min_t1_gap
     target2=max(target1+min_t2_gap, trigger+(min_t1_gap+min_t2_gap))
+    if native_v2_enabled():
+        target1=structural_t1
+        target2=0.0
     candle="5dk"
     text=(
         f"{candle} mum {trigger:.10g} üstünde kapanırsa ve "
@@ -830,6 +842,9 @@ def build_pullback_plan(direction, price, t5k, t15):
         min_t1_gap=max(1.4*a,1.15*risk_gap+cost_gap)
         target1=max(max(highs[-24:]),trigger+min_t1_gap)
         target2=max(target1+max(0.8*a,0.75*risk_gap),trigger+min_t1_gap+0.8*a)
+        if native_v2_enabled():
+            target1=max(highs[-24:])
+            target2=0.0
         return {
             "setup_type":"PULLBACK","direction":"LONG","trigger_level":trigger,"close_tf":"5dk",
             "retest_low":trigger-0.30*a,"retest_high":trigger,
@@ -846,6 +861,9 @@ def build_pullback_plan(direction, price, t5k, t15):
     min_t1_gap=max(1.4*a,1.15*risk_gap+cost_gap)
     target1=min(min(lows[-24:]),trigger-min_t1_gap)
     target2=min(target1-max(0.8*a,0.75*risk_gap),trigger-min_t1_gap-0.8*a)
+    if native_v2_enabled():
+        target1=min(lows[-24:])
+        target2=0.0
     return {
         "setup_type":"PULLBACK","direction":"SHORT","trigger_level":trigger,"close_tf":"5dk",
         "retest_low":trigger,"retest_high":trigger+0.30*a,
@@ -1681,7 +1699,14 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
     t1h=timeframe_features(k1h)
     t4h=timeframe_features(k4h)
     htf_gate=build_htf_gate(symbol,t4h)
-    if os.getenv("LS_BINANCE_FUTURES_ONLY", "0") == "1":
+    if native_v2_enabled():
+        from long_short_native_derivatives import evidence as native_evidence
+        evidence=native_evidence(symbol)
+        if not evidence['ready']:
+            raise RuntimeError('NATIVE_CHAIN_V2: derivative evidence incomplete for '+symbol+': '+','.join(evidence['missing'])+'; '+str(evidence.get('error') or ''))
+        oi_raw={'oi_change_1h':evidence['oi_change_1h'],'oi_now':evidence['oi_now']}
+        funding_raw=evidence['funding_pct'];taker_raw=evidence['taker_ratio'];ls_raw=evidence['long_short_ratio']
+    elif os.getenv("LS_BINANCE_FUTURES_ONLY", "0") == "1":
         from long_short_coinalyze_adapter import snapshot as coinalyze_binance_snapshot
         from long_short_coinalyze_funding_probe import funding_snapshot as coinalyze_binance_funding
         from long_short_taker_continuous_shadow import window as binance_taker_window, window_from_verified_futures_klines
@@ -2110,6 +2135,9 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
     # Direction and entry timing are deliberately separate:
     # - direction engine chooses LONG/SHORT from combined evidence;
     # - live pool still requires a real price trigger + acceptable structure/R.
+    if native_v2_enabled() and t15['atr_pct']>=4.0:
+        v3['eligible']=False
+        v3.setdefault('hard_blockers',[]).append('volatility_floor_veto')
     if v3.get("eligible"):
         status="WAIT"
     else:
@@ -2120,7 +2148,9 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
     confidence=int(round(float(v3.get("best_score") or 0.0)))
     reversal_plan=build_reversal_plan(price,k5,t5,t15,day_change_pct)
     payload={
-        "version":VERSION,"frozen_config_hash":FROZEN_CONFIG_HASH,"data_mode":DATA_MODE,"market_regime":market_regime,
+        "version":("LS_NATIVE_CHAIN_V2_2026-10-13" if native_v2_enabled() else VERSION),"frozen_config_hash":FROZEN_CONFIG_HASH,"data_mode":DATA_MODE,"market_regime":market_regime,
+        "native_chain_v2":native_v2_enabled(),
+        "native_derivative_evidence":evidence if native_v2_enabled() else None,
         "day_change_pct":day_change_pct,"quote_volume_24h":pre_qv,"actionable_liquidity_ok":actionable_liquidity_ok,
         "discovery_meta":discovery_meta,
         "v3_discovery":dict((pre or {}).get("v3_discovery") or {}),

@@ -25,6 +25,7 @@ from long_short_simple_notify import classify_move, format_alert, queue_alert, c
 from long_short_telegram_delivery_integrity import policy as telegram_integrity_policy
 from long_short_dual_v32 import init as init_dual_v32, sync as sync_dual_v32, advance as advance_dual_v32
 from long_short_data_router import multi_venue_perp_klines, multi_venue_perp_universe
+from long_short_native_derivatives import enabled as native_v2_enabled
 
 ANALYST_DB=os.getenv("LS_DB","long_short_analyst.db")
 LIVE_DB=os.getenv("LS_LIVE_DB","long_short_live_pool.db")
@@ -137,14 +138,18 @@ def trigger_execution_proxy(symbol):
     """Capture one execution-cost snapshot after a TRIGGERED alert is sent."""
     source="BINANCE_FUTURES_BOOK"
     try:
-        r=requests.get(
-            FUTURES_DEPTH_URL,
-            params={"symbol":symbol,"limit":100},
-            timeout=5,
-            headers={"User-Agent":"long-short-live-pool/1.0"},
-        )
-        r.raise_for_status()
-        book=r.json()
+        if native_v2_enabled():
+            from long_short_native_derivatives import relay_get,SOURCE
+            payload=relay_get('/depth',{'symbol':symbol})
+            age=time.time()*1000-float(payload.get('requested_ms') or 0)
+            if payload.get('source')!=SOURCE or payload.get('symbol')!=symbol or not 0<=age<=5000:
+                raise ValueError('native execution book stale or unverified')
+            book=payload['book']
+        else:
+            r=requests.get(FUTURES_DEPTH_URL,params={"symbol":symbol,"limit":100},timeout=5,
+                           headers={"User-Agent":"long-short-live-pool/1.0"})
+            r.raise_for_status()
+            book=r.json()
     except Exception:
         try:
             book=_futures_ws_depth(symbol)
@@ -162,6 +167,8 @@ def trigger_execution_proxy(symbol):
     if not bids or not asks:
         return {"source":source,"observed_at_utc":now_iso(),"available":False}
     best_bid=float(bids[0][0]); best_ask=float(asks[0][0])
+    if not math.isfinite(best_bid) or not math.isfinite(best_ask) or not 0<best_bid<best_ask:
+        return {'source':source,'available':False,'error':'invalid_futures_book'}
     mid=(best_bid+best_ask)/2.0 if best_bid and best_ask else 0.0
     spread_bps=((best_ask-best_bid)/mid*10000.0) if mid else None
     buy=_book_vwap_quote(asks,EXECUTION_PROXY_NOTIONAL)
@@ -183,6 +190,12 @@ def trigger_execution_proxy(symbol):
 
 def binance_four_factor_confirmation_gate(symbol, now_epoch=None):
     """Classify evidence without equating missing data to contrary direction."""
+    if native_v2_enabled():
+        from long_short_native_derivatives import evidence
+        ev=evidence(symbol)
+        return {'qualified':ev['ready'],'tier':'FULL_4_OF_4' if ev['ready'] else 'DATA_INCOMPLETE',
+                'reason':'binance_four_factor_ready' if ev['ready'] else 'native_derivatives_incomplete',
+                'missing':ev['missing'],'source':ev['source'],'observed_ms':ev.get('observed_ms')}
     now_epoch=int(time.time()) if now_epoch is None else int(now_epoch)
     factors=("oi","long_short","funding","taker")
     try:
@@ -273,7 +286,8 @@ def live_execution_gate(row,price,proxy):
         geometry=bool(t1<entry<inv)
         reward=(1.0-t1/entry)*100.0 if geometry and entry>0 else -999.0
         risk=(inv/entry-1.0)*100.0 if geometry else 0.0
-    net_r=((reward-total_cost_pct)/risk) if risk>0 else None
+    denominator=risk+total_cost_pct if native_v2_enabled() else risk
+    net_r=((reward-total_cost_pct)/denominator) if risk>0 else None
     # Observational only: record the cost-inclusive denominator definition
     # without changing the frozen production gate or its threshold.
     net_r_cost_inclusive=((reward-total_cost_pct)/(risk+total_cost_pct)) if risk>0 else None
@@ -297,6 +311,7 @@ def live_execution_gate(row,price,proxy):
 def fmtp(x):
     if x is None: return "-"
     x=float(x)
+    if native_v2_enabled() and x<=0:return 'Belirlenmedi'
     if abs(x)>=1000: return f"{x:,.2f}"
     if abs(x)>=1: return f"{x:.4f}"
     return f"{x:.8f}".rstrip("0")
@@ -490,6 +505,8 @@ def load_watchlist():
         for r in rows:
             try:
                 p=json.loads(r["payload_json"] or "{}")
+                if native_v2_enabled() and not p.get('native_chain_v2'):
+                    continue
                 plan=p.get("setup_plan") or {}
                 gate=p.get("htf_gate") or {}
                 v3=p.get("v3") or {}
@@ -598,7 +615,8 @@ def load_watchlist():
                         target1 < live_trigger < invalidation
                     )
                     risk_pct=((invalidation-live_trigger)/live_trigger*100.0) if level_order_ok else 0.0
-                    reward_pct=((live_trigger/target1-1.0)*100.0) if level_order_ok else 0.0
+                    reward_pct=(((1.0-target1/live_trigger)*100.0) if native_v2_enabled() else
+                                ((live_trigger/target1-1.0)*100.0)) if level_order_ok else 0.0
 
                 # Re-check the exact levels that Telegram will show. The analyst
                 # structure gate was calculated from raw_trigger; if the zone edge
@@ -607,7 +625,8 @@ def load_watchlist():
                 thresholds=structure_gate.get("thresholds") or {}
                 min_net_r=float(thresholds.get("min_net_t1_r") or 1.0)
                 required_room_pct=float(structure_gate.get("required_room_pct") or 0.0)
-                effective_net_r=((reward_pct-min_cost_pct)/risk_pct) if risk_pct>0 else None
+                denominator=risk_pct+min_cost_pct if native_v2_enabled() else risk_pct
+                effective_net_r=((reward_pct-min_cost_pct)/denominator) if risk_pct>0 else None
                 effective_levels_ok=bool(
                     level_order_ok
                     and reward_pct>=required_room_pct
@@ -1138,7 +1157,8 @@ def market_snapshot(symbol):
         "day_change_pct":float(stats.get("priceChangePercent") or 0.0),
         "short_range_pct":short_range_pct,
         "recent_closed_5m_closes":[float(x[4]) for x in (kl5[-3:] if use_native else kl5[-4:-1])] if len(kl5)>=4 else [closed],
-        "native_futures_observation_only":use_native,
+        "native_futures_observation_only":use_native and not native_v2_enabled(),
+        "native_chain_v2":native_v2_enabled(),
         "rolling_24h_stats_verified":True,
         "24h_stats_source":stats.get("source","BINANCE_SPOT_ROLLING_TICKER"),
     }
@@ -1353,6 +1373,13 @@ def next_stage(row,price,closed,structure_quality=None):
         if dist<=APPROACH_PCT:
             return "APPROACHING"
         return "WATCH"
+    if native_v2_enabled() and stage=='EXECUTION_BLOCKED':
+        # Retry a transient data/cost failure only on a new qualified close.
+        candle_time=sq.get('_closed_candle_time')
+        new_close=bool(candle_time and candle_time>str(row['last_update_utc'] or ''))
+        if close_ok and sq.get('qualified') and new_close:
+            return 'CLOSE_CONFIRMED'
+        return stage
     if stage=="CLOSE_CONFIRMED":
         # V3 has two legitimate paths:
         # FAST: strong acceptance, no forced retest.
@@ -1794,6 +1821,9 @@ def resolve_confirmed_trade_outcomes():
     Runs separately from active watchlist: rotated-out coins still resolve.
     Unavailable/ambiguous market data is recorded as DATA_FAILURE, not a loss.
     """
+    if native_v2_enabled():
+        from long_short_outcomes_v2 import resolve
+        return resolve(LIVE_DB)
     now=datetime.now(timezone.utc)
     with sqlite3.connect(LIVE_DB,timeout=15) as con:
         con.row_factory=sqlite3.Row
@@ -1937,6 +1967,7 @@ def loop_once():
                     con.commit()  # Release dual-side writes before any alert/network work.
                     old=row["stage"]
                     structure_quality=live_structure_confirmation(row,closed,early)
+                    structure_quality['_closed_candle_time']=closed_candle_time
                     new=next_stage(row,price,closed,structure_quality)
                     observed_time=now_iso()
 
@@ -2229,6 +2260,9 @@ def loop_once():
                         event_payload["_live_structure_quality"]=structure_quality
                         event_payload["_live_price_source"]=str(early.get("live_price_source") or "UNKNOWN")
                         event_payload["_live_alert_version"]=STRUCTURE_GATE_VERSION
+                        event_payload['_native_chain_v2']=native_v2_enabled()
+                        if new=='TRIGGERED':
+                            event_payload['_trigger_execution_gate']=execution_check
                         if delivery_guard is not None:
                             event_payload["_telegram_delivery_policy"]=delivery_guard
                         if suppression_reason:
