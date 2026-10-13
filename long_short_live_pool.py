@@ -1451,7 +1451,7 @@ def message_for(row,stage,price,closed):
                 f"🛡️ SL: {fmtp(inv)}\n"
                 f"🎯 TP1: {fmtp(t1)}\n"
                 f"🎯 TP2: {fmtp(t2)}\n"
-                "⛔ ŞİMDİ İŞLEM AÇMA: Bu sadece ilk grafik teyidi. Güncel vadeli veri ve diğer işlem koşulları ayrıca doğrulanmalı.")
+                "⛔ ŞİMDİ İŞLEM AÇMA: Bu sadece ilk grafik teyidi; henüz işlem sinyali değil. Güncel vadeli veri ve diğer işlem koşulları ayrıca doğrulanmalı.")
 
     if stage=="RETESTING":
         # Retest itself is recorded but not messaged; the next actionable state
