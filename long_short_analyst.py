@@ -325,6 +325,55 @@ def parse_klines(rows):
     }
 
 
+SHADOW_DIAG = {}
+
+
+def _shadow_diag(symbol, interval, reason, **detail):
+    """Record and log why native Futures candles were rejected (observation only)."""
+    info = {"reason": reason, **detail}
+    SHADOW_DIAG[(symbol, interval)] = info
+    extra = " ".join(f"{k}={json.dumps(v, separators=(',', ':')) if isinstance(v, (list, dict)) else v}"
+                     for k, v in detail.items())
+    print(f"FUTURES_SHADOW_DIAG symbol={symbol} interval={interval} reason={reason} {extra}".rstrip(), flush=True)
+
+
+def data_gate_summary(uni, preselected, prefilter_failures):
+    """Per-scan data-gate accounting. Reads diagnostics only; changes nothing."""
+    by_reason = {}
+    by_interval = {}
+    examples = {}
+    for symbol, failure in sorted(prefilter_failures.items()):
+        diag = None
+        for interval in ("5m", "15m"):  # order used by prefilter_symbol()
+            if (symbol, interval) in SHADOW_DIAG:
+                diag = (interval, SHADOW_DIAG[(symbol, interval)])
+                break
+        if diag is None:
+            reason, interval, info = "other:" + str((failure or {}).get("error_type")), "-", {}
+        else:
+            interval, info = diag
+            reason = info.get("reason", "unknown")
+        by_reason[reason] = by_reason.get(reason, 0) + 1
+        key = f"{interval}:{reason}"
+        by_interval[key] = by_interval.get(key, 0) + 1
+        if len(examples.setdefault(reason, [])) < 3:
+            examples[reason].append({"symbol": symbol, "interval": interval,
+                                     **{k: v for k, v in info.items() if k != "reason"}})
+    return {"window_symbols": len(uni), "prefilter_passed": len(preselected),
+            "prefilter_failed": len(prefilter_failures), "by_reason": by_reason,
+            "by_interval_reason": by_interval, "examples": examples,
+            "futures_only": os.getenv("LS_BINANCE_FUTURES_ONLY", "0") == "1"}
+
+
+def shadow_diag_text(symbol, interval):
+    info = SHADOW_DIAG.get((symbol, interval))
+    if not info:
+        return ""
+    keys = ("reason", "missing_bars_in_window", "contiguous_tail_bars", "required",
+            "latest_gap_first_missing_open_ms", "count", "age_ms", "null_field_rows")
+    return " [" + " ".join(f"{k}={info[k]}" for k in keys if k in info) + "]"
+
+
 def native_futures_shadow_klines(symbol, interval, limit):
     """Read only contiguous, closed Binance Futures candles from the existing recorder.
 
@@ -335,6 +384,7 @@ def native_futures_shadow_klines(symbol, interval, limit):
     root = os.getenv("LS_STATE_DIR") or os.getenv("RAILWAY_VOLUME_MOUNT_PATH") or ".long-short-state"
     db = os.path.join(root, "binance_futures_kline_shadow.db")
     if not os.path.isfile(db):
+        _shadow_diag(symbol, interval, "db_missing")
         return None
     period_ms = {"1m": 60000, "5m": 300000, "15m": 900000, "30m": 1800000, "1h": 3600000, "4h": 14400000}[interval]
     now_ms = int(time.time() * 1000)
@@ -351,20 +401,43 @@ def native_futures_shadow_klines(symbol, interval, limit):
             conn.close()
     except (sqlite3.Error, OSError) as exc:
         print("FUTURES_SHADOW_READ_ERROR " + type(exc).__name__, flush=True)
+        SHADOW_DIAG[(symbol, interval)] = {"reason": "read_error", "error_type": type(exc).__name__}
         return None
+    # Rules below are unchanged; only the diagnostics are more specific.
     if len(rows) < limit:
-        print(f"FUTURES_SHADOW_DIAG symbol={symbol} interval={interval} reason=short_history count={len(rows)} required={limit}", flush=True)
+        _shadow_diag(symbol, interval, "short_history", count=len(rows), required=limit,
+                     eta_minutes=(limit - len(rows)) * period_ms // 60000)
         return None
     rows.reverse()
+    sources = sorted({str(r[7]) for r in rows})
     if rows[-1][1] > now_ms - 250 or now_ms - rows[-1][1] > period_ms * 2:
-        print(f"FUTURES_SHADOW_DIAG symbol={symbol} interval={interval} reason=stale last_close={rows[-1][1]} age_ms={now_ms-rows[-1][1]}", flush=True)
+        _shadow_diag(symbol, interval, "stale", last_close=rows[-1][1],
+                     age_ms=now_ms - rows[-1][1], sources=sources)
         return None
-    if any(r[7] not in ("BINANCE_UM_FUTURES_WEBSOCKET", "BINANCE_UM_FUTURES_ARCHIVE", "BINANCE_UM_FUTURES_REST") or any(v is None for v in r[8:11]) for r in rows):
-        print(f"FUTURES_SHADOW_DIAG symbol={symbol} interval={interval} reason=invalid_source_or_fields", flush=True)
+    bad_source = sum(r[7] not in ("BINANCE_UM_FUTURES_WEBSOCKET", "BINANCE_UM_FUTURES_ARCHIVE", "BINANCE_UM_FUTURES_REST") for r in rows)
+    null_fields = sum(any(v is None for v in r[8:11]) for r in rows)
+    if bad_source or null_fields:
+        first_null = next((r[0] for r in rows if any(v is None for v in r[8:11])), None)
+        _shadow_diag(symbol, interval, "invalid_source_or_fields", bad_source_rows=bad_source,
+                     null_field_rows=null_fields, first_null_open_ms=first_null, sources=sources)
         return None
     if any(b[0] - a[0] != period_ms for a, b in zip(rows, rows[1:])):
-        print(f"FUTURES_SHADOW_DIAG symbol={symbol} interval={interval} reason=gap first={rows[0][0]} last={rows[-1][0]}", flush=True)
+        tail = 1
+        for a, b in zip(reversed(rows[:-1]), reversed(rows[1:])):
+            if b[0] - a[0] != period_ms:
+                gap_prev, gap_next = a[0], b[0]
+                break
+            tail += 1
+        span_bars = (rows[-1][0] - rows[0][0]) // period_ms + 1
+        _shadow_diag(symbol, interval, "gap", first=rows[0][0], last=rows[-1][0],
+                     latest_gap_first_missing_open_ms=gap_prev + period_ms,
+                     latest_gap_missing_bars=(gap_next - gap_prev) // period_ms - 1,
+                     missing_bars_in_window=span_bars - len(rows),
+                     contiguous_tail_bars=tail, required=limit,
+                     eta_minutes_without_new_gap=(limit - tail) * period_ms // 60000,
+                     last_close_age_ms=now_ms - rows[-1][1], sources=sources)
         return None
+    SHADOW_DIAG.pop((symbol, interval), None)
     result = []
     for start, end, op, hi, lo, cl, vol, _, quote_vol, trades, taker_quote in rows:
         result.append([start, op, hi, lo, cl, vol, end, quote_vol, trades, None, taker_quote])
@@ -385,7 +458,8 @@ def fetch_klines(symbol, interval, limit=220):
         print(f"FUTURES_SHADOW_USED symbol={symbol} interval={interval} bars={len(shadow)}", flush=True)
         return parse_klines(shadow)
     if strict:
-        raise RuntimeError(f"BINANCE_FUTURES_ONLY: verified native Futures history unavailable for {symbol} {interval}; no signal")
+        raise RuntimeError(f"BINANCE_FUTURES_ONLY: verified native Futures history unavailable for {symbol} {interval}; no signal"
+                           + shadow_diag_text(symbol, interval))
     rows=None
     primary_error=None
     try:
@@ -1099,6 +1173,9 @@ def native_futures_websocket_universe():
     if not eligible:
         raise RuntimeError("BINANCE_FUTURES_ONLY: no eligible fresh Futures tickers")
     eligible.sort(key=lambda x:x[1],reverse=True)
+    print("FUTURES_UNIVERSE_COVERAGE",json.dumps({"fresh_tickers":len(rows),
+          "eligible":len(eligible),"scan_window":min(len(eligible),max(1,int(MAX_SYMBOLS))),
+          "selection":"top_quote_volume"}),flush=True)
     return eligible[:max(1,int(MAX_SYMBOLS))]
 
 
@@ -2715,6 +2792,12 @@ def main():
         print("ROTATING_WINDOW_STAGE_AUDIT",json.dumps({"window_symbols":len(uni),"prefilter_errors":len(prefilter_failures),"scope":"rotating_window_only","not_full_perpetual_universe":True},ensure_ascii=False),flush=True)
     except Exception as audit_exc:
         print("FULL_UNIVERSE_STAGE_AUDIT_ERROR",type(audit_exc).__name__,str(audit_exc)[:160],flush=True)
+    # Observation only: break the prefilter failures down by data-gate reason.
+    try:
+        print("DATA_GATE_SUMMARY",json.dumps(data_gate_summary(uni,preselected,prefilter_failures),
+                                             ensure_ascii=False,sort_keys=True),flush=True)
+    except Exception as gate_exc:
+        print("DATA_GATE_SUMMARY_ERROR",type(gate_exc).__name__,str(gate_exc)[:160],flush=True)
     # Read-only early-pattern observations for all prefiltered symbols.
     try:
         from long_short_broad_early import observe as observe_broad_early
