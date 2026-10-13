@@ -125,8 +125,8 @@ class ObserverTests(unittest.TestCase):
         _,f=ob.evaluate('LONG',snapshot(),now_ms=10000000)
         msg=ob.format_update({'symbol':'TESTUSDT','direction':'LONG','state':'CONFIRMED',
                             'features':f,'early_ms':10000000,'early_price':100.04},10015000)
-        self.assertIn('giriş teyidi değildir',msg)
-        self.assertIn('ayrıca bekleniyor',msg)
+        self.assertIn('onaylı işlem girişi değildir',msg)
+        self.assertIn('ana motorun giriş onayı bekleniyor',msg)
         self.assertNotIn('SL:',msg);self.assertNotIn('TP1:',msg)
 
     def test_fresh_breakout_prioritizes_existing_scan_slots_without_unverified_symbols(self):

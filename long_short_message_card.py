@@ -178,7 +178,11 @@ def publish(token, chat, symbol, source, text, direction, *, observed_at=None, p
                          updated_at=? WHERE destination=? AND symbol=?''',
                          (message_id,rendered,now,destination,symbol))
             c.execute('INSERT INTO deliveries(symbol,method,status,time_utc,message_id,detail) VALUES(?,?,?,?,?,?)',
-                      (symbol,method,'ACK',stamp,message_id,None))
+                      (symbol,method,'ACK',stamp,message_id,json.dumps({
+                          'source':source,'direction':direction,'text':rendered,
+                          'source_text':text,
+                          'accepted_at_utc':datetime.now(timezone.utc).isoformat()
+                      },ensure_ascii=False)))
             c.commit()
             return {'status':'ACK','message_id':message_id,'method':method}
         except Exception as exc:

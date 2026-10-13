@@ -320,6 +320,13 @@ def audit_db(path):
     return out
 
 def main():
+    # Only reads retained ACK receipts and native candles. It cannot emit alerts,
+    # place orders, change gates, or relabel missing data as successful trades.
+    try:
+        from long_short_message_outcomes import emit_report
+        emit_report(STATE)
+    except Exception as exc:
+        print('MESSAGE_DIRECTION_AUDIT_ERROR '+type(exc).__name__+': '+str(exc)[:160],flush=True)
     result={"utc":datetime.now(timezone.utc).isoformat(),"git_commit":git_sha(),"state_dir":str(STATE),"config_hashes":{},"databases":[]}
     for name in ("LONG_SHORT_V3_FROZEN_CONFIG.json","LONG_SHORT_V1_9_FROZEN_CONFIG.json"):
         result["config_hashes"][name]=sha(name)
