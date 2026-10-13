@@ -544,10 +544,17 @@ def swing_levels(k, lookback=48):
     price=c[-1]
     below=sorted([x for x in piv_lo if x<price], reverse=True)
     above=sorted([x for x in piv_hi if x>price])
+    if native_v2_enabled():
+        # Repeated touches are one price level, not a second profit target.
+        below=sorted(set(below), reverse=True)
+        above=sorted(set(above))
     support=below[0] if below else min(l[-12:])
     support2=below[1] if len(below)>1 else min(l[-24:])
     resistance=above[0] if above else max(h[-12:])
     resistance2=above[1] if len(above)>1 else max(h[-24:])
+    if native_v2_enabled():
+        support2=support2 if support2<support else 0.0
+        resistance2=resistance2 if resistance2>resistance else 0.0
     return {
         "support":support,"support2":support2,
         "resistance":resistance,"resistance2":resistance2,
@@ -1206,10 +1213,29 @@ def native_futures_websocket_universe():
     if not eligible:
         raise RuntimeError("BINANCE_FUTURES_ONLY: no eligible fresh Futures tickers")
     eligible.sort(key=lambda x:x[1],reverse=True)
+    selected=native_rotating_window(eligible,MAX_SYMBOLS)
     print("FUTURES_UNIVERSE_COVERAGE",json.dumps({"fresh_tickers":len(rows),
           "eligible":len(eligible),"scan_window":min(len(eligible),max(1,int(MAX_SYMBOLS))),
-          "selection":"top_quote_volume"}),flush=True)
-    return eligible[:max(1,int(MAX_SYMBOLS))]
+          "selection":"rotating_verified_universe"}),flush=True)
+    return selected
+
+
+def native_rotating_window(eligible,cap,slot=None):
+    """Bound scan cost while covering every verified eligible instrument.
+
+    Symbol order avoids 24h volume rank churn restarting the coverage cycle.
+    Each closed five-minute slot advances by one full window.
+    """
+    rows=sorted(eligible,key=lambda row:row[0])
+    cap=max(1,int(cap))
+    if len(rows)<=cap:
+        return rows
+    slot=int(time.time()//300) if slot is None else int(slot)
+    start=(slot*cap)%len(rows)
+    selected=(rows+rows)[start:start+cap]
+    print("NATIVE_ROTATING_WINDOW",json.dumps({"eligible":len(rows),
+        "slot":slot,"start":start,"selected":[x[0] for x in selected]}),flush=True)
+    return selected
 
 
 def universe():
@@ -2121,6 +2147,16 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None, *, _partia
         setup_plan["setup_type"]="BREAKOUT"
 
     structure_gate=build_structure_gate(preferred_direction,price,setup_plan,k5,k15,k30,k1h,k4h)
+    if native_v2_enabled():
+        print("NATIVE_PLAN_PRECHECK",json.dumps({"symbol":symbol,
+            "direction":preferred_direction,"trigger":setup_plan.get("trigger_level"),
+            "stop":setup_plan.get("invalidation"),"target1":setup_plan.get("target1"),
+            "room_pct":structure_gate.get("room_pct"),
+            "required_room_pct":structure_gate.get("required_room_pct"),
+            "net_t1_r":structure_gate.get("net_t1_r"),
+            "qualified":structure_gate.get("qualified_precheck"),
+            "reasons":plan_precheck_reasons({"setup_plan":setup_plan,"structure_gate":structure_gate})},
+            ensure_ascii=False),flush=True)
     # Research-only: candidate's own trigger zone must not be counted as the
     # next distinct obstacle. Entry must clear the outer edge of that zone.
     # Frozen V3.1 'structure_gate' remains EXACTLY as it was.
@@ -2609,6 +2645,26 @@ def turkish_status(s):
             "WAIT":"🟡 ŞİMDİ ALMA — CANLI HAVUZ BEKLİYOR","NO_TRADE":"⚪ İŞLEM YOK"}.get(s,s)
 
 
+def plan_precheck_reasons(payload):
+    plan=payload.get("setup_plan") or {}
+    gate=payload.get("structure_gate") or {}
+    d=plan.get("direction")
+    trigger=float(plan.get("trigger_level") or 0)
+    target=float(plan.get("target1") or 0)
+    stop=float(plan.get("invalidation") or 0)
+    reasons=[]
+    if not ((d=="LONG" and 0<stop<trigger<target) or
+            (d=="SHORT" and 0<target<trigger<stop)):
+        reasons.append("giriş/stop/hedef sıralaması geçersiz veya ayrı hedef bulunamadı")
+    if not gate.get("room_ok"):
+        reasons.append("sonraki destek/dirence yeterli mesafe yok")
+    if not gate.get("rr_ok"):
+        reasons.append("masraf sonrası risk/ödül yetersiz")
+    if plan.get("setup_type","BREAKOUT")=="BREAKOUT" and not gate.get("level_ok"):
+        reasons.append("tetik seviyesi yapısal olarak doğrulanmadı")
+    return reasons
+
+
 def build_message(ts, regime, results, errors, perf=None):
     actionable=[x for x in results if x.status in ("LONG","SHORT")]
     waits=[x for x in results if x.status=="WAIT"]
@@ -2626,8 +2682,10 @@ def build_message(ts, regime, results, errors, perf=None):
     if not shown:
         lines.append("⚪ Şu an temiz setup yok. İşlem açmamak da geçerli sonuç.")
     for a in shown:
+        blocked=plan_precheck_reasons(a.payload) if native_v2_enabled() else []
+        title="⚪ PLAN ELENDİ — TEYİT BEKLEMİYOR" if blocked else turkish_status(a.status)
         lines += [
-            f"{turkish_status(a.status)} | {a.symbol} | 24s {a.payload.get('day_change_pct',0):+.1f}%",
+            f"{title} | {a.symbol} | 24s {a.payload.get('day_change_pct',0):+.1f}%",
             f"Grafik: {a.payload.get('chart',{}).get('state','N/A')}",
             f"Long: {a.long_score}/100 | Short: {a.short_score}/100 | Güven: {a.confidence}/99",
             f"Fiyat: {fmtp(a.price)}",
@@ -2639,6 +2697,11 @@ def build_message(ts, regime, results, errors, perf=None):
                 f"Hedef 1: {fmtp(a.tp1)} | Hedef 2: {fmtp(a.tp2)} | R/R≈{a.rr1:.2f}",
             ]
         plan=a.payload.get("setup_plan") or {}
+        if blocked:
+            lines.extend("• "+reason for reason in blocked)
+            lines.append("Yeni analizde geçerli bir plan oluşmadan Telegram giriş teyidi gönderilmez.")
+            lines.append("")
+            continue
         if plan:
             direction=plan.get("direction")
             trig=fmtp(plan.get("trigger_level"))
@@ -2663,9 +2726,8 @@ def build_message(ts, regime, results, errors, perf=None):
             lines.append(
                 f"❌ Fikir bozulur: {fmtp(plan.get('invalidation'))} seviyesinin karşı tarafında 5 dakikalık mum kapanışı."
             )
-            lines.append(
-                f"🎯 Olası hedefler: {fmtp(plan.get('target1'))} / {fmtp(plan.get('target2'))}"
-            )
+            targets=[fmtp(plan[key]) for key in ("target1","target2") if float(plan.get(key) or 0)>0]
+            lines.append("🎯 Olası hedefler: "+(" / ".join(targets) if targets else "yapısal hedef bulunamadı"))
         for r in a.reasons[:4]:
             if "Grafik tetikleyicisi" in r:
                 continue
