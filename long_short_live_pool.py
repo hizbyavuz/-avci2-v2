@@ -1429,6 +1429,45 @@ def early_message(row,estate,price,metrics):
         return (f"🔴 BOZULDU | {sym}\nErken {d} gözlemi geçersizleşti.")
     return None
 
+def _telegram_analysis_brief(symbol):
+    """Read-only display of the latest recorded analysis, never a trade gate."""
+    try:
+        with sqlite3.connect(f"file:{ANALYST_DB}?mode=ro", uri=True, timeout=2) as con:
+            record=con.execute("SELECT scan_time_utc,payload_json FROM analyses WHERE symbol=? ORDER BY scan_time_utc DESC LIMIT 1",(symbol,)).fetchone()
+        if not record:
+            return "• Ayrıntılı analiz kaydı bulunamadı; veri teyidi gösterilemiyor.\n"
+        stamp=datetime.fromisoformat(record[0]).astimezone(timezone.utc)
+        age=(datetime.now(timezone.utc)-stamp).total_seconds()
+        if age < -2 or age > 600:
+            return "• Son ayrıntılı analiz eski; güncel veri teyidi gösterilemiyor.\n"
+        p=json.loads(record[1] or "{}")
+        def value(v, suffix="", precision=2):
+            try:
+                n=float(v)
+                return f"{n:.{precision}f}{suffix}" if math.isfinite(n) and not isinstance(v,bool) else "kayıtta yok"
+            except (TypeError,ValueError,OverflowError):
+                return "kayıtta yok"
+        t=p.get('t15') or {}
+        evidence=p.get('native_derivative_evidence') or {}
+        oi=p.get('oi') or {}
+        try:
+            trend='yukarı' if float(t['price'])>float(t['ema20'])>float(t['ema50']) else ('aşağı' if float(t['price'])<float(t['ema20'])<float(t['ema50']) else 'karışık')
+        except (KeyError,TypeError,ValueError):
+            trend='kayıtta yok'
+        regime={'UP':'yukarı','DOWN':'aşağı','RANGE':'yatay'}.get(p.get('market_regime'),'kayıtta yok')
+        # A recorded analysis is not a new current four-factor authorization.
+        label='4/4 kayıtlı' if evidence.get('ready') else 'tamlık teyidi kayıtlı değil'
+        return (f"• Son analiz: {(stamp+timedelta(hours=3)).strftime('%H:%M')} Türkiye saati — giriş teyidi değildir.\n"
+                f"• 15 dk trend: {trend} | RSI (hareket gücü): {value(t.get('rsi'),precision=0)}\n"
+                f"• OI (açık pozisyon), 1 saat: {value(oi.get('oi_change_1h'),'%')}\n"
+                f"• Funding (dönemsel ödeme): {value(p.get('funding_pct'),'%',precision=4)}\n"
+                f"• Alış/satış işlem hacmi oranı: {value(p.get('taker_ratio'))}x\n"
+                f"• LONG/SHORT hesap sayısı oranı: {value(p.get('long_short_ratio'))}x\n"
+                f"• BTC yönü: {regime} | Türev veri: {label}\n")
+    except (sqlite3.Error,OSError,ValueError,TypeError):
+        return "• Ayrıntılı analiz kaydı okunamadı; veri teyidi gösterilemiyor.\n"
+
+
 def _telegram_data_brief(row, structure_quality=None):
     """Display only verified snapshot fields; missing values are not inferred."""
     sq=structure_quality or {}
@@ -1437,22 +1476,17 @@ def _telegram_data_brief(row, structure_quality=None):
             sq=json.loads(row["structure_gate_json"] or "{}")
         except (KeyError, TypeError, ValueError, json.JSONDecodeError):
             sq={}
-    def metric(key, suffix="", precision=2):
-        v=sq.get(key)
-        try:
-            return f"{float(v):.{precision}f}{suffix}" if v is not None else "veri yok"
-        except (TypeError, ValueError, OverflowError):
-            return "veri yok"
     direction=str(row["direction"])
+    try:
+        volume=float(sq['volume_mult'])*100
+        volume_text=f"normalin %{volume:.0f}" if math.isfinite(volume) else 'kayıtta yok'
+    except (KeyError,TypeError,ValueError,OverflowError):
+        volume_text='kayıtta yok'
     return ("📊 KISA VERİ ÖZETİ\n"
             f"• Grafik seviyesi: {fmtp(row['trigger_level'])} ({'direnç' if direction=='LONG' else 'destek'})\n"
-            f"• Hacim / normal: {metric('volume_mult','x')}\n"
-            f"• Mum gövdesi: {metric('body_ratio')} | Kapanış konumu: {metric('close_location')}\n"
-            f"• Sahte kırılım: {'grafik filtresi geçti' if sq.get('qualified') else 'henüz teyit yok'}\n"
-            "• EMA / RSI: bu bildirimde doğrulanmadı\n"
-            "• OI / Funding: bu bildirimde doğrulanmadı\n"
-            "• Taker / Long-Short oranı: bu bildirimde doğrulanmadı\n"
-            "• BTC yönü: bu bildirimde doğrulanmadı\n")
+            f"• Hacim: {volume_text}\n"
+            f"• Grafik teyidi: {'filtre geçti' if sq.get('qualified') else 'henüz tamamlanmadı'}\n"
+            + _telegram_analysis_brief(str(row['symbol'])))
 
 def queue_approaching_alert(row,price,structure_quality=None):
     """Queue one non-actionable watch message when price first approaches the trigger.
