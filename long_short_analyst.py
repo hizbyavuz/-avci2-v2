@@ -2203,6 +2203,10 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None):
 
 
 def init_db():
+    if native_v2_enabled():
+        with sqlite3.connect(DB,timeout=30) as wal:
+            wal.execute('PRAGMA journal_mode=WAL')
+            wal.execute('PRAGMA busy_timeout=30000')
     with sqlite3.connect(DB, timeout=60) as con:
         con.execute("""CREATE TABLE IF NOT EXISTS htf_cache(
             symbol TEXT NOT NULL,

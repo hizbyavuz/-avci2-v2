@@ -1,5 +1,8 @@
 import copy
 import unittest
+import tempfile
+import sqlite3
+from pathlib import Path
 from unittest.mock import patch
 from long_short_native_derivatives import validate,ENDPOINTS,SOURCE
 from long_short_outcomes_v2 import label_path
@@ -76,6 +79,19 @@ class NativeSnapshotTests(unittest.TestCase):
         self.assertFalse(lp.futures_signal_authorization(early,{'qualified':True})['qualified'])
 
 class V2MathTests(unittest.TestCase):
+    def test_v2_analysis_database_allows_reader_during_write(self):
+        import long_short_analyst as a
+        with tempfile.TemporaryDirectory() as d,patch.dict('os.environ',{'LS_NATIVE_CHAIN_V2':'1'}), \
+            patch.object(a,'DB',str(Path(d)/'analyst.db')):
+            a.init_db()
+            writer=sqlite3.connect(a.DB)
+            reader=sqlite3.connect('file:'+a.DB+'?mode=ro',uri=True,timeout=0.1)
+            try:
+                writer.execute('BEGIN IMMEDIATE')
+                self.assertEqual(reader.execute('PRAGMA journal_mode').fetchone()[0],'wal')
+                reader.execute('SELECT MAX(scan_time_utc) FROM analyses').fetchone()
+            finally:writer.rollback();writer.close();reader.close()
+
     def test_real_cost_in_denominator(self):
         import long_short_live_pool as lp
         row={'direction':'LONG','data_mode':'BINANCE_FUTURES','derivatives_provider':'BINANCE_FUTURES',

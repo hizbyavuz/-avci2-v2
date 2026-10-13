@@ -139,7 +139,8 @@ def main():
             finally:c.close()
         except Exception as e:
             log('NATIVE_MARKET_CATALOGUE_UNAVAILABLE',{'error':str(e)[:160]});stop.wait(30);continue
-        symbols=[s for s in requested_symbols(os.path.join(root(),'long_short_analyst.db')) if s in allowed][:90]
+        analyst=os.getenv('LS_ANALYST_DB') or os.getenv('LS_DB') or os.path.join(root(),'long_short_analyst.db')
+        symbols=[s for s in requested_symbols(analyst) if s in allowed][:90]
         ready=0
         for symbol in symbols:
             if stop.is_set():return 0
