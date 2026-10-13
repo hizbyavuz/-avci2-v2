@@ -174,7 +174,7 @@ def backfill_binance_archive(db, symbols, intervals=("1m", "5m", "15m", "30m", "
                                                *[float(fields[i]) for i in (1,2,3,4,5)],
                                                "BINANCE_UM_FUTURES_ARCHIVE", int(time.time()*1000),
                                                float(fields[7]), int(fields[8]), float(fields[10]))
-                                        conn.execute("""INSERT OR IGNORE INTO futures_closed_klines
+                                        conn.execute("""INSERT OR REPLACE INTO futures_closed_klines
                                             (symbol,interval,open_ms,close_ms,open,high,low,close,volume,source,received_ms,quote_volume,trade_count,taker_buy_quote)
                                             VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", row)
                                         inserted += 1
