@@ -301,7 +301,47 @@ def fmtp(x):
     if abs(x)>=1: return f"{x:.4f}"
     return f"{x:.8f}".rstrip("0")
 
+def enable_wal(path):
+    """WAL lets audit/report readers run without blocking the live writer.
+
+    Persistent per DB file. If another process holds a lock right now the
+    switch is retried on the next start; nothing else depends on it.
+    """
+    try:
+        with sqlite3.connect(path,timeout=30) as con:
+            mode=con.execute("PRAGMA journal_mode=WAL").fetchone()[0]
+            con.execute("PRAGMA synchronous=NORMAL")
+        if str(mode).lower()!="wal":
+            print("LIVE_DB_JOURNAL_MODE",mode,flush=True)
+        return str(mode).lower()
+    except sqlite3.OperationalError as exc:
+        print("LIVE_DB_WAL_DEFERRED",str(exc)[:120],flush=True)
+        return None
+
+
+def _commit_with_lock_retry(con,sql,params,attempts=4):
+    """Record an event that already reached Telegram; never drop it on a transient lock."""
+    for attempt in range(attempts):
+        try:
+            con.execute(sql,params)
+            con.commit()
+            return
+        except sqlite3.OperationalError as exc:
+            if "locked" not in str(exc).lower() or attempt==attempts-1:
+                print("LIVE_EVENT_WRITE_FAILED",str(exc)[:120],
+                      json.dumps(list(params[:6]),default=str),flush=True)
+                raise
+            try:
+                con.rollback()
+            except sqlite3.Error:
+                pass
+            wait=min(2.0*(attempt+1),6.0)
+            print(f"LIVE_DB_LOCK_RETRY event attempt={attempt+1} wait={wait}s",flush=True)
+            time.sleep(wait)
+
+
 def init_db():
+    enable_wal(LIVE_DB)
     with sqlite3.connect(LIVE_DB,timeout=30) as con:
         con.execute("""CREATE TABLE IF NOT EXISTS watch_state(
             symbol TEXT PRIMARY KEY,
@@ -1957,7 +1997,7 @@ def loop_once():
                         con.commit()
                         if emsg:
                             print(emsg); send_telegram(emsg)
-                        con.execute("""INSERT INTO events(event_time_utc,symbol,direction,stage_from,stage_to,
+                        _commit_with_lock_retry(con, """INSERT INTO events(event_time_utc,symbol,direction,stage_from,stage_to,
                             price,closed_5m,condition_time_utc,payload_json) VALUES(?,?,?,?,?,?,?,?,?)""",
                             (observed_time,row["symbol"],row["direction"],"EARLY:"+old_early,"EARLY:"+estate,
                              price,closed,observed_time,json.dumps({
@@ -1977,7 +2017,6 @@ def loop_once():
                                      "analyst_scan_time":str(row["analyst_scan_time"] or ""),
                                  },
                              },ensure_ascii=False)))
-                        con.commit()
 
                     if new!=old:
                         # V3 correlated-risk cap: at most two user-facing TRIGGERED
@@ -2228,14 +2267,13 @@ def loop_once():
                             event_payload["_trigger_execution_proxy"]=trigger_proxy
                             event_payload["_trigger_execution_gate"]=execution_check
 
-                        con.execute("""INSERT INTO events(
+                        _commit_with_lock_retry(con, """INSERT INTO events(
                             event_time_utc,symbol,direction,stage_from,stage_to,price,closed_5m,
                             condition_time_utc,telegram_sent_time_utc,telegram_status,telegram_error,delay_seconds,payload_json
                         ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                             (observed_time,row["symbol"],row["direction"],old,new,price,closed,
                              condition_time,sent_time,telegram_status,telegram_error,delay,
                              json.dumps(event_payload,ensure_ascii=False)))
-                        con.commit()
                     else:
                         con.execute("UPDATE watch_state SET last_price=?,last_closed_5m=?,last_update_utc=? WHERE symbol=?",
                                     (price,closed,observed_time,row["symbol"]))
