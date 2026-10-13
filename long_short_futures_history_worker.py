@@ -79,13 +79,24 @@ def priority_pass(db, base, analyst, stop):
 
     symbols = requested_symbols(analyst)[:90]
     log('FUTURES_HISTORY_PREWARM', {'requested':len(symbols), 'priority_symbols':symbols[:60]})
-    for iv in ('30m', '1h', '4h'):
-        for sym in symbols:
-            if time.monotonic() - last_admission >= 20:
-                if not batch(requested_symbols(analyst)[:90], ADMISSION_INTERVALS, follow_requests=True):
-                    return True
-                last_admission = time.monotonic()
-            if not batch([sym], [iv]): return True
+    queue = list(symbols)
+    visited = set()
+    while queue:
+        if time.monotonic() - last_admission >= 20:
+            symbols = requested_symbols(analyst)[:90]
+            if not batch(symbols, ADMISSION_INTERVALS, follow_requests=True):
+                return True
+            # Admission work can span a rotation. Re-read afterwards and
+            # rebuild the context queue too, not just the short candles.
+            symbols = requested_symbols(analyst)[:90]
+            queue = [s for s in symbols if s not in visited]
+            last_admission = time.monotonic()
+            if not queue: break
+        sym = queue.pop(0)
+        visited.add(sym)
+        # Finish each priority coin's entire context before lower-priority
+        # coins. New arrivals must not miss a timeframe phase already passed.
+        if not batch([sym], ('30m', '1h', '4h')): return True
     return failed
 
 

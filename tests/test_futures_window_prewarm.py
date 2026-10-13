@@ -108,7 +108,10 @@ class PrewarmTests(unittest.TestCase):
         failed, seen = self.run_priority(advance=True)
         self.assertFalse(failed)
         self.assertIn(('NEWUSDT','5m'), seen)
-        self.assertLess(seen.index(('NEWUSDT','5m')), seen.index(('GOODUSDT','30m')))
+        self.assertLess(seen.index(('NEWUSDT','5m')), seen.index(('NEWUSDT','30m')))
+        # A new forecast must receive its long history during THIS pass.
+        self.assertIn(('NEWUSDT','1h'), seen)
+        self.assertIn(('NEWUSDT','4h'), seen)
 
     def test_symbol_rejection_does_not_block_healthy_symbol(self):
         failed, seen = self.run_priority(code=400)
