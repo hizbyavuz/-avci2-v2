@@ -1343,11 +1343,11 @@ def queue_approaching_alert(row,price,structure_quality=None):
     full_gate=bool(sq.get("qualified"))
     status_line=("Yapı + hacim + fake-breakout kapısı geçti."
                  if full_gate else
-                 "Henüz işlem teyidi değil; yapı/alan/R ve kapanış teyidi bekleniyor.")
+                 "Sadece izleme: grafik yapısı, risk/ödül ve 5 dk kapanış teyidi henüz tamamlanmadı.")
     msg=(f"{side_ball} {d} İÇİN İZLE | {sym}\n"
          f"5 dk mum {fmtp(level)} {relation} kapanırsa {d} güçlenir.\n"
          f"Şu an fiyat: {fmtp(price)}\n"
-         f"Beklenen: {expectation}\n"
+         f"Ne bekleniyor? {expectation}\n"
          f"Durum: 🟡 {status_line}\n"
          f"🛡️ SL: {fmtp(inv)}\n"
          f"🎯 TP1: {fmtp(t1)}\n"
@@ -1444,14 +1444,14 @@ def message_for(row,stage,price,closed):
         relation="üstünde" if d=="LONG" else "altında"
         next_step="seviyeyi koruması / retestten güç alması" if d=="LONG" else "seviyenin altında kalması / retestten reddedilmesi"
         return (f"{side_ball} {d} TEYİT GELDİ | {sym}\n"
-                f"5 dk mum {fmtp(trig)} {relation} kapandı.\n"
-                f"✅ Yapı filtresi geçti: destek/direnç + hacim/mum + fake breakout kontrolü.\n"
+                f"Ne oldu? 5 dk mum {fmtp(trig)} seviyesinin {relation} kapandı.\n"
+                "✅ Grafik kontrolü: önemli seviye kırılımı, mum/hacim uyumu ve sahte kırılım elemesi geçti.\n"
                 f"Kapanış: {fmtp(closed)} | Şu an: {fmtp(price)}\n"
-                f"Şimdi beklenen: {next_step}.\n"
+                f"Sıradaki koşul: fiyatın {next_step}.\n"
                 f"🛡️ SL: {fmtp(inv)}\n"
                 f"🎯 TP1: {fmtp(t1)}\n"
                 f"🎯 TP2: {fmtp(t2)}\n"
-                "⚠️ İlk mum teyidi; henüz işlem sinyali değil.")
+                "⛔ ŞİMDİ İŞLEM AÇMA: Bu sadece ilk grafik teyidi. Güncel vadeli veri ve diğer işlem koşulları ayrıca doğrulanmalı.")
 
     if stage=="RETESTING":
         # Retest itself is recorded but not messaged; the next actionable state
