@@ -1742,6 +1742,10 @@ def send_telegram(msg):
             chat=resolve_live_chat_id(token,configured)
             if expected_chat and str(chat)!=expected_chat:
                 raise RuntimeError("TELEGRAM_CHAT_MISMATCH_PRE_SEND")
+            if os.getenv('LS_UNIFIED_CARD_ENABLED','0')=='1':
+                from long_short_message_card import route_core_message
+                if route_core_message(token,chat,msg):
+                    return now_iso()
             r=requests.post(f"https://api.telegram.org/bot{token}/sendMessage",
                             json={"chat_id":chat,"text":msg[:TELEGRAM_LIMIT],"disable_web_page_preview":True},
                             timeout=10)
