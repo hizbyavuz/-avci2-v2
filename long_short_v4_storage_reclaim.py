@@ -49,6 +49,20 @@ def main():
         verified={"manifest":key,"object":entry["key"],"bytes":entry["bytes"]}
         break
     if not verified:raise RuntimeError("No validated V4 backup; refuse reclaim")
+    # Preserve an immutable recovery copy outside the daily/ 24-hour retention prefix.
+    archive_key="archive/v4-native/"+verified["object"].split("/")[-2]+"/"+TARGET
+    client.copy_object(Bucket=bucket,Key=archive_key,
+        CopySource={"Bucket":bucket,"Key":verified["object"]},
+        MetadataDirective="COPY")
+    archived=client.head_object(Bucket=bucket,Key=archive_key)
+    if int(archived["ContentLength"])!=int(verified["bytes"]):
+        raise RuntimeError("Archived V4 size mismatch")
+    source_entry=next(d for d in json.loads(client.get_object(
+        Bucket=bucket,Key=verified["manifest"])["Body"].read())["databases"]
+        if d["name"]==TARGET)
+    if archived.get("Metadata",{}).get("sha256")!=source_entry["sha256"]:
+        raise RuntimeError("Archived V4 SHA256 metadata mismatch")
+    verified["permanent_archive"]=archive_key
     # Never remove active sidecars: a WAL could contain uncheckpointed changes.
     for suffix in ("-wal","-shm","-journal"):
         if (root/(TARGET+suffix)).exists():raise RuntimeError("V4 SQLite sidecar exists; refuse reclaim")
