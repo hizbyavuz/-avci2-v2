@@ -86,6 +86,9 @@ def render(sections):
 
 
 def publish(token, chat, symbol, source, text, direction, *, observed_at=None, post=None):
+    from long_short_qualified_chain import enabled as qualified_chain_enabled
+    if source == "EARLY" and qualified_chain_enabled():
+        return {"status":"CANDIDATE_ONLY_V1","message_id":None}
     if source not in ('CORE','EARLY') or direction not in ('LONG','SHORT'):
         raise ValueError('invalid message card source/direction')
     if not token or not chat or not re.fullmatch(r'[^\W_]+USDT', symbol):
@@ -119,6 +122,9 @@ def publish(token, chat, symbol, source, text, direction, *, observed_at=None, p
                 c.rollback()
                 return {'status':'UNCHANGED','message_id':row['message_id']}
         sections[source] = {'text':text,'direction':direction,'observed_at':stamp}
+        from long_short_qualified_chain import enabled as qualified_chain_enabled
+        if source == "CORE" and qualified_chain_enabled():
+            sections.pop("EARLY", None)
         if source == 'EARLY' and 'CORE' in sections:
             core_time = datetime.fromisoformat(sections['CORE']['observed_at'].replace('Z','+00:00'))
             if now-core_time.timestamp()>600:
@@ -212,3 +218,4 @@ def route_core_message(token, chat, text):
     if result['status'] not in ('ACK','UNCHANGED'):
         raise RuntimeError('MESSAGE_CARD_NOT_DELIVERED')
     return True
+
