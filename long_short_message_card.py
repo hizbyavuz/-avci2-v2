@@ -36,6 +36,58 @@ def connect():
     return c
 
 
+def simple_early(text):
+    """Short display only; the stored source and trading decisions stay intact."""
+    lines=text.splitlines()
+    if not lines or ' | ' not in lines[0]:
+        return text
+    header=lines[0]
+    direction='LONG' if 'LONG' in header else 'SHORT'
+    level=re.search(r'İzlenen seviye: ([^\s|]+)',text)
+    price=re.search(r'Şu an fiyat: ([^\s|]+)',text)
+    if not level or not price:
+        return text
+    side='üstünde' if direction=='LONG' else 'altında'
+    if 'FİKRİ BOZULDU' in header:
+        header=header.replace('FİKRİ BOZULDU','TAKİBİ İPTAL')
+        action=f'Bu fikirle yeni {direction} işlemi açma.'
+        reason=f'Fiyat {level[1]} seviyesinin {side} kalamadı.'
+        expected='Yeni bir fırsat oluşması bekleniyor.'
+    elif 'GEÇ / KOVALAMA' in header:
+        action=f'Yeni {direction} işlemi için bekle.'
+        reason='Hareket uzadı veya giriş için yeterli alan kalmadı.'
+        expected='Daha uygun bir giriş yeri bekleniyor.'
+    elif 'KAPANIŞ TEYİDİ' in header:
+        header=header.replace('KAPANIŞ TEYİDİ','İLK ŞART TAMAM')
+        action='Henüz giriş onayı yok; bekle.'
+        reason=f'5 dakikalık mum {level[1]} {side} kapandı.'
+        expected=f'Fiyatın seviyeyi koruması ve ana analizin onayı.'
+    elif 'İÇİN İZLE' in header:
+        action='Henüz giriş onayı yok; bekle.'
+        reason='Kısa süreli bir hareket başladı.'
+        expected=f'5 dakikalık mumun {level[1]} {side} kapanması, ardından seviyeyi koruması ve ana analizin onayı.'
+    else:
+        action='Güncel giriş onayı yok.'
+        reason='Bu takip sona erdi.'
+        expected='Yeni bir fırsat oluşması bekleniyor.'
+    result=[header,f'• Durum: {action}',f'• Şu an fiyat: {price[1]}',
+            f'• Neden: {reason}',f'• Beklenen: {expected}']
+    context=next((x for x in lines if x.startswith('Büyük resim:')),None)
+    if context:
+        context=context.split(' | ')[0].replace('üst zaman verisi eksik; yön teyit edilemiyor',
+            '1 ve 4 saatlik veri eksik; genel yön bilinmiyor').replace('eğim yönü','yön').replace('eğime ters','yöne ters')
+        result.append('• '+context)
+    for label in ('Kısa yön','Hacim','Alış payı','BTC'):
+        match=re.search(re.escape(label)+r': ([^|\n]+)',text)
+        if match and 'TAKİBİ İPTAL' not in header:
+            value=match[1].strip()
+            if label=='Hacim':value='normalin '+value.replace('×',' katı')
+            result.append('• '+{'Kısa yön':'Son hareket','Alış payı':'Alımların payı'}.get(label,label)+': '+value)
+    update=next((x for x in lines if x.startswith('Güncelleme:')),None)
+    if update:result.append('• '+update+' (Türkiye saati)')
+    return '\n'.join(result)
+
+
 def render(sections):
     """One header, one evidence line and one risk line; decisions stay explicit."""
     from long_short_display import local_time
@@ -77,11 +129,16 @@ def render(sections):
                          if line.startswith(('İlk erken uyarı:','Son ölçülen fiyat:')))
     elif early:
         parts.extend(early_body)
-    if evidence:parts.append('📊 '+' | '.join(evidence.values()))
-    if risks:parts.append(' | '.join(dict.fromkeys(risks)))
+    if early and not core:
+        return simple_early(early['text'])
+    for key in ('Kısa yön','Yön 15 dk','Hacim','Alış payı','BTC','Tip','Ayrıntılı veri','Analiz'):
+        if key in evidence:parts.append('• '+evidence[key])
+    if risks:parts.extend(dict.fromkeys(risks))
     if core and 'Analiz' not in evidence:
         parts.append('Ana motor mesajı: '+local_time(core['observed_at']))
-    text='\n'.join(parts)
+    # Keep every core instruction and risk level, each on its own bullet.
+    text='\n'.join(line if i==0 or line.startswith('•') else '• '+line
+                   for i,line in enumerate('\n'.join(parts).splitlines()) if line)
     return text if len(text)<=4096 else text[:4093]+'…'
 
 
