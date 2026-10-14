@@ -562,12 +562,15 @@ def main() -> int:
         pressure = disk.total > 0 and disk.used / disk.total >= 0.85
     except OSError:
         pressure = True  # fail safe for optional research writer
-    if pressure:
-        print("[daemon] OPTIONAL_NATIVE_BOOT_SKIPPED_STORAGE_PRESSURE", flush=True)
+    if os.getenv("LS_V4_RECLAIM_ENABLED","0")=="1" or pressure:
+        print("[daemon] OPTIONAL_NATIVE_BOOT_SKIPPED_STORAGE_PRESSURE_OR_ARCHIVE", flush=True)
     else:
         threading.Thread(target=native_taker_boot_probe, name="native-taker-boot", daemon=True).start()
 
     run_child("native_db_dependency_audit_startup", "long_short_native_db_dependency_audit.py")
+
+    if os.getenv("LS_V4_RECLAIM_ENABLED","0")=="1":
+        run_child("v4_storage_reclaim", "long_short_v4_storage_reclaim.py")
 
     # One initial analyst pass gives both live watchers a fresh plan before they
     # start. Failure is not fatal; the analyst loop will keep retrying.
