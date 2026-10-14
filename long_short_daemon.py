@@ -265,6 +265,8 @@ def backup_loop() -> None:
     while not STOP.is_set():
         run_child("backup_inventory", "long_short_backup_inventory.py")
         rc = run_child("daily_backup", "long_short_daily_backup.py")
+        if rc == 0:
+            run_child("backup_retention", "long_short_backup_retention.py")
         if rc != 0:
             print("[daemon] BACKUP_FAILED; retry in 1h", flush=True)
             if STOP.wait(3600):
