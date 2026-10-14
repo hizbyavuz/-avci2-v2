@@ -141,6 +141,16 @@ def main():
             log('NATIVE_MARKET_CATALOGUE_UNAVAILABLE',{'error':str(e)[:160]});stop.wait(30);continue
         analyst=os.getenv('LS_ANALYST_DB') or os.getenv('LS_DB') or os.path.join(root(),'long_short_analyst.db')
         symbols=[s for s in requested_symbols(analyst) if s in allowed][:90]
+        # Refresh the oldest cached snapshots first so a fixed request order
+        # cannot repeatedly starve later symbols when relay calls are slow.
+        c=database()
+        try:
+            received=dict(c.execute('SELECT symbol,received_ms FROM snapshots').fetchall())
+        finally:c.close()
+        symbols.sort(key=lambda symbol:(received.get(symbol,0),symbol))
+        log('NATIVE_DERIVATIVES_REFRESH_PLAN',{'requested':len(symbols),
+            'oldest_age_seconds':round(max(0,time.time()*1000-min((received.get(s,0) for s in symbols),default=int(time.time()*1000)))/1000),
+            'first_symbols':symbols[:5]})
         ready=0
         for symbol in symbols:
             if stop.is_set():return 0
