@@ -166,6 +166,10 @@ def report(root, now=None, hours=24):
     for m in messages:
         m['sent_utc'] = datetime.fromtimestamp(m['sent_epoch'],timezone.utc).isoformat()
         m['included_as_direction_idea'] = m['kind'] not in excluded
+        if m['included_as_direction_idea']:
+            from long_short_move_context import snapshot
+            m['move_context'] = snapshot(Path(root)/'binance_futures_kline_shadow.db',
+                m['symbol'], m['direction'], m['price'], int(m['sent_epoch']*1000))
         try:
             m['outcomes'] = evaluate(m, Path(root)/'binance_futures_kline_shadow.db', now)
         except sqlite3.Error:

@@ -234,6 +234,16 @@ def observe(conn,symbol,snapshot,now_ms,cfg=CONFIG):
         if existing is None:
             continue
         old=existing['state']
+        if state in ('EARLY','CONFIRMED') and state != old:
+            # Sidecar measurements only: evaluate() has already made its decision.
+            from long_short_move_context import snapshot as movement_snapshot
+            root=os.getenv('LS_STATE_DIR') or os.getenv('RAILWAY_VOLUME_MOUNT_PATH') or '.long-short-state'
+            f['move_context']=movement_snapshot(Path(root)/'binance_futures_kline_shadow.db',
+                symbol,direction,snapshot['price'],now_ms,mode='observed_at_event')
+            encoded=json.dumps(f,ensure_ascii=False,allow_nan=False)
+            print('MOVE_CONTEXT_OBSERVATION '+json.dumps({'symbol':symbol,'direction':direction,
+                'episode_id':existing['id'],'stage':state,'context':f['move_context']},
+                ensure_ascii=False,allow_nan=False),flush=True)
         early_ms,early_price=existing['early_ms'],existing['early_price']
         before_signal=existing['gain_before_signal']
         sign=1 if direction=='LONG' else -1
