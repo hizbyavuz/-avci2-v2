@@ -11,6 +11,12 @@ def main():
     client=boto3.client("s3",endpoint_url=os.environ["LS_BACKUP_ENDPOINT"],aws_access_key_id=os.environ["LS_BACKUP_ACCESS_KEY_ID"],aws_secret_access_key=os.environ["LS_BACKUP_SECRET_ACCESS_KEY"],region_name=os.getenv("LS_BACKUP_REGION","auto"),config=Config(s3={"addressing_style":"virtual"}))
     day=datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d")
     timestamp=datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    # Do not create repeated full snapshots on the same UTC day.
+    prefix="daily/"+day+"/"
+    listing=client.list_objects_v2(Bucket=bucket,Prefix=prefix,MaxKeys=1000)
+    if any(item["Key"].endswith("/manifest.json") for item in listing.get("Contents",[])):
+        print("LS_BACKUP_DAILY_ALREADY_PRESENT "+day,flush=True)
+        return
     results=[]
     for source in sorted(state.glob("*.db")):
         with tempfile.TemporaryDirectory() as tmp:
