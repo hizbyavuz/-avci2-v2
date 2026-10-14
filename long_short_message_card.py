@@ -77,12 +77,27 @@ def simple_early(text):
         context=context.split(' | ')[0].replace('üst zaman verisi eksik; yön teyit edilemiyor',
             '1 ve 4 saatlik veri eksik; genel yön bilinmiyor').replace('eğim yönü','yön').replace('eğime ters','yöne ters')
         result.append('• '+context)
-    for label in ('Kısa yön','Hacim','Alış payı','BTC'):
+    labels={'Kısa yön':'Son hareket','Hacim':'İşlem hacmi',
+        'Alış payı':'Alımların payı','Yön 15 dk':'15 dakikalık yön',
+        'Hareket gücü':'Hareket gücü (RSI)',
+        'Açık işlemler 1 sa':'Açık pozisyon değişimi (son 1 saat)',
+        'Taşıma oranı':'Pozisyon taşıma ücreti oranı',
+        'Alış/satış':'Alış / satış işlem oranı',
+        'Long/short hesap':'LONG / SHORT hesap oranı',
+        'BTC':'Bitcoin yönü','Vadeli veri':'Vadeli veri kapsamı',
+        'Ayrıntılı veri':'Ayrıntılı verinin durumu','Analiz':'Ayrıntılı analiz saati'}
+    for label,display in labels.items():
         match=re.search(re.escape(label)+r': ([^|\n]+)',text)
-        if match and 'TAKİBİ İPTAL' not in header:
+        if match:
             value=match[1].strip()
             if label=='Hacim':value='normalin '+value.replace('×',' katı')
-            result.append('• '+{'Kısa yön':'Son hareket','Alış payı':'Alımların payı'}.get(label,label)+': '+value)
+            result.append('• '+display+': '+value)
+    first=next((x for x in lines if x.startswith('İlk gözlem:')),None)
+    if first:result.append('• '+first.replace(' | ',' — saat '))
+    # Preserve range position and volume context rather than discarding it.
+    original_context=next((x for x in lines if x.startswith('Büyük resim:')),None)
+    if original_context:
+        result.extend('• '+field for field in original_context.split(' | ')[1:])
     update=next((x for x in lines if x.startswith('Güncelleme:')),None)
     if update:result.append('• '+update+' (Türkiye saati)')
     return '\n'.join(result)
@@ -131,8 +146,8 @@ def render(sections):
         parts.extend(early_body)
     if early and not core:
         return simple_early(early['text'])
-    for key in ('Kısa yön','Yön 15 dk','Hacim','Alış payı','BTC','Tip','Ayrıntılı veri','Analiz'):
-        if key in evidence:parts.append('• '+evidence[key])
+    for field in evidence.values():
+        parts.append('• '+field)
     if risks:parts.extend(dict.fromkeys(risks))
     if core and 'Analiz' not in evidence:
         parts.append('Ana motor mesajı: '+local_time(core['observed_at']))
