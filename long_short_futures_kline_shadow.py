@@ -660,12 +660,21 @@ def requested_symbols(analyst_db):
     # Without this reservation, a rotated-out setup loses its WS subscription
     # and REST repairs even while the live watcher still evaluates it.
     live = live_watch_symbols(analyst_db)
-    ordered = list(dict.fromkeys(live + current + selected + ["BTCUSDT", "ETHUSDT", "SOLUSDT"]
+    paper=[]
+    if os.getenv('LS_NATIVE_CHAIN_V2','0')=='1':
+        try:
+            from long_short_trade_ledger import pending_symbols as paper_pending_symbols
+            paper=paper_pending_symbols(os.getenv('LS_LIVE_DB') or os.path.join(
+                os.path.dirname(os.path.abspath(analyst_db)),'long_short_live_pool.db'))
+        except (sqlite3.Error,OSError) as exc:
+            log('PAPER_CANDLE_RESERVATION_ERROR',{'error_type':type(exc).__name__})
+    ordered = list(dict.fromkeys(paper + live + current + selected + ["BTCUSDT", "ETHUSDT", "SOLUSDT"]
                                 + upcoming + scan_symbols + pending))
     if len(ordered) > MAX_SYMBOLS:
         log('FUTURES_REQUEST_CAPACITY', {'capacity':MAX_SYMBOLS,
             'deferred':ordered[MAX_SYMBOLS:],
             'deferred_live':[s for s in live if s not in ordered[:MAX_SYMBOLS]],
+            'deferred_paper':[s for s in paper if s not in ordered[:MAX_SYMBOLS]],
             'deferred_forecast':[s for s in forecast if s not in ordered[:MAX_SYMBOLS]]})
     return ordered[:MAX_SYMBOLS]
 

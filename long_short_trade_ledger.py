@@ -19,6 +19,22 @@ VERSION = 'INDEPENDENT_PAPER_V1_2026_10_15'
 HORIZON_MINUTES = 180  # existing protocol, not chosen from observed performance
 
 
+def pending_symbols(db_path, now_ms=None):
+    """Keep post-signal candles subscribed even after a setup leaves the pool."""
+    if not os.path.isfile(db_path):return []
+    now_ms=int(time.time()*1000) if now_ms is None else int(now_ms)
+    with closing(sqlite3.connect('file:'+os.path.abspath(db_path)+'?mode=ro',uri=True,timeout=3)) as c:
+        if not c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='events'").fetchone():return []
+        rows=c.execute('''SELECT id,symbol FROM events WHERE stage_to='TRIGGERED'
+            AND json_valid(payload_json) AND json_extract(payload_json,'$._native_chain_v2')=1
+            AND unixepoch(event_time_utc) BETWEEN ? AND ? ORDER BY id''',
+            (now_ms//1000-(HORIZON_MINUTES+1)*60,now_ms//1000)).fetchall()
+        finished=set()
+        if c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='independent_paper_v1'").fetchone():
+            finished={r[0] for r in c.execute("SELECT event_id FROM independent_paper_v1 WHERE state IN ('RESOLVED','ENTRY_MISSED','INVALID_SIGNAL')")}
+    return list(dict.fromkeys(s for eid,s in rows if eid not in finished and isinstance(s,str) and s.endswith('USDT')))
+
+
 def evaluate(direction, stop, target, bars, entry_ms, now_ms, cost_pct, min_net_r=1.0, required_room_pct=0.0):
     if now_ms < entry_ms + 60000:
         return {'state': 'PENDING'}
@@ -89,6 +105,7 @@ def resolve(db_path, now_ms=None, bars_reader=None, funding_reader=None):
             return {'version':VERSION,'state':'WAITING_FOR_EVENTS_TABLE'}
         c.execute('''CREATE TABLE IF NOT EXISTS independent_paper_v1(
             event_id INTEGER PRIMARY KEY, checked_ms INTEGER, state TEXT, payload TEXT)''')
+        c.execute('CREATE INDEX IF NOT EXISTS ix_independent_event_stage_time ON events(stage_to,event_time_utc)')
         c.commit()
         # Native-only selection happens BEFORE the work limit. Completed legacy
         # events and repeated unresolved rows cannot starve newer signals.

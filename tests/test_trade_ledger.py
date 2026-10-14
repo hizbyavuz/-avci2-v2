@@ -3,7 +3,7 @@ import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
-from long_short_trade_ledger import evaluate, summarize, resolve
+from long_short_trade_ledger import evaluate, summarize, resolve, pending_symbols
 from long_short_outcomes_v2 import label_path
 from long_short_native_derivatives import SOURCE
 
@@ -91,7 +91,10 @@ class LedgerTests(unittest.TestCase):
                 c.execute("INSERT INTO events VALUES(100,?,'XUSDT','LONG','TRIGGERED','FAILED',?)",('1970-01-01T00:00:10+00:00',json.dumps(p)))
             bars=lambda *a:[bar(60000,100,105,99,104)]
             funding=lambda *a:dict(source=SOURCE,symbol='XUSDT',rates=[])
+            self.assertEqual(pending_symbols(db,120000),['XUSDT'])
+            self.assertEqual(pending_symbols(db,20000000),[])
             resolve(db,120000,bars,funding)
+            self.assertEqual(pending_symbols(db,120000),[])
             resolve(db,180000,bars,lambda *a:self.fail('resolved outcome changed'))
             with sqlite3.connect(db) as c:
                 rows=c.execute('SELECT state,payload FROM independent_paper_v1').fetchall()
