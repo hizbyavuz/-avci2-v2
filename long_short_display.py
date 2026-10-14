@@ -70,3 +70,49 @@ def signed_return_pct(direction,entry,price):
     if direction not in ('LONG','SHORT') or not all(math.isfinite(float(x)) and float(x)>0 for x in (entry,price)):
         raise ValueError('invalid direction or price')
     return (float(price)/float(entry)-1)*100*(1 if direction=='LONG' else -1)
+
+
+def trade_plan_message(row, price, execution, data_brief, format_price):
+    """Explain the existing locked plan; never create targets or change gates."""
+    direction = str(row['direction'])
+    stop, target = float(row['invalidation']), float(row['target1'])
+    second = float(row['target2'] or 0)
+    long = direction == 'LONG'
+    if not (stop < price < target if long else target < price < stop):
+        raise ValueError('invalid trade plan geometry')
+
+    def level(value, meaning):
+        change = signed_return_pct(direction, price, value)
+        return f'{format_price(value)} — {meaning} ({change:+.2f}%)'
+
+    second_valid = math.isfinite(second) and (second > target if long else 0 < second < target)
+    lines = [
+        f"{'🟢' if long else '🔴'} {direction} SİNYALİ | {row['symbol']}",
+        f"Yön: {'yükseliş' if long else 'düşüş'}",
+        f'📍 Giriş referansı: {format_price(price)} (sinyal anındaki fiyat)',
+        '🛡️ SL: ' + level(stop, 'zarar kes'),
+        '🎯 TP1: ' + level(target, 'ilk kâr hedefi'),
+        '🎯 TP2: ' + (level(second, 'ikinci hedef; izleme seviyesi') if second_valid else 'belirlenmedi'),
+        '',
+        '📌 Neden: 5 dk kapanış, devam ve son giriş kontrolleri tamamlandı.',
+    ]
+    if execution.get('qualified'):
+        ratio = number(execution.get('net_t1_r_cost_inclusive_observation', execution.get('net_t1_r')))
+        if ratio != 'yok':
+            lines.append(f'📐 TP1 hesabı: Tahmini masraflarla 1 birim riske karşı {ratio} birim hedef kazanç.')
+        cost = number(execution.get('round_trip_cost_pct'))
+        if cost != 'yok':
+            lines.append(f'Masraf varsayımı: %{cost} (komisyon + fiyat kayması; taşıma ödemesi hariç).')
+    lines += [
+        '⏱ Sanal takip: SL veya TP1’de kapanış; ikisi de gelmezse 3 saat sonunda kapanış.',
+        'Bu süre mevcut test kuralıdır; en uygun süre olduğu henüz doğrulanmadı.',
+        'Yüzdeler kaldıraç hariçtir. Giriş fiyatı değişirse kazanç/risk hesabı da değişir.',
+        '🧪 Kârlılık henüz doğrulanmadı; otomatik emir açılmadı.',
+        '',
+        '📊 Kısa veri özeti',
+    ]
+    # Keep the existing recorded evidence underneath the actionable levels.
+    for line in data_brief.splitlines():
+        clean = line.removeprefix('📊').removeprefix('•').strip()
+        lines.extend('• ' + field.strip() for field in clean.split(' | ') if field.strip())
+    return '\n'.join(lines)

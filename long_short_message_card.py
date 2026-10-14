@@ -107,6 +107,12 @@ def render(sections):
     """One header, one evidence line and one risk line; decisions stay explicit."""
     from long_short_display import local_time
     core,early=sections.get('CORE'),sections.get('EARLY')
+    if (core and core['text'].startswith(('🟢 LONG SİNYALİ |', '🔴 SHORT SİNYALİ |'))
+            and '📍 Giriş referansı:' in core['text']):
+        # A complete trade plan is already ordered for the reader. Preserve
+        # SL/TP labels and keep levels above evidence, in the same single card.
+        text=core['text']+'\n🕒 Sinyal saati: '+local_time(core['observed_at'])+' (Türkiye)'
+        return text if len(text)<=4096 else text[:4093]+'…'
     parts=[]; evidence={}; risks=[]
     def collect(text):
         body=[]

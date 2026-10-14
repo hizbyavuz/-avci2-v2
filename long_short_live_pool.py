@@ -1635,27 +1635,13 @@ def message_for(row,stage,price,closed,structure_quality=None):
         except Exception:
             gate={}
         mclass=classify_move(sym,float(gate.get("_day_change_pct") or 0.0))
-        coin_type={"STABLE":"🟦 Güçlü/Stabil","FAST_FRESH":"⚡ Hızlı/Taze",
+        coin_type={"STABLE":"🟦 Daha sakin","FAST_FRESH":"⚡ Hızlı/Taze",
                    "FAST_EXTENDED":"🔥 Hızlı/Uzamış","FAST_QUIET":"⚪ Hızlı/Sakin"}[mclass]
         execution=(structure_quality or {}).get('_execution_math') or {}
-        math_note=''
-        if execution.get('qualified'):
-            math_note=(f"Masraf sonrası hedef/kayıp oranı: {execution['net_t1_r']:.2f}R\n"
-                       f"Başa baş için gereken başarı: %{execution['break_even_win_rate_pct']:.1f} "
-                       "(motorun tahmini başarı oranı değildir).\n")
-        return (f"{side_ball} {d} SİNYALİ | {sym}\n"
-                f"5 dk kapanış + devam koşulları tamamlandı.\n"
-                f"Tetik seviyesi: {fmtp(trig)} | Gözlenen fiyat: {fmtp(price)}\n"
-                f"🛡️ SL: {fmtp(inv)}\n"
-                f"🎯 TP1: {fmtp(t1)}\n"
-                f"🎯 TP2: {fmtp(t2) if t2 > 0 else 'belirlenmedi'}\n"
-                f"{math_note}"
-                "Takip planı: stop veya ilk hedefte kapanış; ikisi de olmazsa 3 saat sonunda çıkış.\n"
-                "Bu süre mevcut sanal test kuralıdır; en iyi süre olduğu henüz kanıtlanmadı.\n"
-                f"{_telegram_data_brief(row,structure_quality)}"
-                f"Tip: {coin_type}\n"
-                f"Veri: {data_note}\n"
-                "⚠️ Analiz uyarısı; otomatik emir açılmadı.")
+        from long_short_display import trade_plan_message
+        evidence=(_telegram_data_brief(row,structure_quality)
+                  + f"Tip: {coin_type}\nVeri: {data_note}")
+        return trade_plan_message(row,price,execution,evidence,fmtp)
 
     if stage=="APPROACHING":
         # Approach alerts are handled by the shared anti-spam queue.

@@ -80,5 +80,31 @@ class DisplayTests(unittest.TestCase):
         self.assertNotIn('normalin %35',msg)
         self.assertIn('henüz işlem sinyali değil',msg)
 
+    def test_trade_plan_long_short_math_survives_telegram_card(self):
+        for direction,stop,tp1,tp2 in [('LONG',99,102,104),('SHORT',101,98,96)]:
+            with self.subTest(direction=direction):
+                row=dict(symbol='TESTUSDT',direction=direction,invalidation=stop,target1=tp1,target2=tp2)
+                execution={'qualified':True,'round_trip_cost_pct':0.3,
+                    'net_t1_r':(2-0.3)/(1+0.3),'net_t1_r_cost_inclusive_observation':(2-0.3)/(1+0.3)}
+                msg=display.trade_plan_message(row,100,execution,'📊 Hacim: normalin %150',str)
+                delivered=cards.render({'CORE':{'text':msg,'direction':direction,'observed_at':'2026-10-13T17:00:00Z'},
+                    'EARLY':{'text':'OLD WATCH MESSAGE','direction':direction,'observed_at':'2026-10-13T16:59:00Z'}})
+                for value in ['(-1.00%)','(+2.00%)','(+4.00%)','1.31 birim','%0.30','taşıma ödemesi hariç']:
+                    self.assertIn(value,delivered)
+                self.assertIn('SL:',delivered);self.assertIn('TP1:',delivered);self.assertIn('TP2:',delivered)
+                self.assertLess(delivered.index('SL:'),delivered.index('Hacim:'))
+                self.assertNotIn('OLD WATCH MESSAGE',delivered)
+                self.assertIn('20:00 (Türkiye)',delivered)
+                self.assertIn('SL veya TP1’de kapanış',delivered)
+
+    def test_trade_plan_never_invents_or_promotes_invalid_second_target(self):
+        for direction,tp1,stop,invalid_targets in [('LONG',102,99,[0,101,98,float('nan')]),
+                                                 ('SHORT',98,101,[0,99,102,float('inf')])]:
+            for second in invalid_targets:
+                row=dict(symbol='TESTUSDT',direction=direction,invalidation=stop,target1=tp1,target2=second)
+                msg=display.trade_plan_message(row,100,{},'',str)
+                self.assertIn('TP2: belirlenmedi',msg)
+                self.assertNotIn('1 birim riske',msg)
+
 
 if __name__=='__main__':unittest.main()
