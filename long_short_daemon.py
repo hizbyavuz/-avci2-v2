@@ -549,7 +549,18 @@ def main() -> int:
         except Exception as exc:
             print("[daemon] BINANCE_NATIVE_TAKER_BOOT_FAILED " + type(exc).__name__, flush=True)
 
-    threading.Thread(target=native_taker_boot_probe, name="native-taker-boot", daemon=True).start()
+    # V4 native probe is observational only. Avoid further disk writes when the
+    # persistent volume is near capacity; never alter signal/derivative gates.
+    import shutil
+    try:
+        disk = shutil.disk_usage(sd)
+        pressure = disk.total > 0 and disk.used / disk.total >= 0.85
+    except OSError:
+        pressure = True  # fail safe for optional research writer
+    if pressure:
+        print("[daemon] OPTIONAL_NATIVE_BOOT_SKIPPED_STORAGE_PRESSURE", flush=True)
+    else:
+        threading.Thread(target=native_taker_boot_probe, name="native-taker-boot", daemon=True).start()
 
     # One initial analyst pass gives both live watchers a fresh plan before they
     # start. Failure is not fatal; the analyst loop will keep retrying.
