@@ -19,7 +19,7 @@ VERSION = 'INDEPENDENT_PAPER_V1_2026_10_15'
 HORIZON_MINUTES = 180  # existing protocol, not chosen from observed performance
 
 
-def evaluate(direction, stop, target, bars, entry_ms, now_ms, cost_pct, min_net_r=1.0):
+def evaluate(direction, stop, target, bars, entry_ms, now_ms, cost_pct, min_net_r=1.0, required_room_pct=0.0):
     if now_ms < entry_ms + 60000:
         return {'state': 'PENDING'}
     count = min(HORIZON_MINUTES, (now_ms-entry_ms)//60000)
@@ -42,6 +42,8 @@ def evaluate(direction, stop, target, bars, entry_ms, now_ms, cost_pct, min_net_
             if not (stop < entry < target if direction=='LONG' else target < entry < stop):
                 return {'state': 'ENTRY_MISSED', 'reason': 'LEVEL_PASSED_BEFORE_ENTRY', 'entry_price': entry}
             risk, reward = abs(entry-stop)/entry*100, abs(target-entry)/entry*100
+            if reward < required_room_pct:
+                return {'state': 'ENTRY_MISSED', 'reason': 'ROOM_LOST_BEFORE_ENTRY', 'entry_price': entry}
             if (reward-cost_pct)/(risk+cost_pct) < min_net_r:
                 return {'state': 'ENTRY_MISSED', 'reason': 'NET_R_LOST_BEFORE_ENTRY', 'entry_price': entry}
         valid.append(b)
@@ -122,7 +124,8 @@ def resolve(db_path, now_ms=None, bars_reader=None, funding_reader=None):
                     base['market_regime']=sg.get('_market_regime','UNKNOWN')
                     base['setup_type']=sg.get('_v3_setup_type','UNKNOWN')
                     result=evaluate(ev['direction'],stop,target,bars_reader(ev['symbol'],begin,HORIZON_MINUTES),
-                                    begin,now_ms,cost,float(gate.get('min_net_t1_r',1.0)))
+                                    begin,now_ms,cost,float(gate.get('min_net_t1_r',1.0)),
+                                    float(gate.get('required_room_pct',0.0)))
                     if result['state']=='PRICE_RESOLVED':
                         rates=funding_reader('/funding',{'symbol':ev['symbol'],'startTime':str(begin),
                                              'endTime':str(result['exit_ms'])})

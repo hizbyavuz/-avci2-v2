@@ -61,6 +61,12 @@ class LedgerTests(unittest.TestCase):
         self.assertEqual(r['result'],'TIMEOUT')
         self.assertAlmostEqual(r['net_return_pct'],-.3)
 
+    def test_delayed_entry_must_preserve_live_room_gate(self):
+        r=evaluate('LONG',99.9,101,[bar(60000,100.2,100.5,100,100.2)],
+                   60000,120000,.1,1.0,.9)
+        self.assertEqual(r['state'],'ENTRY_MISSED')
+        self.assertEqual(r['reason'],'ROOM_LOST_BEFORE_ENTRY')
+
     def test_nonfinite_or_gapped_data_is_not_profit(self):
         self.assertEqual(evaluate('LONG',98,104,[bar(60000,h=float('nan'))],60000,120000,.3)['state'],'DATA_UNRESOLVED')
         with self.assertRaises(ValueError):label_path('LONG',100,98,104,[bar(0),bar(120000)],.3)
