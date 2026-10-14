@@ -15,6 +15,11 @@ def label_path(direction,entry,stop,target,bars,cost_pct,funding_pct=0.0):
     if not ((stop<entry<target) if long else (target<entry<stop)):
         raise ValueError('invalid signal geometry')
     if not bars:raise ValueError('missing path')
+    for i,b in enumerate(bars):
+        if (len(b)<5 or any(not math.isfinite(float(v)) or float(v)<=0 for v in b[1:5])
+                or not float(b[3])<=min(float(b[1]),float(b[4]))<=max(float(b[1]),float(b[4]))<=float(b[2])
+                or (i and int(b[0])-int(bars[i-1][0])!=60000)):
+            raise ValueError('invalid or gapped candle path')
     result='TIMEOUT';exit_price=float(bars[-1][4]);exit_ms=int(bars[-1][0])+60000
     mfe=mae=0.0
     for b in bars:
@@ -22,10 +27,15 @@ def label_path(direction,entry,stop,target,bars,cost_pct,funding_pct=0.0):
         adverse=(low/entry-1)*100 if long else (1-high/entry)*100
         favorable=(high/entry-1)*100 if long else (1-low/entry)*100
         gap_stop=opened<=stop if long else opened>=stop
+        gap_target=opened>=target if long else opened<=target
         stop_hit=low<=stop if long else high>=stop
         target_hit=high>=target if long else low<=target
         # Intraminute ordering is unknown. Do not count a possible rally after
         # an earlier stop as favorable performance of an open position.
+        if gap_target and not gap_stop:
+            result='TP1';exit_price=target;exit_ms=int(b[0])
+            mfe=max(mfe,abs(target/entry-1)*100)
+            break
         if gap_stop or stop_hit:
             result='STOP';exit_price=opened if gap_stop else stop
             # The rest of a stopped candle is after exit (or unordered).
@@ -56,8 +66,11 @@ def resolve(db_path):
         c.execute('CREATE TABLE IF NOT EXISTS confirmed_outcomes_v2(event_id INTEGER PRIMARY KEY, evaluated_at TEXT, payload TEXT)')
         c.execute('CREATE TABLE IF NOT EXISTS outcome_issues_v2(event_id INTEGER PRIMARY KEY, checked_at TEXT, reason TEXT)')
         events=c.execute("""SELECT e.* FROM events e LEFT JOIN confirmed_outcomes_v2 o ON o.event_id=e.id
+            LEFT JOIN outcome_issues_v2 i ON i.event_id=e.id
             WHERE e.stage_to='TRIGGERED' AND e.telegram_status='SENT' AND o.event_id IS NULL
-            AND e.telegram_sent_time_utc IS NOT NULL ORDER BY e.id LIMIT 25""").fetchall()
+            AND e.telegram_sent_time_utc IS NOT NULL AND json_valid(e.payload_json)
+            AND json_extract(e.payload_json,'$._native_chain_v2')=1
+            ORDER BY COALESCE(i.checked_at,''),e.id LIMIT 25""").fetchall()
         for ev in events:
             p=json.loads(ev['payload_json'] or '{}')
             if not p.get('_native_chain_v2'):continue

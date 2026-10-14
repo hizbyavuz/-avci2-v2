@@ -43,12 +43,14 @@ class DisplayTests(unittest.TestCase):
             self.assertEqual(result['status'],'eski kayıt')
             self.assertNotIn('4/4',display.analysis_line(result))
 
-    def test_combined_message_has_one_evidence_line_and_preserves_distinct_levels(self):
+    def test_combined_message_preserves_all_evidence_as_readable_bullets(self):
         msg=cards.render({'CORE':{'text':'🟢 LONG İÇİN İZLE | TESTUSDT\nŞu an: 100\n📊 Seviye: 101 | Hacim 5 dk: %35\nBeklenen: 101 üstü kapanış\n🛡️ SL: 98\n🎯 TP1: 104',
                                  'direction':'LONG','observed_at':'2026-10-13T17:00:00Z'},
                          'EARLY':{'text':'🟢 LONG | TESTUSDT — ERKEN KIRILIM\nSon ölçülen fiyat: 100.1 | Kırılım: 100\nİlk erken uyarı: 100.05 | 20:00\n📊 Hacim 1 dk: 1.50× | Alış payı: %65\nErken kırılım gözlemi; işlem giriş teyidi değildir.',
                                   'direction':'LONG','observed_at':'2026-10-13T17:01:00Z'}})
-        self.assertEqual(sum(line.startswith('📊') for line in msg.splitlines()),1)
+        self.assertIn('• Seviye: 101',msg)
+        self.assertIn('• Hacim 5 dk: %35',msg)
+        self.assertIn('• Hacim 1 dk: 1.50×',msg)
         self.assertIn('Seviye: 101',msg);self.assertIn('Kırılım: 100',msg)
         self.assertIn('Hacim 5 dk:',msg);self.assertIn('Hacim 1 dk:',msg)
         self.assertIn('Stop: 98',msg);self.assertIn('Hedef 1: 104',msg)

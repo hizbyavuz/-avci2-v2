@@ -276,6 +276,15 @@ def backup_loop() -> None:
             return
 
 
+def paper_ledger_loop() -> None:
+    if os.getenv('LS_NATIVE_CHAIN_V2','0')!='1':
+        return
+    while not STOP.is_set():
+        run_child('independent_paper','long_short_trade_ledger.py')
+        if STOP.wait(60):
+            return
+
+
 def audit_loop() -> None:
     while not STOP.is_set():
         run_child("storage_audit", "long_short_storage_audit.py")
@@ -588,6 +597,7 @@ def main() -> int:
         threading.Thread(target=data_health_loop, args=(sd,), name="data-health-loop", daemon=True),
         threading.Thread(target=backup_loop, name="backup-loop", daemon=True),
         threading.Thread(target=audit_loop, name="audit-loop", daemon=True),
+        threading.Thread(target=paper_ledger_loop, name="paper-ledger-loop", daemon=True),
     ]
     for t in threads:
         t.start()

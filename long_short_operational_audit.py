@@ -319,6 +319,12 @@ def audit_db(path):
     except Exception as exc: out["error"]=str(exc)
     return out
 
+def active_database_audit(databases, env_key, fallback):
+    """Summaries must follow the same database as the running worker."""
+    name=Path(os.getenv(env_key) or str(STATE/fallback)).name
+    return next((x for x in databases if x.get('file')==name),{}),name
+
+
 def main():
     # Only reads retained ACK receipts and native candles. It cannot emit alerts,
     # place orders, change gates, or relabel missing data as successful trades.
@@ -334,12 +340,14 @@ def main():
         result["databases"]=[audit_db(p) for p in sorted(STATE.glob("*.db"))]
     else: result["error"]="STATE_DIRECTORY_MISSING"
     research=next((x for x in result["databases"] if x.get("file")=="long_short_research.db"),{})
-    live=next((x for x in result["databases"] if x.get("file")=="long_short_live_pool.db"),{})
+    live,live_name=active_database_audit(result['databases'],'LS_LIVE_DB','long_short_live_pool.db')
     result["signal_health"]={"native_primary_events":research.get("primary_count",0),"triggered_events":live.get("triggered_count",0),"triggered_delivered":live.get("triggered_delivered",0),"triggered_outcome_eligible":live.get("triggered_outcome_eligible",0),"assessment":"NO_NATIVE_PRIMARY_EVIDENCE" if not research.get("primary_count",0) else "REVIEW_PRIMARY_STATISTICS"}
-    analyst=next((x for x in result["databases"] if x.get("file")=="long_short_analyst.db"),{})
+    analyst,analyst_name=active_database_audit(result['databases'],'LS_DB','long_short_analyst.db')
+    result['active_databases']={'analyst':analyst_name,'live':live_name}
     reversal=next((x for x in result["databases"] if x.get("file")=="long_short_reversal_live.db"),{})
     summary={
         "utc":result["utc"],
+        "active_databases":result['active_databases'],
         "scan_time":analyst.get("latest_scan_time_utc"),
         "scanned":analyst.get("latest_scan_sample_size"),
         "statuses":analyst.get("latest_scan_status_counts",{}),
@@ -357,6 +365,8 @@ def main():
         "actionable_precheck_failures":analyst.get("actionable_rejection_indicators",{}),
         "live_funnel":live.get("stage_funnel",{}),
         "live_confirmed_outcomes":live.get("tables",{}).get("confirmed_trade_outcomes",0),
+        "native_v2_outcomes":live.get('tables',{}).get('confirmed_outcomes_v2',0),
+        "independent_paper_rows":live.get('tables',{}).get('independent_paper_v1',0),
         "live_triggered_events":live.get("triggered_count",0),
         "execution_block_reasons":live.get("execution_block_reasons",{}),
         "execution_block_provenance":live.get("execution_block_provenance",{}),

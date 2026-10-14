@@ -293,12 +293,24 @@ def live_execution_gate(row,price,proxy):
     # without changing the frozen production gate or its threshold.
     net_r_cost_inclusive=((reward-total_cost_pct)/(risk+total_cost_pct)) if risk>0 else None
     qualified=bool(geometry and net_r is not None and net_r>=EXECUTION_MIN_NET_T1_R)
+    required_room=0.0
+    try:
+        locked_gate=json.loads(row['structure_gate_json'] or '{}') if 'structure_gate_json' in row.keys() else {}
+        if locked_gate.get('structural_plan_v3'):
+            required_room=float(locked_gate.get('required_room_pct') or 0.0)
+            qualified=qualified and reward>=required_room
+    except (ValueError,TypeError):
+        return {'qualified':False,'reason':'invalid_locked_geometry'}
     return {
         "qualified":qualified,
         "reason":"ok" if qualified else "trigger_time_net_r_failed",
         "entry_slippage_bps":entry_slip,
         "exit_slippage_bps":exit_slip,
         "round_trip_cost_pct":total_cost_pct,
+        "min_net_t1_r":EXECUTION_MIN_NET_T1_R,
+        "remaining_reward_pct":reward,
+        "required_room_pct":required_room,
+        "break_even_win_rate_pct":100*(risk+total_cost_pct)/(risk+reward) if geometry and risk+reward>0 else None,
         "risk_pct":risk,
         "reward_pct":reward,
         "net_t1_r":net_r,
@@ -659,6 +671,7 @@ def load_watchlist():
                 stored_gate["_radar_only"]=bool(radar_only)
                 stored_gate["_analyst_status"]=analyst_status
                 stored_gate["_day_change_pct"]=day_change_pct
+                stored_gate['_market_regime']=p.get('market_regime','UNKNOWN')
                 stored_gate["_derivatives_ready"]=bool(derivatives_ready)
                 stored_gate["_derivatives_quality"]=quality
                 stored_gate["_v3"]=v3
@@ -1624,12 +1637,21 @@ def message_for(row,stage,price,closed,structure_quality=None):
         mclass=classify_move(sym,float(gate.get("_day_change_pct") or 0.0))
         coin_type={"STABLE":"🟦 Güçlü/Stabil","FAST_FRESH":"⚡ Hızlı/Taze",
                    "FAST_EXTENDED":"🔥 Hızlı/Uzamış","FAST_QUIET":"⚪ Hızlı/Sakin"}[mclass]
+        execution=(structure_quality or {}).get('_execution_math') or {}
+        math_note=''
+        if execution.get('qualified'):
+            math_note=(f"Masraf sonrası hedef/kayıp oranı: {execution['net_t1_r']:.2f}R\n"
+                       f"Başa baş için gereken başarı: %{execution['break_even_win_rate_pct']:.1f} "
+                       "(motorun tahmini başarı oranı değildir).\n")
         return (f"{side_ball} {d} SİNYALİ | {sym}\n"
                 f"5 dk kapanış + devam koşulları tamamlandı.\n"
                 f"Tetik seviyesi: {fmtp(trig)} | Gözlenen fiyat: {fmtp(price)}\n"
                 f"🛡️ SL: {fmtp(inv)}\n"
                 f"🎯 TP1: {fmtp(t1)}\n"
                 f"🎯 TP2: {fmtp(t2) if t2 > 0 else 'belirlenmedi'}\n"
+                f"{math_note}"
+                "Takip planı: stop veya ilk hedefte kapanış; ikisi de olmazsa 3 saat sonunda çıkış.\n"
+                "Bu süre mevcut sanal test kuralıdır; en iyi süre olduğu henüz kanıtlanmadı.\n"
                 f"{_telegram_data_brief(row,structure_quality)}"
                 f"Tip: {coin_type}\n"
                 f"Veri: {data_note}\n"
@@ -2194,6 +2216,7 @@ def loop_once():
                                               row["symbol"],type(exc).__name__,flush=True)
                                 continue
 
+                            structure_quality['_execution_math']=execution_check
                             allowed,cluster_count=cluster_trigger_allowed(con,row["direction"],observed_time,2)
                             if not allowed:
                                 blocked_payload=dict(row)
