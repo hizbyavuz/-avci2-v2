@@ -34,19 +34,25 @@ def read_pending(root, analyst_db, now_ms=None):
                 except (ValueError,TypeError,AttributeError):
                     continue
     candidates={}
+    reasons={"active_episodes":len(rows),"stale_price":0,"invalid_features":0,"recently_analysed":0,"eligible":0}
     for symbol,early_ms,raw in rows:
         try:
             f=json.loads(raw)
             # Reuse the observer's existing live-price freshness constraint.
             if not 0<=now_ms-f["price_event_ms"]<=30000:
+                reasons["stale_price"]+=1
                 continue
         except (ValueError,TypeError,KeyError):
+            reasons["invalid_features"]+=1
             continue
         last=latest.get(symbol,0)
         if last>=early_ms and now_ms-last<300000:
+            reasons["recently_analysed"]+=1
             continue
         key=(last if last>=early_ms else 0,early_ms,symbol)
         candidates[symbol]=min(candidates.get(symbol,key),key)
+    reasons["eligible"]=len(candidates)
+    print("QUALIFIED_CHAIN_PRIORITY_DIAG "+json.dumps(reasons,sort_keys=True),flush=True)
     return sorted(candidates,key=lambda s:candidates[s])
 
 def reserve(rows, normal, priority, cap, symbol):
