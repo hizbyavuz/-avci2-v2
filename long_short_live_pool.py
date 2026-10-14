@@ -36,7 +36,8 @@ ALIGN_TO_5M=os.getenv("LS_ALIGN_TO_5M","1").strip().lower() in ("1","true","yes"
 ALIGN_GRACE_SECONDS=float(os.getenv("LS_ALIGN_GRACE_SECONDS","4"))
 MAX_WATCH=int(os.getenv("LS_LIVE_MAX_WATCH","12"))
 # Delivery policy only: frozen direction/structure/execution thresholds remain unchanged.
-TELEGRAM_TRADE_ONLY=os.getenv("LS_TELEGRAM_TRADE_ONLY","0").strip().lower() in ("1","true","yes","on")
+from long_short_qualified_chain import enabled as qualified_chain_enabled
+TELEGRAM_TRADE_ONLY=os.getenv("LS_TELEGRAM_TRADE_ONLY","0").strip().lower() in ("1","true","yes","on") or qualified_chain_enabled()
 TELEGRAM_RUNTIME_NOTICES=os.getenv("LS_TELEGRAM_RUNTIME_NOTICES","0").strip().lower() in ("1","true","yes","on")
 LIVE_FETCH_WORKERS=max(1,min(12,int(os.getenv("LS_LIVE_FETCH_WORKERS","6"))))
 APPROACH_PCT=float(os.getenv("LS_LIVE_APPROACH_PCT","0.25"))
@@ -2136,7 +2137,7 @@ def loop_once():
                                 # on this stage transition; keep the blocked
                                 # state so outcome metrics cannot count it as
                                 # an approved trade.
-                                if four_factor_check.get("tier")=="PARTIAL_3_OF_4":
+                                if four_factor_check.get("tier")=="PARTIAL_3_OF_4" and not qualified_chain_enabled():
                                     side="🟢" if row["direction"]=="LONG" else "🔴"
                                     missing=", ".join(four_factor_check.get("missing_factors") or [])
                                     # Display actual setup levels, never invented entry/targets.
@@ -2514,3 +2515,4 @@ def main():
 
 if __name__=="__main__":
     main()
+
