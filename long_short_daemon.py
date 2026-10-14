@@ -567,6 +567,8 @@ def main() -> int:
     else:
         threading.Thread(target=native_taker_boot_probe, name="native-taker-boot", daemon=True).start()
 
+    run_child("native_db_dependency_audit_startup", "long_short_native_db_dependency_audit.py")
+
     # One initial analyst pass gives both live watchers a fresh plan before they
     # start. Failure is not fatal; the analyst loop will keep retrying.
     initial_rc = run_child("analyst_initial", "long_short_analyst.py")
