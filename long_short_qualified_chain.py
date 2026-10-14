@@ -11,6 +11,10 @@ VERSION="QUALIFIED_SIGNAL_CHAIN_V1_2026_10_14"
 def enabled():
     return os.getenv("LS_QUALIFIED_SIGNAL_CHAIN_V1","0").strip().lower() in ("1","true","yes","on")
 
+def priority_enabled():
+    return enabled() or os.getenv("LS_CANDIDATE_PRIORITY_V2", "0").lower() in ("1", "true", "yes", "on")
+
+
 def read_pending(root, analyst_db, now_ms=None):
     """Fresh active observations, ordered by least recently analysed first.
     Scheduling only: neither observation direction nor strength grants entry.

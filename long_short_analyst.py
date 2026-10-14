@@ -1237,8 +1237,8 @@ def prioritize_early_observations(eligible,window,cap,root,quiet=False):
     This is scheduling only. No observation authorizes a direction, bypasses
     a data gate, changes scoring or replaces the full observer's universe.
     """
-    from long_short_qualified_chain import enabled, priority, reserve, VERSION as chain_version
-    if enabled():
+    from long_short_qualified_chain import priority_enabled, priority, reserve, VERSION as chain_version
+    if priority_enabled():
         pending=priority(root,DB)
         output=reserve(eligible,window,pending,cap,lambda r:r[0])
         if not quiet:
@@ -1620,8 +1620,8 @@ def select_deep_shortlist(preselected, limit=PRESELECT_MAX):
     actionable.sort(key=rank_key)
     research.sort(key=rank_key)
     selected=(actionable+research)[:n]
-    from long_short_qualified_chain import enabled, priority, reserve, VERSION as chain_version
-    if enabled():
+    from long_short_qualified_chain import priority_enabled, priority, reserve, VERSION as chain_version
+    if priority_enabled():
         root=os.getenv("LS_STATE_DIR") or os.getenv("RAILWAY_VOLUME_MOUNT_PATH") or os.path.dirname(os.path.abspath(DB))
         pending=priority(root,DB)
         selected=reserve(actionable,actionable+research,pending,n,lambda r:r["symbol"])

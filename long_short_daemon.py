@@ -280,6 +280,7 @@ def audit_loop() -> None:
     while not STOP.is_set():
         run_child("storage_audit", "long_short_storage_audit.py")
         run_child("native_db_dependency_audit", "long_short_native_db_dependency_audit.py")
+        run_child("context_scorecard", "long_short_context_scorecard.py")
         rc = run_child("operational_audit", "long_short_operational_audit.py")
         if rc != 0:
             print("[daemon] AUDIT_WARNING; review integrity and cohort", flush=True)

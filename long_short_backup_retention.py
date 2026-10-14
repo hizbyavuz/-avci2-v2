@@ -9,6 +9,14 @@ import os
 import boto3
 from botocore.config import Config
 
+def expired_objects(objects, manifests, selected_key, protected, cutoff):
+    # Completed older sets are redundant after current-set validation. Recent
+    # incomplete uploads remain protected until the normal 24h expiry.
+    old_prefixes={key.rsplit("/",1)[0]+"/" for key in manifests if key<selected_key}
+    return [{"Key":o["Key"]} for o in objects if o["Key"] not in protected
+            and (o["LastModified"]<cutoff or any(o["Key"].startswith(p) for p in old_prefixes))]
+
+
 def main():
     client=boto3.client("s3",endpoint_url=os.environ["LS_BACKUP_ENDPOINT"],
         aws_access_key_id=os.environ["LS_BACKUP_ACCESS_KEY_ID"],
@@ -45,7 +53,7 @@ def main():
     key,manifest=selected
     cutoff=datetime.datetime.now(datetime.timezone.utc)-datetime.timedelta(hours=24)
     protected={key}|{d["key"] for d in manifest["databases"]}
-    expired=[{"Key":o["Key"]} for o in objects if o["LastModified"]<cutoff and o["Key"] not in protected]
+    expired=expired_objects(objects,manifests,key,protected,cutoff)
     count=0
     for i in range(0,len(expired),1000):
         result=client.delete_objects(Bucket=bucket,Delete={"Objects":expired[i:i+1000],"Quiet":True})

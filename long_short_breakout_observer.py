@@ -289,6 +289,8 @@ def format_update(item,now_ms):
         'long_short_analyst.db')
     evidence=analysis_line(analysis_fields(symbol,analyst_db))
     price=f['price']
+    from long_short_context_scorecard import context_line
+    big_picture=context_line(f.get('move_context'), d)
     if state=='EARLY':
         title=f'{d} İÇİN İZLE'
         decision=(f'{d} ne zaman düşünülür? 5 dk mum {level:.8g} {side} kapanır, '
@@ -315,7 +317,7 @@ def format_update(item,now_ms):
         status='Şimdi işlem açma: Güncel giriş onayı yok.'
     lines=[f'{icon} {title} | {symbol}',
            f'Şu an fiyat: {price:.8g} | İzlenen seviye: {level:.8g}',
-           decision,status,
+           decision,status,big_picture,
            f'İlk gözlem: {item["early_price"]:.8g} | {local_time(stamp(item["early_ms"]))}',
            f'📊 Kısa yön: {"yukarı" if f["ema7_slope_pct"]>0 else "aşağı"} | Hacim: {f["volume_mult"]:.2f}× | Alış payı: %{f["taker_buy_share"]*100:.0f} | {evidence}',
            'Bu bir erken gözlem mesajıdır; onaylı işlem girişi değildir.',
@@ -392,7 +394,8 @@ def deliver_pending(state,token,chat,now_ms,publisher=None):
                 'early_price':row['early_price'],'gain_before_confirmation':row['gain_before_confirmation']}
             try:
                 result=publisher(token,chat,row['symbol'],'EARLY',format_update(item,now_ms),
-                                 row['direction'],observed_at=stamp(now_ms))
+                                 row['direction'],observed_at=stamp(now_ms),
+                                 episode_key=f"{row['symbol']}:{row['direction']}:{row['early_ms']}")
                 status=result['status']
             except Exception as exc:
                 status='FAILED:'+type(exc).__name__

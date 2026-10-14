@@ -85,7 +85,7 @@ def render(sections):
     return text if len(text)<=4096 else text[:4093]+'…'
 
 
-def publish(token, chat, symbol, source, text, direction, *, observed_at=None, post=None):
+def publish(token, chat, symbol, source, text, direction, *, observed_at=None, post=None, episode_key=None):
     from long_short_qualified_chain import enabled as qualified_chain_enabled
     if source == "EARLY" and qualified_chain_enabled():
         return {"status":"CANDIDATE_ONLY_V1","message_id":None}
@@ -121,7 +121,19 @@ def publish(token, chat, symbol, source, text, direction, *, observed_at=None, p
             if old_trade and new_watch and age<600:
                 c.rollback()
                 return {'status':'UNCHANGED','message_id':row['message_id']}
-        sections[source] = {'text':text,'direction':direction,'observed_at':stamp}
+        # A new episode needs a fresh Telegram notification; updates of that
+        # episode still edit one card. Never reset an uncertain in-flight send.
+        new_episode = bool(source == 'EARLY' and episode_key and previous
+            and previous.get('episode_key') and previous['episode_key'] != episode_key
+            and row and row['status'] == 'DELIVERED')
+        if new_episode:
+            c.execute('''UPDATE cards SET message_id=NULL, delivered_text=NULL,
+                status='PENDING', retry_at=0 WHERE destination=? AND symbol=?''', (destination,symbol))
+            row = dict(row)
+            row.update(message_id=None, delivered_text=None, status='PENDING', retry_at=0)
+            sections = {}  # an old core idea must not leak into a new episode
+        sections[source] = {'text':text,'direction':direction,'observed_at':stamp,
+                            'episode_key':episode_key}
         from long_short_qualified_chain import enabled as qualified_chain_enabled
         if source == "CORE" and qualified_chain_enabled():
             sections.pop("EARLY", None)
@@ -185,11 +197,12 @@ def publish(token, chat, symbol, source, text, direction, *, observed_at=None, p
                          (message_id,rendered,now,destination,symbol))
             c.execute('INSERT INTO deliveries(symbol,method,status,time_utc,message_id,detail) VALUES(?,?,?,?,?,?)',
                       (symbol,method,'ACK',stamp,message_id,json.dumps({
-                          'source':source,'direction':direction,'text':rendered,
+                          'source':source,'direction':direction,'text':rendered,'episode_key':episode_key,
                           'source_text':text,
                           'accepted_at_utc':datetime.now(timezone.utc).isoformat()
                       },ensure_ascii=False)))
             c.commit()
+            print('TELEGRAM_CARD_ACK '+json.dumps({'symbol':symbol,'source':source,'method':method,'new_episode':new_episode}),flush=True)
             return {'status':'ACK','message_id':message_id,'method':method}
         except Exception as exc:
             if c.in_transaction:

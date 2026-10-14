@@ -1,11 +1,33 @@
 #!/usr/bin/env python3
 """One-time conservative reclaim of optional V4 native research DB after S3 validation."""
-import json, os, shutil, sqlite3
+import json, os, shutil, sqlite3, hashlib
+from contextlib import closing
 from pathlib import Path
 import boto3
 from botocore.config import Config
 
 TARGET="long_short_v4_native.db"
+def close_idle_database(path):
+    # A sqlite Connection context manager commits, but does NOT close it.
+    # Checkpoint through SQLite, never unlink WAL files by hand.
+    with closing(sqlite3.connect(path, timeout=5)) as db:
+        busy, _, _ = db.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()
+        if busy:
+            raise RuntimeError("V4 checkpoint busy; refuse reclaim")
+        if db.execute("PRAGMA journal_mode=DELETE").fetchone()[0].lower() != "delete":
+            raise RuntimeError("V4 still in WAL mode; refuse reclaim")
+        if db.execute("PRAGMA quick_check").fetchone()[0] != "ok":
+            raise RuntimeError("V4 local integrity failed")
+
+
+def file_hash(path):
+    digest = hashlib.sha256()
+    with open(path, "rb") as stream:
+        for chunk in iter(lambda: stream.read(1024*1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 def main():
     root=Path(os.getenv("LS_STATE_DIR") or os.getenv("RAILWAY_VOLUME_MOUNT_PATH") or ".long-short-state").resolve()
     path=root/TARGET
@@ -26,46 +48,48 @@ def main():
                     if str(path) in os.readlink(fd):raise RuntimeError("V4 database currently open")
                 except OSError:pass
         except (OSError,PermissionError):continue
-    with sqlite3.connect(f"file:{path}?mode=ro",uri=True) as db:
-        if db.execute("PRAGMA quick_check").fetchone()[0]!="ok":raise RuntimeError("V4 local integrity failed")
+    close_idle_database(path)
     client=boto3.client("s3",endpoint_url=os.environ["LS_BACKUP_ENDPOINT"],
         aws_access_key_id=os.environ["LS_BACKUP_ACCESS_KEY_ID"],
         aws_secret_access_key=os.environ["LS_BACKUP_SECRET_ACCESS_KEY"],
         region_name=os.getenv("LS_BACKUP_REGION","auto"),
         config=Config(s3={"addressing_style":"virtual"}))
     bucket=os.environ["LS_BACKUP_BUCKET"]
-    manifests=[]
-    for page in client.get_paginator("list_objects_v2").paginate(Bucket=bucket,Prefix="daily/"):
-        manifests.extend(o["Key"] for o in page.get("Contents",[]) if o["Key"].endswith("/manifest.json"))
-    verified=None
-    for key in sorted(manifests,reverse=True)[:8]:
-        manifest=json.loads(client.get_object(Bucket=bucket,Key=key)["Body"].read())
-        if len(manifest.get("databases",[]))<15:continue
-        entry=next((d for d in manifest["databases"] if d["name"]==TARGET),None)
-        if not entry:continue
-        head=client.head_object(Bucket=bucket,Key=entry["key"])
-        if int(head["ContentLength"])!=int(entry["bytes"]):continue
-        if head.get("Metadata",{}).get("sha256")!=entry["sha256"]:continue
-        verified={"manifest":key,"object":entry["key"],"bytes":entry["bytes"]}
-        break
-    if not verified:raise RuntimeError("No validated V4 backup; refuse reclaim")
-    # Preserve an immutable recovery copy outside the daily/ 24-hour retention prefix.
-    archive_key="archive/v4-native/"+verified["object"].split("/")[-2]+"/"+TARGET
-    client.copy_object(Bucket=bucket,Key=archive_key,
-        CopySource={"Bucket":bucket,"Key":verified["object"]},
-        MetadataDirective="COPY")
-    archived=client.head_object(Bucket=bucket,Key=archive_key)
-    if int(archived["ContentLength"])!=int(verified["bytes"]):
-        raise RuntimeError("Archived V4 size mismatch")
-    source_entry=next(d for d in json.loads(client.get_object(
-        Bucket=bucket,Key=verified["manifest"])["Body"].read())["databases"]
-        if d["name"]==TARGET)
-    if archived.get("Metadata",{}).get("sha256")!=source_entry["sha256"]:
-        raise RuntimeError("Archived V4 SHA256 metadata mismatch")
-    verified["permanent_archive"]=archive_key
-    # Never remove active sidecars: a WAL could contain uncheckpointed changes.
+    # Archive the CURRENT checkpointed bytes, not a potentially older daily copy.
+    digest=file_hash(path)
+    original=path.stat()
+    archive_key="archive/v4-native/"+digest+"/"+TARGET
+    try:
+        head=client.head_object(Bucket=bucket,Key=archive_key)
+    except client.exceptions.ClientError as exc:
+        if str(exc.response.get("Error",{}).get("Code")) not in ("404","NoSuchKey","NotFound"):
+            raise
+        head=None
+    if not head or int(head["ContentLength"])!=original.st_size or head.get("Metadata",{}).get("sha256")!=digest:
+        client.upload_file(str(path),bucket,archive_key,ExtraArgs={"Metadata":{"sha256":digest}})
+    # Read back the content: SHA metadata alone is not end-to-end verification.
+    remote=client.get_object(Bucket=bucket,Key=archive_key)
+    remote_digest=hashlib.sha256()
+    with closing(remote["Body"]) as body:
+        for chunk in iter(lambda:body.read(1024*1024),b""):
+            remote_digest.update(chunk)
+    if remote_digest.hexdigest()!=digest:
+        raise RuntimeError("V4 archive content verification failed")
+    current=path.stat()
+    if (current.st_size,current.st_mtime_ns)!=(original.st_size,original.st_mtime_ns):
+        raise RuntimeError("V4 changed during archive; refuse reclaim")
+    for proc in Path("/proc").iterdir():
+        if not proc.name.isdigit():continue
+        try:
+            for fd in (proc/"fd").iterdir():
+                try:
+                    if str(path) in os.readlink(fd):raise RuntimeError("V4 reopened; refuse reclaim")
+                except OSError:pass
+        except (OSError,PermissionError):continue
     for suffix in ("-wal","-shm","-journal"):
-        if (root/(TARGET+suffix)).exists():raise RuntimeError("V4 SQLite sidecar exists; refuse reclaim")
+        if (root/(TARGET+suffix)).exists():raise RuntimeError("V4 sidecar reappeared; refuse reclaim")
+    verified={"permanent_archive":archive_key,"sha256":digest,"bytes":original.st_size,
+              "current_content_verified":True}
     before=shutil.disk_usage(root).free
     path.unlink()
     after=shutil.disk_usage(root).free
