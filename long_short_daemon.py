@@ -263,6 +263,7 @@ def backup_loop() -> None:
         print("[daemon] BACKUP_NOT_CONFIGURED", flush=True)
         return
     while not STOP.is_set():
+        run_child("backup_inventory", "long_short_backup_inventory.py")
         rc = run_child("daily_backup", "long_short_daily_backup.py")
         if rc != 0:
             print("[daemon] BACKUP_FAILED; retry in 1h", flush=True)
