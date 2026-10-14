@@ -358,6 +358,9 @@ def label_outcomes(state,candles,now_ms,cfg=CONFIG):
 
 
 def deliver_pending(state,token,chat,now_ms,publisher=None):
+    from long_short_qualified_chain import enabled, retain_candidates
+    if enabled():
+        return retain_candidates(state)
     from long_short_message_card import publish
     publisher=publisher or publish
     # At most three distinct coins per poll; state updates edit existing cards.
@@ -513,3 +516,4 @@ def run():
 
 if __name__=='__main__':
     run()
+
