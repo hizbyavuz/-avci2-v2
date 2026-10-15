@@ -89,6 +89,7 @@ def trade_plan_message(row, price, execution, data_brief, format_price):
     lines = [
         f"{'🟢' if long else '🔴'} {direction} SİNYALİ | {row['symbol']}",
         f"Yön: {'yükseliş' if long else 'düşüş'}",
+        'Durum: Giriş koşulları oluştu.',
         f'📍 Giriş referansı: {format_price(price)} (sinyal anındaki fiyat)',
         '🛡️ SL: ' + level(stop, 'zarar kes'),
         '🎯 TP1: ' + level(target, 'ilk kâr hedefi'),

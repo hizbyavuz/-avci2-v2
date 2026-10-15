@@ -114,6 +114,8 @@ def record_analysis(a,partial=False,now_ms=None):
     eligible=bool(d.get('direction') in ('LONG','SHORT') and p.get('actionable_liquidity_ok')
         and (p.get('structure_gate') or {}).get('qualified_precheck') and float((p.get('t15') or {}).get('atr_pct',99))<4)
     data={'research_only':True,'missing':missing,'eligible_observation':eligible,
+        'opportunity_context':{'reasons':getattr(a,'reasons',[]),'t15':p.get('t15'),
+            'local_invalidation':(p.get('setup_plan') or {}).get('local_invalidation')},
         'gate_experiment':p.get('gate_experiment'),
         'strategy_identity':p.get('strategy_identity'),
         'analyst_status':getattr(a,'status',None),

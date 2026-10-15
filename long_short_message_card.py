@@ -106,6 +106,9 @@ def simple_early(text):
 def render(sections):
     """One header, one evidence line and one risk line; decisions stay explicit."""
     from long_short_display import local_time
+    if 'OPPORTUNITY' in sections and 'CORE' not in sections:
+        text=sections['OPPORTUNITY']['text']
+        return text if len(text)<=4096 else text[:4093]+'…'
     core,early=sections.get('CORE'),sections.get('EARLY')
     if (core and core['text'].startswith(('🟢 LONG SİNYALİ |', '🔴 SHORT SİNYALİ |'))
             and '📍 Giriş referansı:' in core['text']):
@@ -167,7 +170,7 @@ def publish(token, chat, symbol, source, text, direction, *, observed_at=None, p
     from long_short_qualified_chain import enabled as qualified_chain_enabled
     if source == "EARLY" and qualified_chain_enabled():
         return {"status":"CANDIDATE_ONLY_V1","message_id":None}
-    if source not in ('CORE','EARLY') or direction not in ('LONG','SHORT'):
+    if source not in ('CORE','EARLY','OPPORTUNITY') or direction not in ('LONG','SHORT'):
         raise ValueError('invalid message card source/direction')
     if not token or not chat or not re.fullmatch(r'[^\W_]+USDT', symbol):
         raise ValueError('verified Telegram destination and symbol required')
@@ -187,6 +190,12 @@ def publish(token, chat, symbol, source, text, direction, *, observed_at=None, p
                         (destination,symbol)).fetchone()
         sections = json.loads(row['sections_json']) if row else {}
         previous = sections.get(source)
+        if source=='OPPORTUNITY' and sections.get('CORE'):
+            core=sections['CORE']
+            age=now-datetime.fromisoformat(core['observed_at'].replace('Z','+00:00')).timestamp()
+            if 'SİNYALİ' in core['text'].splitlines()[0] and age<10800:
+                c.rollback()
+                return {'status':'CORE_ACTIVE_SUPPRESSED','message_id':row['message_id']}
         if previous and stamp < previous['observed_at']:
             c.rollback()
             return {'status':'STALE_SUPPRESSED','message_id':row['message_id']}
@@ -204,6 +213,13 @@ def publish(token, chat, symbol, source, text, direction, *, observed_at=None, p
         new_episode = bool(source == 'EARLY' and episode_key and previous
             and previous.get('episode_key') and previous['episode_key'] != episode_key
             and row and row['status'] == 'DELIVERED')
+        if source=='OPPORTUNITY' and episode_key and row and row['status']=='DELIVERED':
+            new_episode=not previous or previous.get('episode_key')!=episode_key
+        # A trade authorization must notify, not silently edit an earlier
+        # opportunity card. Uncertain sends retain the existing no-retry rule.
+        if (source=='CORE' and 'SİNYALİ' in text.splitlines()[0]
+                and 'OPPORTUNITY' in sections and row and row['status']=='DELIVERED'):
+            new_episode=True
         if new_episode:
             c.execute('''UPDATE cards SET message_id=NULL, delivered_text=NULL,
                 status='PENDING', retry_at=0 WHERE destination=? AND symbol=?''', (destination,symbol))
@@ -212,6 +228,10 @@ def publish(token, chat, symbol, source, text, direction, *, observed_at=None, p
             sections = {}  # an old core idea must not leak into a new episode
         sections[source] = {'text':text,'direction':direction,'observed_at':stamp,
                             'episode_key':episode_key}
+        if source=='OPPORTUNITY':
+            sections={source:sections[source]}
+        elif source=='CORE':
+            sections.pop('OPPORTUNITY',None)
         from long_short_qualified_chain import enabled as qualified_chain_enabled
         if source == "CORE" and qualified_chain_enabled():
             sections.pop("EARLY", None)

@@ -2194,13 +2194,13 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None, *, _partia
 
     structure_gate=build_structure_gate(preferred_direction,price,setup_plan,k5,k15,k30,k1h,k4h)
     from long_short_structural_plan_v3 import enabled as structural_v3_enabled
-    from long_short_structural_plan_v5 import from_candles
+    from long_short_structural_plan_v6 import from_candles
     if native_v2_enabled() and structural_v3_enabled():
         setup_plan,structure_gate=from_candles(setup_plan,structure_gate,
             [(k5,'5m',.75),(k15,'15m',1),(k30,'30m',1.35),(k1h,'1h',1.75),(k4h,'4h',2.25)],
             price,_timeframe_zones,structure_min_round_trip_cost_pct(),
             STRUCTURE_MIN_NET_T1_R,structure_required_room_pct())
-        print('STRUCTURAL_PLAN_V5',json.dumps({'symbol':symbol,
+        print('STRUCTURAL_PLAN_V6',json.dumps({'symbol':symbol,
             'direction':preferred_direction,'qualified':structure_gate['qualified_precheck'],
             'evidence':structure_gate['structural_plan_v3'],
             'comparison':structure_gate['geometry_comparison']},ensure_ascii=False),flush=True)
@@ -2733,6 +2733,7 @@ def plan_precheck_reasons(payload):
         'NO_LOCAL_TRIGGER_ZONE':'yerel kırılım bölgesi bulunamadı',
         'NO_OBSERVED_TARGET':'ileride ayrı ve gözlenmiş hedef seviyesi bulunamadı',
         'INVALID_STOP_OR_RETEST_GEOMETRY':'stop ile yeniden test bölgesi uyumsuz',
+        'NO_LOCAL_INVALIDATION':'5 dakikalık yapıda geçerli bozulma seviyesi bulunamadı',
     }
     if structural_reason in explanations:
         return [explanations[structural_reason]]
@@ -3303,6 +3304,12 @@ def main():
                 print("WATCH_451_TELEGRAM_SENT", sent_count, flush=True)
         except Exception as exc:
             print("WATCH_451_TELEGRAM_ERROR", type(exc).__name__, str(exc)[:160], flush=True)
+    if native_v2_enabled():
+        try:
+            from long_short_opportunity_notices import publish_recent
+            publish_recent()
+        except Exception as exc:
+            print('OPPORTUNITY_NOTICE_ERROR',type(exc).__name__,flush=True)
     send_health_once(results)
     perf=performance_summary()
     msg=build_message(ts,regime,results,errors,perf)
