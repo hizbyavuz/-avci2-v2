@@ -50,21 +50,29 @@ def message(symbol,p,decision,observed_ms):
         'NO_LOCAL_TRIGGER_ZONE':'Belirgin bir kısa vadeli giriş seviyesi.',
     }.get(structure,'Geçerli giriş planı ve 5 dk kapanış teyidi.')
     facts=[]
-    if e.get('oi_fresh') and e.get('oi_change_1h') is not None:facts.append(f"Açık pozisyon 1 saatte %{e['oi_change_1h']:+.2f}")
-    if e.get('taker_fresh') and e.get('taker_ratio') is not None:facts.append(f"agresif alış/satış {e['taker_ratio']:.2f}x")
-    facts.append(f"yön puanı {float(d['best_score']):.0f}/100")
+    if e.get('oi_fresh') and e.get('oi_change_1h') is not None:facts.append(f"• Açık pozisyon değişimi (1 sa): %{e['oi_change_1h']:+.2f}")
+    if e.get('taker_fresh') and e.get('taker_ratio') is not None:facts.append(f"• Alış / satış oranı: {e['taker_ratio']:.2f}×")
+    facts.append(f"• Yön puanı: {float(d['best_score']):.0f}/100")
     missing=', '.join(FIELD_NAMES[x] for x in decision['missing'])
     return '\n'.join([
-        f'🟡 {side} FIRSATI | {symbol}',
-        'Durum: Giriş bekleniyor — işlem sinyali değil.',
-        f'Yön: {"yükseliş" if up else "düşüş"} | Gözlem fiyatı: {price:.10g}',
-        'Neden izleniyor: '+'; '.join(facts)+'.',
-        f"İzlenen seviye: {decision['trigger']:.10g} (giriş emri değil)",
-        f"Fikir {decision['stop']:.10g} {('altında' if up else 'üstünde')} bozulur (5 dk yapı seviyesi).",
-        'Beklenen: '+expected,
-        ('Eksik veri: '+missing+'. Giriş onayı verilmedi.' if missing else 'Türev verisi: 4/4 mevcut.'),
-        'Giriş koşulları oluşursa ayrı bir giriş bildirimi gönderilecek.',
-        'Gözlem: '+local_time(datetime.fromtimestamp(observed_ms/1000,timezone.utc).isoformat())+' (Türkiye saati)',
+        f'{"🟢" if up else "🔴"} {side} İÇİN İZLE | {symbol}',
+        '',
+        '⏳ Giriş bekleniyor — işlem sinyali değil.',
+        '',
+        f'• Gözlem fiyatı: {price:.10g}',
+        f"• İzlenen seviye: {decision['trigger']:.10g}",
+        '• Mum süresi: 5 dakika',
+        f"• Fikir {decision['stop']:.10g} {('altında' if up else 'üstünde')} bozulur.",
+        '',
+        'NE BEKLENİYOR?',
+        '• '+expected,
+        '• Giriş onaylanırsa ayrı bildirim gelecek.',
+        '',
+        'VERİ ÖZETİ',
+        *facts,
+        ('• Eksik veri: '+missing if missing else '• Veri durumu: 4/4 mevcut'),
+        '',
+        '🕒 Gözlem: '+local_time(datetime.fromtimestamp(observed_ms/1000,timezone.utc).isoformat())+' (Türkiye)',
     ])
 
 def publish_recent(now_ms=None,publisher=None,token=None,chat=None):
