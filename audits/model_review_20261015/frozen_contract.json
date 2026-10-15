@@ -1,0 +1,29 @@
+{
+  "version": "MODEL_CONSISTENCY_REVIEW_V1_2026_10_15",
+  "production_commit": "3633edfd01d13eeb6f6584070baf7b57336a347f",
+  "source_sha256": "c599da9c448c764e00f2d729d6a05a1e0c931a87bb46a2d15eeb72ab480d7e36",
+  "strategy_id": "4c8ec7e287f11c247648a3ac7c2adb4939a03a48baa5df0cfeb57a5adf5a0a58",
+  "geometry_version": "STRUCTURAL_PLAN_V4_1_LOCAL_2026_10_15",
+  "direction": "Existing deterministic production direction engine; no score fitting",
+  "entry": "Existing FAST acceptance or fresh retest confirmation; native data and executable cost gate required",
+  "levels": "Fixed local 5m/15m common-anchor band; observed all-timeframe obstacles; frozen stop and target",
+  "minimum_round_trip_cost_pct": 0.3,
+  "minimum_room_pct": 0.9,
+  "minimum_net_r": 1.0,
+  "required_reward_formula": "max(minimum_room_pct, min_net_r * risk_pct + (1 + min_net_r) * cost_pct)",
+  "paper_entry": "Next full 1m open after TRIGGERED; recheck original stop, target, room and net R",
+  "paper_exit": "First stop or TP1; otherwise 180 minutes; stop-first ambiguous minute; gap stop uses open",
+  "cost_model": "Signal book cost proxy plus verified historical funding, not actual fills",
+  "measurement_unit": "First retained geometry log per symbol/direction/UTC 5m bucket; descriptive scans, not independent trades",
+  "direction_join": "Unique preceding same-symbol direction log within 1 second; ambiguity/missing stays unknown",
+  "primary_performance": "Independent paper ledger grouped by source/locked-plan/geometry cohort; no gross direction proxy promoted to PnL",
+  "freeze": "No entry/exit/score/threshold changes as part of this audit; code hash must match before grouping results",
+  "limitations": [
+    "No profitability claim or optimized hit-rate target",
+    "No market-wide recall estimate from selected deep-analysis logs",
+    "Ablation payloads currently compare direction decisions only, not net trade returns",
+    "No entry delay estimate when no TRIGGERED events exist",
+    "Rejected-candidate next-minute counterfactuals are not executable missed trades",
+    "Snapshot covers a short window and may contain correlated repeated symbols"
+  ]
+}

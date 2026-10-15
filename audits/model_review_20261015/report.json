@@ -1,0 +1,1278 @@
+{
+  "version": "MODEL_CONSISTENCY_REVIEW_V1_2026_10_15",
+  "production_commit": "3633edfd01d13eeb6f6584070baf7b57336a347f",
+  "strategy_id": "4c8ec7e287f11c247648a3ac7c2adb4939a03a48baa5df0cfeb57a5adf5a0a58",
+  "source_sha256": "c599da9c448c764e00f2d729d6a05a1e0c931a87bb46a2d15eeb72ab480d7e36",
+  "cutoff_utc": "2026-10-15T02:00:30Z",
+  "scope": "RETAINED_DEEP_ANALYSIS_LOGS_NOT_FULL_UNIVERSE",
+  "read_only": true,
+  "production_rules_changed": false,
+  "edge_proven": false,
+  "observation_span_seconds": 388.1181161403656,
+  "raw_geometry_records": 77,
+  "distinct_scan_records": 60,
+  "distinct_symbols": 37,
+  "not_independent_trades": true,
+  "excluded": {
+    "repeated_symbol_direction_5m_bucket": 17
+  },
+  "log_issues": {
+    "geometry": {
+      "unparseable_or_interleaved": 1
+    },
+    "direction": {
+      "other_log_excluded": 1,
+      "unparseable_or_interleaved": 1
+    },
+    "identity": {},
+    "execution": {},
+    "coverage": {}
+  },
+  "retrieval_may_be_capped": false,
+  "geometry_reasons": {
+    "ENTRY_INSIDE_OPPOSING_ZONE": 47,
+    "INSUFFICIENT_GEOMETRY": 10,
+    "NO_LOCAL_TRIGGER_ZONE": 3
+  },
+  "overlapping_obstacle_frames": {
+    "5m": 3,
+    "15m": 2,
+    "4h": 23,
+    "30m": 6,
+    "1h": 13
+  },
+  "direction_joined": 57,
+  "direction_eligible": 21,
+  "direction_and_geometry_passed": 0,
+  "direction_eligible_geometry_reasons": {
+    "ENTRY_INSIDE_OPPOSING_ZONE": 17,
+    "INSUFFICIENT_GEOMETRY": 3,
+    "NO_LOCAL_TRIGGER_ZONE": 1
+  },
+  "ordered_level_count": 10,
+  "ordered_targets_not_above_assumed_cost": 7,
+  "ordered_economic_gate_passes": 0,
+  "latest_coverage": {
+    "fresh_tickers": 719,
+    "eligible": 152,
+    "scan_window": 30,
+    "selection": "rotating_verified_universe"
+  },
+  "paper_ledger": {
+    "available": true,
+    "all_retained_cohorts": true,
+    "total_signals": 0,
+    "groups": {}
+  },
+  "confirmation_delay": {
+    "status": "NOT_ESTIMABLE_NO_TRIGGERED_SAMPLE",
+    "mean_seconds": null
+  },
+  "feature_ablation": {
+    "status": "DIRECTION_DECISIONS_ONLY_NO_MATCHED_NET_PNL",
+    "incremental_profitability_established": false
+  },
+  "economic_formula": "max(minimum_room_pct, min_net_r * risk_pct + (1 + min_net_r) * cost_pct)",
+  "cases": [
+    {
+      "symbol": "TRUTHUSDT",
+      "direction": "LONG",
+      "observed_epoch": 1792029222.621307,
+      "direction_match": "UNIQUE_LOG_ADJACENCY",
+      "direction_eligible": false,
+      "direction_reasons": [
+        "direction_score_below_minimum",
+        "direction_edge_below_minimum"
+      ],
+      "geometry_reason": "ENTRY_INSIDE_OPPOSING_ZONE",
+      "geometry_qualified": false,
+      "obstacle_timeframe": "5m",
+      "setup_type": "BREAKOUT",
+      "economics": {
+        "state": "INVALID_GEOMETRY"
+      },
+      "paired_v3_qualified": false,
+      "paired_v4_qualified": false
+    },
+    {
+      "symbol": "XRPUSDT",
+      "direction": "SHORT",
+      "observed_epoch": 1792029222.631055,
+      "direction_match": "UNIQUE_LOG_ADJACENCY",
+      "direction_eligible": true,
+      "direction_reasons": [],
+      "geometry_reason": "ENTRY_INSIDE_OPPOSING_ZONE",
+      "geometry_qualified": false,
+      "obstacle_timeframe": "15m",
+      "setup_type": "BREAKOUT",
+      "economics": {
+        "state": "INVALID_GEOMETRY"
+      },
+      "paired_v3_qualified": false,
+      "paired_v4_qualified": false
+    },
+    {
+      "symbol": "XMRUSDT",
+      "direction": "LONG",
+      "observed_epoch": 1792029222.632851,
+      "direction_match": "UNIQUE_LOG_ADJACENCY",
+      "direction_eligible": true,
+      "direction_reasons": [],
+      "geometry_reason": "ENTRY_INSIDE_OPPOSING_ZONE",
+      "geometry_qualified": false,
+      "obstacle_timeframe": "4h",
+      "setup_type": "BREAKOUT",
+      "economics": {
+        "state": "INVALID_GEOMETRY"
+      },
+      "paired_v3_qualified": false,
+      "paired_v4_qualified": false
+    },
+    {
+      "symbol": "WUSDT",
+      "direction": "SHORT",
+      "observed_epoch": 1792029222.634658,
+      "direction_match": "UNIQUE_LOG_ADJACENCY",
+      "direction_eligible": false,
+      "direction_reasons": [
+        "direction_score_below_minimum",
+        "direction_edge_below_minimum"
+      ],
+      "geometry_reason": "ENTRY_INSIDE_OPPOSING_ZONE",
+      "geometry_qualified": false,
+      "obstacle_timeframe": "5m",
+      "setup_type": "BREAKOUT",
+      "economics": {
+        "state": "INVALID_GEOMETRY"
+      },
+      "paired_v3_qualified": false,
+      "paired_v4_qualified": false
+    },
+    {
+      "symbol": "ZROUSDT",
+      "direction": "SHORT",
+      "observed_epoch": 1792029222.639381,
+      "direction_match": "UNIQUE_LOG_ADJACENCY",
+      "direction_eligible": false,
+      "direction_reasons": [
+        "direction_score_below_minimum"
+      ],
+      "geometry_reason": "ENTRY_INSIDE_OPPOSING_ZONE",
+      "geometry_qualified": false,
+      "obstacle_timeframe": "4h",
+      "setup_type": "BREAKOUT",
+      "economics": {
+        "state": "INVALID_GEOMETRY"
+      },
+      "paired_v3_qualified": true,
+      "paired_v4_qualified": false
+    },
+    {
+      "symbol": "XPLUSDT",
+      "direction": "SHORT",
+      "observed_epoch": 1792029222.642399,
+      "direction_match": "UNIQUE_LOG_ADJACENCY",
+      "direction_eligible": false,
+      "direction_reasons": [
+        "direction_score_below_minimum"
+      ],
+      "geometry_reason": "ENTRY_INSIDE_OPPOSING_ZONE",
+      "geometry_qualified": false,
+      "obstacle_timeframe": "4h",
+      "setup_type": "BREAKOUT",
+      "economics": {
+        "state": "INVALID_GEOMETRY"
+      },
+      "paired_v3_qualified": false,
+      "paired_v4_qualified": false
+    },
+    {
+      "symbol": "UNIUSDT",
+      "direction": "SHORT",
+      "observed_epoch": 1792029222.644186,
+      "direction_match": "UNIQUE_LOG_ADJACENCY",
+      "direction_eligible": true,
+      "direction_reasons": [],
+      "geometry_reason": "INSUFFICIENT_GEOMETRY",
+      "geometry_qualified": false,
+      "obstacle_timeframe": "5m",
+      "setup_type": "BREAKOUT",
+      "economics": {
+        "state": "ORDERED_LEVELS",
+        "risk_pct": 0.6585659304706448,
+        "reward_pct": 0.0239222667051342,
+        "cost_pct": 0.3,
+        "net_target_pct": -0.2760777332948658,
+        "net_r": -0.2880112097863887,
+        "required_reward_pct": 1.258565930470645,
+        "reward_shortfall_pct": 1.2346436637655107,
+        "target_not_above_cost": true,
+        "passes_economic_gates": false
+      },
+      "paired_v3_qualified": false,
+      "paired_v4_qualified": false
+    },
+    {
+      "symbol": "VVVUSDT",
+      "direction": "SHORT",
+      "observed_epoch": 1792029222.648023,
+      "direction_match": "UNIQUE_LOG_ADJACENCY",
+      "direction_eligible": false,
+      "direction_reasons": [
+        "direction_score_below_minimum"
+      ],
+      "geometry_reason": "ENTRY_INSIDE_OPPOSING_ZONE",
+      "geometry_qualified": false,
+      "obstacle_timeframe": "30m",
+      "setup_type": "BREAKOUT",
+      "economics": {
+        "state": "INVALID_GEOMETRY"
+      },
+      "paired_v3_qualified": false,
+      "paired_v4_qualified": false
+    },
+    {
+      "symbol": "TIAUSDT",
+      "direction": "SHORT",
+      "observed_epoch": 1792029222.648068,
+      "direction_match": "UNIQUE_LOG_ADJACENCY",
+      "direction_eligible": false,
+      "direction_reasons": [
+        "direction_score_below_minimum"
+      ],
+      "geometry_reason": "ENTRY_INSIDE_OPPOSING_ZONE",
+      "geometry_qualified": false,
+      "obstacle_timeframe": "1h",
+      "setup_type": "BREAKOUT",
+      "economics": {
+        "state": "INVALID_GEOMETRY"
+      },
+      "paired_v3_qualified": false,
+      "paired_v4_qualified": false
+    },
+    {
+      "symbol": "ZECUSDT",
+      "direction": "SHORT",
+      "observed_epoch": 1792029222.732307,
+      "direction_match": "UNIQUE_LOG_ADJACENCY",
+      "direction_eligible": true,
+      "direction_reasons": [],
+      "geometry_reason": "ENTRY_INSIDE_OPPOSING_ZONE",
+      "geometry_qualified": false,
+      "obstacle_timeframe": "4h",
+      "setup_type": "BREAKOUT",
+      "economics": {
+        "state": "INVALID_GEOMETRY"
+      },
+      "paired_v3_qualified": false,
+      "paired_v4_qualified": false
+    },
+    {
+      "symbol": "TRXUSDT",
+      "direction": "SHORT",
+      "observed_epoch": 1792029222.818101,
+      "direction_match": "UNIQUE_LOG_ADJACENCY",
+      "direction_eligible": false,
+      "direction_reasons": [
+        "direction_score_below_minimum"
+      ],
+      "geometry_reason": "ENTRY_INSIDE_OPPOSING_ZONE",
+      "geometry_qualified": false,
+      "obstacle_timeframe": "4h",
+      "setup_type": "PULLBACK",
+      "economics": {
+        "state": "INVALID_GEOMETRY"
+      },
+      "paired_v3_qualified": false,
+      "paired_v4_qualified": false
+    },
+    {
+      "symbol": "TRUMPUSDT",
+      "direction": "SHORT",
+      "observed_epoch": 1792029222.836644,
+      "direction_match": "UNIQUE_LOG_ADJACENCY",
+      "direction_eligible": true,
+      "direction_reasons": [],
+      "geometry_reason": "ENTRY_INSIDE_OPPOSING_ZONE",
+      "geometry_qualified": false,
+      "obstacle_timeframe": "4h",
+      "setup_type": "PULLBACK",
+      "economics": {
+        "state": "INVALID_GEOMETRY"
+      },
+      "paired_v3_qualified": false,
+      "paired_v4_qualified": false
+    },
+    {
+      "symbol": "STXUSDT",
+      "direction": "LONG",
+      "observed_epoch": 1792029222.929676,
+      "direction_match": "UNIQUE_LOG_ADJACENCY",
+      "direction_eligible": false,
+      "direction_reasons": [
+        "direction_score_below_minimum"
+      ],
+      "geometry_reason": "ENTRY_INSIDE_OPPOSING_ZONE",
+      "geometry_qualified": false,
+      "obstacle_timeframe": "1h",
+      "setup_type": "BREAKOUT",
+      "economics": {
+        "state": "INVALID_GEOMETRY"
+      },
+      "paired_v3_qualified": false,
+      "paired_v4_qualified": false
+    },
+    {
+      "symbol": "XLMUSDT",
+      "direction": "SHORT",
+      "observed_epoch": 1792029222.954216,
+      "direction_match": "UNIQUE_LOG_ADJACENCY",
+      "direction_eligible": true,
+      "direction_reasons": [],
+      "geometry_reason": "ENTRY_INSIDE_OPPOSING_ZONE",
+      "geometry_qualified": false,
+      "obstacle_timeframe": "4h",
+      "setup_type": "PULLBACK",
+      "economics": {
+        "state": "INVALID_GEOMETRY"
+      },
+      "paired_v3_qualified": false,
+      "paired_v4_qualified": false
+    },
+    {
+      "symbol": "USELESSUSDT",
+      "direction": "SHORT",
+      "observed_epoch": 1792029223.078425,
+      "direction_match": "UNIQUE_LOG_ADJACENCY",
+      "direction_eligible": true,
+      "direction_reasons": [],
+      "geometry_reason": "INSUFFICIENT_GEOMETRY",
+      "geometry_qualified": false,
+      "obstacle_timeframe": "4h",
+      "setup_type": "PULLBACK",
+      "economics": {
+        "state": "ORDERED_LEVELS",
+        "risk_pct": 1.632213928566939,
+        "reward_pct": 0.10665441063185677,
+        "cost_pct": 0.3,
+        "net_target_pct": -0.19334558936814322,
+        "net_r": -0.10006427679130821,
+        "required_reward_pct": 2.232213928566939,
+        "reward_shortfall_pct": 2.1255595179350824,
+        "target_not_above_cost": true,
+        "passes_economic_gates": false
+      },
+      "paired_v3_qualified": false,
+      "paired_v4_qualified": false
+    },
+    {
+      "symbol": "WALUSDT",
+      "direction": "LONG",
+      "observed_epoch": 1792029223.106288,
+      "direction_match": "UNIQUE_LOG_ADJACENCY",
+      "direction_eligible": false,
+      "direction_reasons": [
+        "direction_score_below_minimum"
+      ],
+      "geometry_reason": "INSUFFICIENT_GEOMETRY",
+      "geometry_qualified": false,
+      "obstacle_timeframe": "5m",
+      "setup_type": "PULLBACK",
+      "economics": {
+        "state": "ORDERED_LEVELS",
+        "risk_pct": 7.921776599270802,
+        "reward_pct": 0.20289786448222102,
+        "cost_pct": 0.3,
+        "net_target_pct": -0.09710213551777896,
+        "net_r": -0.01181035927519498,
+        "required_reward_pct": 8.521776599270803,
+        "reward_shortfall_pct": 8.318878734788582,
+        "target_not_above_cost": true,
+        "passes_economic_gates": false
+      },
+      "paired_v3_qualified": false,
+      "paired_v4_qualified": false
+    },
+    {
+      "symbol": "USUSDT",
+      "direction": "SHORT",
+      "observed_epoch": 1792029223.150146,
+      "direction_match": "UNIQUE_LOG_ADJACENCY",
+      "direction_eligible": false,
+      "direction_reasons": [
+        "direction_score_below_minimum"
+      ],
+      "geometry_reason": "NO_LOCAL_TRIGGER_ZONE",
+      "geometry_qualified": false,
+      "obstacle_timeframe": null,
+      "setup_type": "PULLBACK",
+      "economics": {
+        "state": "MISSING_OR_INVALID_INPUT"
+      },
+      "paired_v3_qualified": false,
+      "paired_v4_qualified": false
+    },
+    {
+      "symbol": "XAUTUSDT",
+      "direction": "LONG",
+      "observed_epoch": 1792029223.718513,
+      "direction_match": "UNIQUE_LOG_ADJACENCY",
+      "direction_eligible": false,
+      "direction_reasons": [
+        "direction_score_below_minimum",
+        "direction_edge_below_minimum"
+      ],
+      "geometry_reason": "INSUFFICIENT_GEOMETRY",
+      "geometry_qualified": false,
+      "obstacle_timeframe": "1h",
+      "setup_type": "PULLBACK",
+      "economics": {
+        "state": "ORDERED_LEVELS",
+        "risk_pct": 0.40159153933804204,
+        "reward_pct": 0.07594329618147988,
+        "cost_pct": 0.3,
+        "net_target_pct": -0.2240567038185201,
+        "net_r": -0.3193549113062561,
+        "required_reward_pct": 1.0015915393380421,
+        "reward_shortfall_pct": 0.9256482431565622,
+        "target_not_above_cost": true,
+        "passes_economic_gates": false
+      },
+      "paired_v3_qualified": false,
+      "paired_v4_qualified": false
+    },
+    {
+      "symbol": "ZEREBROUSDT",
+      "direction": "LONG",
+      "observed_epoch": 1792029223.719702,
+      "direction_match": "UNIQUE_LOG_ADJACENCY",
+      "direction_eligible": false,
+      "direction_reasons": [
+        "direction_score_below_minimum"
+      ],
+      "geometry_reason": "NO_LOCAL_TRIGGER_ZONE",
+      "geometry_qualified": false,
+      "obstacle_timeframe": null,
+      "setup_type": "PULLBACK",
+      "economics": {
+        "state": "MISSING_OR_INVALID_INPUT"
+      },
+      "paired_v3_qualified": false,
+      "paired_v4_qualified": false
+    },
+    {
+      "symbol": "WLFIUSDT",
+      "direction": "SHORT",
+      "observed_epoch": 1792029223.72167,
+      "direction_match": "UNIQUE_LOG_ADJACENCY",
+      "direction_eligible": false,
+      "direction_reasons": [
+        "direction_score_below_minimum",
+        "liquidity_floor"
+      ],
+      "geometry_reason": "ENTRY_INSIDE_OPPOSING_ZONE",
+      "geometry_qualified": false,
+      "obstacle_timeframe": "1h",
+      "setup_type": "BREAKOUT",
+      "economics": {
+        "state": "INVALID_GEOMETRY"
+      },
+      "paired_v3_qualified": false,
+      "paired_v4_qualified": false
+    },
+    {
+      "symbol": "TAOUSDT",
+      "direction": "SHORT",
+      "observed_epoch": 1792029227.6751,
+      "direction_match": "UNIQUE_LOG_ADJACENCY",
+      "direction_eligible": true,
+      "direction_reasons": [],
+      "geometry_reason": "ENTRY_INSIDE_OPPOSING_ZONE",
+      "geometry_qualified": false,
+      "obstacle_timeframe": "1h",
+      "setup_type": "BREAKOUT",
+      "economics": {
+        "state": "INVALID_GEOMETRY"
+      },
+      "paired_v3_qualified": false,
+      "paired_v4_qualified": false
+    },
+    {
+      "symbol": "SUIUSDT",
+      "direction": "SHORT",
+      "observed_epoch": 1792029227.73574,
+      "direction_match": "UNIQUE_LOG_ADJACENCY",
+      "direction_eligible": true,
+      "direction_reasons": [],
+      "geometry_reason": "ENTRY_INSIDE_OPPOSING_ZONE",
+      "geometry_qualified": false,
+      "obstacle_timeframe": "1h",
+      "setup_type": "BREAKOUT",
+      "economics": {
+        "state": "INVALID_GEOMETRY"
+      },
+      "paired_v3_qualified": false,
+      "paired_v4_qualified": false
+    },
+    {
+      "symbol": "TRUTHUSDT",
+      "direction": "SHORT",
+      "observed_epoch": 1792029308.115472,
+      "direction_match": "UNIQUE_LOG_ADJACENCY",
+      "direction_eligible": false,
+      "direction_reasons": [
+        "direction_score_below_minimum",
+        "direction_edge_below_minimum"
+      ],
+      "geometry_reason": "ENTRY_INSIDE_OPPOSING_ZONE",
+      "geometry_qualified": false,
+      "obstacle_timeframe": "1h",
+      "setup_type": "BREAKOUT",
+      "economics": {
+        "state": "INVALID_GEOMETRY"
+      },
+      "paired_v3_qualified": false,
+      "paired_v4_qualified": false
+    },
+    {
+      "symbol": "TAOUSDT",
+      "direction": "SHORT",
+      "observed_epoch": 1792029308.125776,
+      "direction_match": "UNIQUE_LOG_ADJACENCY",
+      "direction_eligible": true,
+      "direction_reasons": [],
+      "geometry_reason": "ENTRY_INSIDE_OPPOSING_ZONE",
+      "geometry_qualified": false,
+      "obstacle_timeframe": "1h",
+      "setup_type": "BREAKOUT",
+      "economics": {
+        "state": "INVALID_GEOMETRY"
+      },
+      "paired_v3_qualified": false,
+      "paired_v4_qualified": false
+    },
+    {
+      "symbol": "PUMPUSDT",
+      "direction": "SHORT",
+      "observed_epoch": 1792029308.125827,
+      "direction_match": "UNIQUE_LOG_ADJACENCY",
+      "direction_eligible": false,
+      "direction_reasons": [
+        "direction_score_below_minimum"
+      ],
+      "geometry_reason": "ENTRY_INSIDE_OPPOSING_ZONE",
+      "geometry_qualified": false,
+      "obstacle_timeframe": "4h",
+      "setup_type": "BREAKOUT",
+      "economics": {
+        "state": "INVALID_GEOMETRY"
+      },
+      "paired_v3_qualified": true,
+      "paired_v4_qualified": false
+    },
+    {
+      "symbol": "SOLUSDT",
+      "direction": "SHORT",
+      "observed_epoch": 1792029308.131683,
+      "direction_match": "UNIQUE_LOG_ADJACENCY",
+      "direction_eligible": false,
+      "direction_reasons": [
+        "direction_score_below_minimum"
+      ],
+      "geometry_reason": "ENTRY_INSIDE_OPPOSING_ZONE",
+      "geometry_qualified": false,
+      "obstacle_timeframe": "15m",
+      "setup_type": "BREAKOUT",
+      "economics": {
+        "state": "INVALID_GEOMETRY"
+      },
+      "paired_v3_qualified": false,
+      "paired_v4_qualified": false
+    },
+    {
+      "symbol": "STRKUSDT",
+      "direction": "SHORT",
+      "observed_epoch": 1792029308.164014,
+      "direction_match": "UNIQUE_LOG_ADJACENCY",
+      "direction_eligible": false,
+      "direction_reasons": [
+        "direction_score_below_minimum"
+      ],
+      "geometry_reason": "ENTRY_INSIDE_OPPOSING_ZONE",
+      "geometry_qualified": false,
+      "obstacle_timeframe": "30m",
+      "setup_type": "BREAKOUT",
+      "economics": {
+        "state": "INVALID_GEOMETRY"
+      },
+      "paired_v3_qualified": false,
+      "paired_v4_qualified": false
+    },
+    {
+      "symbol": "TIAUSDT",
+      "direction": "SHORT",
+      "observed_epoch": 1792029308.211884,
+      "direction_match": "UNIQUE_LOG_ADJACENCY",
+      "direction_eligible": false,
+      "direction_reasons": [
+        "direction_score_below_minimum"
+      ],
+      "geometry_reason": "ENTRY_INSIDE_OPPOSING_ZONE",
+      "geometry_qualified": false,
+      "obstacle_timeframe": "1h",
+      "setup_type": "BREAKOUT",
+      "economics": {
+        "state": "INVALID_GEOMETRY"
+      },
+      "paired_v3_qualified": false,
+      "paired_v4_qualified": false
+    },
+    {
+      "symbol": "SUIUSDT",
+      "direction": "SHORT",
+      "observed_epoch": 1792029308.246618,
+      "direction_match": "UNIQUE_LOG_ADJACENCY",
+      "direction_eligible": true,
+      "direction_reasons": [],
+      "geometry_reason": "ENTRY_INSIDE_OPPOSING_ZONE",
+      "geometry_qualified": false,
+      "obstacle_timeframe": "1h",
+      "setup_type": "BREAKOUT",
+      "economics": {
+        "state": "INVALID_GEOMETRY"
+      },
+      "paired_v3_qualified": false,
+      "paired_v4_qualified": false
+    },
+    {
+      "symbol": "UNIUSDT",
+      "direction": "SHORT",
+      "observed_epoch": 1792029308.311423,
+      "direction_match": "UNIQUE_LOG_ADJACENCY",
+      "direction_eligible": false,
+      "direction_reasons": [
+        "direction_score_below_minimum"
+      ],
+      "geometry_reason": "ENTRY_INSIDE_OPPOSING_ZONE",
+      "geometry_qualified": false,
+      "obstacle_timeframe": "30m",
+      "setup_type": "BREAKOUT",
+      "economics": {
+        "state": "INVALID_GEOMETRY"
+      },
+      "paired_v3_qualified": false,
+      "paired_v4_qualified": false
+    },
+    {
+      "symbol": "TRXUSDT",
+      "direction": "SHORT",
+      "observed_epoch": 1792029308.333929,
+      "direction_match": "UNIQUE_LOG_ADJACENCY",
+      "direction_eligible": false,
+      "direction_reasons": [
+        "direction_score_below_minimum"
+      ],
+      "geometry_reason": "ENTRY_INSIDE_OPPOSING_ZONE",
+      "geometry_qualified": false,
+      "obstacle_timeframe": "4h",
+      "setup_type": "PULLBACK",
+      "economics": {
+        "state": "INVALID_GEOMETRY"
+      },
+      "paired_v3_qualified": false,
+      "paired_v4_qualified": false
+    },
+    {
+      "symbol": "TRUMPUSDT",
+      "direction": "SHORT",
+      "observed_epoch": 1792029308.358725,
+      "direction_match": "UNIQUE_LOG_ADJACENCY",
+      "direction_eligible": true,
+      "direction_reasons": [],
+      "geometry_reason": "ENTRY_INSIDE_OPPOSING_ZONE",
+      "geometry_qualified": false,
+      "obstacle_timeframe": "4h",
+      "setup_type": "PULLBACK",
+      "economics": {
+        "state": "INVALID_GEOMETRY"
+      },
+      "paired_v3_qualified": false,
+      "paired_v4_qualified": false
+    },
+    {
+      "symbol": "RENDERUSDT",
+      "direction": "SHORT",
+      "observed_epoch": 1792029308.981364,
+      "direction_match": "UNIQUE_LOG_ADJACENCY",
+      "direction_eligible": false,
+      "direction_reasons": [
+        "direction_score_below_minimum"
+      ],
+      "geometry_reason": "ENTRY_INSIDE_OPPOSING_ZONE",
+      "geometry_qualified": false,
+      "obstacle_timeframe": "4h",
+      "setup_type": "PULLBACK",
+      "economics": {
+        "state": "INVALID_GEOMETRY"
+      },
+      "paired_v3_qualified": false,
+      "paired_v4_qualified": false
+    },
+    {
+      "symbol": "QUSDT",
+      "direction": "LONG",
+      "observed_epoch": 1792029308.985464,
+      "direction_match": "UNIQUE_LOG_ADJACENCY",
+      "direction_eligible": false,
+      "direction_reasons": [
+        "direction_score_below_minimum"
+      ],
+      "geometry_reason": "ENTRY_INSIDE_OPPOSING_ZONE",
+      "geometry_qualified": false,
+      "obstacle_timeframe": "30m",
+      "setup_type": "PULLBACK",
+      "economics": {
+        "state": "INVALID_GEOMETRY"
+      },
+      "paired_v3_qualified": true,
+      "paired_v4_qualified": false
+    },
+    {
+      "symbol": "RLCUSDT",
+      "direction": "SHORT",
+      "observed_epoch": 1792029308.989573,
+      "direction_match": "UNIQUE_LOG_ADJACENCY",
+      "direction_eligible": false,
+      "direction_reasons": [
+        "direction_score_below_minimum",
+        "direction_edge_below_minimum"
+      ],
+      "geometry_reason": "INSUFFICIENT_GEOMETRY",
+      "geometry_qualified": false,
+      "obstacle_timeframe": "15m",
+      "setup_type": "PULLBACK",
+      "economics": {
+        "state": "ORDERED_LEVELS",
+        "risk_pct": 1.8464531984616173,
+        "reward_pct": 0.11063961555080049,
+        "cost_pct": 0.3,
+        "net_target_pct": -0.1893603844491995,
+        "net_r": -0.08822013197628341,
+        "required_reward_pct": 2.4464531984616174,
+        "reward_shortfall_pct": 2.335813582910817,
+        "target_not_above_cost": true,
+        "passes_economic_gates": false
+      },
+      "paired_v3_qualified": true,
+      "paired_v4_qualified": false
+    },
+    {
+      "symbol": "STXUSDT",
+      "direction": "LONG",
+      "observed_epoch": 1792029308.992951,
+      "direction_match": "UNIQUE_LOG_ADJACENCY",
+      "direction_eligible": false,
+      "direction_reasons": [
+        "direction_score_below_minimum"
+      ],
+      "geometry_reason": "ENTRY_INSIDE_OPPOSING_ZONE",
+      "geometry_qualified": false,
+      "obstacle_timeframe": "1h",
+      "setup_type": "BREAKOUT",
+      "economics": {
+        "state": "INVALID_GEOMETRY"
+      },
+      "paired_v3_qualified": false,
+      "paired_v4_qualified": false
+    },
+    {
+      "symbol": "RAYSOLUSDT",
+      "direction": "SHORT",
+      "observed_epoch": 1792029309.00004,
+      "direction_match": "UNIQUE_LOG_ADJACENCY",
+      "direction_eligible": false,
+      "direction_reasons": [
+        "direction_score_below_minimum"
+      ],
+      "geometry_reason": "ENTRY_INSIDE_OPPOSING_ZONE",
+      "geometry_qualified": false,
+      "obstacle_timeframe": "4h",
+      "setup_type": "PULLBACK",
+      "economics": {
+        "state": "INVALID_GEOMETRY"
+      },
+      "paired_v3_qualified": false,
+      "paired_v4_qualified": false
+    },
+    {
+      "symbol": "SUSDT",
+      "direction": "LONG",
+      "observed_epoch": 1792029309.008282,
+      "direction_match": "UNIQUE_LOG_ADJACENCY",
+      "direction_eligible": false,
+      "direction_reasons": [
+        "direction_score_below_minimum",
+        "direction_edge_below_minimum"
+      ],
+      "geometry_reason": "INSUFFICIENT_GEOMETRY",
+      "geometry_qualified": false,
+      "obstacle_timeframe": "30m",
+      "setup_type": "PULLBACK",
+      "economics": {
+        "state": "ORDERED_LEVELS",
+        "risk_pct": 2.5260767573523135,
+        "reward_pct": 1.416860857578106,
+        "cost_pct": 0.3,
+        "net_target_pct": 1.116860857578106,
+        "net_r": 0.3951983450812098,
+        "required_reward_pct": 3.1260767573523136,
+        "reward_shortfall_pct": 1.7092158997742075,
+        "target_not_above_cost": false,
+        "passes_economic_gates": false
+      },
+      "paired_v3_qualified": false,
+      "paired_v4_qualified": false
+    },
+    {
+      "symbol": "ZECUSDT",
+      "direction": "SHORT",
+      "observed_epoch": 1792029610.39299,
+      "direction_match": "MISSING_OR_AMBIGUOUS",
+      "direction_eligible": null,
+      "direction_reasons": null,
+      "geometry_reason": "ENTRY_INSIDE_OPPOSING_ZONE",
+      "geometry_qualified": false,
+      "obstacle_timeframe": "4h",
+      "setup_type": "BREAKOUT",
+      "economics": {
+        "state": "INVALID_GEOMETRY"
+      },
+      "paired_v3_qualified": false,
+      "paired_v4_qualified": false
+    },
+    {
+      "symbol": "ZROUSDT",
+      "direction": "SHORT",
+      "observed_epoch": 1792029610.393002,
+      "direction_match": "UNIQUE_LOG_ADJACENCY",
+      "direction_eligible": true,
+      "direction_reasons": [],
+      "geometry_reason": "ENTRY_INSIDE_OPPOSING_ZONE",
+      "geometry_qualified": false,
+      "obstacle_timeframe": "4h",
+      "setup_type": "BREAKOUT",
+      "economics": {
+        "state": "INVALID_GEOMETRY"
+      },
+      "paired_v3_qualified": true,
+      "paired_v4_qualified": false
+    },
+    {
+      "symbol": "WUSDT",
+      "direction": "SHORT",
+      "observed_epoch": 1792029610.393146,
+      "direction_match": "MISSING_OR_AMBIGUOUS",
+      "direction_eligible": null,
+      "direction_reasons": null,
+      "geometry_reason": "ENTRY_INSIDE_OPPOSING_ZONE",
+      "geometry_qualified": false,
+      "obstacle_timeframe": "5m",
+      "setup_type": "BREAKOUT",
+      "economics": {
+        "state": "INVALID_GEOMETRY"
+      },
+      "paired_v3_qualified": false,
+      "paired_v4_qualified": false
+    },
+    {
+      "symbol": "1000PEPEUSDT",
+      "direction": "SHORT",
+      "observed_epoch": 1792029610.393278,
+      "direction_match": "UNIQUE_LOG_ADJACENCY",
+      "direction_eligible": true,
+      "direction_reasons": [],
+      "geometry_reason": "ENTRY_INSIDE_OPPOSING_ZONE",
+      "geometry_qualified": false,
+      "obstacle_timeframe": "4h",
+      "setup_type": "PULLBACK",
+      "economics": {
+        "state": "INVALID_GEOMETRY"
+      },
+      "paired_v3_qualified": false,
+      "paired_v4_qualified": false
+    },
+    {
+      "symbol": "XRPUSDT",
+      "direction": "SHORT",
+      "observed_epoch": 1792029610.39329,
+      "direction_match": "MISSING_OR_AMBIGUOUS",
+      "direction_eligible": null,
+      "direction_reasons": null,
+      "geometry_reason": "ENTRY_INSIDE_OPPOSING_ZONE",
+      "geometry_qualified": false,
+      "obstacle_timeframe": "4h",
+      "setup_type": "BREAKOUT",
+      "economics": {
+        "state": "INVALID_GEOMETRY"
+      },
+      "paired_v3_qualified": false,
+      "paired_v4_qualified": false
+    },
+    {
+      "symbol": "XMRUSDT",
+      "direction": "LONG",
+      "observed_epoch": 1792029610.393334,
+      "direction_match": "UNIQUE_LOG_ADJACENCY",
+      "direction_eligible": false,
+      "direction_reasons": [
+        "direction_score_below_minimum"
+      ],
+      "geometry_reason": "ENTRY_INSIDE_OPPOSING_ZONE",
+      "geometry_qualified": false,
+      "obstacle_timeframe": "4h",
+      "setup_type": "BREAKOUT",
+      "economics": {
+        "state": "INVALID_GEOMETRY"
+      },
+      "paired_v3_qualified": false,
+      "paired_v4_qualified": false
+    },
+    {
+      "symbol": "TRUMPUSDT",
+      "direction": "SHORT",
+      "observed_epoch": 1792029610.393437,
+      "direction_match": "UNIQUE_LOG_ADJACENCY",
+      "direction_eligible": true,
+      "direction_reasons": [],
+      "geometry_reason": "ENTRY_INSIDE_OPPOSING_ZONE",
+      "geometry_qualified": false,
+      "obstacle_timeframe": "4h",
+      "setup_type": "PULLBACK",
+      "economics": {
+        "state": "INVALID_GEOMETRY"
+      },
+      "paired_v3_qualified": false,
+      "paired_v4_qualified": false
+    },
+    {
+      "symbol": "VVVUSDT",
+      "direction": "SHORT",
+      "observed_epoch": 1792029610.393528,
+      "direction_match": "UNIQUE_LOG_ADJACENCY",
+      "direction_eligible": true,
+      "direction_reasons": [],
+      "geometry_reason": "ENTRY_INSIDE_OPPOSING_ZONE",
+      "geometry_qualified": false,
+      "obstacle_timeframe": "1h",
+      "setup_type": "BREAKOUT",
+      "economics": {
+        "state": "INVALID_GEOMETRY"
+      },
+      "paired_v3_qualified": false,
+      "paired_v4_qualified": false
+    },
+    {
+      "symbol": "WLDUSDT",
+      "direction": "SHORT",
+      "observed_epoch": 1792029610.393634,
+      "direction_match": "UNIQUE_LOG_ADJACENCY",
+      "direction_eligible": true,
+      "direction_reasons": [],
+      "geometry_reason": "ENTRY_INSIDE_OPPOSING_ZONE",
+      "geometry_qualified": false,
+      "obstacle_timeframe": "4h",
+      "setup_type": "PULLBACK",
+      "economics": {
+        "state": "INVALID_GEOMETRY"
+      },
+      "paired_v3_qualified": false,
+      "paired_v4_qualified": false
+    },
+    {
+      "symbol": "XPLUSDT",
+      "direction": "SHORT",
+      "observed_epoch": 1792029610.643823,
+      "direction_match": "UNIQUE_LOG_ADJACENCY",
+      "direction_eligible": true,
+      "direction_reasons": [],
+      "geometry_reason": "ENTRY_INSIDE_OPPOSING_ZONE",
+      "geometry_qualified": false,
+      "obstacle_timeframe": "4h",
+      "setup_type": "PULLBACK",
+      "economics": {
+        "state": "INVALID_GEOMETRY"
+      },
+      "paired_v3_qualified": false,
+      "paired_v4_qualified": false
+    },
+    {
+      "symbol": "XLMUSDT",
+      "direction": "SHORT",
+      "observed_epoch": 1792029610.646423,
+      "direction_match": "UNIQUE_LOG_ADJACENCY",
+      "direction_eligible": true,
+      "direction_reasons": [],
+      "geometry_reason": "ENTRY_INSIDE_OPPOSING_ZONE",
+      "geometry_qualified": false,
+      "obstacle_timeframe": "4h",
+      "setup_type": "PULLBACK",
+      "economics": {
+        "state": "INVALID_GEOMETRY"
+      },
+      "paired_v3_qualified": false,
+      "paired_v4_qualified": false
+    },
+    {
+      "symbol": "USELESSUSDT",
+      "direction": "SHORT",
+      "observed_epoch": 1792029610.655976,
+      "direction_match": "UNIQUE_LOG_ADJACENCY",
+      "direction_eligible": true,
+      "direction_reasons": [],
+      "geometry_reason": "INSUFFICIENT_GEOMETRY",
+      "geometry_qualified": false,
+      "obstacle_timeframe": "5m",
+      "setup_type": "PULLBACK",
+      "economics": {
+        "state": "ORDERED_LEVELS",
+        "risk_pct": 1.2487145458393467,
+        "reward_pct": 0.16124788874219975,
+        "cost_pct": 0.3,
+        "net_target_pct": -0.13875211125780024,
+        "net_r": -0.08959179187059398,
+        "required_reward_pct": 1.8487145458393468,
+        "reward_shortfall_pct": 1.687466657097147,
+        "target_not_above_cost": true,
+        "passes_economic_gates": false
+      },
+      "paired_v3_qualified": false,
+      "paired_v4_qualified": false
+    },
+    {
+      "symbol": "XAUTUSDT",
+      "direction": "SHORT",
+      "observed_epoch": 1792029610.667,
+      "direction_match": "UNIQUE_LOG_ADJACENCY",
+      "direction_eligible": false,
+      "direction_reasons": [
+        "direction_score_below_minimum",
+        "direction_edge_below_minimum"
+      ],
+      "geometry_reason": "ENTRY_INSIDE_OPPOSING_ZONE",
+      "geometry_qualified": false,
+      "obstacle_timeframe": "4h",
+      "setup_type": "PULLBACK",
+      "economics": {
+        "state": "INVALID_GEOMETRY"
+      },
+      "paired_v3_qualified": false,
+      "paired_v4_qualified": false
+    },
+    {
+      "symbol": "USUSDT",
+      "direction": "SHORT",
+      "observed_epoch": 1792029610.672357,
+      "direction_match": "UNIQUE_LOG_ADJACENCY",
+      "direction_eligible": false,
+      "direction_reasons": [
+        "direction_score_below_minimum"
+      ],
+      "geometry_reason": "ENTRY_INSIDE_OPPOSING_ZONE",
+      "geometry_qualified": false,
+      "obstacle_timeframe": "1h",
+      "setup_type": "PULLBACK",
+      "economics": {
+        "state": "INVALID_GEOMETRY"
+      },
+      "paired_v3_qualified": false,
+      "paired_v4_qualified": false
+    },
+    {
+      "symbol": "WALUSDT",
+      "direction": "LONG",
+      "observed_epoch": 1792029610.676834,
+      "direction_match": "UNIQUE_LOG_ADJACENCY",
+      "direction_eligible": true,
+      "direction_reasons": [],
+      "geometry_reason": "NO_LOCAL_TRIGGER_ZONE",
+      "geometry_qualified": false,
+      "obstacle_timeframe": null,
+      "setup_type": "PULLBACK",
+      "economics": {
+        "state": "MISSING_OR_INVALID_INPUT"
+      },
+      "paired_v3_qualified": false,
+      "paired_v4_qualified": false
+    },
+    {
+      "symbol": "ZEREBROUSDT",
+      "direction": "LONG",
+      "observed_epoch": 1792029610.683008,
+      "direction_match": "UNIQUE_LOG_ADJACENCY",
+      "direction_eligible": false,
+      "direction_reasons": [
+        "direction_score_below_minimum"
+      ],
+      "geometry_reason": "INSUFFICIENT_GEOMETRY",
+      "geometry_qualified": false,
+      "obstacle_timeframe": "5m",
+      "setup_type": "PULLBACK",
+      "economics": {
+        "state": "ORDERED_LEVELS",
+        "risk_pct": 19.4007349578697,
+        "reward_pct": 0.6319562048756167,
+        "cost_pct": 0.3,
+        "net_target_pct": 0.33195620487561667,
+        "net_r": 0.016849940146167627,
+        "required_reward_pct": 20.000734957869703,
+        "reward_shortfall_pct": 19.368778752994086,
+        "target_not_above_cost": false,
+        "passes_economic_gates": false
+      },
+      "paired_v3_qualified": false,
+      "paired_v4_qualified": false
+    },
+    {
+      "symbol": "GPSUSDT",
+      "direction": "SHORT",
+      "observed_epoch": 1792029610.698692,
+      "direction_match": "UNIQUE_LOG_ADJACENCY",
+      "direction_eligible": false,
+      "direction_reasons": [
+        "liquidity_floor"
+      ],
+      "geometry_reason": "INSUFFICIENT_GEOMETRY",
+      "geometry_qualified": false,
+      "obstacle_timeframe": "15m",
+      "setup_type": "BREAKOUT",
+      "economics": {
+        "state": "ORDERED_LEVELS",
+        "risk_pct": 0.8209961012446865,
+        "reward_pct": 0.3309476439390946,
+        "cost_pct": 0.3,
+        "net_target_pct": 0.030947643939094605,
+        "net_r": 0.027607271697673352,
+        "required_reward_pct": 1.4209961012446866,
+        "reward_shortfall_pct": 1.090048457305592,
+        "target_not_above_cost": false,
+        "passes_economic_gates": false
+      },
+      "paired_v3_qualified": false,
+      "paired_v4_qualified": false
+    },
+    {
+      "symbol": "WLFIUSDT",
+      "direction": "SHORT",
+      "observed_epoch": 1792029610.703091,
+      "direction_match": "UNIQUE_LOG_ADJACENCY",
+      "direction_eligible": false,
+      "direction_reasons": [
+        "direction_score_below_minimum",
+        "liquidity_floor"
+      ],
+      "geometry_reason": "ENTRY_INSIDE_OPPOSING_ZONE",
+      "geometry_qualified": false,
+      "obstacle_timeframe": "1h",
+      "setup_type": "BREAKOUT",
+      "economics": {
+        "state": "INVALID_GEOMETRY"
+      },
+      "paired_v3_qualified": false,
+      "paired_v4_qualified": false
+    },
+    {
+      "symbol": "VELVETUSDT",
+      "direction": "SHORT",
+      "observed_epoch": 1792029610.721835,
+      "direction_match": "UNIQUE_LOG_ADJACENCY",
+      "direction_eligible": false,
+      "direction_reasons": [
+        "direction_score_below_minimum",
+        "liquidity_floor"
+      ],
+      "geometry_reason": "ENTRY_INSIDE_OPPOSING_ZONE",
+      "geometry_qualified": false,
+      "obstacle_timeframe": "30m",
+      "setup_type": "BREAKOUT",
+      "economics": {
+        "state": "INVALID_GEOMETRY"
+      },
+      "paired_v3_qualified": false,
+      "paired_v4_qualified": false
+    },
+    {
+      "symbol": "ZAMAUSDT",
+      "direction": "SHORT",
+      "observed_epoch": 1792029610.726861,
+      "direction_match": "UNIQUE_LOG_ADJACENCY",
+      "direction_eligible": false,
+      "direction_reasons": [
+        "liquidity_floor"
+      ],
+      "geometry_reason": "INSUFFICIENT_GEOMETRY",
+      "geometry_qualified": false,
+      "obstacle_timeframe": "5m",
+      "setup_type": "BREAKOUT",
+      "economics": {
+        "state": "ORDERED_LEVELS",
+        "risk_pct": 1.1393950739670755,
+        "reward_pct": 0.010211158243167429,
+        "cost_pct": 0.3,
+        "net_target_pct": -0.28978884175683256,
+        "net_r": -0.2013268261076883,
+        "required_reward_pct": 1.7393950739670756,
+        "reward_shortfall_pct": 1.7291839157239082,
+        "target_not_above_cost": true,
+        "passes_economic_gates": false
+      },
+      "paired_v3_qualified": false,
+      "paired_v4_qualified": false
+    },
+    {
+      "symbol": "WIFUSDT",
+      "direction": "SHORT",
+      "observed_epoch": 1792029610.733013,
+      "direction_match": "UNIQUE_LOG_ADJACENCY",
+      "direction_eligible": false,
+      "direction_reasons": [
+        "liquidity_floor"
+      ],
+      "geometry_reason": "ENTRY_INSIDE_OPPOSING_ZONE",
+      "geometry_qualified": false,
+      "obstacle_timeframe": "4h",
+      "setup_type": "PULLBACK",
+      "economics": {
+        "state": "INVALID_GEOMETRY"
+      },
+      "paired_v3_qualified": false,
+      "paired_v4_qualified": false
+    },
+    {
+      "symbol": "1000BONKUSDT",
+      "direction": "SHORT",
+      "observed_epoch": 1792029610.739423,
+      "direction_match": "UNIQUE_LOG_ADJACENCY",
+      "direction_eligible": false,
+      "direction_reasons": [
+        "liquidity_floor"
+      ],
+      "geometry_reason": "ENTRY_INSIDE_OPPOSING_ZONE",
+      "geometry_qualified": false,
+      "obstacle_timeframe": "30m",
+      "setup_type": "PULLBACK",
+      "economics": {
+        "state": "INVALID_GEOMETRY"
+      },
+      "paired_v3_qualified": false,
+      "paired_v4_qualified": false
+    }
+  ],
+  "limitations": [
+    "No profitability claim or optimized hit-rate target",
+    "No market-wide recall estimate from selected deep-analysis logs",
+    "Ablation payloads currently compare direction decisions only, not net trade returns",
+    "No entry delay estimate when no TRIGGERED events exist",
+    "Rejected-candidate next-minute counterfactuals are not executable missed trades",
+    "Snapshot covers a short window and may contain correlated repeated symbols"
+  ]
+}
