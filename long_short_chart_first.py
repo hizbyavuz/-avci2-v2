@@ -126,10 +126,10 @@ def assess(symbol, frames, price, quote_volume, now_ms, evidence=None):
     def reject(reason):
         out['reason']=reason
         return out
-    if not isinstance(price,(int,float)) or not math.isfinite(price) or price<=0:
-        return reject('FRESH_PRICE_UNAVAILABLE')
     if not math.isfinite(float(quote_volume)) or quote_volume<CONFIG['min_quote_volume']:
         return reject('LIQUIDITY_FLOOR')
+    if not isinstance(price,(int,float)) or not math.isfinite(price) or price<=0:
+        return reject('FRESH_PRICE_UNAVAILABLE')
     frames=dict(frames)
     for tf in ('5m','15m','1h','4h'):
         rows=frames.get(tf) or []

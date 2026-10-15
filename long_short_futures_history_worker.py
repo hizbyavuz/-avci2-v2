@@ -55,8 +55,9 @@ def priority_pass(db, base, analyst, stop):
             while queue:
                 if follow_requests and time.monotonic() - refreshed >= 20:
                     # Reprioritize between individual HTTP requests, not only
-                    # after an entire 90-symbol admission batch.
-                    queue = [s for s in requested_symbols(analyst)[:90] if s not in visited]
+                    # after an entire admission batch. The shared request
+                    # function already enforces the active feed's capacity.
+                    queue = [s for s in requested_symbols(analyst) if s not in visited]
                     refreshed = time.monotonic()
                     if not queue: break
                 sym = queue.pop(0)
@@ -77,18 +78,18 @@ def priority_pass(db, base, analyst, stop):
                 stop.wait(0.4)
         return True
 
-    symbols = requested_symbols(analyst)[:90]
+    symbols = requested_symbols(analyst)
     log('FUTURES_HISTORY_PREWARM', {'requested':len(symbols), 'priority_symbols':symbols[:60]})
     queue = list(symbols)
     visited = set()
     while queue:
         if time.monotonic() - last_admission >= 20:
-            symbols = requested_symbols(analyst)[:90]
+            symbols = requested_symbols(analyst)
             if not batch(symbols, ADMISSION_INTERVALS, follow_requests=True):
                 return True
             # Admission work can span a rotation. Re-read afterwards and
             # rebuild the context queue too, not just the short candles.
-            symbols = requested_symbols(analyst)[:90]
+            symbols = requested_symbols(analyst)
             queue = [s for s in symbols if s not in visited]
             last_admission = time.monotonic()
             if not queue: break
@@ -167,7 +168,7 @@ def main():
             log('FUTURES_HISTORY_PASS_FINISHED', {'mode':'prewarm_priority', 'retry_seconds':delay})
             stop.wait(delay)
             continue
-        symbols = requested_symbols(analyst)[:90]
+        symbols = requested_symbols(analyst)
         failed = False
         rejected_symbols = set()
         # Fix the admission data first, then higher-timeframe context.

@@ -26,11 +26,13 @@ def enabled():
                ('LS_LEAN_RUNTIME', 'LS_NATIVE_CHAIN_V2', 'LS_CHART_FIRST_V1'))
 
 
-def demand(limit=90):
-    """Reserve chart ideas/outcomes, then rotate the same verified universe.
+def demand(limit=90, full_chart=False):
+    """Reserve chart ideas/outcomes, then supply verified market demand.
 
     No analyst/live-pool database reads. Catalogue failure is not permission
     to silently treat an obsolete legacy shortlist as current demand.
+    Candle/price consumers cover the full chart liquidity universe; bounded
+    auxiliary consumers retain their existing rotating request list.
     """
     from long_short_chart_first_worker import active_symbols, root
     from long_short_analyst import native_futures_websocket_universe
@@ -45,10 +47,19 @@ def demand(limit=90):
                 (int(time.time()*1000)-181*60000,))]
         finally:
             c.close()
-    forecast = [r[0] for r in native_futures_websocket_universe(
-        slot_offsets=(0, 1), quiet=True)]
+    if full_chart:
+        from long_short_chart_first import CONFIG
+        forecast = [r[0] for r in native_futures_websocket_universe(
+            all_eligible=True, quiet=True) if r[1] >= CONFIG['min_quote_volume']]
+    else:
+        forecast = [r[0] for r in native_futures_websocket_universe(
+            slot_offsets=(0, 1), quiet=True)]
     urgent = list(dict.fromkeys(active + pending))
     requested = list(dict.fromkeys(urgent + forecast + ['BTCUSDT', 'ETHUSDT', 'SOLUSDT']))
+    if full_chart:
+        print('CHART_FEED_DEMAND '+json.dumps(dict(eligible=len(forecast),
+            urgent=len(urgent), requested=len(requested), capacity=limit,
+            deferred=requested[limit:])), flush=True)
     return requested[:limit], urgent[:limit]
 
 

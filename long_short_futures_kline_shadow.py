@@ -30,6 +30,7 @@ PERIOD_MS = {"1m": 60000, "5m": 300000, "15m": 900000, "30m": 1800000,
              "1h": 3600000, "4h": 14400000}
 MAX_SYMBOLS = 90                 # 90 x 6 = 540 streams (< 1024 per connection)
 MAX_STREAMS_PER_CONNECTION = 1000
+CHART_MAX_SYMBOLS = MAX_STREAMS_PER_CONNECTION // len(INTERVALS)
 SUBSCRIBE_CHUNK = 100            # params per control message
 CONTROL_MESSAGE_GAP_SECONDS = 0.25   # <= 4 control messages/s (limit is 10/s)
 PLANNED_RECONNECT_SECONDS = 23 * 3600
@@ -627,7 +628,7 @@ def requested_symbols(analyst_db):
     """
     from long_short_runtime_profile import enabled as lean_enabled, demand as chart_demand
     if lean_enabled():
-        return chart_demand(MAX_SYMBOLS)[0]
+        return chart_demand(CHART_MAX_SYMBOLS, full_chart=True)[0]
     from long_short_v4_native_pipeline import choose_symbols
     forecast = []
     current = []
@@ -739,7 +740,8 @@ def continuous_main():
         return symbols
 
     log("FUTURES_REST_BRIDGE_DISABLED_HTTP_418_451")
-    stream = FuturesKlineStream(db)
+    from long_short_runtime_profile import enabled as lean_enabled
+    stream = FuturesKlineStream(db, max_symbols=CHART_MAX_SYMBOLS if lean_enabled() else MAX_SYMBOLS)
     while not stop.is_set():
         try:
             stream.run(requested, stop)
