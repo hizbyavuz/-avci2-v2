@@ -4,6 +4,9 @@ Authorized 2026-10-15 04:39 Europe/Istanbul. Parent: a59e0af7f677d8cfc238dad7a93
 
 This is a new strategy cohort, not a retrospective correction of earlier results.
 Identity: LS_LOCAL_GEOMETRY_CONTINUITY_V2_2026_10_15.
+Final geometry version: STRUCTURAL_PLAN_V4_1_LOCAL_2026_10_15.
+The first V4 deployment exposed duplicate 5m/15m pivot bands; V4.1 adds the
+fixed-anchor grouping above. Its distinct source/config hashes prevent pooling.
 
 ## Confirmed defects
 
@@ -29,8 +32,9 @@ Identity: LS_LOCAL_GEOMETRY_CONTINUITY_V2_2026_10_15.
   increase. Priority is scheduling, never entry authorization. Capacity is still
   finite; this does not promise immediate full-universe deep analysis.
 - Structural V4 selects the nearest confirmed same-side 5m/15m pivot within the
-  existing near-level tolerance. Confluence does not move its boundaries.
-  Entry clears that single local band. Stop is unchanged, retest absolute width
+  existing near-level tolerance. Local 5m/15m confirmations are grouped only if
+  every member contains that fixed anchor center (no transitive expansion).
+  Entry clears that local band. Stop is unchanged, retest absolute width
   is preserved, and level ordering is revalidated together.
 - All-timeframe same-side opposing pivots remain obstacles. A zone overlapping
   entry fails closed, rather than pushing the entry to its far edge. A close
@@ -46,11 +50,12 @@ Identity: LS_LOCAL_GEOMETRY_CONTINUITY_V2_2026_10_15.
 
 ## Verification
 
-519 tests pass in an isolated checkout (7.639 seconds), including 17 new tests.
+521 tests pass in an isolated checkout, including 19 new tests.
 Tests cover both directions, unchanged stop/retest width, chained overlaps,
 high-timeframe obstacles, invalid inputs, scale invariance, paired baseline,
 rotation continuity, explicit rejection, expiry without a new scan, restart,
-priority scheduling and invalidation precedence. Existing atomic event/outbox,
+priority scheduling, invalidation precedence and duplicate local pivots across
+timeframes without transitive expansion. Existing atomic event/outbox,
 single-delivery and no-open-trade-rearm tests also pass.
 
 Captured PUMPUSDT geometry, 2026-10-15 01:20 UTC:

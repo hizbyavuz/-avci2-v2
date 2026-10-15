@@ -1,7 +1,8 @@
 """Local entry geometry; V3 is retained as an unchanged paired baseline.
 
-No transitive unions: the nearest confirmed 5m/15m pivot defines the entry
-band. Higher-timeframe pivots remain obstacles, never extend that band.
+No transitive unions: the nearest confirmed 5m/15m pivot anchors the entry
+band. Local confirmations must all contain that fixed anchor center.
+Higher-timeframe pivots remain obstacles, never extend that band.
 Targets are observed opposing pivots; overlapping obstacles fail closed.
 """
 import hashlib
@@ -10,7 +11,7 @@ import math
 
 from long_short_structural_plan_v3 import rebuild as baseline_rebuild
 
-VERSION = 'STRUCTURAL_PLAN_V4_LOCAL_2026_10_15'
+VERSION = 'STRUCTURAL_PLAN_V4_1_LOCAL_2026_10_15'
 ENTRY_FRAMES = ('5m', '15m')
 
 
@@ -56,26 +57,32 @@ def rebuild(plan, gate, zones, cost_pct, min_net_r, required_room_pct):
     if not local:
         return reject('NO_LOCAL_TRIGGER_ZONE')
     # Distance first, then shorter timeframe; a distant strong 4h level must
-    # never displace the micro trigger. Confluence cannot move its boundaries.
+    # never displace the micro trigger. All local members share one fixed point;
+    # overlap with a newly added member cannot pull another level into the band.
     anchor = min(local, key=lambda z: (abs(float(z['center']) - trigger),
                  ENTRY_FRAMES.index(z['timeframe']), -float(z.get('strength', 0))))
     center = float(anchor['center'])
-    confluence = {z['timeframe'] for z in local if float(z['low']) <= center <= float(z['high'])}
+    members = [z for z in local if float(z['low']) <= center <= float(z['high'])]
+    confluence = {z['timeframe'] for z in members}
+    band = dict(anchor, low=min(float(z['low']) for z in members),
+                high=max(float(z['high']) for z in members),
+                common_anchor=center, members=[dict(z) for z in members])
     level_ok = (int(anchor.get('touches', 0)) >= 2 or len(confluence) >= 2
                 or float(anchor.get('strength', 0)) >= 2 or p.get('setup_type') == 'PULLBACK')
-    entry = max(trigger, float(anchor['high'])) if long else min(trigger, float(anchor['low']))
+    entry = max(trigger, band['high']) if long else min(trigger, band['low'])
     low, high = (entry - width, entry) if long else (entry, entry + width)
     p.update(trigger_level=entry, retest_low=low, retest_high=high, target2=0.0)
-    evidence.update(entry=entry, stop=stop, trigger_band=dict(anchor),
+    evidence.update(entry=entry, stop=stop, trigger_band=band,
                     entry_shift_pct=(entry / trigger - 1) * 100,
                     retest_width_before=width, retest_width_after=high-low,
                     local_confluence=len(confluence))
-    g.update(trigger_level=entry, trigger_zone=dict(anchor), level_ok=bool(level_ok))
+    g.update(trigger_level=entry, trigger_zone=band, level_ok=bool(level_ok))
     if not (0 < stop < low <= entry if long else entry <= high < stop):
         return reject('INVALID_STOP_OR_RETEST_GEOMETRY')
     # A second pivot in the direction of travel is an obstacle even when its
     # band overlaps the trigger. Do not skip it to manufacture distant reward.
-    obstacles = [z for z in zones if z.get('side') == side and z is not anchor
+    member_ids = {id(z) for z in members}
+    obstacles = [z for z in zones if z.get('side') == side and id(z) not in member_ids
                  and (float(z['high']) > entry if long else float(z['low']) < entry)]
     if not obstacles:
         return reject('NO_OBSERVED_TARGET')

@@ -59,6 +59,24 @@ class LocalGeometryTests(unittest.TestCase):
         self.assertFalse(gate['qualified_precheck'])
         self.assertEqual(gate['next_opposing_zone']['timeframe'],'4h')
 
+    def test_same_local_pivot_on_two_frames_is_not_its_own_target(self):
+        p,g,z=self.inputs();z.append(zone(99.8,100.2,timeframe='15m'))
+        new,gate=rebuild(p,g,z,.3,1,.9)
+        self.assertEqual(new['trigger_level'],100.2)
+        self.assertEqual(new['target1'],104)
+        self.assertTrue(gate['qualified_precheck'])
+        members=gate['structural_plan_v3']['trigger_band']['members']
+        self.assertEqual(len(members),2)
+        self.assertTrue(all(x['low']<=100<=x['high'] for x in members))
+
+    def test_local_confluence_cannot_grow_transitively(self):
+        p,g,z=self.inputs()
+        z.extend([zone(99.8,100.2,timeframe='15m'),zone(100.15,100.5)])
+        new,gate=rebuild(p,g,z,.3,1,.9)
+        self.assertEqual(new['trigger_level'],100.2)
+        self.assertEqual(len(gate['structural_plan_v3']['trigger_band']['members']),2)
+        self.assertFalse(gate['qualified_precheck'])
+
     def test_opposite_side_zone_cannot_expand_trigger(self):
         p,g,z=self.inputs();z.append(zone(99,103,side='SUPPORT'))
         new,gate=rebuild(p,g,z,.3,1,.9)
