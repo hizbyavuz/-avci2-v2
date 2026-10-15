@@ -132,7 +132,9 @@ def live_stage(p,price,last_close,closed_ms,now_ms,previous_close=None):
     if p['stage']=='READY':return 'READY'
     if sign*(price-p['entry_limit'])>0:return 'EXPIRED'
     g=geometry(p['direction'],price,p['stop'],p.get('obstacle'),CONFIG['round_trip_cost_pct'])
-    if p.get('version')==VERSION and (not g['valid'] or g['net_reward_risk']+1e-10<CONFIG['min_net_reward_risk']):
+    enforce=p.get('risk_reward_filter_enabled',CONFIG['risk_reward_filter_enabled'])
+    minimum=p.get('min_net_reward_risk',CONFIG['min_net_reward_risk'])
+    if p.get('version')==VERSION and (not g['valid'] or enforce and g['net_reward_risk']+1e-10<minimum):
         return 'EXPIRED'
     if (sign*(last_close-p['trigger'])>0 and sign*(price-p['trigger'])>=0
             and (previous_close is None or sign*(previous_close-p['trigger'])<=0)
@@ -432,6 +434,7 @@ def scan():
         resolve(c,kdb,int(time.time()*1000))
         report(c,int(time.time()*1000))
         print('CHART_FIRST_SUMMARY '+json.dumps(dict(version=VERSION,config_hash=CONFIG_HASH,strategy_id=STRATEGY_ID,
+            risk_reward_filter_enabled=CONFIG['risk_reward_filter_enabled'],
             checked=len(decisions),directions=dict(Counter(p['direction'] for p in decisions.values())),
             stages=dict(Counter(p['stage'] for p in decisions.values())),reasons=dict(counts),
             same_tick_v3_rules=dict(comparison),newly_eligible=rescued,

@@ -55,12 +55,14 @@ class ChartV2Tests(unittest.TestCase):
         self.assertAlmostEqual(g['net_room_pct'],.1008016032)
         self.assertLess(g['net_reward_risk'],CONFIG['min_net_reward_risk'])
         p=dict(version=VERSION,direction='SHORT',trigger=.4492,stop=.4571,
-               obstacle=.4473,entry_limit=.448,stage='WATCH',created_ms=NOW)
+               obstacle=.4473,entry_limit=.448,stage='WATCH',created_ms=NOW,risk_reward_filter_enabled=True)
         self.assertEqual(live_stage(p,.4491,.44915,NOW-8000,NOW,.4493),'EXPIRED')
 
     def test_entire_advertised_entry_range_meets_net_payoff_policy(self):
         for short in (False,True):
-            frames,price=sample(short);p=assess('XUSDT',frames,price,50e6,NOW)
+            frames,price=sample(short)
+            with patch.dict(CONFIG,risk_reward_filter_enabled=True):
+                p=assess('XUSDT',frames,price,50e6,NOW)
             self.assertEqual(p['stage'],'READY',p)
             for fraction in (0,.25,.5,.75,1):
                 entry=p['trigger']+fraction*(p['entry_limit']-p['trigger'])

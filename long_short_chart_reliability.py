@@ -72,7 +72,9 @@ def summarize(rows, now_ms):
         if stage=='DELIVERED_READY' and finite(v.get('model_net_return_pct')):
             g['net'].append(v['model_net_return_pct']);g['daily_net'][day].append(v['model_net_return_pct'])
             geom=p.get('geometry') or {}
-            if geom and (not geom.get('valid') or geom.get('net_reward_risk',0)<1-1e-10):
+            if geom and (not geom.get('valid') or
+                    p.get('risk_reward_filter_enabled',True) and
+                    geom.get('net_reward_risk',0)<p.get('min_net_reward_risk',1)-1e-10):
                 g['invalid_entry_geometry']+=1
     result=[]
     for g in groups.values():

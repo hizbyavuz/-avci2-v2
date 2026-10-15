@@ -12,13 +12,13 @@ from pathlib import Path
 from long_short_chart_setups import setups, level_watch, geometry, quality_limit
 from long_short_chart_flow import reversal_reason, flow_note
 
-VERSION = 'CHART_FIRST_STRUCTURE_V4_2026_10_15'
+VERSION = 'CHART_FIRST_STRUCTURE_V4_1_2026_10_15'
 CONFIG = dict(target_timeframes=('15m','1h','4h','1d'), pivot_confirmation_bars=2, daily_min_bars=20,
               approach_atr15=1.0, chase_atr5=1.0, level_tolerance_atr5=0.10,
               candle_grace_ms=20000, quote_max_age_ms=5000,
               min_quote_volume=25000000, round_trip_cost_pct=0.30,
               max_initial_notices_per_cycle=3, cooldown_ms=3600000,
-              horizon_minutes=180, min_net_reward_risk=1.0,
+              horizon_minutes=180, min_net_reward_risk=1.0, risk_reward_filter_enabled=False,
               compression_bars=6, compression_range_ratio=0.80,
               compression_width_atr=2.5, stop_buffer_atr=0.10,
               pullback_lookback_bars=24, pullback_min_atr=0.5,
@@ -129,6 +129,8 @@ def assess(symbol, frames, price, quote_volume, now_ms, evidence=None, flow=None
              context={}, support=supporting_data(evidence), warnings=[])
     out['strategy_id']=STRATEGY_ID
     out['target_policy']='ALL_TIMEFRAMES_V3' if comparison_v3 else 'STRUCTURAL_15M_PLUS_V4'
+    out['risk_reward_filter_enabled']=comparison_v3 or CONFIG['risk_reward_filter_enabled']
+    out['min_net_reward_risk']=CONFIG['min_net_reward_risk']
     out['outcome_schema']='PARTIAL_MINUTE_V2'
     out['cost_assumption_pct']=CONFIG['round_trip_cost_pct']
     out['hourly_flow']=flow or {'status':'UNAVAILABLE'}
@@ -229,7 +231,7 @@ def assess_pattern(out, pattern, frames, price, now_ms):
     if obstacle is None:return reject('FIRST_OBSTACLE_UNKNOWN')
     if not g['valid']:return reject('OBSTACLE_WITHIN_COST_ALLOWANCE')
     out['reference_reward_risk']=g['gross_room_pct']/g['invalidation_pct']
-    if g['net_reward_risk']+1e-10<CONFIG['min_net_reward_risk']:
+    if out['risk_reward_filter_enabled'] and g['net_reward_risk']+1e-10<out['min_net_reward_risk']:
         return reject('NET_REWARD_BELOW_STRUCTURAL_RISK')
     ready=pattern['model_ready'] and sign*(price-trigger)>=0
     # The dispatcher has always required a <=75s-old confirmation. The scan
@@ -238,7 +240,7 @@ def assess_pattern(out, pattern, frames, price, now_ms):
         return reject('CONFIRMATION_WINDOW_EXPIRED')
     entry_limit=trigger+sign*CONFIG['chase_atr5']*a5
     boundary=quality_limit(direction,stop,obstacle,CONFIG['round_trip_cost_pct'],
-                           CONFIG['min_net_reward_risk'])
+                           out['min_net_reward_risk'] if out['risk_reward_filter_enabled'] else 0.0)
     entry_limit=min(entry_limit,boundary) if sign==1 else max(entry_limit,boundary)
     out.update(stage='READY' if ready else 'WATCH',reason='OK',entry_limit=entry_limit)
     out['setup_key']=hashlib.sha256(json.dumps([STRATEGY_ID,symbol,direction,pattern['model'],pattern['model_anchor_ms'],trigger,stop],
