@@ -6,7 +6,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-VERSION="QUALIFIED_SIGNAL_CHAIN_V1_2026_10_14"
+VERSION="QUALIFIED_SIGNAL_CHAIN_V2_CONTINUITY_2026_10_15"
 
 def enabled():
     return os.getenv("LS_QUALIFIED_SIGNAL_CHAIN_V1","0").strip().lower() in ("1","true","yes","on")
@@ -72,12 +72,47 @@ def reserve(rows, normal, priority, cap, symbol):
             selected.append(r);seen.add(key)
     return selected[:cap]
 
+def active_watch_priority(root,now_ms=None):
+    """Refresh existing actionable plans before their 15m review lease expires.
+
+    Reuse the existing six priority slots; oldest review first. This is routing,
+    not an entry exemption. Radar, expired, terminal and paused plans get none.
+    """
+    now_ms=int(time.time()*1000) if now_ms is None else now_ms
+    path=Path(os.getenv('LS_LIVE_DB') or Path(root)/'long_short_live_pool.db')
+    if not path.is_file():return []
+    with sqlite3.connect(path.resolve().as_uri()+'?mode=ro',uri=True,timeout=3) as c:
+        cols={r[1] for r in c.execute('PRAGMA table_info(watch_state)')}
+        if 'analyst_review_deadline_utc' not in cols:return []
+        rows=c.execute("""SELECT symbol,last_actionable_scan_time,analyst_review_deadline_utc
+            FROM watch_state WHERE analyst_active=1
+            AND stage IN ('WATCH','APPROACHING','CLOSE_CONFIRMED','RETESTING','EXECUTION_BLOCKED')""").fetchall()
+    ready=[]
+    for symbol,last,deadline in rows:
+        try:
+            a=datetime.fromisoformat(last.replace('Z','+00:00'))
+            b=datetime.fromisoformat(deadline.replace('Z','+00:00'))
+            if a.tzinfo is None or b.tzinfo is None:continue
+            if a.timestamp()*1000<=now_ms-300000 and b.timestamp()*1000>now_ms:
+                ready.append((a.timestamp(),symbol))
+        except (ValueError,TypeError,AttributeError):continue
+    return [symbol for _,symbol in sorted(ready)]
+
+
 def priority(root,analyst_db):
+    retained=[]
     try:
-        return read_pending(root,analyst_db)
+        retained=active_watch_priority(root)
+    except (sqlite3.Error,OSError) as e:
+        print('ACTIVE_WATCH_PRIORITY_UNAVAILABLE '+type(e).__name__,flush=True)
+    try:
+        pending=read_pending(root,analyst_db)
     except (sqlite3.Error,OSError) as e:
         print("QUALIFIED_CHAIN_PRIORITY_UNAVAILABLE "+type(e).__name__,flush=True)
-        return []
+        pending=[]
+    if retained:
+        print('ACTIVE_WATCH_REVIEW_PRIORITY '+json.dumps({'symbols':retained,'reserved_cap':6}),flush=True)
+    return list(dict.fromkeys(retained+pending))
 
 def retain_candidates(state):
     """Keep every observation; consume transport queue without sending alerts."""

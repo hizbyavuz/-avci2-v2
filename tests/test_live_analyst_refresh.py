@@ -11,8 +11,8 @@ class LiveRefreshTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as root:
             analyst=str(Path(root)/'analyst.db')
             with sqlite3.connect(analyst) as c:
-                c.execute('CREATE TABLE analyses(scan_time_utc TEXT)')
-                c.execute('INSERT INTO analyses VALUES(?)',('2026-10-13T16:30:00Z',))
+                c.execute('CREATE TABLE analyses(scan_time_utc TEXT,symbol TEXT)')
+                c.execute('INSERT INTO analyses VALUES(?,?)',('2026-10-13T16:30:00Z','BTWUSDT'))
             with patch.object(lp,'ANALYST_DB',analyst), \
                     patch.object(lp,'LIVE_DB',str(Path(root)/'live.db')), \
                     patch.object(lp,'load_watchlist',return_value=[{'symbol':'BTWUSDT'}]), \
@@ -20,7 +20,7 @@ class LiveRefreshTests(unittest.TestCase):
                     patch.object(lp,'sync_dual_v32',return_value={'scanned':1}):
                 self.assertEqual(lp.refresh_live_watchlist('2026-10-13T16:25:00Z'),
                                  '2026-10-13T16:30:00Z')
-                sync.assert_called_once_with([{'symbol':'BTWUSDT'}])
+                sync.assert_called_once_with([{'symbol':'BTWUSDT'}],reviewed_symbols={'BTWUSDT'})
 
     def test_unchanged_scan_is_not_resynchronized(self):
         with patch.object(lp,'latest_analyst_scan',return_value='same'), \
@@ -31,6 +31,7 @@ class LiveRefreshTests(unittest.TestCase):
     def test_failed_sync_retries_without_advancing_marker(self):
         with patch.object(lp,'latest_analyst_scan',return_value='new'), \
                 patch.object(lp,'load_watchlist',return_value=[]), \
+                patch.object(lp,'reviewed_symbols',return_value=set()), \
                 patch.object(lp,'sync_watchlist',side_effect=sqlite3.OperationalError('locked')):
             self.assertEqual(lp.refresh_live_watchlist('old'),'old')
 

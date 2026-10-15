@@ -432,6 +432,7 @@ def init_db():
             ("early_short_signal_price","REAL",None),("confirmed_short_signal_price","REAL",None),
             ("gain_before_short_confirmation","REAL",None),("time_early_short_to_confirmed_seconds","REAL",None),
             ("analyst_active","INTEGER","1"),("last_seen_watchlist_utc","TEXT",None),
+            ("analyst_review_deadline_utc","TEXT",None),
             ("last_actionable_scan_time","TEXT",None),("setup_locked_at_utc","TEXT",None),
             ("retest_seen_at_utc","TEXT",None),("confirmation_after_utc","TEXT",None),
         ]:
@@ -510,12 +511,12 @@ def init_db():
         con.execute("""CREATE INDEX IF NOT EXISTS ix_watch_episodes_open
                        ON watch_episodes(symbol,ended_at_utc)""")
 
-def load_watchlist():
+def load_watchlist(scan_time=None):
     if not os.path.exists(ANALYST_DB):
         return []
     with sqlite3.connect(ANALYST_DB,timeout=30) as con:
         con.row_factory=sqlite3.Row
-        scan=con.execute("SELECT MAX(scan_time_utc) AS ts FROM analyses").fetchone()
+        scan={'ts':scan_time} if scan_time else con.execute("SELECT MAX(scan_time_utc) AS ts FROM analyses").fetchone()
         if not scan or not scan["ts"]:
             return []
         rows=con.execute("""SELECT symbol,status,long_score,short_score,confidence,price,payload_json
@@ -757,6 +758,14 @@ def latest_analyst_scan():
         return con.execute('SELECT MAX(scan_time_utc) FROM analyses').fetchone()[0]
 
 
+def reviewed_symbols(scan_time):
+    """An explicit rejected review is different from not being scanned at all."""
+    if not scan_time:
+        return None
+    with sqlite3.connect('file:'+os.path.abspath(ANALYST_DB)+'?mode=ro',uri=True,timeout=5) as con:
+        return {r[0] for r in con.execute('SELECT symbol FROM analyses WHERE scan_time_utc=?',(scan_time,))}
+
+
 def refresh_live_watchlist(last_scan):
     """Consume new committed analyses without waiting for the 7m worker restart.
 
@@ -767,8 +776,8 @@ def refresh_live_watchlist(last_scan):
         scan=latest_analyst_scan()
         if not scan or scan==last_scan:
             return last_scan
-        items=load_watchlist()
-        sync_watchlist(items)
+        items=load_watchlist(scan)
+        sync_watchlist(items,reviewed_symbols=reviewed_symbols(scan))
         with sqlite3.connect(LIVE_DB,timeout=30) as con:
             con.row_factory=sqlite3.Row
             dual=sync_dual_v32(con,ANALYST_DB,now_iso())
@@ -799,11 +808,11 @@ def _open_watch_episode(con,x):
      x["data_cohort"],x["structure_gate_version"],x.get("reference_price")))
 
 
-def sync_watchlist(items):
+def sync_watchlist(items,reviewed_symbols=None):
     """Retry transient SQLite writer contention without dropping the live-pool cycle."""
     for attempt in range(4):
         try:
-            return _sync_watchlist_once(items)
+            return _sync_watchlist_once(items,reviewed_symbols)
         except sqlite3.OperationalError as exc:
             if "locked" not in str(exc).lower() or attempt == 3:
                 raise
@@ -835,15 +844,15 @@ def _native_trade_still_open(con,symbol,at):
     return any(i not in finished for i in ids)
 
 
-def _sync_watchlist_once(items):
+def _sync_watchlist_once(items,reviewed_symbols=None):
     """Synchronize analyst observations without moving an active setup's goalposts.
 
     Core rule:
     - analysis may refresh every cycle;
     - an actionable setup keeps its original trigger/retest/SL/TP/gate until it
       is invalidated, expires, or a fresh actionable setup flips direction/type;
-    - radar or temporary watchlist absence can pause a setup, but cannot silently
-      rewrite it or confirm a trade.
+    - a rejected review pauses confirmation; an unscanned candidate retains its
+      original deadline, never receives a fabricated fresh endorsement.
     """
     seen_at=now_iso()
     with sqlite3.connect(LIVE_DB,timeout=30) as con:
@@ -922,6 +931,8 @@ def _sync_watchlist_once(items):
                 if old and (rearm or version_changed):
                     con.execute('UPDATE watch_state SET confirmation_after_utc=? WHERE symbol=?',
                                 (seen_at,x['symbol']))
+                if reviewed_symbols is not None and new_actionable:
+                    _set_review_deadline(con,x)
                 continue
 
             # Radar-to-radar is observational, so its moving level may refresh.
@@ -954,16 +965,29 @@ def _sync_watchlist_once(items):
                  json.dumps(x["htf_reasons"],ensure_ascii=False),
                  1 if new_actionable else 0,seen_at,1 if new_actionable else 0,
                  x["scan_time"],seen_at,seen_at,x["symbol"]))
+            if reviewed_symbols is not None and new_actionable:
+                _set_review_deadline(con,x)
 
-        # Missing for one analyst cycle is not an invalidation. Pause it first:
-        # no confirmation while absent, but preserve the locked setup for a short
-        # grace window so top-K churn cannot erase a nearly confirmed idea.
-        if keep:
-            q=",".join("?" for _ in keep)
-            con.execute(f"""UPDATE watch_state SET analyst_active=0,last_update_utc=?
-                            WHERE symbol NOT IN ({q})""",(seen_at,*tuple(keep)))
-        else:
-            con.execute("UPDATE watch_state SET analyst_active=0,last_update_utc=?",(seen_at,))
+        retained=[]; rejected=[]; expired=[]
+        for row in con.execute('SELECT * FROM watch_state').fetchall():
+            symbol=row['symbol']
+            if symbol in keep:
+                continue
+            # None is the compatibility/fail-closed path for callers without a
+            # verified review set. Never revive an already paused/radar setup.
+            if (reviewed_symbols is not None and symbol not in reviewed_symbols
+                    and row['analyst_review_deadline_utc']
+                    and _row_is_analyst_active(row) and not _row_is_radar(row)
+                    and _setup_age_seconds(row) <= SETUP_MAX_AGE_SECONDS):
+                retained.append(symbol)
+                continue
+            (rejected if reviewed_symbols is None or symbol in reviewed_symbols else expired).append(symbol)
+            con.execute('UPDATE watch_state SET analyst_active=0,last_update_utc=? WHERE symbol=?',(seen_at,symbol))
+        print('LIVE_TRACKING_CONTINUITY',json.dumps({'version':'TRACKING_CONTINUITY_V2',
+            'reviewed':len(reviewed_symbols) if reviewed_symbols is not None else None,
+            'selected':len(items),'retained_unscanned':retained,
+            'paused_review_or_capacity':rejected,'paused_expired':expired,
+            'max_review_age_seconds':WATCHLIST_GRACE_SECONDS}),flush=True)
 
         # Truly stale paused setups are retired; they cannot live forever.
         stale=con.execute("""SELECT symbol,last_price FROM watch_state
@@ -973,6 +997,15 @@ def _sync_watchlist_once(items):
         for r in stale:
             _close_open_watch_episode(con,r["symbol"],"WATCHLIST_GRACE_EXPIRED",r["last_price"])
             con.execute("DELETE FROM watch_state WHERE symbol=?",(r["symbol"],))
+
+
+def _set_review_deadline(con,item):
+    stamp=datetime.fromisoformat(item['scan_time'].replace('Z','+00:00'))
+    if stamp.tzinfo is None or stamp > datetime.now(timezone.utc):
+        raise ValueError('invalid analyst review timestamp')
+    deadline=(stamp+timedelta(seconds=WATCHLIST_GRACE_SECONDS)).isoformat()
+    con.execute('UPDATE watch_state SET analyst_review_deadline_utc=? WHERE symbol=?',
+                (deadline,item['symbol']))
 
 def _ema(values,period=7):
     if not values:
@@ -1405,9 +1438,13 @@ def _row_is_radar(row):
 
 def _row_is_analyst_active(row):
     try:
+        if 'analyst_review_deadline_utc' in row.keys() and row['analyst_review_deadline_utc']:
+            deadline=datetime.fromisoformat(row['analyst_review_deadline_utc'].replace('Z','+00:00'))
+            if deadline.tzinfo is None or datetime.now(timezone.utc)>=deadline:
+                return False
         return bool(int(row["analyst_active"])) if "analyst_active" in row.keys() else True
     except Exception:
-        return True
+        return False
 
 
 def _setup_age_seconds(row):
@@ -2550,8 +2587,8 @@ def main():
     except Exception as exc:
         print("TELEGRAM_DELIVERY_TEST_SETUP_ERROR",type(exc).__name__,str(exc)[:200],flush=True)
     last_scan=latest_analyst_scan()
-    items=load_watchlist()
-    sync_watchlist(items)
+    items=load_watchlist(last_scan)
+    sync_watchlist(items,reviewed_symbols=reviewed_symbols(last_scan))
     try:
         with sqlite3.connect(LIVE_DB,timeout=30) as dc:
             dc.row_factory=sqlite3.Row
