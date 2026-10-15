@@ -167,7 +167,12 @@ def advance(c,kdb,decisions,now_ms,publisher,token,chat):
         decision=decisions.get(row['symbol'])
         if stage in ('WATCH','READY') and decision:
             if decision['direction'] not in (p['direction'],'NONE'):stage='EXPIRED'
-            if stage=='READY' and row['stage']=='WATCH' and decision['stage']=='REJECTED':stage='WATCH'
+            if stage=='READY' and row['delivery_stage']!='READY' and decision['stage']=='REJECTED':stage='WATCH'
+            if decision['stage'] in ('WATCH','READY') and decision['direction']==p['direction']:
+                # Levels stay locked; context/support on a new READY message
+                # must describe the current scan, not the earlier watch snapshot.
+                for key in ('context','support','scenario','volume_5m_multiple','volume_15m_multiple'):
+                    if key in decision:p[key]=decision[key]
             if decision['reason'] and (decision['reason'].startswith(('CHART_','DAILY_','VERIFIED_'))):
                 # Missing chart data cannot be treated as a fresh confirmation.
                 if stage=='READY' and row['stage']=='WATCH':stage='WATCH'
@@ -265,7 +270,9 @@ def scan():
             checked=len(decisions),directions=dict(Counter(p['direction'] for p in decisions.values())),
             stages=dict(Counter(p['stage'] for p in decisions.values())),reasons=dict(counts),
             eligible=[dict(symbol=p['symbol'],side=p['direction'],stage=p['stage'],scenario=p.get('scenario'),
-                daily=p['context']['1d']['direction'],four_hour=p['context']['4h']['direction'],hour=p['context']['1h']['direction']) for p in eligible],
+                daily=p['context']['1d']['direction'],four_hour=p['context']['4h']['direction'],hour=p['context']['1h']['direction'],
+                price=p['price'],trigger=p['trigger'],invalidation=p['stop'],obstacle=p.get('obstacle'),entry_limit=p['entry_limit'],
+                daily_bars=p['context']['1d']['bars']) for p in eligible],
             created=created,delivered=sent+extra,primary_enabled=enabled(),automatic_orders=False)),flush=True)
     finally:
         kdb.close();c.close()

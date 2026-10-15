@@ -167,5 +167,24 @@ class ChartFirstTests(unittest.TestCase):
             self.assertEqual(c.execute('SELECT COUNT(*) FROM assessments').fetchone()[0],0)
             c.close();k.close()
 
+    def test_ready_refreshes_support_but_keeps_original_levels(self):
+        with tempfile.TemporaryDirectory() as directory,patch.dict(os.environ,{'LS_STATE_DIR':directory}),patch('time.time',return_value=NOW/1000):
+            c=connect();k=sqlite3.connect(':memory:')
+            k.executescript('''CREATE TABLE futures_last_price(symbol,price,event_ms,received_ms,source);
+              CREATE TABLE futures_closed_klines(symbol,interval,close,close_ms,open_ms);''')
+            frames,price=sample();p=assess('XUSDT',frames,price,50e6,NOW)
+            p.update(stage='WATCH',created_ms=NOW-60000)
+            k.execute('INSERT INTO futures_last_price VALUES(?,?,?,?,?)',('XUSDT',price,NOW-100,NOW-100,'BINANCE_UM_FUTURES_WEBSOCKET'))
+            k.execute('INSERT INTO futures_closed_klines VALUES(?,?,?,?,?)',('XUSDT','5m',price,NOW-8000,NOW-308000))
+            c.execute('INSERT INTO episodes VALUES(?,?,?,?,?,?,?,?)',('e','XUSDT','LONG',NOW-60000,'WATCH','WATCH',None,json.dumps(p)));c.commit()
+            decision=dict(p,stage='READY',stop=99,support={'oi_change_1h':8})
+            publisher=Mock(return_value={'status':'ACK'})
+            advance(c,k,{'XUSDT':decision},NOW,publisher,'token','123')
+            saved=json.loads(c.execute('SELECT payload FROM episodes').fetchone()[0])
+            self.assertEqual(saved['stop'],p['stop']);self.assertEqual(saved['support']['oi_change_1h'],8)
+            self.assertEqual(c.execute('SELECT delivery_stage FROM episodes').fetchone()[0],'READY')
+            self.assertEqual(c.execute('SELECT stage FROM assessments').fetchone()[0],'DELIVERED_READY')
+            c.close();k.close()
+
 
 if __name__=='__main__':unittest.main()
