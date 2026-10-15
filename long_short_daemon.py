@@ -348,6 +348,7 @@ def handle_signal(signum, _frame) -> None:
 
 def lean_maintenance() -> None:
     """Retire legacy files once; serialize archive and backup I/O thereafter."""
+    run_child('chart_selection_audit', 'long_short_chart_selection_audit.py')
     run_child('legacy_archive', 'long_short_legacy_archive.py')
     while not STOP.is_set():
         run_child('storage_audit', 'long_short_storage_audit.py')
