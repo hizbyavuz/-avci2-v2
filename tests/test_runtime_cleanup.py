@@ -166,6 +166,27 @@ class FakeS3:
 
 
 class BackupTests(unittest.TestCase):
+    def test_only_the_exact_dated_snapshot_may_be_compacted(self):
+        import long_short_remote_archive_compact as remote
+        original = b'distinct-old-records'*100
+        sha = hashlib.sha256(original).hexdigest()
+        s3 = FakeS3()
+        s3.objects[remote.DATED_SNAPSHOT] = (original, {'sha256':sha})
+        with patch.object(remote, 'DATED_SHA', sha), patch.object(remote, 'DATED_SIZE', len(original)):
+            manifest = remote.compact(s3, 'bucket', remote.DATED_SNAPSHOT)
+        self.assertEqual(gzip.decompress(s3.objects[manifest['compressed_key']][0]), original)
+        self.assertNotIn(remote.DATED_SNAPSHOT, s3.objects)
+        with self.assertRaises(ValueError):
+            remote.compact(s3, 'bucket', 'archive/v4-native/20261013T140330Z/long_short_v4_native.db')
+
+    def test_dated_snapshot_identity_mismatch_preserves_source(self):
+        import long_short_remote_archive_compact as remote
+        s3 = FakeS3()
+        s3.objects[remote.DATED_SNAPSHOT] = (b'changed', {'sha256':'different'})
+        with self.assertRaisesRegex(RuntimeError, 'identity'):
+            remote.compact(s3, 'bucket', remote.DATED_SNAPSHOT)
+        self.assertIn(remote.DATED_SNAPSHOT, s3.objects)
+
     def test_remote_archive_verified_before_raw_deletion(self):
         import long_short_remote_archive_compact as remote
         s3 = FakeS3()

@@ -1,6 +1,6 @@
 """Losslessly compress the already-retired raw V4 object-storage archives.
 
-Only exact archive/v4-native/<sha256>/long_short_v4_native.db keys qualify.
+Only canonical SHA-keyed V4 archives and one inventoried dated snapshot qualify.
 Read back and decompress the replacement before deleting redundant raw bytes.
 """
 import gzip
@@ -16,16 +16,24 @@ from pathlib import Path
 from long_short_legacy_archive import digest_file, CHUNK
 
 PATTERN = re.compile(r'^archive/v4-native/([0-9a-f]{64})/long_short_v4_native\.db$')
+# Read-only inventory on 2026-10-15 identified this distinct historical snapshot.
+# Preserve its own bytes; it is NOT treated as a duplicate of the newer archive.
+DATED_SNAPSHOT = 'archive/v4-native/20261014T140330Z/long_short_v4_native.db'
+DATED_SHA = '88890fac08e09c6abf099f90656a0ae31e1f1d3fed92461811aeaa271b0fca97'
+DATED_SIZE = 1945526272
 
 
 def compact(client, bucket, key):
     match = PATTERN.fullmatch(key)
-    if not match: raise ValueError('Not an approved retired V4 archive')
-    expected = match.group(1)
+    if not match and key != DATED_SNAPSHOT:
+        raise ValueError('Not an approved retired V4 archive')
+    expected = match.group(1) if match else DATED_SHA
     head = client.head_object(Bucket=bucket, Key=key)
     if head.get('Metadata', {}).get('sha256') != expected:
         raise RuntimeError('Original archive identity is not verified')
     size = int(head['ContentLength'])
+    if key == DATED_SNAPSHOT and size != DATED_SIZE:
+        raise RuntimeError('Inventoried snapshot size changed; original retained')
     with tempfile.TemporaryDirectory(prefix='ls-v4-compact-') as tmp:
         path = Path(tmp)/'long_short_v4_native.db.gz'
         h, count = hashlib.sha256(), 0
@@ -78,7 +86,8 @@ def main():
     bucket=os.environ['LS_BACKUP_BUCKET']
     keys=[]
     for page in client.get_paginator('list_objects_v2').paginate(Bucket=bucket, Prefix='archive/v4-native/'):
-        keys.extend(o['Key'] for o in page.get('Contents', []) if PATTERN.fullmatch(o['Key']))
+        keys.extend(o['Key'] for o in page.get('Contents', [])
+                    if PATTERN.fullmatch(o['Key']) or o['Key'] == DATED_SNAPSHOT)
     print('LS_REMOTE_ARCHIVE_COMPACT_START '+json.dumps({'raw_archives':len(keys)}), flush=True)
     for key in keys: compact(client, bucket, key)
 

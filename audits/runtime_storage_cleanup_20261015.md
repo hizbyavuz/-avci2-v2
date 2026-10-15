@@ -45,7 +45,8 @@ iki dakikalık sağlık kaydı disk kullanımını ve güncel grafik kayıtları
 
 101 ilgili süreç, veri toplayıcı, grafik, geçmiş mum ve yedek testi geçti.
 Uzak arşivin bozuk kopyasında ham veriyi koruma ve eksiksiz geri açma için
-iki ek test eklendi. Temizleme test grubu toplam 15 testtir.
+iki ek test eklendi. Tek tarihli arşivin kapsam/kimlik testleriyle temizleme
+test grubu toplam 17 testtir.
 
 ## Canlı sonuç — 14:55–14:59 UTC
 
@@ -57,8 +58,12 @@ iki ek test eklendi. Temizleme test grubu toplam 15 testtir.
 - 11 aktif veritabanının sıkıştırılmış günlük yedeği: 147,332,537 bayt.
 - Yeni yedek doğrulandıktan sonra 20 eski yedek nesnesi kaldırıldı.
 - Kalıcı V4 arşivi: 1,945,526,272 → 555,078,198 bayt. Uzaktan geri açılarak
-  SHA256 doğrulandı. Aynı boyuttaki diğer kopyanın kimliği yalnızca okunuyor.
-  Geniş kapsamlı kopya temizliği dağıtılmadı ve çalıştırılmadı.
+  SHA256 doğrulandı. Aynı boyuttaki diğer dosya farklı içerik taşıyor:
+  `archive/v4-native/20261014T140330Z/long_short_v4_native.db`, SHA256
+  `88890fac08e09c6abf099f90656a0ae31e1f1d3fed92461811aeaa271b0fca97`.
+  Geniş kapsamlı kopya temizliği dağıtılmadı ve çalıştırılmadı. Alternatif işlem
+  yalnızca bu tam ad/kimlik/boyutla belirlenen dosyayı ayrıca sıkıştırır;
+  farklı tarihlerin içeriği birleştirilmez veya kaybedilmez.
 
 Eski motorlara geri dönülürse yalnızca bayrağı değiştirmek yeterli değildir:
 ilgili dosya `legacy-archive/manifest.json` kaydından açılmalı ve SHA256 kontrol
