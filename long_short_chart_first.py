@@ -2,7 +2,7 @@
 
 Rules are declared hypotheses, not calibrated win probabilities. Daily candles
 are exact UTC aggregates of six verified, closed Binance Futures 4h candles.
-Auxiliary derivatives never select, reverse or veto a chart scenario.
+Auxiliary derivatives remain context; V3 reversals require native hourly flow and price agreement.
 """
 import hashlib
 import json
@@ -10,8 +10,9 @@ import math
 import os
 from pathlib import Path
 from long_short_chart_setups import setup, geometry, quality_limit
+from long_short_chart_flow import reversal_reason, flow_note
 
-VERSION = 'CHART_FIRST_TWO_SETUPS_V2_2026_10_15'
+VERSION = 'CHART_FIRST_FLOW_REVERSAL_V3_2026_10_15'
 CONFIG = dict(pivot_confirmation_bars=2, daily_min_bars=20,
               approach_atr15=1.0, chase_atr5=1.0, level_tolerance_atr5=0.10,
               candle_grace_ms=20000, quote_max_age_ms=5000,
@@ -21,12 +22,14 @@ CONFIG = dict(pivot_confirmation_bars=2, daily_min_bars=20,
               compression_bars=6, compression_range_ratio=0.80,
               compression_width_atr=2.5, stop_buffer_atr=0.10,
               pullback_lookback_bars=24, pullback_min_atr=0.5,
-              pullback_turn_max_bars=4)
+              pullback_turn_max_bars=4, reversal_flow_window_minutes=60,
+              reversal_flow_majority=0.5, reversal_price_response_min_pct=0.0)
 CONFIG_HASH = hashlib.sha256(json.dumps(CONFIG, sort_keys=True).encode()).hexdigest()
 STRATEGY_ID = hashlib.sha256((CONFIG_HASH+VERSION).encode()+Path(__file__).read_bytes()+
     Path(__file__).with_name('long_short_chart_first_worker.py').read_bytes()+
     Path(__file__).with_name('long_short_chart_setups.py').read_bytes()+
-    Path(__file__).with_name('long_short_chart_outcomes.py').read_bytes()).hexdigest()
+    Path(__file__).with_name('long_short_chart_outcomes.py').read_bytes()+
+    Path(__file__).with_name('long_short_chart_flow.py').read_bytes()).hexdigest()
 PERIODS = {'5m':300000, '15m':900000, '1h':3600000, '4h':14400000, '1d':86400000}
 
 
@@ -118,11 +121,12 @@ def first_obstacle(frames, direction, trigger, atr5):
     return (levels[0][1],levels[0][2]) if levels else (None,None)
 
 
-def assess(symbol, frames, price, quote_volume, now_ms, evidence=None):
+def assess(symbol, frames, price, quote_volume, now_ms, evidence=None, flow=None):
     out=dict(version=VERSION,config_hash=CONFIG_HASH,symbol=symbol,observed_ms=now_ms,
              price=price, direction='NONE', stage='REJECTED', reason=None,
              context={}, support=supporting_data(evidence), warnings=[])
     out['strategy_id']=STRATEGY_ID
+    out['hourly_flow']=flow or {'status':'UNAVAILABLE'}
     def reject(reason):
         out['reason']=reason
         return out
@@ -164,8 +168,11 @@ def assess(symbol, frames, price, quote_volume, now_ms, evidence=None):
     opposing='DOWN' if sign==1 else 'UP'
     scenario='CONTINUATION'
     if four['direction']==opposing:
-        out.update(scenario='REVERSAL_ATTEMPT', observational_only=True)
-        return reject('COUNTERTREND_OBSERVATION_ONLY')
+        scenario='REVERSAL_ATTEMPT'
+        out['scenario']=scenario
+        out['warnings'].append('Ana yöne ters, kısa vadeli dönüş adayı; 4 saatlik yön değişimi doğrulanmadı.')
+        reason=reversal_reason(out['hourly_flow'],direction)
+        if reason:return reject(reason)
     if context['1d']['direction']==opposing:
         out['warnings'].append('Günlük yön bu fikre ters; uzun vadeli yön değişimi doğrulanmış değil.')
     if mid['direction']==opposing:
@@ -238,13 +245,15 @@ def message(p, stage=None):
         return f'{marker} {side} TAKİBİ TAMAMLANDI | {p["symbol"]}\n• {why}\n• Güncel fiyat: {p["price"]:.10g}'
     labels={'UP':'yukarı','DOWN':'aşağı','RANGE':'yatay / karışık'}
     ctx=p['context'];support=p.get('support') or {}
-    scenario={'PULLBACK_CONTINUATION':'Geri çekilme sonrası ana yöne dönüş',
-              'COMPRESSION_BREAKOUT':'Sıkışma bölgesinden ana yönde çıkış'}.get(p.get('model'),'Önceki sürüm takibi')
+    scenario={'PULLBACK_CONTINUATION':'Geri çekilme sonrası 1 saatlik yöne dönüş',
+              'COMPRESSION_BREAKOUT':'Sıkışma bölgesinden 1 saatlik yönde çıkış'}.get(p.get('model'),'Önceki sürüm takibi')
     rows=[f'{marker} {side} {title} | {p["symbol"]}',
           f'• Şu an fiyat: {p["price"]:.10g}',
           f'• Günlük: {labels[ctx["1d"]["direction"]]}',
           f'• 4 saat: {labels[ctx["4h"]["direction"]]} | 1 saat: {labels[ctx["1h"]["direction"]]}',
           f'• Fikir: {scenario}.']
+    if p.get('scenario')=='REVERSAL_ATTEMPT':
+        rows.insert(1,'⚠️ ANA YÖNE TERS — kısa vadeli dönüş adayı.')
     if stage=='READY':
         lo,hi=sorted((p['trigger'],p['entry_limit']))
         rows.extend([f'• Giriş koşulu oluştu: 5 dk mum {p["trigger"]:.10g} {relation} kapandı.',
@@ -264,6 +273,10 @@ def message(p, stage=None):
     if stage!='READY':rows.append('• Henüz giriş koşulu oluşmadı; yeni giriş mesajı beklenecek.')
     vol=p.get('volume_15m_multiple')
     if vol is not None:rows.append(f'• 15 dk işlem hacmi: yakın ortalamanın {vol:.2f} katı.')
+    flow=p.get('hourly_flow') or {}
+    if flow.get('status')=='OK':
+        rows.append(f'• Son 60 dk agresif alış payı: %{flow["buy_share"]*100:.1f} | Satış payı: %{(1-flow["buy_share"])*100:.1f} | Fiyat: %{flow["price_return_pct"]:+.2f}')
+    rows.append('• '+flow_note(flow,side))
     oi=support.get('oi_change_1h');taker=support.get('taker_ratio')
     if oi is not None:rows.append(f'• OI (açık pozisyon miktarı), son 1 saat: %{oi:+.2f}')
     if taker is not None:rows.append(f'• Agresif alış/satış hacmi oranı: {taker:.2f}×')

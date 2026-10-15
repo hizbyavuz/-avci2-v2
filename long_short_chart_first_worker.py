@@ -16,6 +16,7 @@ from datetime import datetime, timezone
 
 from long_short_chart_first import CONFIG, CONFIG_HASH, STRATEGY_ID, VERSION, assess, enabled, message, first_obstacle, daily_from_4h
 from long_short_chart_setups import geometry
+from long_short_chart_flow import hourly_flow, reversal_reason
 from long_short_chart_outcomes import outcome as outcome_v2
 
 STOP=threading.Event()
@@ -179,7 +180,7 @@ def resolve(c,kdb,now_ms):
       (now_ms,now_ms-3600000)).fetchall()
     for row in rows:
         p=json.loads(row['payload'])
-        modern=p.get('version')==VERSION
+        modern=p.get('version','').startswith(('CHART_FIRST_TWO_SETUPS_V2_', 'CHART_FIRST_FLOW_REVERSAL_V3_'))
         start=(row['observed_ms']//60000+(0 if modern else 1))*60000
         for horizon in (15,60,180):
             end=((row['observed_ms']+horizon*60000+59999)//60000)*60000 if modern else start+horizon*60000
@@ -209,9 +210,9 @@ def report(c,now_ms):
       WHERE a.observed_ms>=? AND json_extract(a.payload,'$.strategy_id')=?""",
       (now_ms-86400000,STRATEGY_ID)):
         p=json.loads(r[2]);v=json.loads(r[5])
-        key=(p.get('model','UNCLASSIFIED'),r[0],r[1],r[3])
+        key=(p.get('model','UNCLASSIFIED'),r[0],r[1],r[3],p.get('scenario','UNKNOWN'))
         g=groups.setdefault(key,dict(model=key[0],side=r[0],stage=r[1],horizon=r[3],
-                                    count=0,unresolved=0,net=[]))
+                                    scenario=key[4],count=0,unresolved=0,net=[]))
         g['count']+=1
         g['unresolved']+=int(r[4]!='RESOLVED')
         if r[4]=='RESOLVED' and v.get('model_net_return_pct') is not None:
@@ -248,18 +249,19 @@ def advance(c,kdb,decisions,now_ms,publisher,token,chat):
                 desired='UP' if p['direction']=='LONG' else 'DOWN'
                 opposite='DOWN' if desired=='UP' else 'UP'
                 if (not ctx or ctx.get('1h',{}).get('direction')!=desired or
-                        ctx.get('4h',{}).get('direction')==opposite or
+                        (ctx.get('4h',{}).get('direction')==opposite and
+                         reversal_reason(decision.get('hourly_flow'),p['direction']) is not None) or
                         decision['reason'].startswith(('CHART_','DAILY_','VERIFIED_','LIQUIDITY_','FRESH_'))):
                     stage='WATCH'
                 else:
                     near=decision.get('active_plan_obstacle',decision.get('obstacle'))
                     sign=1 if p['direction']=='LONG' else -1
                     if near is not None and p.get('obstacle') is not None and sign*(near-p['obstacle'])<0:stage='EXPIRED'
-            if decision['reason']=='COUNTERTREND_OBSERVATION_ONLY' and row['delivery_stage']!='READY':stage='EXPIRED'
+            if decision['reason'].startswith('REVERSAL_') and row['delivery_stage']!='READY':stage='WATCH'
             if decision.get('context') and decision['direction']==p['direction']:
                 # Levels stay locked; context/support on a new READY message
                 # must describe the current scan, not the earlier watch snapshot.
-                for key in ('context','support','warnings','volume_5m_multiple','volume_15m_multiple'):
+                for key in ('context','support','warnings','scenario','hourly_flow','volume_5m_multiple','volume_15m_multiple'):
                     if key in decision:p[key]=decision[key]
             if decision['reason'] and (decision['reason'].startswith(('CHART_','DAILY_','VERIFIED_'))):
                 # Missing chart data cannot be treated as a fresh confirmation.
@@ -299,7 +301,7 @@ def advance(c,kdb,decisions,now_ms,publisher,token,chat):
                     record(c,delivered)
                     print('CHART_FIRST_DELIVERY '+json.dumps({k:delivered.get(k) for k in
                         ('version','strategy_id','episode_id','symbol','direction','model','stage',
-                         'observed_ms','price','trigger','stop','obstacle','entry_limit','geometry')},ensure_ascii=False),flush=True)
+                         'observed_ms','price','trigger','stop','obstacle','entry_limit','geometry','scenario','hourly_flow')},ensure_ascii=False),flush=True)
         if stage not in ('WATCH','READY'):
             c.execute('UPDATE episodes SET ended_ms=? WHERE id=?',(now_ms,row['id']))
         c.commit()
@@ -321,7 +323,7 @@ def scan():
             stamp=int(time.time()*1000);price=quote(kdb,symbol,stamp)
             try:
                 frames,derived=candles(kdb,symbol,with_provenance=True)
-                p=assess(symbol,frames,price,qv,stamp)
+                p=assess(symbol,frames,price,qv,stamp,flow=hourly_flow(kdb,symbol,stamp))
                 p['chart_tail_aggregated_from_native_5m']=derived
                 old=active.get(symbol)
                 if old and p.get('context') and '1d' in p['context']:
@@ -376,7 +378,7 @@ def scan():
             eligible=[dict(symbol=p['symbol'],side=p['direction'],stage=p['stage'],scenario=p.get('scenario'),
                 daily=p['context']['1d']['direction'],four_hour=p['context']['4h']['direction'],hour=p['context']['1h']['direction'],
                 price=p['price'],trigger=p['trigger'],invalidation=p['stop'],obstacle=p.get('obstacle'),entry_limit=p['entry_limit'],
-                daily_bars=p['context']['1d']['bars'],model=p.get('model'),geometry=p.get('geometry')) for p in eligible],
+                daily_bars=p['context']['1d']['bars'],model=p.get('model'),geometry=p.get('geometry'),hourly_flow=p.get('hourly_flow')) for p in eligible],
             derived_tail_symbols=sum(bool(p.get('chart_tail_aggregated_from_native_5m')) for p in decisions.values()),
             created=created,delivered=sent+extra,primary_enabled=enabled(),automatic_orders=False)),flush=True)
     finally:

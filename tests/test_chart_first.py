@@ -100,7 +100,7 @@ class ChartFirstTests(unittest.TestCase):
         frames,price=sample()
         opposite,_=sample(True);frames['4h']=opposite['4h']
         p=assess('XUSDT',frames,price,50e6,NOW)
-        self.assertEqual(p['reason'],'COUNTERTREND_OBSERVATION_ONLY')
+        self.assertEqual(p['reason'],'REVERSAL_HOURLY_FLOW_UNAVAILABLE')
 
     def test_displayed_entry_region_still_has_room_for_costs(self):
         for short in (False,True):
