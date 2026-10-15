@@ -86,3 +86,14 @@ Unit tests and successful deployment prove functionality, not profitable edge.
 No thresholds will be changed in response to a handful of live winners/losers.
 Further rule changes require a new version and fresh outcome cohort. Rollback
 is repinning the preserved prior commit; raw history and research records stay.
+
+### Live delivery-window repair
+
+The first V2 15-minute boundary exposed stale REST tails for 33 symbols. The
+reader now fills absent closed 15m/1h/4h candles by exact UTC aggregation of
+3/12/48 verified closed native 5m bars. Every component timestamp and OHLCV must
+be valid; partial groups never become closed candles. Existing verified higher
+timeframe candles are retained, and the usual contiguous-history/freshness
+checks still run. This repairs data timing without changing selection rules.
+Derivation provenance is stored per assessment and counted in runtime summaries.
+The source-based strategy identity separates this operational revision too.

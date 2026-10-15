@@ -62,7 +62,26 @@ def active_symbols():
     except sqlite3.Error:return []
 
 
-def candles(con,symbol):
+def aggregate_closed_tail(rows,period):
+    """Exact UTC aggregation, only from complete validated native 5m groups."""
+    grouped={}
+    for r in rows:
+        grouped.setdefault(int(r[0])//period*period,[]).append(r)
+    output=[]
+    for start,group in sorted(grouped.items()):
+        group=sorted(group,key=lambda r:r[0])
+        if [int(r[0]) for r in group]!=list(range(start,start+period,300000)):continue
+        if any(int(r[6])!=int(r[0])+299999 or
+               not all(math.isfinite(float(v)) and float(v)>0 for v in r[1:5]) or
+               not float(r[3])<=min(float(r[1]),float(r[4]))<=max(float(r[1]),float(r[4]))<=float(r[2]) or
+               not math.isfinite(float(r[5])) or float(r[5])<0 for r in group):continue
+        output.append([start,float(group[0][1]),max(float(r[2]) for r in group),
+                       min(float(r[3]) for r in group),float(group[-1][4]),
+                       sum(float(r[5]) for r in group),start+period-1])
+    return output
+
+
+def candles(con,symbol,with_provenance=False):
     frames={}
     for tf,count in (('5m',120),('15m',120),('1h',120),('4h',220)):
         rows=con.execute('''SELECT open_ms,open,high,low,close,volume,close_ms,source
@@ -71,7 +90,15 @@ def candles(con,symbol):
         if len(rows)<count or any(r[7] not in VALID for r in rows):
             raise ValueError('VERIFIED_HISTORY_MISSING_'+tf)
         frames[tf]=[list(r[:7]) for r in reversed(rows)]
-    return frames
+    derived={}
+    for tf,period,count in (('15m',900000,120),('1h',3600000,120),('4h',14400000,220)):
+        known={int(r[0]):r for r in frames[tf]}
+        added=0
+        for r in aggregate_closed_tail(frames['5m'],period):
+            if r[0] not in known:known[r[0]]=r;added+=1
+        frames[tf]=[known[t] for t in sorted(known)][-count:]
+        if added:derived[tf]=added
+    return (frames,derived) if with_provenance else frames
 
 
 def quote(con,symbol,now_ms):
@@ -293,8 +320,9 @@ def scan():
         for symbol,qv,_,_ in universe:
             stamp=int(time.time()*1000);price=quote(kdb,symbol,stamp)
             try:
-                frames=candles(kdb,symbol)
+                frames,derived=candles(kdb,symbol,with_provenance=True)
                 p=assess(symbol,frames,price,qv,stamp)
+                p['chart_tail_aggregated_from_native_5m']=derived
                 old=active.get(symbol)
                 if old and p.get('context') and '1d' in p['context']:
                     all_frames=dict(frames,**{'1d':daily_from_4h(frames['4h'])})
@@ -349,6 +377,7 @@ def scan():
                 daily=p['context']['1d']['direction'],four_hour=p['context']['4h']['direction'],hour=p['context']['1h']['direction'],
                 price=p['price'],trigger=p['trigger'],invalidation=p['stop'],obstacle=p.get('obstacle'),entry_limit=p['entry_limit'],
                 daily_bars=p['context']['1d']['bars'],model=p.get('model'),geometry=p.get('geometry')) for p in eligible],
+            derived_tail_symbols=sum(bool(p.get('chart_tail_aggregated_from_native_5m')) for p in decisions.values()),
             created=created,delivered=sent+extra,primary_enabled=enabled(),automatic_orders=False)),flush=True)
     finally:
         kdb.close();c.close()

@@ -7,7 +7,7 @@ import unittest
 from unittest.mock import patch, Mock
 
 from long_short_chart_first import CONFIG, VERSION, STRATEGY_ID, assess, first_obstacle, pivots, message
-from long_short_chart_first_worker import connect, record, resolve, live_stage, advance
+from long_short_chart_first_worker import connect, record, resolve, live_stage, advance, aggregate_closed_tail, candles
 from long_short_chart_setups import setup, geometry, quality_limit
 from long_short_chart_outcomes import outcome
 from test_chart_first import sample, NOW
@@ -18,6 +18,38 @@ def bar(t, op, hi, lo, cl):
 
 
 class ChartV2Tests(unittest.TestCase):
+    def test_higher_timeframe_tail_requires_every_closed_five_minute_bar(self):
+        rows=[[i*300000,100+i,102+i,99+i,101+i,10, (i+1)*300000-1] for i in range(48)]
+        for period in (900000,3600000,14400000):
+            result=aggregate_closed_tail(rows,period)
+            self.assertEqual(result[0][0],0)
+            self.assertEqual(result[0][6],period-1)
+            count=period//300000
+            self.assertEqual(result[0][2],101+count)
+            self.assertEqual(result[0][5],10*count)
+            missing=rows[:1]+rows[2:]
+            self.assertNotIn(0,[r[0] for r in aggregate_closed_tail(missing,period)])
+            partial=copy.deepcopy(rows);partial[1][6]-=1
+            self.assertNotIn(0,[r[0] for r in aggregate_closed_tail(partial,period)])
+
+    def test_native_reader_repairs_rest_lag_without_replacing_existing_bars(self):
+        frames,_=sample();k=sqlite3.connect(':memory:')
+        k.execute('CREATE TABLE futures_closed_klines(symbol,interval,open_ms,open,high,low,close,volume,close_ms,source)')
+        expected_end=frames['15m'][-1][6]
+        lagging=frames['15m'][:-1]
+        older=lagging[0].copy();older[0]-=900000;older[6]-=900000
+        frames['15m']=[older]+lagging
+        original=frames['15m'][-1].copy()
+        for tf,rows in frames.items():
+            for r in rows:k.execute('INSERT INTO futures_closed_klines VALUES(?,?,?,?,?,?,?,?,?,?)',
+                                   ('XUSDT',tf,*r,'BINANCE_UM_FUTURES_REST'))
+        result,provenance=candles(k,'XUSDT',with_provenance=True)
+        self.assertEqual(result['15m'][-1][6],expected_end)
+        self.assertEqual(result['15m'][-2],original)
+        self.assertEqual(provenance['15m'],1)
+        self.assertEqual(len(result['15m']),120)
+        k.close()
+
     def test_jto_geometry_is_not_an_acceptable_entry(self):
         g=geometry('SHORT',.4491,.4571,.4473,.30)
         self.assertAlmostEqual(g['net_room_pct'],.1008016032)
