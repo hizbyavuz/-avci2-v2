@@ -1,6 +1,7 @@
 """V2 authoritative native Futures evidence shared by analyst and live gate.
 
-One collector performs I/O. Readers fail closed on stale/unverified evidence.
+Deadline collector and bounded demand refresh share per-symbol leases.
+Readers fail closed on stale/unverified evidence after recovery is attempted.
 No orders. Global account ratio is explicitly distinguished from vendor series.
 """
 import json
@@ -15,6 +16,9 @@ from urllib.request import urlopen
 
 SOURCE='BINANCE_UM_FUTURES_REST'
 VERSION='LS_NATIVE_CHAIN_V2_2026-10-13'
+REFRESH_VERSION='NATIVE_REFRESH_DEADLINE_V3_2026_10_15'
+REFRESH_AFTER_MS=60000
+CYCLE_BUDGET_SECONDS=45
 ENDPOINTS={'/fapi/v1/exchangeInfo','/fapi/v1/openInterest','/futures/data/openInterestHist',
            '/futures/data/globalLongShortAccountRatio','/fapi/v1/premiumIndex'}
 
@@ -85,15 +89,32 @@ def database():
     c.execute('PRAGMA journal_mode=WAL')
     c.execute('CREATE TABLE IF NOT EXISTS snapshots(symbol TEXT PRIMARY KEY, received_ms INTEGER, payload TEXT)')
     c.execute('CREATE TABLE IF NOT EXISTS issues(time_ms INTEGER,symbol TEXT,error TEXT)')
+    c.execute('CREATE TABLE IF NOT EXISTS refresh_leases(symbol TEXT PRIMARY KEY, until_ms INTEGER)')
     c.execute('CREATE TABLE IF NOT EXISTS markets(id INTEGER PRIMARY KEY,observed_ms INTEGER,payload TEXT)')
     return c
 
 def refresh(symbol):
+    # Across analyst/live/collector processes, only one request per symbol.
+    now=int(time.time()*1000)
+    c=database()
+    try:
+        with c:
+            claimed=c.execute('''INSERT INTO refresh_leases VALUES(?,?)
+                ON CONFLICT(symbol) DO UPDATE SET until_ms=excluded.until_ms
+                WHERE refresh_leases.until_ms<=?''',(symbol,now+30000,now)).rowcount
+    finally:c.close()
+    if not claimed:
+        existing=snapshot(symbol)
+        if not existing.get('error'):return existing
+        raise ValueError('NATIVE_REFRESH_PENDING')
+    # An error keeps the short lease as retry backoff; it never stamps old data fresh.
     payload=relay_get('/derivatives',{'symbol':symbol})
     result=validate(payload,symbol)
     c=database()
     try:
-        with c:c.execute('INSERT OR REPLACE INTO snapshots VALUES(?,?,?)',(symbol,int(time.time()*1000),json.dumps(payload)))
+        with c:
+            c.execute('INSERT OR REPLACE INTO snapshots VALUES(?,?,?)',(symbol,int(time.time()*1000),json.dumps(payload)))
+            c.execute('DELETE FROM refresh_leases WHERE symbol=?',(symbol,))
     finally:c.close()
     return result
 
@@ -108,8 +129,17 @@ def snapshot(symbol):
         return {'version':VERSION,'source':SOURCE,'symbol':symbol,'oi_fresh':False,'ls_fresh':False,
             'funding_fresh':False,'error':str(e),'oi_change_1h':None,'long_short_ratio':None,'funding_pct':None}
 
-def evidence(symbol):
+def evidence(symbol, refresh_stale=False):
     result=snapshot(symbol)
+    if refresh_stale and result.get('error'):
+        before=result['error']
+        try:
+            result=refresh(symbol)
+            print('NATIVE_DATA_RECOVERED '+json.dumps({'symbol':symbol,'previous_error':before,'version':REFRESH_VERSION}),flush=True)
+        except Exception as exc:
+            result=snapshot(symbol)
+            result['refresh_error']=str(exc)[:160]
+            print('NATIVE_DATA_DEFERRED '+json.dumps({'symbol':symbol,'reason':before,'refresh_error':result['refresh_error']}),flush=True)
     from long_short_taker_continuous_shadow import window,window_from_verified_futures_klines
     try:taker=window(os.path.join(root(),'long_short_taker_minute_shadow.db'),symbol)
     except (sqlite3.Error,OSError):taker={'ready':False}
@@ -123,11 +153,33 @@ def evidence(symbol):
     result.update(ready=gate['ready'],missing=gate['missing'])
     return result
 
+def refresh_order(requested, urgent, observed, now_ms, retry_after=None, limit=90):
+    """Order the whole demand set BEFORE the cap; never relax validation ages."""
+    retry_after=retry_after or {}
+    unique=list(dict.fromkeys(urgent+requested))
+    rank={s:i for i,s in enumerate(urgent)}
+    due=[s for s in unique if now_ms-observed.get(s,0)>=REFRESH_AFTER_MS
+         and retry_after.get(s,0)<=now_ms]
+    due.sort(key=lambda s:(s not in rank,observed.get(s,0),rank.get(s,len(rank)),s))
+    return due[:limit]
+
+
+def demand(analyst):
+    from long_short_futures_kline_shadow import requested_symbols,live_watch_symbols
+    from long_short_analyst import native_futures_websocket_universe
+    current=[r[0] for r in native_futures_websocket_universe(quiet=True)]
+    upcoming=[r[0] for r in native_futures_websocket_universe(slot_offsets=(1,),quiet=True)]
+    live=live_watch_symbols(analyst)
+    return list(dict.fromkeys(current+upcoming+live+requested_symbols(analyst))),list(dict.fromkeys(live+current))
+
+
 def main():
-    from long_short_futures_kline_shadow import requested_symbols,log
+    from long_short_futures_kline_shadow import log
     stop=threading.Event()
     for sig in (signal.SIGTERM,signal.SIGINT):signal.signal(sig,lambda *_:stop.set())
+    retry_after={}
     while not stop.is_set():
+        began=time.monotonic()
         try:
             p=relay_get('/markets',{})
             if p.get('source')!=SOURCE or not isinstance(p.get('markets'),list):raise ValueError('invalid market catalogue')
@@ -136,35 +188,42 @@ def main():
             c=database()
             try:
                 with c:c.execute('INSERT OR REPLACE INTO markets VALUES(1,?,?)',(int(time.time()*1000),json.dumps(sorted(allowed))))
+                # Provider timestamp, not the timestamp of a cached DB write.
+                observed=dict(c.execute("SELECT symbol,json_extract(payload,'$.observed_ms') FROM snapshots"))
             finally:c.close()
+            analyst=os.getenv('LS_ANALYST_DB') or os.getenv('LS_DB') or os.path.join(root(),'long_short_analyst.db')
+            requested,urgent=demand(analyst)
+            requested=[s for s in requested if s in allowed];urgent=[s for s in urgent if s in allowed]
         except Exception as e:
-            log('NATIVE_MARKET_CATALOGUE_UNAVAILABLE',{'error':str(e)[:160]});stop.wait(30);continue
-        analyst=os.getenv('LS_ANALYST_DB') or os.getenv('LS_DB') or os.path.join(root(),'long_short_analyst.db')
-        symbols=[s for s in requested_symbols(analyst) if s in allowed][:90]
-        # Refresh the oldest cached snapshots first so a fixed request order
-        # cannot repeatedly starve later symbols when relay calls are slow.
-        c=database()
-        try:
-            received=dict(c.execute('SELECT symbol,received_ms FROM snapshots').fetchall())
-        finally:c.close()
-        symbols.sort(key=lambda symbol:(received.get(symbol,0),symbol))
-        log('NATIVE_DERIVATIVES_REFRESH_PLAN',{'requested':len(symbols),
-            'oldest_age_seconds':round(max(0,time.time()*1000-min((received.get(s,0) for s in symbols),default=int(time.time()*1000)))/1000),
-            'first_symbols':symbols[:5]})
-        ready=0
+            log('NATIVE_REFRESH_PLAN_UNAVAILABLE',{'error':str(e)[:160]});stop.wait(5);continue
+        now=int(time.time()*1000)
+        observed={s:int(t or 0) for s,t in observed.items()}
+        symbols=refresh_order(requested,urgent,observed,now,retry_after)
+        known=[now-observed[s] for s in requested if observed.get(s)]
+        log('NATIVE_DERIVATIVES_REFRESH_PLAN',{'version':REFRESH_VERSION,'requested':len(requested),
+            'urgent':len(urgent),'due':len(symbols),'missing':sum(not observed.get(s) for s in requested),
+            'oldest_known_age_seconds':round(max(known,default=0)/1000),'first_symbols':symbols[:5]})
+        ready=0;cooldown=False
         for symbol in symbols:
             if stop.is_set():return 0
-            try:refresh(symbol);ready+=1
+            if time.monotonic()-began>=CYCLE_BUDGET_SECONDS:break
+            try:
+                result=refresh(symbol);observed[symbol]=result['observed_ms'];ready+=1
+                retry_after.pop(symbol,None)
             except Exception as e:
+                retry_after[symbol]=int(time.time()*1000)+30000
                 c=database()
                 try:
                     with c:c.execute('INSERT INTO issues VALUES(?,?,?)',(int(time.time()*1000),symbol,str(e)[:200]))
                 finally:c.close()
                 log('NATIVE_DERIVATIVE_DATA_ISSUE',{'symbol':symbol,'error':str(e)[:160]})
-                if any(x in str(e) for x in ('418','429','451','COOLDOWN')):break
+                if any(x in str(e) for x in ('418','429','451','COOLDOWN')):cooldown=True;break
             stop.wait(0.1)
-        log('NATIVE_DERIVATIVES_COVERAGE',{'version':VERSION,'requested':len(symbols),'updated':ready})
-        stop.wait(30)
+        now=int(time.time()*1000)
+        log('NATIVE_DERIVATIVES_COVERAGE',{'version':REFRESH_VERSION,'requested':len(requested),'updated':ready,
+            'urgent':len(urgent),'urgent_snapshot_fresh':sum(0<=now-observed.get(s,0)<=180000 for s in urgent),
+            'elapsed_seconds':round(time.monotonic()-began,2),'validation_age_ms':180000})
+        stop.wait(30 if cooldown else 2 if symbols else 5)
     return 0
 
 if __name__=='__main__':raise SystemExit(main())

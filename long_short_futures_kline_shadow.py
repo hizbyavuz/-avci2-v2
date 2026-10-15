@@ -468,6 +468,8 @@ def archive_urls(symbol, interval, today):
     Only completed UTC days are requested; today is never requested.
     """
     import datetime as dt
+    from urllib.parse import quote
+    symbol = quote(symbol, safe="")
     period = PERIOD_MS[interval] // 1000
     days = min(42, max(2, int((220 * period + 86399) // 86400) + 2))
     first = today - dt.timedelta(days=days)

@@ -89,9 +89,19 @@ def blocked(symbol,reason,now_ms=None):
         else:
             episode=c.execute('INSERT INTO episodes(symbol,started_ms,initial_reason,version) VALUES(?,?,?,?)',
                 (symbol,now_ms,str(reason),VERSION)).lastrowid
-            observe(symbol,'DATA_BLOCKED','NONE',{'episode_id':episode,'reason':str(reason)},now_ms,c)
+        # Keep later price paths even when a data outage persists for hours.
+        last=c.execute("SELECT MAX(observed_ms) FROM observations WHERE symbol=? AND cohort='DATA_BLOCKED'",(symbol,)).fetchone()[0]
+        if last is None or now_ms-last>=300000:
+            from long_short_strategy_identity import reference
+            observe(symbol,'DATA_BLOCKED','NONE',{'episode_id':episode,'reason':str(reason),
+                'strategy_identity':reference()},now_ms,c)
         c.execute('INSERT INTO samples(episode_id,observed_ms,reason) VALUES(?,?,?)',(episode,now_ms,str(reason)))
     c.close()
+
+def record_not_selected(symbol,details,now_ms=None):
+    from long_short_strategy_identity import reference
+    observe(symbol,'NOT_SELECTED','NONE',{'reason':'DEEP_SCAN_NOT_SELECTED',
+        'strategy_identity':reference(),'discovery':details,'research_only':True},now_ms)
 
 def record_analysis(a,partial=False,now_ms=None):
     now_ms=int(time.time()*1000) if now_ms is None else now_ms

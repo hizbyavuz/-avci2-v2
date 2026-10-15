@@ -194,7 +194,7 @@ def binance_four_factor_confirmation_gate(symbol, now_epoch=None):
     """Classify evidence without equating missing data to contrary direction."""
     if native_v2_enabled():
         from long_short_native_derivatives import evidence
-        ev=evidence(symbol)
+        ev=evidence(symbol, refresh_stale=True)
         return {'qualified':ev['ready'],'tier':'FULL_4_OF_4' if ev['ready'] else 'DATA_INCOMPLETE',
                 'reason':'binance_four_factor_ready' if ev['ready'] else 'native_derivatives_incomplete',
                 'missing':ev['missing'],'source':ev['source'],'observed_ms':ev.get('observed_ms')}

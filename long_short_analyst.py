@@ -1790,7 +1790,7 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None, *, _partia
     htf_gate=build_htf_gate(symbol,t4h)
     if native_v2_enabled():
         from long_short_native_derivatives import evidence as native_evidence
-        evidence=dict(_research_evidence) if _partial_research else native_evidence(symbol)
+        evidence=dict(_research_evidence) if _partial_research else native_evidence(symbol, refresh_stale=True)
         if not evidence['ready']:
             if not _partial_research and os.getenv('LS_DATA_OPPORTUNITY_V2','0')=='1':
                 try:
@@ -2194,13 +2194,13 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None, *, _partia
 
     structure_gate=build_structure_gate(preferred_direction,price,setup_plan,k5,k15,k30,k1h,k4h)
     from long_short_structural_plan_v3 import enabled as structural_v3_enabled
-    from long_short_structural_plan_v4 import from_candles
+    from long_short_structural_plan_v5 import from_candles
     if native_v2_enabled() and structural_v3_enabled():
         setup_plan,structure_gate=from_candles(setup_plan,structure_gate,
             [(k5,'5m',.75),(k15,'15m',1),(k30,'30m',1.35),(k1h,'1h',1.75),(k4h,'4h',2.25)],
             price,_timeframe_zones,structure_min_round_trip_cost_pct(),
             STRUCTURE_MIN_NET_T1_R,structure_required_room_pct())
-        print('STRUCTURAL_PLAN_V4',json.dumps({'symbol':symbol,
+        print('STRUCTURAL_PLAN_V5',json.dumps({'symbol':symbol,
             'direction':preferred_direction,'qualified':structure_gate['qualified_precheck'],
             'evidence':structure_gate['structural_plan_v3'],
             'comparison':structure_gate['geometry_comparison']},ensure_ascii=False),flush=True)
@@ -2712,6 +2712,17 @@ def plan_precheck_reasons(payload):
     target=float(plan.get("target1") or 0)
     stop=float(plan.get("invalidation") or 0)
     reasons=[]
+    structural=gate.get('structural_plan_v3') or {}
+    structural_reason=structural.get('reason')
+    explanations={
+        'ENTRY_INSIDE_OPPOSING_ZONE':'giriş ayrı bir destek/direnç bölgesinin içinde',
+        'COMMON_REGION_TOO_WIDE':'ortak bölgenin dışına çıkmak giriş seviyesini fazla uzaklaştırıyor',
+        'NO_LOCAL_TRIGGER_ZONE':'yerel kırılım bölgesi bulunamadı',
+        'NO_OBSERVED_TARGET':'ileride ayrı ve gözlenmiş hedef seviyesi bulunamadı',
+        'INVALID_STOP_OR_RETEST_GEOMETRY':'stop ile yeniden test bölgesi uyumsuz',
+    }
+    if structural_reason in explanations:
+        return [explanations[structural_reason]]
     if not ((d=="LONG" and 0<stop<trigger<target) or
             (d=="SHORT" and 0<target<trigger<stop)):
         reasons.append("giriş/stop/hedef sıralaması geçersiz veya ayrı hedef bulunamadı")
@@ -3160,6 +3171,12 @@ def main():
                              json.dumps(details,ensure_ascii=False,default=str)))
             con.commit()
         print("OPPORTUNITY_FUNNEL",json.dumps(counts,ensure_ascii=False),flush=True)
+        if native_v2_enabled() and os.getenv('LS_DATA_OPPORTUNITY_V2','0')=='1':
+            from long_short_data_opportunity_v2 import record_not_selected
+            for item in preselected:
+                if item['symbol'] not in selected:
+                    record_not_selected(item['symbol'],{'rank':item.get('rank'),
+                        'discovery':item.get('v3_discovery')})
         # Aggregate diagnostic only. Never changes trade eligibility or exposes tokens.
         from collections import Counter
         blocker_counts=Counter()

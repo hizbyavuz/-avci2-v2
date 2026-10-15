@@ -38,6 +38,7 @@ def frozen_snapshot(row):
     direction=plan.get('direction')
     if direction not in ('LONG','SHORT'):direction=row['direction'] or 'NONE'
     if row['cohort']=='DATA_BLOCKED':group='DATA_BLOCKED'
+    elif row['cohort']=='NOT_SELECTED':group='SCAN_SELECTION_BLOCKED'
     elif row['cohort']!='FULL_4_OF_4':group='PARTIAL_DATA'
     elif not d.get('eligible'):group='DIRECTION_OR_TRADABILITY_BLOCKED'
     elif not gate.get('qualified_precheck'):group='STRUCTURE_BLOCKED'
@@ -134,7 +135,7 @@ def report(c):
         key=':'.join((row['strategy_id'],row['data_cohort'],row['block_class']))
         groups[key].append(result)
         if len(samples)<12:
-            samples.append({'symbol':row['symbol'],'observed_ms':row['observed_ms'],'class':row['block_class'],
+            samples.append({'symbol':row['symbol'],'direction':row['direction'],'observed_ms':row['observed_ms'],'class':row['block_class'],
                 **{k:result.get(k) for k in ('state','result','reason','net_return_pct','holding_minutes_upper_bound')}})
     source_counts=dict(c.execute('SELECT cohort,count(*) FROM observations WHERE observed_ms>=? GROUP BY cohort',(CUTOFF_MS,)).fetchall())
     return {'version':VERSION,'cutoff_utc':'2026-10-15T00:46:00Z',
@@ -165,7 +166,11 @@ def resolve(now_ms=None,db_path=None,bars_reader=None,funding_reader=None):
             c.execute('UPDATE rejection_audit_episodes SET checked_ms=?,state=?,result=? WHERE observation_id=?',
                 (now_ms,result['state'],json.dumps(result,allow_nan=False),row['observation_id']))
             c.commit()
+        from long_short_rejection_direction_report import report as direction_report, emit
+        directional=direction_report(c,now_ms)
+        emit(directional)
         result=report(c)
         print('REJECTION_AUDIT_SUMMARY '+json.dumps(result,allow_nan=False),flush=True)
+        result['directional_report']=directional
         return result
     finally:c.close()

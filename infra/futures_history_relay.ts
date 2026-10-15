@@ -48,7 +48,7 @@ Bun.serve({hostname:'::',port:Number(Bun.env.PORT||8080),async fetch(request){
  }
  if(request.method!=='GET'||!['/klines','/derivatives','/depth','/funding'].includes(u.pathname))return new Response('Not found',{status:404});
  const symbol=u.searchParams.get('symbol')||'';
- if(!/^[A-Z0-9]{1,25}USDT$/.test(symbol))return new Response('Invalid symbol',{status:400});
+ if(!/^[\p{L}\p{N}]{1,40}USDT$/u.test(symbol))return new Response('Invalid symbol',{status:400});
  try{
   if(u.pathname==='/derivatives')return Response.json(await derivatives(symbol));
   if(u.pathname==='/depth'){const requested_ms=Date.now(),book=await upstream('/fapi/v1/depth',{symbol,limit:'100'});return Response.json({source:'BINANCE_UM_FUTURES_REST',symbol,requested_ms,book});}

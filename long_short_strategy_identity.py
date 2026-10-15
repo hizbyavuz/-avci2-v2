@@ -7,7 +7,7 @@ import os
 from functools import lru_cache
 from pathlib import Path
 
-VERSION='LS_LOCAL_GEOMETRY_CONTINUITY_V2_2026_10_15'
+VERSION='LS_COMMON_REGION_AND_DATA_REFRESH_V3_2026_10_15'
 
 
 @lru_cache(maxsize=1)
