@@ -1588,12 +1588,49 @@ def prefilter_symbol(symbol, day_change_pct, quote_volume=0.0):
     t15=timeframe_features(k15)
     levels=swing_levels(k5,48)
     rank,v3_discovery=v3_discovery_rank(k5,k15,t5,t15,day_change_pct,levels)
-    return {
+    result = {
         "symbol":symbol,"day_change":day_change_pct,"quote_volume":float(quote_volume or 0.0),"rank":rank,
         "discovery_meta":dict(DISCOVERY_META.get(symbol) or {}),
         "v3_discovery":v3_discovery,
         "k5":k5,"t5":t5,"k15":k15,"t15":t15,
     }
+    if (native_v2_enabled() and os.getenv('LS_BINANCE_FUTURES_ONLY','0')=='1'
+            and os.getenv('LS_NATIVE_BROAD_PREFILTER_V1','1')=='1'):
+        result['geometry_preview']=preview_local_geometry(symbol,k5,k15,t5,t15)
+    return result
+
+
+def preview_local_geometry(symbol,k5,k15,t5,t15):
+    """Local-candle scheduling evidence only; cannot authorize direction/entry.
+
+    Spend scarce derivative/deep slots first on setups with a feasible path.
+    Evaluate both directions with identical rules, retaining all failed rows.
+    """
+    from long_short_structural_plan_v7 import from_candles
+    summary={'version':'GEOMETRY_PREFILTER_V1_2026_10_15','ready':False,'sides':{},'error':None}
+    try:
+        k30=fetch_klines(symbol,'30m',160)
+        k1h=fetch_klines(symbol,'1h',220)
+        k4h=fetch_klines(symbol,'4h',220)
+        frames=[(k5,'5m',.75),(k15,'15m',1),(k30,'30m',1.35),(k1h,'1h',1.75),(k4h,'4h',2.25)]
+        # Compute zones once for both directions and entry styles.
+        zones={label:_timeframe_zones(k,label,w,t5['price']) for k,label,w in frames}
+        for side in ('LONG','SHORT'):
+            outcomes=[]
+            for style in ('BREAKOUT','PULLBACK'):
+                p=(build_pullback_plan(side,t5['price'],k5,t15) if style=='PULLBACK' else
+                   build_setup_plan(side,t5['price'],k5,t15,{'long_trigger':False,'short_trigger':False}))
+                p['setup_type']=style
+                _,g=from_candles(p,{'thresholds':{'level_near_pct':STRUCTURE_LEVEL_NEAR_PCT}},frames,
+                    t5['price'],lambda k,label,w,price:zones[label],structure_min_round_trip_cost_pct(),
+                    STRUCTURE_MIN_NET_T1_R,structure_required_room_pct())
+                outcomes.append({'style':style,'qualified':g['qualified_precheck'],
+                    'reason':g['structural_plan_v3']['reason']})
+            summary['sides'][side]=outcomes
+        summary['ready']=any(a['qualified'] for outcomes in summary['sides'].values() for a in outcomes)
+    except (RuntimeError,ValueError,KeyError,IndexError,TypeError) as exc:
+        summary['error']=type(exc).__name__+':'+str(exc)[:100]
+    return summary
 
 
 def select_deep_shortlist(preselected, limit=PRESELECT_MAX):
@@ -1606,7 +1643,8 @@ def select_deep_shortlist(preselected, limit=PRESELECT_MAX):
     """
     n=max(0,min(int(limit),len(preselected)))
     def rank_key(x):
-        return (-float(x.get("rank") or 0.0),str(x.get("symbol") or ""))
+        return (not bool((x.get('geometry_preview') or {}).get('ready')),
+                -float(x.get("rank") or 0.0),str(x.get("symbol") or ""))
     actionable=[]
     research=[]
     for x in preselected:
@@ -2471,6 +2509,7 @@ def save_universe_observations(ts, preselected, shortlist):
                 payload={
                     "research_only":True,
                     "source":"V3_DISCOVERY_SHADOW",
+                    "geometry_preview":x.get('geometry_preview'),
                     "v3_discovery":dict(x.get("v3_discovery") or {}),
                     "discovery_meta":dict(x.get("discovery_meta") or {}),
                     "discovery_rank":float(x.get("rank") or 0.0),
@@ -2946,6 +2985,14 @@ def main():
                         except Exception as observation_error:
                             print('V2_DATA_OPPORTUNITY_RECORD_ERROR',symbol,str(observation_error)[:120],flush=True)
     preselected.sort(key=lambda x:x["rank"], reverse=True)
+    previews=[x for x in preselected if 'geometry_preview' in x]
+    if previews:
+        print('GEOMETRY_PREFILTER_SUMMARY '+json.dumps({'version':'GEOMETRY_PREFILTER_V1_2026_10_15',
+            'checked':len(previews),'ready':sum(x['geometry_preview']['ready'] for x in previews),
+            'unavailable':sum(bool(x['geometry_preview']['error']) for x in previews),
+            'ready_symbols':[{ 'symbol':x['symbol'],'sides':[s for s,a in x['geometry_preview']['sides'].items()
+                if any(z['qualified'] for z in a)]} for x in previews if x['geometry_preview']['ready']],
+            'entry_authorized':False}),flush=True)
     save_reversal_candidates(ts,preselected)
 
     # Deep-scan shortlist is activity-ranked only. The previous policy reserved

@@ -63,3 +63,29 @@ class LocalLevelIdentityTests(unittest.TestCase):
     def test_broad_prefilter_does_not_change_other_source_modes(self):
         with patch.object(analyst,'native_v2_enabled',return_value=False),patch.object(analyst,'universe',return_value=[]) as old:
             self.assertEqual(analyst.discovery_universe(),[]);old.assert_called_once()
+
+    def test_feasible_path_gets_deep_slot_without_changing_direction_scores(self):
+        rows=[dict(symbol='FLAT',rank=100,quote_volume=30e6,discovery_meta={'binance_spot_member':True},
+                   geometry_preview={'ready':False}),
+              dict(symbol='READY',rank=1,quote_volume=30e6,discovery_meta={'binance_spot_member':True},
+                   geometry_preview={'ready':True})]
+        original=copy.deepcopy(rows)
+        with patch('long_short_qualified_chain.priority_enabled',return_value=False), \
+             patch('long_short_shortlist_audit.record_shortlist'):
+            selected=analyst.select_deep_shortlist(rows,1)
+        self.assertEqual(selected[0]['symbol'],'READY')
+        self.assertEqual(rows,original)
+
+    def test_preview_evaluates_both_sides_and_does_not_authorize_entry(self):
+        p,g,z=fixtures.LocalGeometryTests().inputs()
+        with patch.object(analyst,'fetch_klines',return_value={}), \
+             patch.object(analyst,'_timeframe_zones',return_value=z), \
+             patch.object(analyst,'build_setup_plan',return_value=dict(p)), \
+             patch.object(analyst,'build_pullback_plan',return_value=dict(p)), \
+             patch('long_short_structural_plan_v7.from_candles',return_value=({},
+                 {'qualified_precheck':True,'structural_plan_v3':{'reason':'OK'}})) as geometry:
+            result=analyst.preview_local_geometry('TESTUSDT',{}, {},{'price':100},{})
+        self.assertEqual(set(result['sides']),{'LONG','SHORT'})
+        self.assertEqual(geometry.call_count,4)
+        self.assertTrue(result['ready'])
+        self.assertNotIn('direction',result)
