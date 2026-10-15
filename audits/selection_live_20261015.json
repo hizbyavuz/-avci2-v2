@@ -1,0 +1,42 @@
+{
+  "scope": "deployment",
+  "deploymentId": "cf5147dc-a559-4ed6-a27c-34d630fe506f",
+  "serviceId": "caad3157-e67b-4d20-80d9-67aa5fe8778c",
+  "environmentId": "5fc78d8b-4f54-4b50-867d-c544cbd74aaa",
+  "status": "SUCCESS",
+  "deploy": [
+    {
+      "timestamp": "2026-10-15T19:30:39.910852125Z",
+      "severity": "info",
+      "message": "CHART_FIRST_SUMMARY {\"version\": \"CHART_FIRST_RELIABILITY_V3_3_2026_10_15\", \"config_hash\": \"2fdca07cc46a5ad236988d4bd62f7f1bccb76b30571907f046731bfb1885279e\", \"strategy_id\": \"7d69f9f11a6ca411f1ee7139ded98e1d76b06fee1cb9ef0b774c45d12b8e63cb\", \"checked\": 170, \"directions\": {\"NONE\": 168, \"LONG\": 2}, \"stages\": {\"REJECTED\": 170}, \"reasons\": {\"FRESH_PRICE_UNAVAILABLE\": 96, \"NO_DEFINED_SETUP\": 2, \"HOURLY_STRUCTURE_UNCLEAR\": 1, \"LIQUIDITY_FLOOR\": 65, \"VERIFIED_HISTORY_MISSING_4h\": 1, \"VERIFIED_HISTORY_MISSING_5m\": 5}, \"pattern_results\": {}, \"alternate_admissions\": 0, \"eligible\": [], \"derived_tail_symbols\": 1, \"created\": 0, \"delivered\": 0, \"final_gates\": {}, \"primary_enabled\": true, \"automatic_orders\": false}",
+      "attributes": [
+        {
+          "key": "level",
+          "value": "\"info\""
+        }
+      ]
+    },
+    {
+      "timestamp": "2026-10-15T19:31:11.197620090Z",
+      "severity": "info",
+      "message": "CHART_FIRST_SUMMARY {\"version\": \"CHART_FIRST_RELIABILITY_V3_3_2026_10_15\", \"config_hash\": \"2fdca07cc46a5ad236988d4bd62f7f1bccb76b30571907f046731bfb1885279e\", \"strategy_id\": \"7d69f9f11a6ca411f1ee7139ded98e1d76b06fee1cb9ef0b774c45d12b8e63cb\", \"checked\": 170, \"directions\": {\"LONG\": 61, \"SHORT\": 13, \"NONE\": 96}, \"stages\": {\"REJECTED\": 170}, \"reasons\": {\"NO_DEFINED_SETUP\": 52, \"REVERSAL_FLOW_NOT_ALIGNED\": 10, \"NET_REWARD_BELOW_STRUCTURAL_RISK\": 4, \"HOURLY_STRUCTURE_UNCLEAR\": 21, \"OBSTACLE_WITHIN_COST_ALLOWANCE\": 3, \"ENTRY_NOT_NEAR\": 1, \"REVERSAL_PRICE_NOT_RESPONDING\": 4, \"FRESH_PRICE_UNAVAILABLE\": 4, \"LIQUIDITY_FLOOR\": 65, \"VERIFIED_HISTORY_MISSING_4h\": 1, \"VERIFIED_HISTORY_MISSING_5m\": 5}, \"pattern_results\": {\"SWING_BREAKOUT:NET_REWARD_BELOW_STRUCTURAL_RISK\": 3, \"COMPRESSION_BREAKOUT:NET_REWARD_BELOW_STRUCTURAL_RISK\": 3, \"COMPRESSION_BREAKOUT:OBSTACLE_WITHIN_COST_ALLOWANCE\": 3, \"SWING_BREAKOUT:ENTRY_NOT_NEAR\": 1, \"PULLBACK_CONTINUATION:OBSTACLE_WITHIN_COST_ALLOWANCE\": 1, \"SWING_BREAKOUT:OBSTACLE_WITHIN_COST_ALLOWANCE\": 1}, \"alternate_admissions\": 0, \"eligible\": [], \"derived_tail_symbols\": 1, \"created\": 0, \"delivered\": 0, \"final_gates\": {}, \"primary_enabled\": true, \"automatic_orders\": false}",
+      "attributes": [
+        {
+          "key": "level",
+          "value": "\"info\""
+        }
+      ]
+    },
+    {
+      "timestamp": "2026-10-15T19:31:42.128226720Z",
+      "severity": "info",
+      "message": "CHART_FIRST_SUMMARY {\"version\": \"CHART_FIRST_RELIABILITY_V3_3_2026_10_15\", \"config_hash\": \"2fdca07cc46a5ad236988d4bd62f7f1bccb76b30571907f046731bfb1885279e\", \"strategy_id\": \"7d69f9f11a6ca411f1ee7139ded98e1d76b06fee1cb9ef0b774c45d12b8e63cb\", \"checked\": 170, \"directions\": {\"LONG\": 56, \"SHORT\": 12, \"NONE\": 102}, \"stages\": {\"REJECTED\": 170}, \"reasons\": {\"NO_DEFINED_SETUP\": 48, \"REVERSAL_FLOW_NOT_ALIGNED\": 8, \"NET_REWARD_BELOW_STRUCTURAL_RISK\": 4, \"HOURLY_STRUCTURE_UNCLEAR\": 22, \"FRESH_PRICE_UNAVAILABLE\": 9, \"OBSTACLE_WITHIN_COST_ALLOWANCE\": 3, \"LOCAL_IDEA_INVALIDATED\": 1, \"REVERSAL_PRICE_NOT_RESPONDING\": 4, \"LIQUIDITY_FLOOR\": 65, \"VERIFIED_HISTORY_MISSING_4h\": 1, \"VERIFIED_HISTORY_MISSING_5m\": 5}, \"pattern_results\": {\"SWING_BREAKOUT:NET_REWARD_BELOW_STRUCTURAL_RISK\": 3, \"COMPRESSION_BREAKOUT:NET_REWARD_BELOW_STRUCTURAL_RISK\": 3, \"COMPRESSION_BREAKOUT:OBSTACLE_WITHIN_COST_ALLOWANCE\": 3, \"SWING_BREAKOUT:LOCAL_IDEA_INVALIDATED\": 1, \"PULLBACK_CONTINUATION:OBSTACLE_WITHIN_COST_ALLOWANCE\": 1, \"SWING_BREAKOUT:OBSTACLE_WITHIN_COST_ALLOWANCE\": 1}, \"alternate_admissions\": 0, \"eligible\": [], \"derived_tail_symbols\": 1, \"created\": 0, \"delivered\": 0, \"final_gates\": {}, \"primary_enabled\": true, \"automatic_orders\": false}",
+      "attributes": [
+        {
+          "key": "level",
+          "value": "\"info\""
+        }
+      ]
+    }
+  ]
+}
