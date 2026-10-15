@@ -9,17 +9,24 @@ import json
 import math
 import os
 from pathlib import Path
+from long_short_chart_setups import setup, geometry, quality_limit
 
-VERSION = 'CHART_FIRST_MULTIFRAME_V1_2026_10_15'
+VERSION = 'CHART_FIRST_TWO_SETUPS_V2_2026_10_15'
 CONFIG = dict(pivot_confirmation_bars=2, daily_min_bars=20,
               approach_atr15=1.0, chase_atr5=1.0, level_tolerance_atr5=0.10,
               candle_grace_ms=20000, quote_max_age_ms=5000,
               min_quote_volume=25000000, round_trip_cost_pct=0.30,
               max_initial_notices_per_cycle=3, cooldown_ms=3600000,
-              horizon_minutes=180)
+              horizon_minutes=180, min_net_reward_risk=1.0,
+              compression_bars=6, compression_range_ratio=0.80,
+              compression_width_atr=2.5, stop_buffer_atr=0.10,
+              pullback_lookback_bars=24, pullback_min_atr=0.5,
+              pullback_turn_max_bars=4)
 CONFIG_HASH = hashlib.sha256(json.dumps(CONFIG, sort_keys=True).encode()).hexdigest()
 STRATEGY_ID = hashlib.sha256((CONFIG_HASH+VERSION).encode()+Path(__file__).read_bytes()+
-    Path(__file__).with_name('long_short_chart_first_worker.py').read_bytes()).hexdigest()
+    Path(__file__).with_name('long_short_chart_first_worker.py').read_bytes()+
+    Path(__file__).with_name('long_short_chart_setups.py').read_bytes()+
+    Path(__file__).with_name('long_short_chart_outcomes.py').read_bytes()).hexdigest()
 PERIODS = {'5m':300000, '15m':900000, '1h':3600000, '4h':14400000, '1d':86400000}
 
 
@@ -99,6 +106,18 @@ def supporting_data(evidence):
     return values
 
 
+def first_obstacle(frames, direction, trigger, atr5):
+    sign=1 if direction=='LONG' else -1
+    levels=[]
+    for tf,rows in frames.items():
+        highs,lows=pivots(rows)
+        for stamp,level in (highs if sign==1 else lows):
+            if sign*(level-trigger)>CONFIG['level_tolerance_atr5']*atr5:
+                levels.append((sign*(level-trigger),level,tf,stamp))
+    levels.sort()
+    return (levels[0][1],levels[0][2]) if levels else (None,None)
+
+
 def assess(symbol, frames, price, quote_volume, now_ms, evidence=None):
     out=dict(version=VERSION,config_hash=CONFIG_HASH,symbol=symbol,observed_ms=now_ms,
              price=price, direction='NONE', stage='REJECTED', reason=None,
@@ -145,19 +164,17 @@ def assess(symbol, frames, price, quote_volume, now_ms, evidence=None):
     opposing='DOWN' if sign==1 else 'UP'
     scenario='CONTINUATION'
     if four['direction']==opposing:
-        # A small 5m bounce is not a reversal: require a 1h structural break.
-        anchor=one['high'] if sign==1 else one['low']
-        if anchor is None or sign*(one['close']-anchor)<=0:
-            return reject('COUNTERTREND_WITHOUT_HOURLY_BREAK')
-        scenario='REVERSAL_ATTEMPT'
-        out['warnings'].append('4 saatlik ana harekete karşı dönüş denemesi.')
+        out.update(scenario='REVERSAL_ATTEMPT', observational_only=True)
+        return reject('COUNTERTREND_OBSERVATION_ONLY')
     if context['1d']['direction']==opposing:
         out['warnings'].append('Günlük yön bu fikre ters; uzun vadeli yön değişimi doğrulanmış değil.')
+    if mid['direction']==opposing:
+        out['warnings'].append('15 dakikalık hareket hâlâ ters yönde; kısa dönüşün başarısız olma riski var.')
     out['scenario']=scenario
-    trigger=local['high'] if sign==1 else local['low']
-    stop=local['low'] if sign==1 else local['high']
-    if trigger is None or stop is None:return reject('LOCAL_STRUCTURE_UNCLEAR')
-    out.update(trigger=trigger,stop=stop)
+    pattern=setup(frames['5m'], direction, local['highs'], local['lows'], CONFIG)
+    if pattern is None:return reject('NO_DEFINED_SETUP')
+    out.update(pattern)
+    trigger,stop=pattern['trigger'],pattern['stop']
     if sign*(trigger-stop)<=0 or sign*(price-stop)<=0:return reject('LOCAL_IDEA_INVALIDATED')
     a5=average_range(frames['5m']);a15=average_range(frames['15m'])
     if a5<=0 or a15<=0:return reject('INVALID_RANGE')
@@ -166,44 +183,25 @@ def assess(symbol, frames, price, quote_volume, now_ms, evidence=None):
     if sign*(trigger-price)>CONFIG['approach_atr15']*a15:return reject('ENTRY_NOT_NEAR')
     # First distinct obstacle from ALL timeframes, anchored to the trigger.
     # Do not silently skip a crossed obstacle and manufacture a farther target.
-    levels=[]
-    for tf,c in context.items():
-        for stamp,level in (c['highs'] if sign==1 else c['lows']):
-            # A resistance already closed through is not an untouched future
-            # barrier. New confirmed pivots may establish that region again.
-            cleared=any(int(r[0])>stamp and sign*(float(r[4])-level)>0 for r in frames[tf])
-            if not cleared and sign*(level-trigger)>CONFIG['level_tolerance_atr5']*a5:
-                levels.append((sign*(level-trigger),level,tf,stamp))
-    levels.sort()
-    obstacle=levels[0][1] if levels else None
+    obstacle,obstacle_tf=first_obstacle(frames,direction,trigger,a5)
     out['obstacle']=obstacle
-    out['obstacle_timeframe']=levels[0][2] if levels else None
-    if obstacle is not None:
-        room=sign*(obstacle-max(price,trigger) if sign==1 else obstacle-min(price,trigger))
-        # Sign handles shorts; denominator is the actual current/conditional entry.
-        entry=max(price,trigger) if sign==1 else min(price,trigger)
-        room_pct=room/entry*100
-        out['room_pct']=room_pct
-        out['reference_reward_risk']=sign*(obstacle-entry)/abs(entry-stop)
-        if room_pct<=CONFIG['round_trip_cost_pct']:return reject('OBSTACLE_WITHIN_COST_ALLOWANCE')
-        if out['reference_reward_risk']<1:
-            out['warnings'].append('İlk engele kalan mesafe, fikrin bozulma mesafesinden kısa.')
-    else:
-        out['warnings'].append('Geçmiş mumlarda ileride belirgin bir engel bulunamadı; hedef belirsiz.')
-    if mid['direction']==opposing:return reject('SHORT_TERM_PULLBACK_NOT_FINISHED')
-    last,prev=frames['5m'][-1],frames['5m'][-2]
-    if sign*(float(last[4])-float(prev[4]))<=0 and sign*(float(last[4])-trigger)<=0:
-        return reject('NO_LOCAL_TURN_YET')
-    ready=sign*(float(last[4])-trigger)>0 and sign*(price-trigger)>=0
-    # A scan must not call a several-candle-old break a new entry opportunity.
-    if ready and all(sign*(float(r[4])-trigger)>0 for r in frames['5m'][-4:]):
-        return reject('OLD_BREAKOUT_WAIT_FOR_NEW_STRUCTURE')
+    out['obstacle_timeframe']=obstacle_tf
+    entry=max(price,trigger) if sign==1 else min(price,trigger)
+    g=geometry(direction,entry,stop,obstacle,CONFIG['round_trip_cost_pct'])
+    out['geometry']=g
+    out['room_pct']=g.get('gross_room_pct')
+    if obstacle is None:return reject('FIRST_OBSTACLE_UNKNOWN')
+    if not g['valid']:return reject('OBSTACLE_WITHIN_COST_ALLOWANCE')
+    out['reference_reward_risk']=g['gross_room_pct']/g['invalidation_pct']
+    if g['net_reward_risk']+1e-10<CONFIG['min_net_reward_risk']:
+        return reject('NET_REWARD_BELOW_STRUCTURAL_RISK')
+    ready=pattern['model_ready'] and sign*(price-trigger)>=0
     entry_limit=trigger+sign*CONFIG['chase_atr5']*a5
-    if obstacle is not None:
-        cost_limit=obstacle/(1+sign*CONFIG['round_trip_cost_pct']/100)
-        entry_limit=min(entry_limit,cost_limit) if sign==1 else max(entry_limit,cost_limit)
+    boundary=quality_limit(direction,stop,obstacle,CONFIG['round_trip_cost_pct'],
+                           CONFIG['min_net_reward_risk'])
+    entry_limit=min(entry_limit,boundary) if sign==1 else max(entry_limit,boundary)
     out.update(stage='READY' if ready else 'WATCH',reason='OK',entry_limit=entry_limit)
-    out['setup_key']=hashlib.sha256(json.dumps([STRATEGY_ID,symbol,direction,trigger,stop],
+    out['setup_key']=hashlib.sha256(json.dumps([STRATEGY_ID,symbol,direction,pattern['model'],pattern['model_anchor_ms'],trigger,stop],
                                               separators=(',',':')).encode()).hexdigest()
     return out
 
@@ -214,10 +212,12 @@ def support_notes(p):
     flow=s.get('taker_ratio')
     if flow is not None:
         aligned=flow>1 if side=='LONG' else flow<1
-        notes.append('Agresif işlem akışı grafik yönünü '+('destekliyor.' if aligned else 'henüz desteklemiyor.'))
+        notes.append('Agresif alış ve satış hacmi dengede.' if flow==1 else
+                     'Agresif işlem akışı grafik yönünü '+('destekliyor.' if aligned else 'henüz desteklemiyor.'))
     oi=s.get('oi_change_1h')
     if oi is not None:
-        notes.append('Açık pozisyon miktarı '+('artıyor; bu tek başına long/short ayrımı yapmaz.' if oi>0 else 'azalıyor; kapanan pozisyonlar hareketi etkiliyor olabilir.'))
+        notes.append('Açık pozisyon miktarı değişmedi.' if oi==0 else
+                     'Açık pozisyon miktarı '+('artıyor; bu tek başına long/short ayrımı yapmaz.' if oi>0 else 'azalıyor; kapanan pozisyonlar hareketi etkiliyor olabilir.'))
     ls=s.get('long_short_ratio');fund=s.get('funding_pct')
     if ls is not None and fund is not None:
         if ls>2 and fund>0:notes.append('LONG hesapları kalabalık ve taşıma oranı pozitif; ters hareket riski dikkate alınmalı.')
@@ -238,7 +238,8 @@ def message(p, stage=None):
         return f'{marker} {side} TAKİBİ TAMAMLANDI | {p["symbol"]}\n• {why}\n• Güncel fiyat: {p["price"]:.10g}'
     labels={'UP':'yukarı','DOWN':'aşağı','RANGE':'yatay / karışık'}
     ctx=p['context'];support=p.get('support') or {}
-    scenario='Ana hareket yönünde devam' if p['scenario']=='CONTINUATION' else '4 saatlik harekete karşı dönüş denemesi'
+    scenario={'PULLBACK_CONTINUATION':'Geri çekilme sonrası ana yöne dönüş',
+              'COMPRESSION_BREAKOUT':'Sıkışma bölgesinden ana yönde çıkış'}.get(p.get('model'),'Önceki sürüm takibi')
     rows=[f'{marker} {side} {title} | {p["symbol"]}',
           f'• Şu an fiyat: {p["price"]:.10g}',
           f'• Günlük: {labels[ctx["1d"]["direction"]]}',
@@ -249,10 +250,18 @@ def message(p, stage=None):
         rows.extend([f'• Giriş koşulu oluştu: 5 dk mum {p["trigger"]:.10g} {relation} kapandı.',
                      f'• Değerlendirilen giriş alanı: {lo:.10g}–{hi:.10g}'])
     else:
-        rows.append(f'• Beklenen: 5 dk mum {p["trigger"]:.10g} {relation} kapanmalı; giriş koşulu henüz yok.')
+        rows.append(f'• Beklenen: 5 dk mum {p["trigger"]:.10g} {relation} kapanmalı; fiyat giriş alanında kalmalı.')
     rows.append(f'• Fikir {p["stop"]:.10g} {"altında" if up else "üstünde"} bozulur.')
     if p.get('obstacle'):
         rows.append(f'• İlk {"direnç" if up else "destek"}: {p["obstacle"]:.10g}')
+    entry=p['price'] if stage=='READY' else p['trigger']
+    g=geometry(side,entry,p['stop'],p.get('obstacle'),CONFIG['round_trip_cost_pct'])
+    if g.get('valid'):
+        anchor='Güncel fiyattan' if stage=='READY' else 'İzlenen giriş seviyesinden'
+        rows.extend([f'• {anchor} ilk engele alan: %{g["gross_room_pct"]:.2f}.',
+                     f'• Bozulma mesafesi: %{g["invalidation_pct"]:.2f}.',
+                     f'• %{g["cost_assumption_pct"]:.2f} varsayımsal masraf sonrası alan: %{g["net_room_pct"]:.2f}.'])
+    if stage!='READY':rows.append('• Henüz giriş koşulu oluşmadı; yeni giriş mesajı beklenecek.')
     vol=p.get('volume_15m_multiple')
     if vol is not None:rows.append(f'• 15 dk işlem hacmi: yakın ortalamanın {vol:.2f} katı.')
     oi=support.get('oi_change_1h');taker=support.get('taker_ratio')

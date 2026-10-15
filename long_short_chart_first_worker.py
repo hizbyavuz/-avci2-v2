@@ -14,9 +14,12 @@ import time
 from collections import Counter
 from datetime import datetime, timezone
 
-from long_short_chart_first import CONFIG, CONFIG_HASH, STRATEGY_ID, VERSION, assess, enabled, message
+from long_short_chart_first import CONFIG, CONFIG_HASH, STRATEGY_ID, VERSION, assess, enabled, message, first_obstacle, daily_from_4h
+from long_short_chart_setups import geometry
+from long_short_chart_outcomes import outcome as outcome_v2
 
 STOP=threading.Event()
+LAST_REPORT_BUCKET=None
 VALID={'BINANCE_UM_FUTURES_WEBSOCKET','BINANCE_UM_FUTURES_ARCHIVE','BINANCE_UM_FUTURES_REST'}
 
 
@@ -38,6 +41,7 @@ def connect():
       CREATE INDEX IF NOT EXISTS episodes_symbol ON episodes(symbol,created_ms);
       CREATE TABLE IF NOT EXISTS outcomes(assessment_id INTEGER,horizon INTEGER,state TEXT,
         checked_ms INTEGER,payload TEXT,PRIMARY KEY(assessment_id,horizon));
+      CREATE INDEX IF NOT EXISTS assessments_time ON assessments(observed_ms);
       CREATE TABLE IF NOT EXISTS transitions(id INTEGER PRIMARY KEY,episode_id TEXT,observed_ms INTEGER,
         stage TEXT,price REAL,payload TEXT);
     ''')
@@ -87,7 +91,7 @@ def record(c,p):
         (key,p['observed_ms'],p['symbol'],p['direction'],p['stage'],p['reason'],p['price'],json.dumps(p,ensure_ascii=False)))
 
 
-def live_stage(p,price,last_close,closed_ms,now_ms):
+def live_stage(p,price,last_close,closed_ms,now_ms,previous_close=None):
     """Evaluate the immutable episode levels; never move the stop/obstacle."""
     sign=1 if p['direction']=='LONG' else -1
     if sign*(price-p['stop'])<=0:return 'BROKEN'
@@ -95,7 +99,11 @@ def live_stage(p,price,last_close,closed_ms,now_ms):
     if now_ms-p['created_ms']>=CONFIG['horizon_minutes']*60000:return 'EXPIRED'
     if p['stage']=='READY':return 'READY'
     if sign*(price-p['entry_limit'])>0:return 'EXPIRED'
+    g=geometry(p['direction'],price,p['stop'],p.get('obstacle'),CONFIG['round_trip_cost_pct'])
+    if p.get('version')==VERSION and (not g['valid'] or g['net_reward_risk']+1e-10<CONFIG['min_net_reward_risk']):
+        return 'EXPIRED'
     if (sign*(last_close-p['trigger'])>0 and sign*(price-p['trigger'])>=0
+            and (previous_close is None or sign*(previous_close-p['trigger'])<=0)
             and 250<=now_ms-closed_ms<=75000):
         if p.get('obstacle') and sign*(p['obstacle']-price)/price*100<=CONFIG['round_trip_cost_pct']:
             return 'EXPIRED'
@@ -131,26 +139,65 @@ def path_outcome(p,bars,start,horizon):
 
 
 def resolve(c,kdb,now_ms):
-    rows=c.execute('''SELECT a.* FROM assessments a WHERE observed_ms<? AND
-      (SELECT count(*) FROM outcomes o WHERE o.assessment_id=a.id AND o.state='RESOLVED')<3
-      ORDER BY COALESCE((SELECT MAX(checked_ms) FROM outcomes WHERE assessment_id=a.id),0),a.id LIMIT 90''',
-      (now_ms-16*60000,)).fetchall()
+    # Select only due horizons. Already measured 15m cases must not starve
+    # newer records while waiting for their 60m/180m horizons.
+    rows=c.execute("""WITH horizons(h) AS (VALUES(15),(60),(180))
+      SELECT a.* FROM assessments a WHERE EXISTS (
+        SELECT 1 FROM horizons h LEFT JOIN outcomes o
+          ON o.assessment_id=a.id AND o.horizon=h.h
+        WHERE a.observed_ms+(h.h+1)*60000<=? AND
+          (o.assessment_id IS NULL OR (o.state NOT IN ('RESOLVED','UNRESOLVED_BOUNDARY')
+                                      AND o.checked_ms<?)))
+      ORDER BY (a.stage='DELIVERED_READY') DESC,a.id LIMIT 90""",
+      (now_ms,now_ms-3600000)).fetchall()
     for row in rows:
-        p=json.loads(row['payload']);start=(row['observed_ms']//60000+1)*60000
+        p=json.loads(row['payload'])
+        modern=p.get('version')==VERSION
+        start=(row['observed_ms']//60000+(0 if modern else 1))*60000
         for horizon in (15,60,180):
-            if now_ms<start+horizon*60000:continue
+            end=((row['observed_ms']+horizon*60000+59999)//60000)*60000 if modern else start+horizon*60000
+            if now_ms<end:continue
             old=c.execute('SELECT state,checked_ms FROM outcomes WHERE assessment_id=? AND horizon=?',(row['id'],horizon)).fetchone()
-            if old and (old['state']=='RESOLVED' or now_ms-old['checked_ms']<3600000):continue
+            if old and (old['state'] in ('RESOLVED','UNRESOLVED_BOUNDARY') or now_ms-old['checked_ms']<3600000):continue
             try:
-                bars=kdb.execute('''SELECT open_ms,open,high,low,close,volume,close_ms FROM futures_closed_klines
-                  WHERE symbol=? AND interval='1m' AND open_ms>=? AND open_ms<? AND source IN (?,?,?) ORDER BY open_ms''',
-                  (row['symbol'],start,start+horizon*60000,*sorted(VALID))).fetchall()
-                outcome=path_outcome(p,bars,start,horizon);state='RESOLVED'
+                bars=kdb.execute("""SELECT open_ms,open,high,low,close,volume,close_ms FROM futures_closed_klines
+                  WHERE symbol=? AND interval='1m' AND open_ms>=? AND open_ms<? AND source IN (?,?,?) ORDER BY open_ms""",
+                  (row['symbol'],start,end,*sorted(VALID))).fetchall()
+                result=outcome_v2(p,bars,horizon,CONFIG['round_trip_cost_pct']) if modern else path_outcome(p,bars,start,horizon)
+                state=result.get('first_barrier_status','RESOLVED')
             except (ValueError,TypeError,KeyError) as exc:
-                state='UNRESOLVED';outcome={'reason':str(exc)[:160]}
+                state='UNRESOLVED';result={'reason':str(exc)[:160]}
             c.execute('INSERT OR REPLACE INTO outcomes VALUES(?,?,?,?,?)',
-                (row['id'],horizon,state,now_ms,json.dumps(outcome)))
+                (row['id'],horizon,state,now_ms,json.dumps(result)))
     c.commit()
+
+
+def report(c,now_ms):
+    global LAST_REPORT_BUCKET
+    if LAST_REPORT_BUCKET==now_ms//300000:return
+    LAST_REPORT_BUCKET=now_ms//300000
+    groups={}
+    for r in c.execute("""SELECT a.direction,a.stage,a.payload,o.horizon,o.state,o.payload
+      FROM assessments a JOIN outcomes o ON a.id=o.assessment_id
+      WHERE a.observed_ms>=? AND json_extract(a.payload,'$.strategy_id')=?""",
+      (now_ms-86400000,STRATEGY_ID)):
+        p=json.loads(r[2]);v=json.loads(r[5])
+        key=(p.get('model','UNCLASSIFIED'),r[0],r[1],r[3])
+        g=groups.setdefault(key,dict(model=key[0],side=r[0],stage=r[1],horizon=r[3],
+                                    count=0,unresolved=0,net=[]))
+        g['count']+=1
+        g['unresolved']+=int(r[4]!='RESOLVED')
+        if r[4]=='RESOLVED' and v.get('model_net_return_pct') is not None:
+            g['net'].append(v['model_net_return_pct'])
+    output=[]
+    for g in groups.values():
+        vals=g.pop('net');n=len(vals);wins=sum(v>0 for v in vals)
+        positive=sum(max(0,v) for v in vals);negative=-sum(min(0,v) for v in vals)
+        g.update(model_trades=n,positive= wins,mean_net_pct=sum(vals)/n if n else None,
+                 profit_factor=positive/negative if negative else None)
+        output.append(g)
+    print('CHART_FIRST_OUTCOMES '+json.dumps(dict(version=VERSION,strategy_id=STRATEGY_ID,
+        window_hours=24,scope='ASSUMED_COST_REFERENCE_MODEL_NOT_USER_PNL',groups=output)),flush=True)
 
 
 def advance(c,kdb,decisions,now_ms,publisher,token,chat):
@@ -159,25 +206,41 @@ def advance(c,kdb,decisions,now_ms,publisher,token,chat):
         now_ms=max(now_ms,int(time.time()*1000))
         p=json.loads(row['payload']);price=quote(kdb,row['symbol'],now_ms)
         if price is None:continue
-        latest=kdb.execute("SELECT close,close_ms FROM futures_closed_klines WHERE symbol=? AND interval='5m' ORDER BY open_ms DESC LIMIT 1",(row['symbol'],)).fetchone()
-        if not latest:continue
+        latest_rows=kdb.execute("SELECT close,close_ms FROM futures_closed_klines WHERE symbol=? AND interval='5m' ORDER BY open_ms DESC LIMIT 2",(row['symbol'],)).fetchall()
+        if not latest_rows:continue
+        latest=latest_rows[0]
+        previous_close=float(latest_rows[1][0]) if len(latest_rows)>1 else None
         evaluation=dict(p,stage='WATCH') if row['stage']=='READY' and row['delivery_stage']!='READY' else p
-        stage=live_stage(evaluation,price,float(latest[0]),int(latest[1]),now_ms)
+        stage=live_stage(evaluation,price,float(latest[0]),int(latest[1]),now_ms,previous_close)
         if p.get('strategy_id')!=STRATEGY_ID:stage='EXPIRED'
         decision=decisions.get(row['symbol'])
         if stage in ('WATCH','READY') and decision:
             if decision['direction'] not in (p['direction'],'NONE'):stage='EXPIRED'
-            if stage=='READY' and row['delivery_stage']!='READY' and decision['stage']=='REJECTED':stage='WATCH'
-            if decision['stage'] in ('WATCH','READY') and decision['direction']==p['direction']:
+            if stage=='READY' and row['delivery_stage']!='READY':
+                ctx=decision.get('context',{})
+                desired='UP' if p['direction']=='LONG' else 'DOWN'
+                opposite='DOWN' if desired=='UP' else 'UP'
+                if (not ctx or ctx.get('1h',{}).get('direction')!=desired or
+                        ctx.get('4h',{}).get('direction')==opposite or
+                        decision['reason'].startswith(('CHART_','DAILY_','VERIFIED_','LIQUIDITY_','FRESH_'))):
+                    stage='WATCH'
+                else:
+                    near=decision.get('active_plan_obstacle',decision.get('obstacle'))
+                    sign=1 if p['direction']=='LONG' else -1
+                    if near is not None and p.get('obstacle') is not None and sign*(near-p['obstacle'])<0:stage='EXPIRED'
+            if decision['reason']=='COUNTERTREND_OBSERVATION_ONLY' and row['delivery_stage']!='READY':stage='EXPIRED'
+            if decision.get('context') and decision['direction']==p['direction']:
                 # Levels stay locked; context/support on a new READY message
                 # must describe the current scan, not the earlier watch snapshot.
-                for key in ('context','support','scenario','volume_5m_multiple','volume_15m_multiple'):
+                for key in ('context','support','warnings','volume_5m_multiple','volume_15m_multiple'):
                     if key in decision:p[key]=decision[key]
             if decision['reason'] and (decision['reason'].startswith(('CHART_','DAILY_','VERIFIED_'))):
                 # Missing chart data cannot be treated as a fresh confirmation.
                 if stage=='READY' and row['stage']=='WATCH':stage='WATCH'
                 if now_ms-int(latest[1])>600000:stage='EXPIRED'
+        if stage=='READY' and row['delivery_stage']!='READY' and decision is None:stage='WATCH'
         p.update(stage=stage,price=price,observed_ms=now_ms)
+        p['geometry']=geometry(p['direction'],price,p['stop'],p.get('obstacle'),CONFIG['round_trip_cost_pct'])
         if stage!=row['stage']:
             changes+=1
             if stage=='READY':p.update(ready_ms=now_ms,ready_price=price)
@@ -202,8 +265,14 @@ def advance(c,kdb,decisions,now_ms,publisher,token,chat):
                 if receipt['status']=='ACK' and stage in ('WATCH','READY'):
                     accepted_ms=int(time.time()*1000)
                     accepted_price=quote(kdb,row['symbol'],accepted_ms)
-                    record(c,dict(p,observed_ms=accepted_ms,price=accepted_price,
-                                  stage='DELIVERED_'+stage,reason='TELEGRAM_ACK',episode_id=row['id']))
+                    delivered=dict(p,observed_ms=accepted_ms,price=accepted_price,
+                                   stage='DELIVERED_'+stage,reason='TELEGRAM_ACK',episode_id=row['id'])
+                    if accepted_price is not None:
+                        delivered['geometry']=geometry(p['direction'],accepted_price,p['stop'],p.get('obstacle'),CONFIG['round_trip_cost_pct'])
+                    record(c,delivered)
+                    print('CHART_FIRST_DELIVERY '+json.dumps({k:delivered.get(k) for k in
+                        ('version','strategy_id','episode_id','symbol','direction','model','stage',
+                         'observed_ms','price','trigger','stop','obstacle','entry_limit','geometry')},ensure_ascii=False),flush=True)
         if stage not in ('WATCH','READY'):
             c.execute('UPDATE episodes SET ended_ms=? WHERE id=?',(now_ms,row['id']))
         c.commit()
@@ -219,13 +288,18 @@ def scan():
     path=os.path.join(root(),'binance_futures_kline_shadow.db')
     c=connect();kdb=sqlite3.connect('file:'+os.path.abspath(path)+'?mode=ro',uri=True,timeout=5)
     decisions={};counts=Counter()
+    active={r['symbol']:json.loads(r['payload']) for r in c.execute('SELECT symbol,payload FROM episodes WHERE ended_ms IS NULL')}
     try:
         for symbol,qv,_,_ in universe:
             stamp=int(time.time()*1000);price=quote(kdb,symbol,stamp)
             try:
                 frames=candles(kdb,symbol)
                 p=assess(symbol,frames,price,qv,stamp)
-                if p['stage'] in ('WATCH','READY'):
+                old=active.get(symbol)
+                if old and p.get('context') and '1d' in p['context']:
+                    all_frames=dict(frames,**{'1d':daily_from_4h(frames['4h'])})
+                    p['active_plan_obstacle']=first_obstacle(all_frames,old['direction'],old['trigger'],old['atr5'])[0]
+                if p['stage'] in ('WATCH','READY') or old and p.get('context'):
                     # Cached validated fields only: no serial REST refresh can
                     # stall entry timing; the existing collector refreshes them.
                     try:
@@ -250,7 +324,8 @@ def scan():
             now_ms=int(time.time()*1000)
             if created+already_created>=CONFIG['max_initial_notices_per_cycle']:break
             recent=c.execute('SELECT * FROM episodes WHERE symbol=? ORDER BY created_ms DESC LIMIT 1',(p['symbol'],)).fetchone()
-            if recent and (recent['ended_ms'] is None or now_ms-recent['created_ms']<CONFIG['cooldown_ms']):continue
+            same_version=recent and json.loads(recent['payload']).get('strategy_id')==STRATEGY_ID
+            if recent and (recent['ended_ms'] is None or same_version and now_ms-recent['created_ms']<CONFIG['cooldown_ms']):continue
             # Revalidate price immediately, after any prior API delivery waits.
             fresh=quote(kdb,p['symbol'],now_ms)
             if fresh is None:continue
@@ -266,13 +341,14 @@ def scan():
             c.commit();created+=1
         extra,_=advance(c,kdb,decisions,int(time.time()*1000),publish,token,chat) if enabled() else (0,0)
         resolve(c,kdb,int(time.time()*1000))
+        report(c,int(time.time()*1000))
         print('CHART_FIRST_SUMMARY '+json.dumps(dict(version=VERSION,config_hash=CONFIG_HASH,strategy_id=STRATEGY_ID,
             checked=len(decisions),directions=dict(Counter(p['direction'] for p in decisions.values())),
             stages=dict(Counter(p['stage'] for p in decisions.values())),reasons=dict(counts),
             eligible=[dict(symbol=p['symbol'],side=p['direction'],stage=p['stage'],scenario=p.get('scenario'),
                 daily=p['context']['1d']['direction'],four_hour=p['context']['4h']['direction'],hour=p['context']['1h']['direction'],
                 price=p['price'],trigger=p['trigger'],invalidation=p['stop'],obstacle=p.get('obstacle'),entry_limit=p['entry_limit'],
-                daily_bars=p['context']['1d']['bars']) for p in eligible],
+                daily_bars=p['context']['1d']['bars'],model=p.get('model'),geometry=p.get('geometry')) for p in eligible],
             created=created,delivered=sent+extra,primary_enabled=enabled(),automatic_orders=False)),flush=True)
     finally:
         kdb.close();c.close()

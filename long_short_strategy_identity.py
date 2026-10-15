@@ -7,7 +7,7 @@ import os
 from functools import lru_cache
 from pathlib import Path
 
-VERSION='LS_CHART_FIRST_MULTIFRAME_V6_2026_10_15'
+VERSION='LS_CHART_TWO_SETUPS_V7_2026_10_15'
 
 
 @lru_cache(maxsize=1)

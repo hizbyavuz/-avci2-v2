@@ -25,9 +25,15 @@ def sample(short=False):
             op=closes[i-1] if i else cl;start=end-(n-i)*period
             rows.append([start,op,max(op,cl)+.08,min(op,cl)-.08,cl,100,start+period-1])
         frames[tf]=rows
-    high=pivots(frames['5m'])[0][-1][1]
-    r=frames['5m'][-1];r[4]=high+.03;r[2]=max(r[1],r[4])+.03;r[3]=min(r[1],r[4])-.03
-    price=high+.04
+    # A six-candle compression and fresh close through its top. The prior
+    # larger-timeframe swings are far enough away for a cost-adjusted plan.
+    for tf,delta in [('15m',10),('1h',20)]:
+        for r in frames[tf]:
+            for j in (1,2,3,4):r[j]+=delta
+    for i,r in enumerate(frames['5m'][-7:-1]):
+        r[1:5]=[100.48,100.60,100.40,100.49 if i%2 else 100.47]
+    r=frames['5m'][-1];r[1:5]=[100.49,100.68,100.46,100.63]
+    price=100.64
     if short:
         frames={tf:[[r[0],200-r[1],200-r[3],200-r[2],200-r[4],r[5],r[6]] for r in rows]
                 for tf,rows in frames.items()}
@@ -94,7 +100,7 @@ class ChartFirstTests(unittest.TestCase):
         frames,price=sample()
         opposite,_=sample(True);frames['4h']=opposite['4h']
         p=assess('XUSDT',frames,price,50e6,NOW)
-        self.assertEqual(p['reason'],'COUNTERTREND_WITHOUT_HOURLY_BREAK')
+        self.assertEqual(p['reason'],'COUNTERTREND_OBSERVATION_ONLY')
 
     def test_displayed_entry_region_still_has_room_for_costs(self):
         for short in (False,True):
