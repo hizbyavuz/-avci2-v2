@@ -104,6 +104,8 @@ def record_analysis(a,partial=False,now_ms=None):
     eligible=bool(d.get('direction') in ('LONG','SHORT') and p.get('actionable_liquidity_ok')
         and (p.get('structure_gate') or {}).get('qualified_precheck') and float((p.get('t15') or {}).get('atr_pct',99))<4)
     data={'research_only':True,'missing':missing,'eligible_observation':eligible,
+        'strategy_identity':p.get('strategy_identity'),
+        'analyst_status':getattr(a,'status',None),
         'stage':'DIRECTION_AND_STRUCTURE_PRECHECK_NOT_ENTRY_CONFIRMATION',
         'btc_regime':p.get('market_regime'),'quote_volume_24h':p.get('quote_volume_24h'),
         'long_score':a.long_score,'short_score':a.short_score,'direction_engine':d,
@@ -165,6 +167,10 @@ def resolve(now_ms=None):
             'open_data_blocks':c.execute('SELECT count(*) FROM episodes WHERE recovered_ms IS NULL').fetchone()[0],
             'research_only':True,'version':VERSION}),flush=True)
     c.close()
+
+    # Separate audit: never promotes observations into production signals.
+    from long_short_rejection_audit import resolve as resolve_rejections
+    resolve_rejections(now_ms=now_ms)
 
 def main():
     stop=threading.Event()
