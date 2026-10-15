@@ -2194,13 +2194,13 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None, *, _partia
 
     structure_gate=build_structure_gate(preferred_direction,price,setup_plan,k5,k15,k30,k1h,k4h)
     from long_short_structural_plan_v3 import enabled as structural_v3_enabled
-    from long_short_structural_plan_v6 import from_candles
+    from long_short_structural_plan_v7 import from_candles
     if native_v2_enabled() and structural_v3_enabled():
         setup_plan,structure_gate=from_candles(setup_plan,structure_gate,
             [(k5,'5m',.75),(k15,'15m',1),(k30,'30m',1.35),(k1h,'1h',1.75),(k4h,'4h',2.25)],
             price,_timeframe_zones,structure_min_round_trip_cost_pct(),
             STRUCTURE_MIN_NET_T1_R,structure_required_room_pct())
-        print('STRUCTURAL_PLAN_V6',json.dumps({'symbol':symbol,
+        print('STRUCTURAL_PLAN_V7',json.dumps({'symbol':symbol,
             'direction':preferred_direction,'qualified':structure_gate['qualified_precheck'],
             'evidence':structure_gate['structural_plan_v3'],
             'comparison':structure_gate['geometry_comparison']},ensure_ascii=False),flush=True)
@@ -2894,6 +2894,20 @@ def send_telegram(msg):
     print("TELEGRAM_DELIVERY_CONFIRMED", "chat_id_present="+str(bool(chat)), flush=True)
 
 
+def discovery_universe():
+    # The full eligible universe already has local native candles. Rotate the
+    # expensive deep analysis, not the cheap readiness check: a 30-coin window
+    # can delay a newly forming setup by several five-minute scan cycles.
+    if (native_v2_enabled() and os.getenv('LS_BINANCE_FUTURES_ONLY','0')=='1'
+            and os.getenv('LS_NATIVE_BROAD_PREFILTER_V1','1')=='1'):
+        rows=native_futures_websocket_universe(all_eligible=True)
+        print('NATIVE_BROAD_PREFILTER '+json.dumps({'version':'NATIVE_BROAD_PREFILTER_V1_2026_10_15',
+            'eligible':len(rows),'candles':'LOCAL_VERIFIED_ONLY','deep_cap':PRESELECT_MAX,
+            'direction_override':False}),flush=True)
+        return rows
+    return universe()
+
+
 def main():
     started=time.time()
     init_db()
@@ -2904,7 +2918,7 @@ def main():
     except (RuntimeError, ValueError, KeyError, IndexError, TypeError) as exc:
         print("DATA_NOT_READY BTC_REGIME " + type(exc).__name__, flush=True)
         return 2  # fail closed: never infer a BTC regime from missing candles
-    uni=universe()
+    uni=discovery_universe()
 
     # Stage 1: cheap broad scan. Keep Binance coverage wide without doing
     # expensive derivatives/HTF calls for every symbol.

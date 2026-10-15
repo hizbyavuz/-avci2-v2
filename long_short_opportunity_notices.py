@@ -87,6 +87,7 @@ def message(symbol,p,decision,observed_ms):
         f"• Fikir {decision['stop']:.10g} {('altında' if up else 'üstünde')} bozulur.",
         '',
         'NE BEKLENİYOR?',
+        f"• 5 dk mum {decision['trigger']:.10g} {'üstünde' if up else 'altında'} kapanmalı.",
         '• '+expected,
         '• Giriş onaylanırsa ayrı bildirim gelecek.',
         '',
