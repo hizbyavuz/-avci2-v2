@@ -177,6 +177,9 @@ def refresh_order(requested, urgent, observed, now_ms, retry_after=None, limit=9
 
 
 def demand(analyst):
+    from long_short_runtime_profile import enabled as lean_enabled, demand as chart_demand
+    if lean_enabled():
+        return chart_demand()
     from long_short_futures_kline_shadow import requested_symbols,live_watch_symbols
     from long_short_analyst import native_futures_websocket_universe
     current=[r[0] for r in native_futures_websocket_universe(quiet=True)]

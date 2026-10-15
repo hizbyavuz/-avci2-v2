@@ -6,6 +6,7 @@ bounded backoff, and never changes production signals or historical DBs.
 import json
 import os
 import signal
+import sqlite3
 import threading
 import time
 from pathlib import Path
@@ -26,7 +27,14 @@ def main():
     analyst=os.getenv("LS_ANALYST_DB") or str(root/"long_short_analyst.db")
     backoff=5
     while not STOP.is_set():
-        symbols=choose_symbols("",analyst_db=analyst,limit=24)
+        from long_short_runtime_profile import enabled as lean_enabled, demand as chart_demand
+        try:
+            symbols=(chart_demand(24)[0] if lean_enabled() else
+                     choose_symbols("",analyst_db=analyst,limit=24))
+        except (sqlite3.Error, OSError, RuntimeError, ValueError) as exc:
+            print('BINANCE_TAKER_DEMAND_UNAVAILABLE '+type(exc).__name__, flush=True)
+            STOP.wait(5)
+            continue
         result=collect(db,symbols,STOP,rotation_seconds=3600)
         print("BINANCE_TAKER_SHADOW "+json.dumps(result),flush=True)
         if result.get("state")=="ROTATE":

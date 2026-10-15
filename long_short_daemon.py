@@ -324,6 +324,7 @@ def heartbeat_loop(sd: Path) -> None:
         with STATUS_LOCK:
             snapshot = {
                 "version": "LONG_SHORT_DAEMON_V1_2026-10-06",
+                "runtime_profile": os.getenv('LS_RUNTIME_PROFILE', 'legacy'),
                 "time_utc": now_iso(),
                 "telegram_configured": bool((os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()),
                 "telegram_chat_configured": bool((os.getenv("TELEGRAM_CHAT_ID") or "").strip()),
@@ -343,6 +344,56 @@ def heartbeat_loop(sd: Path) -> None:
 def handle_signal(signum, _frame) -> None:
     print(f"[daemon] signal={signum}; shutting down", flush=True)
     STOP.set()
+
+
+def lean_maintenance() -> None:
+    """Retire legacy files once; serialize archive and backup I/O thereafter."""
+    run_child('legacy_archive', 'long_short_legacy_archive.py')
+    while not STOP.is_set():
+        run_child('storage_audit', 'long_short_storage_audit.py')
+        if os.getenv('LS_BACKUP_BUCKET'):
+            run_child('backup_inventory', 'long_short_backup_inventory.py')
+            rc = run_child('daily_backup', 'long_short_daily_backup.py')
+            if rc == 0:
+                run_child('backup_retention', 'long_short_backup_retention.py')
+                run_child('remote_archive_compact', 'long_short_remote_archive_compact.py')
+                run_child('backup_inventory_after_cleanup', 'long_short_backup_inventory.py')
+            elif STOP.wait(3600):
+                return
+            else:
+                continue
+        if STOP.wait(BACKUP_INTERVAL): return
+
+
+def lean_health(sd: Path) -> None:
+    from long_short_runtime_profile import health
+    while not STOP.wait(120):
+        try:
+            report = health(sd)
+            (sd/'long_short_data_health.json').write_text(json.dumps(report))
+            print('CHART_RUNTIME_HEALTH '+json.dumps(report), flush=True)
+        except Exception as exc:
+            print('CHART_RUNTIME_HEALTH_ERROR '+type(exc).__name__, flush=True)
+
+
+def run_chart_runtime(sd: Path) -> int:
+    from long_short_runtime_profile import PROFILE, WORKERS, RETIRED
+    os.environ.update(LS_RUNTIME_PROFILE=PROFILE, LS_EARLY_BREAKOUT_V1_ENABLED='0',
+        LS_DATA_OPPORTUNITY_V2='0', LS_BINANCE_DERIVATIVE_AUDIT_ENABLED='0',
+        LS_V4_RECLAIM_ENABLED='1', LS_STORAGE_DEEP_AUDIT='0')
+    if not os.getenv('LS_FUTURES_HISTORY_RELAY_URL'):
+        raise RuntimeError('Chart runtime requires the existing native history relay')
+    print('CHART_RUNTIME_PLAN '+json.dumps(dict(profile=PROFILE,
+        workers=[name for name, _ in WORKERS], retired=RETIRED)), flush=True)
+    threads = [threading.Thread(target=watcher_loop, args=(name, script),
+                               name=name, daemon=True) for name, script in WORKERS]
+    threads += [threading.Thread(target=heartbeat_loop, args=(sd,), daemon=True),
+                threading.Thread(target=lean_health, args=(sd,), daemon=True),
+                threading.Thread(target=lean_maintenance, daemon=True)]
+    for t in threads: t.start()
+    while not STOP.wait(2): pass
+    for t in threads: t.join(timeout=20)
+    return 0
 
 
 def main() -> int:
@@ -379,6 +430,10 @@ def main() -> int:
                 print("[daemon] TELEGRAM_CHAT_UNRESOLVED_AT_BOOT", flush=True)
         except Exception as exc:
             print("[daemon] TELEGRAM_CHAT_RESOLUTION_ERROR", type(exc).__name__, flush=True)
+
+    from long_short_runtime_profile import enabled as lean_enabled
+    if lean_enabled():
+        return run_chart_runtime(sd)
 
     # One-shot read-only Coinalyze connectivity check; never blocks trading loops.
     # Prints only market identity, freshness and whether values are available.

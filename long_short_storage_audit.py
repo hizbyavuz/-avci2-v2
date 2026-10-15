@@ -8,12 +8,15 @@ import shutil
 import sqlite3
 from pathlib import Path
 
-def inspect(root):
+def inspect(root, deep=True):
     usage=shutil.disk_usage(root)
     out={"volume":str(root),"disk_total_bytes":usage.total,
          "disk_used_bytes":usage.used,"disk_free_bytes":usage.free,
          "disk_used_pct":round(100*usage.used/usage.total,2) if usage.total else None,
          "files":[]}
+    archive=root/'legacy-archive'
+    if archive.is_dir():
+        out['legacy_archive_bytes']=sum(p.stat().st_size for p in archive.iterdir() if p.is_file())
     for path in sorted(root.iterdir()):
         if not path.is_file():
             continue
@@ -32,11 +35,12 @@ def inspect(root):
                     free=db.execute("PRAGMA freelist_count").fetchone()[0]
                     row["sqlite_free_bytes"]=free*page_size
                     row["sqlite_pages_bytes"]=pages*page_size
-                    try:
-                        row["largest_tables"]=[{"table":name,"bytes":amount} for name,amount in
-                            db.execute("SELECT name,sum(pgsize) FROM dbstat GROUP BY name ORDER BY sum(pgsize) DESC LIMIT 8")]
-                    except sqlite3.Error:
-                        row["largest_tables"]="dbstat_unavailable"
+                    if deep:
+                        try:
+                            row["largest_tables"]=[{"table":name,"bytes":amount} for name,amount in
+                                db.execute("SELECT name,sum(pgsize) FROM dbstat GROUP BY name ORDER BY sum(pgsize) DESC LIMIT 8")]
+                        except sqlite3.Error:
+                            row["largest_tables"]="dbstat_unavailable"
             except (sqlite3.Error,OSError) as exc:
                 row["inspection_error"]=type(exc).__name__
         out["files"].append(row)
@@ -47,4 +51,4 @@ if __name__=="__main__":
     root=Path(os.getenv("LS_STATE_DIR") or os.getenv("RAILWAY_VOLUME_MOUNT_PATH") or ".long-short-state")
     if not root.is_dir():
         raise SystemExit("state directory missing")
-    print("LS_STORAGE_AUDIT "+json.dumps(inspect(root),separators=(",",":")),flush=True)
+    print("LS_STORAGE_AUDIT "+json.dumps(inspect(root,deep=os.getenv('LS_STORAGE_DEEP_AUDIT','1')=='1'),separators=(",",":")),flush=True)

@@ -9,6 +9,10 @@ def main():
     state=Path(os.getenv("LS_STATE_DIR") or os.getenv("RAILWAY_VOLUME_MOUNT_PATH") or ".long-short-state")
     bucket=os.environ["LS_BACKUP_BUCKET"]
     client=boto3.client("s3",endpoint_url=os.environ["LS_BACKUP_ENDPOINT"],aws_access_key_id=os.environ["LS_BACKUP_ACCESS_KEY_ID"],aws_secret_access_key=os.environ["LS_BACKUP_SECRET_ACCESS_KEY"],region_name=os.getenv("LS_BACKUP_REGION","auto"),config=Config(s3={"addressing_style":"virtual"}))
+    from long_short_runtime_profile import enabled as lean_enabled
+    if lean_enabled():
+        from long_short_compact_backup import run
+        return run(client, bucket, state)
     day=datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d")
     timestamp=datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     # Do not create repeated full snapshots on the same UTC day.

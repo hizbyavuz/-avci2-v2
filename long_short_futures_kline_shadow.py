@@ -625,6 +625,9 @@ def requested_symbols(analyst_db):
     Use the analyst's exact eligibility filters and rotation, not a second
     universe. All collectors share this bounded request list.
     """
+    from long_short_runtime_profile import enabled as lean_enabled, demand as chart_demand
+    if lean_enabled():
+        return chart_demand(MAX_SYMBOLS)[0]
     from long_short_v4_native_pipeline import choose_symbols
     forecast = []
     current = []

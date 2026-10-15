@@ -33,6 +33,15 @@ def main():
     selected=None
     for key in manifests[:8]:
         manifest=json.loads(client.get_object(Bucket=bucket,Key=key)["Body"].read())
+        if manifest.get('schema') == 2:
+            from long_short_compact_backup import valid_manifest
+            try:
+                if valid_manifest(client, bucket, key, manifest):
+                    selected=(key, manifest)
+                    break
+            except Exception:
+                pass
+            continue
         databases=manifest.get("databases",[])
         if len(databases)<15:
             continue
@@ -53,6 +62,7 @@ def main():
     key,manifest=selected
     cutoff=datetime.datetime.now(datetime.timezone.utc)-datetime.timedelta(hours=24)
     protected={key}|{d["key"] for d in manifest["databases"]}
+    protected.update(d['key'] for d in manifest.get('archives', []))
     expired=expired_objects(objects,manifests,key,protected,cutoff)
     count=0
     for i in range(0,len(expired),1000):
