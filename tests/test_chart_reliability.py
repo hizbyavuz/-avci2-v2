@@ -12,7 +12,7 @@ import test_chart_lifecycle as lifecycle
 import long_short_chart_first as chart
 from long_short_chart_first_worker import connect, record, resolve, advance
 from long_short_chart_dispatch_audit import admission_reason, note
-from long_short_chart_reliability import summarize, build, stats
+from long_short_chart_reliability import summarize, build, stats, rejection_review
 
 
 class ReliabilityTests(unittest.TestCase):
@@ -125,6 +125,28 @@ class ReliabilityTests(unittest.TestCase):
     def test_reference_stats_no_losses_not_infinite_profit_factor(self):
         self.assertIsNone(stats([1,2])['profit_factor'])
         self.assertEqual(stats([1,-2])['profit_factor'],.5)
+
+    def test_rejection_review_measures_without_outcome_queue_or_lookahead_selection(self):
+        with tempfile.TemporaryDirectory() as root,patch.dict(os.environ,{'LS_STATE_DIR':root}):
+            c=connect();k=sqlite3.connect(root+'/binance_futures_kline_shadow.db')
+            k.execute('CREATE TABLE futures_closed_klines(symbol,interval,open_ms,open,high,low,close,volume,close_ms,source)')
+            for symbol,side in [('A','LONG'),('B','SHORT')]:
+                record(c,dict(strategy_id=chart.STRATEGY_ID,symbol=symbol,observed_ms=60000,
+                    price=100,direction=side,stage='REJECTED',reason='NO_DEFINED_SETUP'))
+                for i in range(1,16):
+                    k.execute('INSERT INTO futures_closed_klines VALUES(?,?,?,?,?,?,?,?,?,?)',
+                        (symbol,'1m',i*60000,100,102,99,101,1,i*60000+59999,'BINANCE_UM_FUTURES_WEBSOCKET'))
+            c.commit();k.commit()
+            r=rejection_review(c,root,1200000)
+            self.assertEqual(r['measured'],2);self.assertEqual(r['missing'],0)
+            self.assertAlmostEqual(r['groups'][0]['raw_directional_endpoint']['mean_pct'],0)
+            self.assertEqual(r['examples_best'][0]['symbol'],'A')
+            self.assertEqual(r['examples_worst'][0]['symbol'],'B')
+            self.assertEqual(c.execute('SELECT COUNT(*) FROM outcomes').fetchone()[0],0)
+            k.execute("DELETE FROM futures_closed_klines WHERE symbol='B' AND open_ms=60000");k.commit()
+            self.assertEqual(rejection_review(c,root,1200000)['missing'],1)
+            self.assertEqual(rejection_review(c,root,900000)['observations'],0)
+            k.close();c.close()
 
 
 if __name__=='__main__':unittest.main()

@@ -92,6 +92,57 @@ def summarize(rows, now_ms):
     return dict(groups=result,deduplicated_rows=duplicates,edge_proven=False)
 
 
+def rejection_review(c, root, now_ms):
+    """Fresh bounded diagnostic independent of the historical outcome backlog.
+
+    Every selection is made from saved ex-ante decisions, ordered by time.
+    Raw endpoint movement does not establish an executable missed opportunity.
+    """
+    from long_short_chart_first import STRATEGY_ID
+    from long_short_chart_outcomes import outcome
+    path=Path(root)/'binance_futures_kline_shadow.db'
+    if not path.is_file():return dict(status='NATIVE_PATH_UNAVAILABLE')
+    rows=c.execute('''SELECT * FROM assessments WHERE observed_ms>=? AND observed_ms<=?
+        AND stage='REJECTED' AND direction IN ('LONG','SHORT')
+        AND json_extract(payload,'$.strategy_id')=? ORDER BY observed_ms,id LIMIT 601''',
+        (now_ms-3600000,now_ms-16*60000,STRATEGY_ID)).fetchall()
+    k=sqlite3.connect(f'file:{path.resolve()}?mode=ro',uri=True,timeout=3)
+    groups={};seen=set();examples=[];missing=0
+    try:
+        for r in rows[:600]:
+            p=json.loads(r['payload']);key=(r['symbol'],r['observed_ms']//900000,r['direction'],r['reason'])
+            if key in seen:continue
+            seen.add(key)
+            if not finite(p.get('price')) or p['price']<=0:continue
+            g=groups.setdefault(r['reason'],dict(reason=r['reason'],observations=0,missing=0,values=[],symbols=set()))
+            g['observations']+=1;g['symbols'].add(r['symbol'])
+            start=r['observed_ms']//60000*60000
+            end=(r['observed_ms']+15*60000+59999)//60000*60000
+            bars=k.execute('''SELECT open_ms,open,high,low,close,volume,close_ms
+                FROM futures_closed_klines WHERE symbol=? AND interval='1m' AND open_ms>=? AND open_ms<?
+                AND source IN ('BINANCE_UM_FUTURES_WEBSOCKET','BINANCE_UM_FUTURES_REST','BINANCE_UM_FUTURES_ARCHIVE')
+                ORDER BY open_ms''',(r['symbol'],start,end)).fetchall()
+            try:v=outcome(p,bars,15,p.get('cost_assumption_pct',.30))
+            except (ValueError,TypeError,KeyError):g['missing']+=1;missing+=1;continue
+            signed=v['directional_return_pct'];g['values'].append(signed)
+            examples.append(dict(symbol=r['symbol'],direction=r['direction'],reason=r['reason'],
+                observed_ms=r['observed_ms'],price=p['price'],endpoint_ms=v['endpoint_ms'],
+                signed_endpoint_pct=round(signed,4),first_level=v.get('first_level'),
+                barrier_status=v.get('first_barrier_status')))
+    finally:k.close()
+    output=[]
+    for g in groups.values():
+        values=g.pop('values');g['symbols']=len(g['symbols']);g['raw_directional_endpoint']=stats(values)
+        g['endpoint_above_030pct']=sum(x>.30 for x in values);output.append(g)
+    ranked=sorted(examples,key=lambda x:x['signed_endpoint_pct'])
+    return dict(status='MEASURED',strategy_id=STRATEGY_ID,horizon_minutes=15,
+        scope='REJECTED_OBSERVATIONS_RAW_ENDPOINT_NOT_EXECUTABLE_TRADES',
+        observations=sum(g['observations'] for g in output),measured=len(examples),missing=missing,
+        truncated=len(rows)>600,groups=output,
+        examples_worst=ranked[:3],examples_best=list(reversed(ranked[-3:])),
+        counts_are_correlated=True,selection_policy='FIRST_PER_SYMBOL_SIDE_REASON_15M_BUCKET_IN_LAST_HOUR')
+
+
 def build(root, now_ms=None):
     now_ms=int(time.time()*1000) if now_ms is None else now_ms
     path=Path(root)/'chart_first_v1.db'
@@ -123,7 +174,8 @@ def build(root, now_ms=None):
                 COUNT(DISTINCT symbol) AS symbols FROM dispatch_audit WHERE observed_ms>=?
                 GROUP BY strategy_id,action,reason''',(now_ms-3600000,))]
         return dict(version=VERSION,observed_ms=now_ms,primary_horizon_minutes=PRIMARY_HORIZON,
-            truncated=truncated,active=active,dispatch_last_hour=gates,**data)
+            truncated=truncated,active=active,dispatch_last_hour=gates,
+            rejection_review=rejection_review(c,root,now_ms),**data)
     finally:c.close()
 
 
@@ -132,7 +184,8 @@ def emit(root):
     target=Path(root)/'chart_reliability_latest.json'
     temporary=target.with_suffix('.tmp');temporary.write_text(json.dumps(report,ensure_ascii=False,indent=2))
     temporary.replace(target)
-    print('CHART_RELIABILITY_HEALTH '+json.dumps({k:v for k,v in report.items() if k!='groups'}),flush=True)
+    print('CHART_RELIABILITY_HEALTH '+json.dumps({k:v for k,v in report.items() if k not in ('groups','rejection_review')}),flush=True)
+    print('CHART_REJECTION_REVIEW '+json.dumps(report['rejection_review']),flush=True)
     for g in report['groups']:
         print('CHART_RELIABILITY_COHORT '+json.dumps(g),flush=True)
     return report
