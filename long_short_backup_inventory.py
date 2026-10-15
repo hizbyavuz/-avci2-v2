@@ -16,6 +16,7 @@ def main():
     count=total=0
     by_day=defaultdict(lambda:{"objects":0,"bytes":0})
     manifests=[]
+    non_daily=[]
     for page in client.get_paginator("list_objects_v2").paginate(Bucket=bucket):
         for obj in page.get("Contents",[]):
             key=obj["Key"]
@@ -26,11 +27,14 @@ def main():
             day=parts[1] if len(parts)>2 and parts[0]=="daily" else "other"
             by_day[day]["objects"]+=1
             by_day[day]["bytes"]+=size
+            if day=='other' and len(non_daily)<50:
+                non_daily.append({'key':key,'bytes':size})
             if key.endswith("/manifest.json"):
                 manifests.append(key)
     print("LS_BACKUP_INVENTORY "+json.dumps({
         "objects":count,"bytes":total,"days":dict(sorted(by_day.items())),
-        "manifest_count":len(manifests),"latest_manifests":sorted(manifests)[-5:]},
+        "manifest_count":len(manifests),"latest_manifests":sorted(manifests)[-5:],
+        "non_daily_objects":non_daily},
         separators=(",",":")),flush=True)
 
 if __name__=="__main__":

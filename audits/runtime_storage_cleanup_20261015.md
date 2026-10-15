@@ -45,6 +45,21 @@ iki dakikalık sağlık kaydı disk kullanımını ve güncel grafik kayıtları
 
 101 ilgili süreç, veri toplayıcı, grafik, geçmiş mum ve yedek testi geçti.
 Uzak arşivin bozuk kopyasında ham veriyi koruma ve eksiksiz geri açma için
-iki ek test eklendi. Temizleme test grubu toplam 15 testtir.
+iki ek test eklendi. Birebir kopyayı doğrulama testleriyle temizleme test grubu
+toplam 17 testtir.
 
-Canlı geçiş ve gerçek depolama kazanımı dağıtım sonrası loglardan doğrulanır.
+## Canlı sonuç — 14:55–14:59 UTC
+
+- Dağıtım `027e2f9a-0863-409e-8b02-3ff58d7664d4` başarılı.
+- Altı gerekli süreç çalışıyor; emekli süreçler yeniden başlamadı.
+- 15 eski dosya: 3,251,804,283 bayttan 409,306,096 bayta indirildi; hata yok.
+- Disk kullanımı: 3,741,974,528 → 862,007,296 bayt (%18.40 doluluk).
+- Güncel grafik stratejisi kimliği aynı; 156 coin taraması devam ediyor.
+- 11 aktif veritabanının sıkıştırılmış günlük yedeği: 147,332,537 bayt.
+- Yeni yedek doğrulandıktan sonra 20 eski yedek nesnesi kaldırıldı.
+- Kalıcı V4 arşivi: 1,945,526,272 → 555,078,198 bayt. Uzaktan geri açılarak
+  SHA256 doğrulandı. Aynı boyuttaki diğer kopya ayrıca karşılaştırılıyor.
+
+Eski motorlara geri dönülürse yalnızca bayrağı değiştirmek yeterli değildir:
+ilgili dosya `legacy-archive/manifest.json` kaydından açılmalı ve SHA256 kontrol
+edilmelidir. Güncel grafik ve mum veritabanlarının geri yüklenmesi gerekmez.

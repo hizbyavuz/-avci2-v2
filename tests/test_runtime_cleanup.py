@@ -161,8 +161,8 @@ class FakeS3:
     def delete_object(self, Bucket, Key): del self.objects[Key]
     def get_object(self, Bucket, Key): return {'Body':io.BytesIO(self.objects[Key][0])}
     def get_paginator(self, _): return self
-    def paginate(self, Bucket, Prefix):
-        return [{'Contents':[{'Key':k} for k in self.objects if k.startswith(Prefix)]}]
+    def paginate(self, Bucket, Prefix=''):
+        return [{'Contents':[{'Key':k, 'Size':len(v[0])} for k,v in self.objects.items() if k.startswith(Prefix)]}]
 
 
 class BackupTests(unittest.TestCase):
@@ -190,6 +190,38 @@ class BackupTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, 'verification failed'):
                 remote.compact(s3, 'bucket', key)
         self.assertEqual(s3.objects[key][0], original)
+
+    def test_only_identical_retired_v4_duplicate_is_removed(self):
+        import long_short_remote_archive_compact as remote
+        s3 = FakeS3()
+        original = b'frozen-v4-records'*100
+        sha = hashlib.sha256(original).hexdigest()
+        key = 'archive/v4-native/'+sha+'/long_short_v4_native.db'
+        s3.objects[key] = (original, {'sha256':sha})
+        remote.compact(s3, 'bucket', key)
+        duplicate = 'old-copy/long_short_v4_native.db'
+        s3.objects[duplicate] = (original, {'sha256':sha})
+        s3.objects['daily/current.db'] = (original, {'sha256':sha})
+        s3.objects['other-history.db'] = (b'x'*len(original), {'sha256':'different'})
+        removed = remote.deduplicate(s3, 'bucket')
+        self.assertEqual([r['key'] for r in removed], [duplicate])
+        self.assertIn(duplicate+'.recovery.json', s3.objects)
+        self.assertIn('daily/current.db', s3.objects)
+        self.assertIn('other-history.db', s3.objects)
+
+    def test_duplicate_metadata_is_not_enough_to_delete(self):
+        import long_short_remote_archive_compact as remote
+        s3 = FakeS3()
+        original = b'frozen-v4-records'*100
+        sha = hashlib.sha256(original).hexdigest()
+        key = 'archive/v4-native/'+sha+'/long_short_v4_native.db'
+        s3.objects[key] = (original, {'sha256':sha})
+        remote.compact(s3, 'bucket', key)
+        duplicate = 'old-copy/long_short_v4_native.db'
+        s3.objects[duplicate] = (b'x'*len(original), {'sha256':sha})
+        with self.assertRaisesRegex(RuntimeError, 'bytes differ'):
+            remote.deduplicate(s3, 'bucket')
+        self.assertIn(duplicate, s3.objects)
 
     def test_compressed_backup_roundtrip_inventory_and_reuse(self):
         with tempfile.TemporaryDirectory() as tmp:
