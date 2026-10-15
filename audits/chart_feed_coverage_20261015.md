@@ -31,3 +31,20 @@ overflow disclosure, active reservations, liquidity reason attribution and the
 existing runtime, stream, history, chart geometry and delivery tests.
 86 tests passed. Live deployment and recovery must be checked separately;
 this repair does not demonstrate profitable signals or guarantee a delivery.
+
+## Live verification, 15:34 UTC / 18:34 Turkey
+
+Deployment `3c4c6e69-da37-4e27-8ae4-734b6a99e857` reached SUCCESS with
+commit `c9d818a539b35484b4897924262500092bb78662`. Runtime demand contained
+99 chart-volume-eligible symbols and 100 total reserved symbols; all 100 were
+subscribed (600 streams), with no capacity deferrals. One connection loss
+during startup recovered automatically; the next coverage record showed the
+same 100/100 coverage with zero write retries.
+
+At 15:34:20, the completed 160-symbol scan had no FRESH_PRICE_UNAVAILABLE or
+CHART_STALE_5m rejection. Rejections were 61 below volume floor, 54 opposing
+4h direction, 22 no defined setup, 14 unclear hourly structure, 3 insufficient
+net reward/risk, 4 obstacles within costs, 1 entry not near and 1 missing 4h
+history. No eligible setup or new Telegram delivery occurred in that scan.
+The one missing long-history case remains explicit; full data coverage or
+strategy profitability is not claimed from this short operational check.
