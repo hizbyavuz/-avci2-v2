@@ -68,3 +68,21 @@ test grubu toplam 17 testtir.
 Eski motorlara geri dönülürse yalnızca bayrağı değiştirmek yeterli değildir:
 ilgili dosya `legacy-archive/manifest.json` kaydından açılmalı ve SHA256 kontrol
 edilmelidir. Güncel grafik ve mum veritabanlarının geri yüklenmesi gerekmez.
+
+## Tamamlanma — 15:11 UTC / 18:11 Türkiye
+
+- Son canlı dağıtım: `ae5b1fb7-b670-4360-a65f-f1cac7589e9f`, başarılı;
+  kod commit'i `0465090e40b3799819d8cac16f6900b7f5045e2b`.
+- Tarihli eski arşiv de kendi içeriğiyle sıkıştırıldı: 1,945,526,272 →
+  555,078,127 bayt. Uzaktan açılan içerik belirtilen SHA256 ile eşleşti.
+- Yedek/kalıcı arşiv toplamı: **6,670,335,958 → 1,666,812,891 bayt**.
+- Son başlangıçta sunucu diski **853,766,144 bayt**, boş alan
+  **3,815,329,792 bayt**. Eski dosyalar yeniden oluşmamış: arşivleyici
+  `files=0, errors=[]` ile tamamlandı.
+- Altı gerekli süreç çalışıyor; grafik taraması 158 coini kontrol ediyor.
+  Yeni giriş bildirimi gönderildiği iddia edilmiyor; bu bakım çalışma ve
+  depolama düzenini doğrular, stratejinin kazanç başarısını ölçmez.
+- Geniş kapsamlı kopya silme önerisi otomatik incelemede reddedildi ve
+  devreye alınmadı. Salt okunur inceleme iki dosyanın farklı olduğunu gösterdi.
+  Onaylanan alternatif, yalnızca adı/SHA256/boyutu belirlenmiş tek tarihli
+  dosyayı kayıpsız sıkıştırdı. Bekleyen engellenmiş işlem yok.
