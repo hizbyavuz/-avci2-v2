@@ -48,7 +48,7 @@ class ChartFirstTests(unittest.TestCase):
             p=assess('TESTUSDT',frames,price,50e6,NOW)
             self.assertEqual((p['direction'],p['stage'],p['reason']),(side,'READY','OK'),p)
             self.assertEqual(set(p['context']),{'5m','15m','1h','4h','1d'})
-            self.assertIn('GİRİŞ BÖLGESİ',message(p))
+            self.assertIn('GİRİŞ KOŞULU OLUŞTU',message(p))
             self.assertTrue(message(p).startswith('🔴' if short else '🟢'))
 
     def test_every_auxiliary_field_can_be_missing_or_opposed_without_changing_chart(self):

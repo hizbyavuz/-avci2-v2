@@ -236,58 +236,53 @@ def message(p, stage=None):
     from datetime import datetime, timezone
     from long_short_display import local_time
     stage=stage or p['stage'];side=p['direction'];up=side=='LONG'
-    marker='🟢' if up else '🔴';relation='üstünde' if up else 'altında'
-    title='GİRİŞ BÖLGESİ' if stage=='READY' else 'İÇİN İZLE'
+    marker='🟢' if up else '🔴'
+    move='YÜKSELİŞ' if up else 'DÜŞÜŞ'
+    relation='üstünde' if up else 'altında'
+    stamp='🕒 '+local_time(datetime.fromtimestamp(p['observed_ms']/1000,timezone.utc).isoformat())+' (Türkiye)'
     if stage in ('BROKEN','EXPIRED','OBSTACLE_REACHED'):
-        why={'BROKEN':'Fikrin bozulma seviyesi aşıldı.',
-             'EXPIRED':'Bu değerlendirme güncelliğini yitirdi; yeni yapı bekleniyor.',
-             'OBSTACLE_REACHED':'İlk destek/direnç bölgesine ulaşıldı; eski giriş fikri tamamlandı.'}[stage]
-        return f'{marker} {side} TAKİBİ TAMAMLANDI | {p["symbol"]}\n• {why}\n• Güncel fiyat: {p["price"]:.10g}'
-    labels={'UP':'yukarı','DOWN':'aşağı','RANGE':'yatay / karışık'}
-    ctx=p['context'];support=p.get('support') or {}
-    scenario={'PULLBACK_CONTINUATION':'Geri çekilme sonrası 1 saatlik yöne dönüş',
-              'COMPRESSION_BREAKOUT':'Sıkışma bölgesinden 1 saatlik yönde çıkış'}.get(p.get('model'),'Önceki sürüm takibi')
-    rows=[f'{marker} {side} {title} | {p["symbol"]}',
-          f'• Şu an fiyat: {p["price"]:.10g}',
-          f'• Günlük: {labels[ctx["1d"]["direction"]]}',
-          f'• 4 saat: {labels[ctx["4h"]["direction"]]} | 1 saat: {labels[ctx["1h"]["direction"]]}',
-          f'• Fikir: {scenario}.']
+        why={'BROKEN':'🛑 Fikrin bozulacağı seviye aşıldı.',
+             'EXPIRED':'⌛ Eski giriş koşulu artık geçerli değil; yeni fırsat bekleniyor.',
+             'OBSTACLE_REACHED':'🎯 Fiyatın zorlanabileceği ilk seviyeye ulaşıldı; bu takip bitti.'}[stage]
+        return '\n'.join([f'{marker} {p["symbol"]} · {side} TAKİBİ BİTTİ',why,
+                          f'💰 Güncel fiyat: {p["price"]:.10g}',stamp])
+    title='GİRİŞ KOŞULU OLUŞTU' if stage=='READY' else 'İÇİN İZLE'
+    rows=[f'{marker} {p["symbol"]} · {move} {title} ({side})',
+          '✅ Giriş koşulu oluştu; fiyat aralığını kontrol et.' if stage=='READY' else '⏳ Henüz giriş koşulu oluşmadı.']
     if p.get('scenario')=='REVERSAL_ATTEMPT':
-        rows.insert(1,'⚠️ ANA YÖNE TERS — kısa vadeli dönüş adayı.')
+        rows.append('⚠️ ANA YÖNE TERS: Büyük yön ters; bu kısa vadeli bir dönüş denemesi.')
+    rows.extend(['',f'💰 Şu an fiyat: {p["price"]:.10g}'])
     if stage=='READY':
         lo,hi=sorted((p['trigger'],p['entry_limit']))
-        rows.extend([f'• Giriş koşulu oluştu: 5 dk mum {p["trigger"]:.10g} {relation} kapandı.',
-                     f'• Değerlendirilen giriş alanı: {lo:.10g}–{hi:.10g}'])
+        rows.extend([f'🔔 5 dk mum {p["trigger"]:.10g} {relation} kapandı; fiyat seviyeyi koruyor.',
+                     f'📍 Giriş için değerlendirilen aralık: {lo:.10g}–{hi:.10g}'])
     else:
-        rows.append(f'• Beklenen: 5 dk mum {p["trigger"]:.10g} {relation} kapanmalı; fiyat giriş alanında kalmalı.')
-    rows.append(f'• Fikir {p["stop"]:.10g} {"altında" if up else "üstünde"} bozulur.')
-    if p.get('obstacle'):
-        rows.append(f'• İlk {"direnç" if up else "destek"}: {p["obstacle"]:.10g}')
+        rows.append(f'🔔 Beklenen: 5 dk mum {p["trigger"]:.10g} {relation} kapansın, fiyat bu seviyeyi korusun.')
+    rows.extend(['',f'🎯 {"Yükselişin" if up else "Düşüşün"} zorlanabileceği ilk yer: {p["obstacle"]:.10g}',
+                 f'🛑 {p["stop"]:.10g} {"altına düşerse" if up else "üstüne çıkarsa"} fikir bozulur.'])
     entry=p['price'] if stage=='READY' else p['trigger']
     g=geometry(side,entry,p['stop'],p.get('obstacle'),CONFIG['round_trip_cost_pct'])
     if g.get('valid'):
-        anchor='Güncel fiyattan' if stage=='READY' else 'İzlenen giriş seviyesinden'
-        rows.extend([f'• {anchor} ilk engele alan: %{g["gross_room_pct"]:.2f}.',
-                     f'• Bozulma mesafesi: %{g["invalidation_pct"]:.2f}.',
-                     f'• %{g["cost_assumption_pct"]:.2f} varsayımsal masraf sonrası alan: %{g["net_room_pct"]:.2f}.'])
-    if stage!='READY':rows.append('• Henüz giriş koşulu oluşmadı; yeni giriş mesajı beklenecek.')
+        anchor='Şu anki fiyattan' if stage=='READY' else 'Beklenen girişten'
+        rows.append(f'📏 {anchor}: {"yukarı" if up else "aşağı"} alan %{g["gross_room_pct"]:.2f} · Stopa uzaklık %{g["invalidation_pct"]:.2f} (masraf hariç)')
+    ctx=p['context'];labels={'UP':'yükseliş ↑','DOWN':'düşüş ↓','RANGE':'belirsiz ↔'}
+    rows.extend(['',f'🧭 1 saat: {labels[ctx["1h"]["direction"]]} · 4 saat: {labels[ctx["4h"]["direction"]]}'])
     vol=p.get('volume_15m_multiple')
-    if vol is not None:rows.append(f'• 15 dk işlem hacmi: yakın ortalamanın {vol:.2f} katı.')
+    if vol is not None:rows.append(f'📊 Son 15 dk işlem yoğunluğu: normalin {vol:.2f} katı')
     flow=p.get('hourly_flow') or {}
     if flow.get('status')=='OK':
-        rows.append(f'• Son 60 dk agresif alış payı: %{flow["buy_share"]*100:.1f} | Satış payı: %{(1-flow["buy_share"])*100:.1f} | Fiyat: %{flow["price_return_pct"]:+.2f}')
-    rows.append('• '+flow_note(flow,side))
-    oi=support.get('oi_change_1h');taker=support.get('taker_ratio')
-    if oi is not None:rows.append(f'• OI (açık pozisyon miktarı), son 1 saat: %{oi:+.2f}')
-    if taker is not None:rows.append(f'• Agresif alış/satış hacmi oranı: {taker:.2f}×')
-    ls=support.get('long_short_ratio');funding=support.get('funding_pct')
-    if ls is not None:rows.append(f'• LONG/SHORT hesap sayısı oranı: {ls:.2f}× — tek başına yön göstermez.')
-    if funding is not None:rows.append(f'• Funding (pozisyon taşıma oranı): %{funding:+.4f}')
-    missing=[name for key,name in (('oi_change_1h','açık pozisyon'),('taker_ratio','alış/satış'),
-             ('long_short_ratio','hesap oranı'),('funding_pct','taşıma oranı')) if support.get(key) is None]
-    if missing:rows.append('• Destek verisi eksik: '+', '.join(missing)+'.')
-    rows.extend('• '+note for note in support_notes(p))
-    rows.extend('• Dikkat: '+w for w in p.get('warnings',[]))
-    rows.extend(['• İşlem yönetimi sende; otomatik emir yok.',
-                 '🕒 '+local_time(datetime.fromtimestamp(p['observed_ms']/1000,timezone.utc).isoformat())+' (Türkiye)'])
+        rows.append(f'🛒 Son 1 saat işlem payı: Alış %{flow["buy_share"]*100:.0f} · Satış %{(1-flow["buy_share"])*100:.0f} · Fiyat %{flow["price_return_pct"]:+.2f}')
+        sign=1 if up else -1
+        if sign*(flow['buy_share']-.5)<=0 or sign*flow['price_return_pct']<=0:
+            rows.append('⚠️ Son saatte alış/satış baskısı ile fiyat bu yönü birlikte desteklemiyor.')
+        elif (flow.get('previous_30m_buy_share') is not None and flow.get('recent_30m_buy_share') is not None
+              and sign*(flow['recent_30m_buy_share']-flow['previous_30m_buy_share'])<0):
+            rows.append('⚠️ Son yarım saatte bu yöndeki işlem payı zayıfladı.')
+    else:rows.append('🛒 Son 1 saat alış/satış bilgisi: veri eksik')
+    opposite='DOWN' if up else 'UP'
+    if ctx['1d']['direction']==opposite:
+        rows.append('⚠️ Günlük yön hâlâ '+('aşağı.' if up else 'yukarı.'))
+    if ctx['15m']['direction']==opposite:
+        rows.append('⚠️ Son 15 dakikalık yön de bu fikre ters.')
+    rows.append(stamp)
     return '\n'.join(rows)

@@ -113,9 +113,9 @@ class ChartV2Tests(unittest.TestCase):
     def test_messages_explain_cost_and_structural_distance(self):
         f,price=sample();p=assess('XUSDT',f,price,50e6,NOW)
         text=message(p)
-        self.assertIn('Sıkışma bölgesinden',text)
-        self.assertIn('Bozulma mesafesi',text)
-        self.assertIn('varsayımsal masraf',text)
+        self.assertIn('🔔 5 dk mum',text)
+        self.assertIn('Stopa uzaklık',text)
+        self.assertIn('masraf hariç',text)
 
     def test_partial_first_minute_hit_is_unresolved_not_skipped(self):
         p=dict(observed_ms=68000,price=100,direction='LONG',stop=99,obstacle=102,stage='DELIVERED_READY')

@@ -55,7 +55,7 @@ class FlowReversalTests(unittest.TestCase):
             self.assertEqual(p['stage'],'READY',p)
             self.assertEqual(p['scenario'],'REVERSAL_ATTEMPT')
             self.assertIn('ANA YÖNE TERS',message(p))
-            self.assertIn('Son 60 dk',message(p))
+            self.assertIn('Son 1 saat',message(p))
             self.assertNotIn('ana yönde çıkış',message(p))
             for bad in (None,dict(flow,buy_share=.5),dict(flow,price_return_pct=0),
                         dict(flow,buy_share=1-flow['buy_share']),dict(flow,price_return_pct=-flow['price_return_pct'])):
