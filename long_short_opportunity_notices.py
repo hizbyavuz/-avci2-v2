@@ -10,7 +10,7 @@ import sqlite3
 import time
 from datetime import datetime,timezone
 
-VERSION='OPPORTUNITY_NOTICES_V1_2026_10_15'
+VERSION='OPPORTUNITY_NOTICES_V2_ROOM_AND_CHASE_2026_10_15'
 FIELD_NAMES={'oi_change_1h':'açık pozisyon değişimi','funding_pct':'funding',
     'taker_ratio':'agresif alış/satış','long_short_ratio':'long/short hesap oranı'}
 
@@ -26,6 +26,20 @@ def assess(payload,price,observed_ms,now_ms):
     if e.get('source')!='BINANCE_UM_FUTURES_REST':reasons.append('UNVERIFIED_SOURCE')
     if not 0<=now_ms-int(e.get('observed_ms') or 0)<=180000:reasons.append('STALE_DERIVATIVES')
     if float(d.get('best_score') or 0)<42 or float(d.get('edge') or 0)<12:reasons.append('DIRECTION_THRESHOLD')
+    gate=p.get('structure_gate') or {};geometry=gate.get('structural_plan_v3') or {}
+    if not gate.get('qualified_precheck') or geometry.get('reason')!='OK':
+        reasons.append('STRUCTURE_'+str(geometry.get('reason') or 'UNAVAILABLE'))
+    context=p.get('opportunity_context') or {};chart=context.get('chart') or {};t15=context.get('t15') or {}
+    extension='overextended_up' if direction=='LONG' else 'overextended_down'
+    if extension not in chart or t15.get('rsi') is None:
+        reasons.append('CHASE_CONTEXT_MISSING')
+    else:
+        try:
+            rsi=float(t15['rsi'])
+            if not math.isfinite(rsi):raise ValueError()
+            if chart[extension] or (rsi>=76 if direction=='LONG' else rsi<=24):
+                reasons.append('EXTENDED_MOVE_DO_NOT_CHASE')
+        except (TypeError,ValueError):reasons.append('CHASE_CONTEXT_MISSING')
     local=plan.get('local_invalidation') or {}
     try:
         stop=float(local['level']);trigger=float(plan['trigger_level']);price=float(price)
@@ -33,6 +47,14 @@ def assess(payload,price,observed_ms,now_ms):
         if local.get('timeframe')!='5m' or local.get('confirmation_bars')!=2:raise ValueError()
         if not (stop<price if direction=='LONG' else price<stop):raise ValueError()
     except (KeyError,TypeError,ValueError):reasons.append('NO_VALID_LOCAL_INVALIDATION');stop=trigger=None
+    # Check the remaining path at the fresh quote too: a valid scan-time plan
+    # must not produce a new alert after price has run into its target.
+    try:
+        target=float(geometry['target']);floor=float(geometry['required_room_pct'])
+        if not all(math.isfinite(x) and x>0 for x in (price,target,floor)):raise ValueError()
+        room=(target-price)/price*100*(1 if direction=='LONG' else -1)
+        if room<floor:reasons.append('LIVE_ROOM_TOO_SMALL')
+    except (KeyError,TypeError,ValueError):reasons.append('NO_VERIFIED_TARGET_ROOM')
     return dict(allowed=not reasons,reasons=list(dict.fromkeys(reasons)),direction=direction,
         missing=missing or [],stop=stop,trigger=trigger,price=price)
 
@@ -90,6 +112,9 @@ def publish_recent(now_ms=None,publisher=None,token=None,chat=None):
     c.execute('''CREATE TABLE IF NOT EXISTS opportunity_notices_v1(symbol TEXT PRIMARY KEY,
         direction TEXT,episode_key TEXT,started_ms INTEGER,last_eligible_ms INTEGER,
         stop REAL,body TEXT,active INTEGER,delivered_ms INTEGER)''')
+    c.execute('''CREATE TABLE IF NOT EXISTS opportunity_notice_decisions(
+        observation_id INTEGER,version TEXT,checked_ms INTEGER,symbol TEXT,direction TEXT,
+        allowed INTEGER,reasons TEXT,price REAL,PRIMARY KEY(observation_id,version))''')
     c.commit();sent=0;ended=0
     stamp=datetime.fromtimestamp(now_ms/1000,timezone.utc).isoformat()
     def deliver(symbol,direction,body,key):
@@ -102,11 +127,16 @@ def publish_recent(now_ms=None,publisher=None,token=None,chat=None):
         latest={r['symbol']:r for r in c.execute('''SELECT * FROM observations
             WHERE observed_ms BETWEEN ? AND ? AND cohort IN ('FULL_4_OF_4','PARTIAL_3_OF_4')
             ORDER BY observed_ms,id''',(now_ms-300000,now_ms))}
-        candidates=[]
+        candidates=[];decisions={};blocked_counts={}
         for symbol,row in latest.items():
             p=json.loads(row['payload']);price=current_price(symbol,now_ms)
             decision=assess(p,price,row['observed_ms'],now_ms)
+            decisions[symbol]=decision
+            c.execute('INSERT OR IGNORE INTO opportunity_notice_decisions VALUES(?,?,?,?,?,?,?,?)',
+                (row['id'],VERSION,now_ms,symbol,decision['direction'],int(decision['allowed']),json.dumps(decision['reasons']),price))
+            for reason in decision['reasons']:blocked_counts[reason]=blocked_counts.get(reason,0)+1
             if decision['allowed']:candidates.append((symbol,row,p,decision))
+        c.commit()
         allowed={symbol:decision for symbol,_,_,decision in candidates}
         for old in c.execute('SELECT * FROM opportunity_notices_v1 WHERE active=1').fetchall():
             price=current_price(old['symbol'],now_ms)
@@ -116,8 +146,10 @@ def publish_recent(now_ms=None,publisher=None,token=None,chat=None):
             lost_direction=bool(recent and recent['observed_ms']>old['last_eligible_ms'] and
                 (json.loads(recent['payload']).get('direction_engine') or {}).get('direction')!=old['direction'])
             expired=now_ms-old['last_eligible_ms']>=45*60000 or now_ms-old['started_ms']>=180*60000
-            if not (broken or opposite or expired or lost_direction):continue
-            why='Bozulma seviyesi aşıldı.' if broken else 'Yön değişti.' if opposite else 'Yön desteği zayıfladı.' if lost_direction else 'Güncel fırsat takibi sona erdi.'
+            unsuitable=any(r.startswith('STRUCTURE_') or r in ('LIVE_ROOM_TOO_SMALL','NO_VERIFIED_TARGET_ROOM','EXTENDED_MOVE_DO_NOT_CHASE')
+                for r in decisions.get(old['symbol'],{}).get('reasons',[]))
+            if not (broken or opposite or expired or lost_direction or unsuitable):continue
+            why='Bozulma seviyesi aşıldı.' if broken else 'Yön değişti.' if opposite else 'Yön desteği zayıfladı.' if lost_direction else 'Giriş yapısı veya kalan mesafe uygun değil; yeni yapı bekleniyor.' if unsuitable else 'Güncel fırsat takibi sona erdi.'
             body=f"⚪ {old['direction']} TAKİBİ SONA ERDİ | {old['symbol']}\n{why}\nBu fırsat kaydı giriş onayı değildi."
             receipt=deliver(old['symbol'],old['direction'],body,old['episode_key'])
             if receipt['status'] in ('ACK','UNCHANGED','CORE_ACTIVE_SUPPRESSED'):
@@ -147,6 +179,6 @@ def publish_recent(now_ms=None,publisher=None,token=None,chat=None):
                 c.execute('UPDATE opportunity_notices_v1 SET active=1 WHERE symbol=?',(symbol,));c.commit();sent+=1
             elif receipt['status']=='CORE_ACTIVE_SUPPRESSED':
                 c.execute('UPDATE opportunity_notices_v1 SET active=0 WHERE symbol=?',(symbol,));c.commit()
-        print('OPPORTUNITY_NOTICE_SUMMARY '+json.dumps(dict(version=VERSION,eligible=len(candidates),sent=sent,ended=ended,
+        print('OPPORTUNITY_NOTICE_SUMMARY '+json.dumps(dict(version=VERSION,eligible=len(candidates),sent=sent,ended=ended,blocked_reasons=blocked_counts,
             scope='OBSERVATION_NOT_ENTRY_PERMISSION')),flush=True)
     finally:c.close()

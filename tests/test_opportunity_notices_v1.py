@@ -46,8 +46,9 @@ class NoticeTests(unittest.TestCase):
         e=validate(fixture(),SYMBOL,NOW);e.update(ready=True,taker_ratio=1.2,taker_fresh=True)
         return dict(evidence=e,direction_engine=dict(direction='LONG',best_score=55,edge=20,hard_blockers=[]),
             setup_plan=dict(direction='LONG',trigger_level=101,local_invalidation=dict(level=98,timeframe='5m',confirmation_bars=2)),
-            structure_gate=dict(qualified_precheck=False,structural_plan_v3={'reason':'INSUFFICIENT_GEOMETRY'}))
-    def test_opportunity_does_not_require_entry_geometry_but_keeps_data_and_direction(self):
+            opportunity_context=dict(chart={'overextended_up':False,'overextended_down':False},t15={'rsi':55}),
+            structure_gate=dict(qualified_precheck=True,structural_plan_v3={'reason':'OK','target':105,'required_room_pct':.9}))
+    def test_opportunity_keeps_data_and_direction_and_is_not_entry_permission(self):
         p=self.payload();d=notices.assess(p,100,NOW,NOW)
         self.assertTrue(d['allowed'])
         text=notices.message(SYMBOL,p,d,NOW)
@@ -57,6 +58,37 @@ class NoticeTests(unittest.TestCase):
         self.assertFalse(notices.assess(p,100,NOW,NOW+300001)['allowed'])
         p['direction_engine']['hard_blockers']=['liquidity_floor']
         self.assertFalse(notices.assess(p,100,NOW,NOW)['allowed'])
+    def test_bad_structure_and_chased_moves_block_both_sides(self):
+        for side in ('LONG','SHORT'):
+            p=self.payload();p['direction_engine']['direction']=side
+            if side=='SHORT':
+                p['setup_plan']['local_invalidation']['level']=102
+                p['structure_gate']['structural_plan_v3']['target']=95
+            self.assertTrue(notices.assess(p,100,NOW,NOW)['allowed'])
+            for reason in ('ENTRY_INSIDE_OPPOSING_ZONE','NO_OBSERVED_TARGET','COMMON_REGION_TOO_WIDE','INSUFFICIENT_GEOMETRY'):
+                q=copy.deepcopy(p);q['structure_gate'].update(qualified_precheck=False)
+                q['structure_gate']['structural_plan_v3']['reason']=reason
+                self.assertIn('STRUCTURE_'+reason,notices.assess(q,100,NOW,NOW)['reasons'])
+            q=copy.deepcopy(p);q['opportunity_context']['chart']['overextended_up' if side=='LONG' else 'overextended_down']=True
+            self.assertIn('EXTENDED_MOVE_DO_NOT_CHASE',notices.assess(q,100,NOW,NOW)['reasons'])
+            q=copy.deepcopy(p);q['opportunity_context']['t15']['rsi']=80 if side=='LONG' else 20
+            self.assertIn('EXTENDED_MOVE_DO_NOT_CHASE',notices.assess(q,100,NOW,NOW)['reasons'])
+            self.assertIn('LIVE_ROOM_TOO_SMALL',notices.assess(p,104.9 if side=='LONG' else 95.1,NOW,NOW)['reasons'])
+    def test_geometry_rejection_is_recorded_and_existing_notice_closed(self):
+        from long_short_data_opportunity_v2 import observe,connect
+        publisher=Mock(return_value={'status':'ACK'})
+        with patch('long_short_data_opportunity_v2.current_price',return_value=100):
+            observe(SYMBOL,'FULL_4_OF_4','LONG',self.payload(),NOW)
+            notices.publish_recent(NOW,publisher,'1:token','123')
+            p=self.payload();p['structure_gate']['qualified_precheck']=False
+            p['structure_gate']['structural_plan_v3']['reason']='ENTRY_INSIDE_OPPOSING_ZONE'
+            observe(SYMBOL,'FULL_4_OF_4','LONG',p,NOW+60000)
+            notices.publish_recent(NOW+60000,publisher,'1:token','123')
+            notices.publish_recent(NOW+60001,publisher,'1:token','123')
+        self.assertEqual(publisher.call_count,2)
+        self.assertIn('TAKİBİ SONA ERDİ',publisher.call_args.args[4])
+        with connect() as c:
+            self.assertEqual(c.execute('SELECT COUNT(*) FROM opportunity_notice_decisions WHERE allowed=0').fetchone()[0],1)
     def test_one_missing_is_named_and_two_missing_are_not_promoted(self):
         p=self.payload();p['evidence'].update(ready=False,long_short_ratio=None,ls_fresh=False,
             taker_coverage_ready=True,taker_source='BINANCE_UM_FUTURES_KLINE')
