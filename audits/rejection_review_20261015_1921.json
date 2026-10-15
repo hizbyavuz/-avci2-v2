@@ -1,0 +1,216 @@
+{
+  "observed_at_utc": "2026-10-15T19:21:13Z",
+  "deployment_id": "32213906-d18a-4fc4-9887-75d672445086",
+  "commit": "5831736d750aca6698c63f0c4212dfcbdc74db5b",
+  "signal_rules_changed": false,
+  "status": "MEASURED",
+  "strategy_id": "2c4bbbad4b5b8bbac8edbeb2cfa678c2758a1bc5b184c31e0a3b274eb9296b89",
+  "horizon_minutes": 15,
+  "scope": "REJECTED_OBSERVATIONS_RAW_ENDPOINT_NOT_EXECUTABLE_TRADES",
+  "observations": 309,
+  "measured": 309,
+  "missing": 0,
+  "truncated": false,
+  "groups": [
+    {
+      "reason": "REVERSAL_PRICE_NOT_RESPONDING",
+      "observations": 24,
+      "missing": 0,
+      "symbols": 15,
+      "raw_directional_endpoint": {
+        "n": 24,
+        "positive": 18,
+        "negative": 6,
+        "mean_pct": 0.25154355923968363,
+        "median_pct": 0.1673857575595461,
+        "profit_factor": 6.402081503602014,
+        "profit_factor_status": "DEFINED"
+      },
+      "endpoint_above_030pct": 8
+    },
+    {
+      "reason": "REVERSAL_FLOW_NOT_ALIGNED",
+      "observations": 81,
+      "missing": 0,
+      "symbols": 32,
+      "raw_directional_endpoint": {
+        "n": 81,
+        "positive": 44,
+        "negative": 36,
+        "mean_pct": -0.10659220893326973,
+        "median_pct": 0.017973327581866094,
+        "profit_factor": 0.6155537023488848,
+        "profit_factor_status": "DEFINED"
+      },
+      "endpoint_above_030pct": 13
+    },
+    {
+      "reason": "NET_REWARD_BELOW_STRUCTURAL_RISK",
+      "observations": 30,
+      "missing": 0,
+      "symbols": 20,
+      "raw_directional_endpoint": {
+        "n": 30,
+        "positive": 17,
+        "negative": 13,
+        "mean_pct": 0.16206558587373301,
+        "median_pct": 0.24140673650476785,
+        "profit_factor": 1.8808626402146111,
+        "profit_factor_status": "DEFINED"
+      },
+      "endpoint_above_030pct": 14
+    },
+    {
+      "reason": "OBSTACLE_WITHIN_COST_ALLOWANCE",
+      "observations": 45,
+      "missing": 0,
+      "symbols": 30,
+      "raw_directional_endpoint": {
+        "n": 45,
+        "positive": 23,
+        "negative": 21,
+        "mean_pct": -0.022301876284085174,
+        "median_pct": 0.007455453664362288,
+        "profit_factor": 0.8474052236373063,
+        "profit_factor_status": "DEFINED"
+      },
+      "endpoint_above_030pct": 7
+    },
+    {
+      "reason": "NO_DEFINED_SETUP",
+      "observations": 116,
+      "missing": 0,
+      "symbols": 53,
+      "raw_directional_endpoint": {
+        "n": 116,
+        "positive": 66,
+        "negative": 48,
+        "mean_pct": 0.16439049239350662,
+        "median_pct": 0.11853131684728124,
+        "profit_factor": 1.6077751885342004,
+        "profit_factor_status": "DEFINED"
+      },
+      "endpoint_above_030pct": 42
+    },
+    {
+      "reason": "ENTRY_ALREADY_EXTENDED",
+      "observations": 10,
+      "missing": 0,
+      "symbols": 10,
+      "raw_directional_endpoint": {
+        "n": 10,
+        "positive": 4,
+        "negative": 6,
+        "mean_pct": 0.04347820343648223,
+        "median_pct": -0.05289218006642726,
+        "profit_factor": 1.3014478077197462,
+        "profit_factor_status": "DEFINED"
+      },
+      "endpoint_above_030pct": 1
+    },
+    {
+      "reason": "ENTRY_NOT_NEAR",
+      "observations": 1,
+      "missing": 0,
+      "symbols": 1,
+      "raw_directional_endpoint": {
+        "n": 1,
+        "positive": 0,
+        "negative": 0,
+        "mean_pct": 0,
+        "median_pct": 0,
+        "profit_factor": null,
+        "profit_factor_status": "NO_LOSSES_OR_NO_SAMPLE"
+      },
+      "endpoint_above_030pct": 0
+    },
+    {
+      "reason": "FIRST_OBSTACLE_UNKNOWN",
+      "observations": 2,
+      "missing": 0,
+      "symbols": 1,
+      "raw_directional_endpoint": {
+        "n": 2,
+        "positive": 2,
+        "negative": 0,
+        "mean_pct": 0.8404905049109401,
+        "median_pct": 0.8404905049109401,
+        "profit_factor": null,
+        "profit_factor_status": "NO_LOSSES_OR_NO_SAMPLE"
+      },
+      "endpoint_above_030pct": 2
+    }
+  ],
+  "examples_worst": [
+    {
+      "symbol": "USUSDT",
+      "direction": "LONG",
+      "reason": "REVERSAL_FLOW_NOT_ALIGNED",
+      "observed_ms": 1792089391172,
+      "price": 0.007521,
+      "endpoint_ms": 1792090319999,
+      "signed_endpoint_pct": -4.4276,
+      "first_level": null,
+      "barrier_status": "RESOLVED"
+    },
+    {
+      "symbol": "NXPCUSDT",
+      "direction": "LONG",
+      "reason": "REVERSAL_FLOW_NOT_ALIGNED",
+      "observed_ms": 1792089918273,
+      "price": 0.2442,
+      "endpoint_ms": 1792090859999,
+      "signed_endpoint_pct": -3.6036,
+      "first_level": null,
+      "barrier_status": "RESOLVED"
+    },
+    {
+      "symbol": "NILUSDT",
+      "direction": "LONG",
+      "reason": "NO_DEFINED_SETUP",
+      "observed_ms": 1792089391097,
+      "price": 0.09142,
+      "endpoint_ms": 1792090319999,
+      "signed_endpoint_pct": -2.6799,
+      "first_level": null,
+      "barrier_status": "RESOLVED"
+    }
+  ],
+  "examples_best": [
+    {
+      "symbol": "BATUSDT",
+      "direction": "LONG",
+      "reason": "NO_DEFINED_SETUP",
+      "observed_ms": 1792089918174,
+      "price": 0.19822,
+      "endpoint_ms": 1792090859999,
+      "signed_endpoint_pct": 6.7652,
+      "first_level": null,
+      "barrier_status": "RESOLVED"
+    },
+    {
+      "symbol": "BATUSDT",
+      "direction": "LONG",
+      "reason": "NO_DEFINED_SETUP",
+      "observed_ms": 1792089608035,
+      "price": 0.19793,
+      "endpoint_ms": 1792090559999,
+      "signed_endpoint_pct": 4.4258,
+      "first_level": null,
+      "barrier_status": "RESOLVED"
+    },
+    {
+      "symbol": "SIRENUSDT",
+      "direction": "LONG",
+      "reason": "NO_DEFINED_SETUP",
+      "observed_ms": 1792089391091,
+      "price": 0.03043,
+      "endpoint_ms": 1792090319999,
+      "signed_endpoint_pct": 3.4505,
+      "first_level": null,
+      "barrier_status": "RESOLVED"
+    }
+  ],
+  "counts_are_correlated": true,
+  "selection_policy": "FIRST_PER_SYMBOL_SIDE_REASON_15M_BUCKET_IN_LAST_HOUR"
+}
