@@ -1,0 +1,448 @@
+{
+  "commit": "8fb29515ee6a853b453eee59012f5575b0d7d937",
+  "deployment": "167f2ca1-7d8d-4834-9021-fcc86fa42dd0",
+  "status": "SUCCESS",
+  "checked_at_utc": "2026-10-15T18:37:53Z",
+  "strategy_id": "2c4bbbad4b5b8bbac8edbeb2cfa678c2758a1bc5b184c31e0a3b274eb9296b89",
+  "config_hash": "2fdca07cc46a5ad236988d4bd62f7f1bccb76b30571907f046731bfb1885279e",
+  "scan_symbols": 169,
+  "candle_stream_symbols": 98,
+  "candle_stream_missing": 0,
+  "storage_pressure": false,
+  "release_errors_observed": 0,
+  "validation_report_running": true,
+  "delivery_report_truncated": false,
+  "observation_report_truncated": true,
+  "delivery_cohorts": [
+    {
+      "strategy_id": "0f828203291aac423142ee0d5b9cc1877c2e4e25fe933d1aa54b8087e2abed08",
+      "version": "CHART_FIRST_TWO_SETUPS_V2_2026_10_15",
+      "stage": "DELIVERED_READY",
+      "horizon": 15,
+      "primary_endpoint": false,
+      "records": 1,
+      "pending": 0,
+      "missing": 0,
+      "unresolved": 0,
+      "resolved": 1,
+      "symbols": 1,
+      "utc_days": 1,
+      "reasons": {
+        "TELEGRAM_ACK": 1
+      },
+      "barriers": {
+        "HORIZON": 1
+      },
+      "directions": {
+        "LONG": 1
+      },
+      "models": {
+        "COMPRESSION_BREAKOUT": 1
+      },
+      "scenarios": {
+        "CONTINUATION": 1
+      },
+      "invalid_entry_geometry": 0,
+      "reference_net": {
+        "n": 1,
+        "positive": 0,
+        "negative": 1,
+        "mean_pct": -0.47136045298763446,
+        "median_pct": -0.47136045298763446,
+        "profit_factor": 0,
+        "profit_factor_status": "DEFINED"
+      },
+      "direction_only": {
+        "n": 1,
+        "positive": 0,
+        "negative": 1,
+        "mean_pct": -0.17136045298763447,
+        "median_pct": -0.17136045298763447,
+        "profit_factor": 0,
+        "profit_factor_status": "DEFINED",
+        "equal_random_direction_mean_pct": 0,
+        "scope": "RAW_ENDPOINT_DIRECTION_TEST_NOT_TRADES_OR_STOP_TARGET_COMPARISON"
+      },
+      "daily_reference_net": [
+        {
+          "utc_day": 20741,
+          "count": 1,
+          "mean_pct": -0.47136045298763446
+        }
+      ],
+      "known_boundary_pessimistic": {
+        "n": 1,
+        "positive": 0,
+        "negative": 1,
+        "mean_pct": -0.47136045298763446,
+        "median_pct": -0.47136045298763446,
+        "profit_factor": 0,
+        "profit_factor_status": "DEFINED"
+      },
+      "sensitivity_complete": true,
+      "status": "UNVALIDATED_REFERENCE_MODEL",
+      "limitations": [
+        "Costs are assumed; actual spread/slippage/funding not measured",
+        "Correlated observations and concurrent positions are not independent",
+        "No held-out executable strategy comparison has passed"
+      ]
+    },
+    {
+      "strategy_id": "0f828203291aac423142ee0d5b9cc1877c2e4e25fe933d1aa54b8087e2abed08",
+      "version": "CHART_FIRST_TWO_SETUPS_V2_2026_10_15",
+      "stage": "DELIVERED_READY",
+      "horizon": 60,
+      "primary_endpoint": false,
+      "records": 1,
+      "pending": 0,
+      "missing": 0,
+      "unresolved": 0,
+      "resolved": 1,
+      "symbols": 1,
+      "utc_days": 1,
+      "reasons": {
+        "TELEGRAM_ACK": 1
+      },
+      "barriers": {
+        "INVALIDATION": 1
+      },
+      "directions": {
+        "LONG": 1
+      },
+      "models": {
+        "COMPRESSION_BREAKOUT": 1
+      },
+      "scenarios": {
+        "CONTINUATION": 1
+      },
+      "invalid_entry_geometry": 0,
+      "reference_net": {
+        "n": 1,
+        "positive": 0,
+        "negative": 1,
+        "mean_pct": -1.323692445239166,
+        "median_pct": -1.323692445239166,
+        "profit_factor": 0,
+        "profit_factor_status": "DEFINED"
+      },
+      "direction_only": {
+        "n": 1,
+        "positive": 0,
+        "negative": 1,
+        "mean_pct": -0.6109372671732949,
+        "median_pct": -0.6109372671732949,
+        "profit_factor": 0,
+        "profit_factor_status": "DEFINED",
+        "equal_random_direction_mean_pct": 0,
+        "scope": "RAW_ENDPOINT_DIRECTION_TEST_NOT_TRADES_OR_STOP_TARGET_COMPARISON"
+      },
+      "daily_reference_net": [
+        {
+          "utc_day": 20741,
+          "count": 1,
+          "mean_pct": -1.323692445239166
+        }
+      ],
+      "known_boundary_pessimistic": {
+        "n": 1,
+        "positive": 0,
+        "negative": 1,
+        "mean_pct": -1.323692445239166,
+        "median_pct": -1.323692445239166,
+        "profit_factor": 0,
+        "profit_factor_status": "DEFINED"
+      },
+      "sensitivity_complete": true,
+      "status": "UNVALIDATED_REFERENCE_MODEL",
+      "limitations": [
+        "Costs are assumed; actual spread/slippage/funding not measured",
+        "Correlated observations and concurrent positions are not independent",
+        "No held-out executable strategy comparison has passed"
+      ]
+    },
+    {
+      "strategy_id": "0f828203291aac423142ee0d5b9cc1877c2e4e25fe933d1aa54b8087e2abed08",
+      "version": "CHART_FIRST_TWO_SETUPS_V2_2026_10_15",
+      "stage": "DELIVERED_READY",
+      "horizon": 180,
+      "primary_endpoint": true,
+      "records": 1,
+      "pending": 1,
+      "missing": 0,
+      "unresolved": 0,
+      "resolved": 0,
+      "symbols": 1,
+      "utc_days": 1,
+      "reasons": {
+        "TELEGRAM_ACK": 1
+      },
+      "barriers": {},
+      "directions": {
+        "LONG": 1
+      },
+      "models": {
+        "COMPRESSION_BREAKOUT": 1
+      },
+      "scenarios": {
+        "CONTINUATION": 1
+      },
+      "invalid_entry_geometry": 0,
+      "reference_net": {
+        "n": 0,
+        "positive": 0,
+        "negative": 0,
+        "mean_pct": null,
+        "median_pct": null,
+        "profit_factor": null,
+        "profit_factor_status": "NO_LOSSES_OR_NO_SAMPLE"
+      },
+      "direction_only": {
+        "n": 0,
+        "positive": 0,
+        "negative": 0,
+        "mean_pct": null,
+        "median_pct": null,
+        "profit_factor": null,
+        "profit_factor_status": "NO_LOSSES_OR_NO_SAMPLE",
+        "equal_random_direction_mean_pct": null,
+        "scope": "RAW_ENDPOINT_DIRECTION_TEST_NOT_TRADES_OR_STOP_TARGET_COMPARISON"
+      },
+      "daily_reference_net": [],
+      "known_boundary_pessimistic": {
+        "n": 0,
+        "positive": 0,
+        "negative": 0,
+        "mean_pct": null,
+        "median_pct": null,
+        "profit_factor": null,
+        "profit_factor_status": "NO_LOSSES_OR_NO_SAMPLE"
+      },
+      "sensitivity_complete": true,
+      "status": "UNVALIDATED_REFERENCE_MODEL",
+      "limitations": [
+        "Costs are assumed; actual spread/slippage/funding not measured",
+        "Correlated observations and concurrent positions are not independent",
+        "No held-out executable strategy comparison has passed"
+      ]
+    },
+    {
+      "strategy_id": "6c6c1338adaa76501485a65cc1c30224bc5fbd56f7ba14aa4d5b1c460afc91d4",
+      "version": "CHART_FIRST_MULTIFRAME_V1_2026_10_15",
+      "stage": "DELIVERED_READY",
+      "horizon": 15,
+      "primary_endpoint": false,
+      "records": 16,
+      "pending": 0,
+      "missing": 0,
+      "unresolved": 0,
+      "resolved": 16,
+      "symbols": 15,
+      "utc_days": 1,
+      "reasons": {
+        "TELEGRAM_ACK": 16
+      },
+      "barriers": {
+        "OBSTACLE": 6,
+        "INVALIDATION": 5,
+        "HORIZON": 5
+      },
+      "directions": {
+        "LONG": 5,
+        "SHORT": 11
+      },
+      "models": {
+        "UNCLASSIFIED": 16
+      },
+      "scenarios": {
+        "CONTINUATION": 15,
+        "REVERSAL_ATTEMPT": 1
+      },
+      "invalid_entry_geometry": 0,
+      "reference_net": {
+        "n": 0,
+        "positive": 0,
+        "negative": 0,
+        "mean_pct": null,
+        "median_pct": null,
+        "profit_factor": null,
+        "profit_factor_status": "NO_LOSSES_OR_NO_SAMPLE"
+      },
+      "direction_only": {
+        "n": 16,
+        "positive": 6,
+        "negative": 10,
+        "mean_pct": -0.7097829676489441,
+        "median_pct": -0.2649648982023911,
+        "profit_factor": 0.4177838936480432,
+        "profit_factor_status": "DEFINED",
+        "equal_random_direction_mean_pct": 0,
+        "scope": "RAW_ENDPOINT_DIRECTION_TEST_NOT_TRADES_OR_STOP_TARGET_COMPARISON"
+      },
+      "daily_reference_net": [],
+      "known_boundary_pessimistic": {
+        "n": 0,
+        "positive": 0,
+        "negative": 0,
+        "mean_pct": null,
+        "median_pct": null,
+        "profit_factor": null,
+        "profit_factor_status": "NO_LOSSES_OR_NO_SAMPLE"
+      },
+      "sensitivity_complete": true,
+      "status": "UNVALIDATED_REFERENCE_MODEL",
+      "limitations": [
+        "Costs are assumed; actual spread/slippage/funding not measured",
+        "Correlated observations and concurrent positions are not independent",
+        "No held-out executable strategy comparison has passed"
+      ]
+    },
+    {
+      "strategy_id": "6c6c1338adaa76501485a65cc1c30224bc5fbd56f7ba14aa4d5b1c460afc91d4",
+      "version": "CHART_FIRST_MULTIFRAME_V1_2026_10_15",
+      "stage": "DELIVERED_READY",
+      "horizon": 60,
+      "primary_endpoint": false,
+      "records": 16,
+      "pending": 0,
+      "missing": 0,
+      "unresolved": 0,
+      "resolved": 16,
+      "symbols": 15,
+      "utc_days": 1,
+      "reasons": {
+        "TELEGRAM_ACK": 16
+      },
+      "barriers": {
+        "OBSTACLE": 9,
+        "INVALIDATION": 6,
+        "HORIZON": 1
+      },
+      "directions": {
+        "LONG": 5,
+        "SHORT": 11
+      },
+      "models": {
+        "UNCLASSIFIED": 16
+      },
+      "scenarios": {
+        "CONTINUATION": 15,
+        "REVERSAL_ATTEMPT": 1
+      },
+      "invalid_entry_geometry": 0,
+      "reference_net": {
+        "n": 0,
+        "positive": 0,
+        "negative": 0,
+        "mean_pct": null,
+        "median_pct": null,
+        "profit_factor": null,
+        "profit_factor_status": "NO_LOSSES_OR_NO_SAMPLE"
+      },
+      "direction_only": {
+        "n": 16,
+        "positive": 5,
+        "negative": 11,
+        "mean_pct": -1.708509608822375,
+        "median_pct": -2.498576262833263,
+        "profit_factor": 0.31547988310672476,
+        "profit_factor_status": "DEFINED",
+        "equal_random_direction_mean_pct": 0,
+        "scope": "RAW_ENDPOINT_DIRECTION_TEST_NOT_TRADES_OR_STOP_TARGET_COMPARISON"
+      },
+      "daily_reference_net": [],
+      "known_boundary_pessimistic": {
+        "n": 0,
+        "positive": 0,
+        "negative": 0,
+        "mean_pct": null,
+        "median_pct": null,
+        "profit_factor": null,
+        "profit_factor_status": "NO_LOSSES_OR_NO_SAMPLE"
+      },
+      "sensitivity_complete": true,
+      "status": "UNVALIDATED_REFERENCE_MODEL",
+      "limitations": [
+        "Costs are assumed; actual spread/slippage/funding not measured",
+        "Correlated observations and concurrent positions are not independent",
+        "No held-out executable strategy comparison has passed"
+      ]
+    },
+    {
+      "strategy_id": "6c6c1338adaa76501485a65cc1c30224bc5fbd56f7ba14aa4d5b1c460afc91d4",
+      "version": "CHART_FIRST_MULTIFRAME_V1_2026_10_15",
+      "stage": "DELIVERED_READY",
+      "horizon": 180,
+      "primary_endpoint": true,
+      "records": 16,
+      "pending": 0,
+      "missing": 0,
+      "unresolved": 0,
+      "resolved": 16,
+      "symbols": 15,
+      "utc_days": 1,
+      "reasons": {
+        "TELEGRAM_ACK": 16
+      },
+      "barriers": {
+        "OBSTACLE": 9,
+        "INVALIDATION": 6,
+        "HORIZON": 1
+      },
+      "directions": {
+        "LONG": 5,
+        "SHORT": 11
+      },
+      "models": {
+        "UNCLASSIFIED": 16
+      },
+      "scenarios": {
+        "CONTINUATION": 15,
+        "REVERSAL_ATTEMPT": 1
+      },
+      "invalid_entry_geometry": 0,
+      "reference_net": {
+        "n": 0,
+        "positive": 0,
+        "negative": 0,
+        "mean_pct": null,
+        "median_pct": null,
+        "profit_factor": null,
+        "profit_factor_status": "NO_LOSSES_OR_NO_SAMPLE"
+      },
+      "direction_only": {
+        "n": 16,
+        "positive": 3,
+        "negative": 13,
+        "mean_pct": -4.656971888314387,
+        "median_pct": -5.207285641198867,
+        "profit_factor": 0.1016640855547804,
+        "profit_factor_status": "DEFINED",
+        "equal_random_direction_mean_pct": 0,
+        "scope": "RAW_ENDPOINT_DIRECTION_TEST_NOT_TRADES_OR_STOP_TARGET_COMPARISON"
+      },
+      "daily_reference_net": [],
+      "known_boundary_pessimistic": {
+        "n": 0,
+        "positive": 0,
+        "negative": 0,
+        "mean_pct": null,
+        "median_pct": null,
+        "profit_factor": null,
+        "profit_factor_status": "NO_LOSSES_OR_NO_SAMPLE"
+      },
+      "sensitivity_complete": true,
+      "status": "UNVALIDATED_REFERENCE_MODEL",
+      "limitations": [
+        "Costs are assumed; actual spread/slippage/funding not measured",
+        "Correlated observations and concurrent positions are not independent",
+        "No held-out executable strategy comparison has passed"
+      ]
+    }
+  ],
+  "edge_proven": false,
+  "limitations": [
+    "New release has no matured entry sample yet",
+    "Historical cohort outcomes use their original endpoint policies; not directly interchangeable with V1 15/30-minute audit",
+    "No actual execution costs/funding or held-out executable benchmark validation"
+  ]
+}
