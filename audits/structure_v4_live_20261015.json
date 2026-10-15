@@ -1,0 +1,86 @@
+{
+  "commit": "b3e1ac44a3f9f0a3cd08bf6af720a9265f7fb7b5",
+  "deployment": "e7249dfc-b329-4506-a82f-5b63ff951bde",
+  "strategy_id": "4161b777dd16199e864f294ffaeb3ee733f23c6d8ea12ddffbaae7b0b504d506",
+  "tests": 660,
+  "scans": {
+    "scope": "deployment",
+    "deploymentId": "e7249dfc-b329-4506-a82f-5b63ff951bde",
+    "serviceId": "caad3157-e67b-4d20-80d9-67aa5fe8778c",
+    "environmentId": "5fc78d8b-4f54-4b50-867d-c544cbd74aaa",
+    "status": "SUCCESS",
+    "deploy": [
+      {
+        "timestamp": "2026-10-15T19:47:59.518785732Z",
+        "severity": "info",
+        "message": "CHART_FIRST_SUMMARY {\"version\": \"CHART_FIRST_STRUCTURE_V4_2026_10_15\", \"config_hash\": \"f4aaa1e685e3edd4fcba4fede4ead8ba09a5e2052e2cb5e951ba0ef4b3817745\", \"strategy_id\": \"4161b777dd16199e864f294ffaeb3ee733f23c6d8ea12ddffbaae7b0b504d506\", \"checked\": 171, \"directions\": {\"NONE\": 166, \"LONG\": 5}, \"stages\": {\"REJECTED\": 171}, \"reasons\": {\"FRESH_PRICE_UNAVAILABLE\": 91, \"HOURLY_STRUCTURE_UNCLEAR\": 3, \"NET_REWARD_BELOW_STRUCTURAL_RISK\": 2, \"OBSTACLE_WITHIN_COST_ALLOWANCE\": 2, \"REVERSAL_PRICE_NOT_RESPONDING\": 1, \"LIQUIDITY_FLOOR\": 66, \"VERIFIED_HISTORY_MISSING_4h\": 1, \"VERIFIED_HISTORY_MISSING_5m\": 5}, \"same_tick_v3_rules\": {\"REJECTED:FRESH_PRICE_UNAVAILABLE\": 91, \"REJECTED:HOURLY_STRUCTURE_UNCLEAR\": 3, \"REJECTED:OBSTACLE_WITHIN_COST_ALLOWANCE\": 2, \"REJECTED:NET_REWARD_BELOW_STRUCTURAL_RISK\": 1, \"REJECTED:NO_DEFINED_SETUP\": 1, \"REJECTED:REVERSAL_PRICE_NOT_RESPONDING\": 1, \"REJECTED:LIQUIDITY_FLOOR\": 66}, \"newly_eligible\": [], \"pattern_results\": {\"PULLBACK_CONTINUATION:NET_REWARD_BELOW_STRUCTURAL_RISK\": 2, \"CONFIRMED_LEVEL_WATCH:NET_REWARD_BELOW_STRUCTURAL_RISK\": 1, \"SWING_BREAKOUT:OBSTACLE_WITHIN_COST_ALLOWANCE\": 2, \"CONFIRMED_LEVEL_WATCH:OBSTACLE_WITHIN_COST_ALLOWANCE\": 3}, \"alternate_admissions\": 0, \"eligible\": [], \"derived_tail_symbols\": 1, \"created\": 0, \"delivered\": 0, \"final_gates\": {}, \"primary_enabled\": true, \"automatic_orders\": false}",
+        "attributes": [
+          {
+            "key": "level",
+            "value": "\"info\""
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-10-15T19:48:31.896983164Z",
+        "severity": "info",
+        "message": "CHART_FIRST_SUMMARY {\"version\": \"CHART_FIRST_STRUCTURE_V4_2026_10_15\", \"config_hash\": \"f4aaa1e685e3edd4fcba4fede4ead8ba09a5e2052e2cb5e951ba0ef4b3817745\", \"strategy_id\": \"4161b777dd16199e864f294ffaeb3ee733f23c6d8ea12ddffbaae7b0b504d506\", \"checked\": 171, \"directions\": {\"LONG\": 50, \"SHORT\": 12, \"NONE\": 109}, \"stages\": {\"REJECTED\": 170, \"WATCH\": 1}, \"reasons\": {\"REVERSAL_FLOW_NOT_ALIGNED\": 11, \"NET_REWARD_BELOW_STRUCTURAL_RISK\": 13, \"NO_DEFINED_SETUP\": 12, \"OBSTACLE_WITHIN_COST_ALLOWANCE\": 11, \"OK\": 1, \"FRESH_PRICE_UNAVAILABLE\": 20, \"REVERSAL_PRICE_NOT_RESPONDING\": 4, \"ENTRY_ALREADY_EXTENDED\": 2, \"ENTRY_NOT_NEAR\": 5, \"HOURLY_STRUCTURE_UNCLEAR\": 17, \"LOCAL_IDEA_INVALIDATED\": 1, \"CONFIRMATION_WINDOW_EXPIRED\": 2, \"LIQUIDITY_FLOOR\": 66, \"VERIFIED_HISTORY_MISSING_4h\": 1, \"VERIFIED_HISTORY_MISSING_5m\": 5}, \"same_tick_v3_rules\": {\"REJECTED:REVERSAL_FLOW_NOT_ALIGNED\": 11, \"REJECTED:NO_DEFINED_SETUP\": 30, \"REJECTED:OBSTACLE_WITHIN_COST_ALLOWANCE\": 9, \"REJECTED:FRESH_PRICE_UNAVAILABLE\": 20, \"REJECTED:REVERSAL_PRICE_NOT_RESPONDING\": 4, \"REJECTED:ENTRY_ALREADY_EXTENDED\": 2, \"REJECTED:HOURLY_STRUCTURE_UNCLEAR\": 17, \"REJECTED:NET_REWARD_BELOW_STRUCTURAL_RISK\": 5, \"REJECTED:LOCAL_IDEA_INVALIDATED\": 1, \"REJECTED:LIQUIDITY_FLOOR\": 66}, \"newly_eligible\": [{\"symbol\": \"XRPUSDT\", \"old_reason\": \"NO_DEFINED_SETUP\", \"new_stage\": \"WATCH\", \"model\": \"CONFIRMED_LEVEL_WATCH\", \"old_obstacle\": null, \"new_obstacle\": 1.3704, \"intermediate\": null}], \"pattern_results\": {\"CONFIRMED_LEVEL_WATCH:NET_REWARD_BELOW_STRUCTURAL_RISK\": 14, \"COMPRESSION_BREAKOUT:OBSTACLE_WITHIN_COST_ALLOWANCE\": 4, \"PULLBACK_CONTINUATION:OBSTACLE_WITHIN_COST_ALLOWANCE\": 4, \"CONFIRMED_LEVEL_WATCH:OBSTACLE_WITHIN_COST_ALLOWANCE\": 11, \"CONFIRMED_LEVEL_WATCH:OK\": 1, \"PULLBACK_CONTINUATION:ENTRY_ALREADY_EXTENDED\": 2, \"PULLBACK_CONTINUATION:NET_REWARD_BELOW_STRUCTURAL_RISK\": 1, \"COMPRESSION_BREAKOUT:NET_REWARD_BELOW_STRUCTURAL_RISK\": 3, \"SWING_BREAKOUT:NET_REWARD_BELOW_STRUCTURAL_RISK\": 4, \"CONFIRMED_LEVEL_WATCH:ENTRY_NOT_NEAR\": 5, \"SWING_BREAKOUT:OBSTACLE_WITHIN_COST_ALLOWANCE\": 3, \"COMPRESSION_BREAKOUT:LOCAL_IDEA_INVALIDATED\": 1, \"CONFIRMED_LEVEL_WATCH:LOCAL_IDEA_INVALIDATED\": 1, \"PULLBACK_CONTINUATION:CONFIRMATION_WINDOW_EXPIRED\": 2}, \"alternate_admissions\": 0, \"eligible\": [{\"symbol\": \"XRPUSDT\", \"side\": \"LONG\", \"stage\": \"WATCH\", \"scenario\": \"CONTINUATION\", \"daily\": \"DOWN\", \"four_hour\": \"RANGE\", \"hour\": \"UP\", \"price\": 1.3439, \"trigger\": 1.347, \"invalidation\": 1.3355878571428572, \"obstacle\": 1.3704, \"entry_limit\": 1.3489470873095004, \"daily_bars\": 36, \"model\": \"CONFIRMED_LEVEL_WATCH\", \"geometry\": {\"valid\": true, \"reason\": \"OK\", \"reference_entry\": 1.347, \"gross_room_pct\": 1.7371937639198285, \"invalidation_pct\": 0.847226641213271, \"cost_assumption_pct\": 0.3, \"net_room_pct\": 1.4371937639198284, \"loss_with_cost_pct\": 1.147226641213271, \"net_reward_risk\": 1.252754871870738, \"break_even_win_rate_pct\": 44.39009376859444}, \"hourly_flow\": {\"status\": \"OK\", \"start_ms\": 1792089900000, \"end_ms\": 1792093500000, \"window_minutes\": 60, \"buy_share\": 0.5385115340979704, \"quote_volume\": 15263809.84732, \"price_return_pct\": 0.029795158286782808, \"previous_30m_buy_share\": 0.544308938928943, \"recent_30m_buy_share\": 0.5358043996473532}}], \"derived_tail_symbols\": 1, \"created\": 1, \"delivered\": 1, \"final_gates\": {\"CREATED\": 1}, \"primary_enabled\": true, \"automatic_orders\": false}",
+        "attributes": [
+          {
+            "key": "level",
+            "value": "\"info\""
+          }
+        ]
+      }
+    ]
+  },
+  "deliveries": {
+    "scope": "deployment",
+    "deploymentId": "e7249dfc-b329-4506-a82f-5b63ff951bde",
+    "serviceId": "caad3157-e67b-4d20-80d9-67aa5fe8778c",
+    "environmentId": "5fc78d8b-4f54-4b50-867d-c544cbd74aaa",
+    "status": "SUCCESS",
+    "deploy": [
+      {
+        "timestamp": "2026-10-15T19:48:31.823941354Z",
+        "severity": "info",
+        "message": "CHART_FIRST_DELIVERY {\"version\": \"CHART_FIRST_STRUCTURE_V4_2026_10_15\", \"strategy_id\": \"4161b777dd16199e864f294ffaeb3ee733f23c6d8ea12ddffbaae7b0b504d506\", \"episode_id\": \"d3386e88990f9f14a4d5c50c81f3df2999457db844073f96246062d649be6b93\", \"symbol\": \"XRPUSDT\", \"direction\": \"LONG\", \"model\": \"CONFIRMED_LEVEL_WATCH\", \"stage\": \"DELIVERED_WATCH\", \"observed_ms\": 1792093711817, \"price\": 1.3439, \"trigger\": 1.347, \"stop\": 1.3355878571428572, \"obstacle\": 1.3704, \"entry_limit\": 1.3489470873095004, \"geometry\": {\"valid\": true, \"reason\": \"OK\", \"reference_entry\": 1.3439, \"gross_room_pct\": 1.9718729072103554, \"invalidation_pct\": 0.6185090302212127, \"cost_assumption_pct\": 0.3, \"net_room_pct\": 1.6718729072103553, \"loss_with_cost_pct\": 0.9185090302212127, \"net_reward_risk\": 1.8202030161943028, \"break_even_win_rate_pct\": 35.458440199437874}, \"scenario\": \"CONTINUATION\", \"hourly_flow\": {\"status\": \"OK\", \"start_ms\": 1792089900000, \"end_ms\": 1792093500000, \"window_minutes\": 60, \"buy_share\": 0.5385115340979704, \"quote_volume\": 15263809.84732, \"price_return_pct\": 0.029795158286782808, \"previous_30m_buy_share\": 0.544308938928943, \"recent_30m_buy_share\": 0.5358043996473532}}",
+        "attributes": [
+          {
+            "key": "level",
+            "value": "\"info\""
+          }
+        ]
+      }
+    ]
+  },
+  "telegram_ack": {
+    "scope": "deployment",
+    "deploymentId": "e7249dfc-b329-4506-a82f-5b63ff951bde",
+    "serviceId": "caad3157-e67b-4d20-80d9-67aa5fe8778c",
+    "environmentId": "5fc78d8b-4f54-4b50-867d-c544cbd74aaa",
+    "status": "SUCCESS",
+    "deploy": [
+      {
+        "timestamp": "2026-10-15T19:48:31.816494978Z",
+        "severity": "info",
+        "message": "TELEGRAM_CARD_ACK {\"symbol\": \"XRPUSDT\", \"source\": \"CHART\", \"method\": \"sendMessage\", \"new_episode\": true}",
+        "attributes": [
+          {
+            "key": "level",
+            "value": "\"info\""
+          }
+        ]
+      }
+    ]
+  },
+  "scan_errors": {
+    "scope": "deployment",
+    "deploymentId": "e7249dfc-b329-4506-a82f-5b63ff951bde",
+    "serviceId": "caad3157-e67b-4d20-80d9-67aa5fe8778c",
+    "environmentId": "5fc78d8b-4f54-4b50-867d-c544cbd74aaa",
+    "status": "SUCCESS",
+    "deploy": []
+  },
+  "profitability_proven": false
+}
