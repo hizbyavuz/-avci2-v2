@@ -1,0 +1,176 @@
+{
+  "commit": "360d29aebe530c0b578fecc454f78537ee6b4777",
+  "deployment_id": "8949ff6a-9bae-44e2-9f31-8c13665d0ddc",
+  "status": "SUCCESS",
+  "tests_passed": 664,
+  "scan_errors": [],
+  "scans": [
+    {
+      "timestamp": "2026-10-15T19:59:52.122576470Z",
+      "version": "CHART_FIRST_STRUCTURE_V4_1_2026_10_15",
+      "strategy_id": "b3154047e7fc7631de651a4431bd478e61b54098ebb63faed6bd216cf2bc762a",
+      "risk_reward_filter_enabled": false,
+      "checked": 171,
+      "stages": {
+        "REJECTED": 171
+      },
+      "reasons": {
+        "FRESH_PRICE_UNAVAILABLE": 99,
+        "LIQUIDITY_FLOOR": 66,
+        "VERIFIED_HISTORY_MISSING_4h": 1,
+        "VERIFIED_HISTORY_MISSING_5m": 5
+      },
+      "created": 0,
+      "delivered": 2,
+      "final_gates": {},
+      "eligible": []
+    },
+    {
+      "timestamp": "2026-10-15T20:00:26.775390521Z",
+      "version": "CHART_FIRST_STRUCTURE_V4_1_2026_10_15",
+      "strategy_id": "b3154047e7fc7631de651a4431bd478e61b54098ebb63faed6bd216cf2bc762a",
+      "risk_reward_filter_enabled": false,
+      "checked": 171,
+      "stages": {
+        "REJECTED": 152,
+        "WATCH": 18,
+        "READY": 1
+      },
+      "reasons": {
+        "HOURLY_STRUCTURE_UNCLEAR": 30,
+        "ENTRY_NOT_NEAR": 4,
+        "REVERSAL_PRICE_NOT_RESPONDING": 6,
+        "OK": 19,
+        "NO_DEFINED_SETUP": 15,
+        "REVERSAL_FLOW_NOT_ALIGNED": 15,
+        "OBSTACLE_WITHIN_COST_ALLOWANCE": 9,
+        "FRESH_PRICE_UNAVAILABLE": 1,
+        "LIQUIDITY_FLOOR": 66,
+        "VERIFIED_HISTORY_MISSING_4h": 1,
+        "VERIFIED_HISTORY_MISSING_5m": 5
+      },
+      "created": 3,
+      "delivered": 2,
+      "final_gates": {
+        "CREATED": 3,
+        "CYCLE_NOTICE_CAP": 16
+      },
+      "eligible": [
+        {
+          "symbol": "MAGICUSDT",
+          "side": "SHORT",
+          "stage": "READY",
+          "net_reward_risk": 0.06509625126646726
+        },
+        {
+          "symbol": "WUSDT",
+          "side": "SHORT",
+          "stage": "WATCH",
+          "net_reward_risk": 0.04998169168801881
+        },
+        {
+          "symbol": "EPICUSDT",
+          "side": "SHORT",
+          "stage": "WATCH",
+          "net_reward_risk": 0.5168918918919035
+        },
+        {
+          "symbol": "AKEUSDT",
+          "side": "LONG",
+          "stage": "WATCH",
+          "net_reward_risk": 0.07351687032905665
+        },
+        {
+          "symbol": "SANDUSDT",
+          "side": "LONG",
+          "stage": "WATCH",
+          "net_reward_risk": 0.31742674310136204
+        },
+        {
+          "symbol": "AEROUSDT",
+          "side": "SHORT",
+          "stage": "WATCH",
+          "net_reward_risk": 0.5163994421181464
+        },
+        {
+          "symbol": "DUSKUSDT",
+          "side": "LONG",
+          "stage": "WATCH",
+          "net_reward_risk": 0.6722929712184201
+        },
+        {
+          "symbol": "DOTUSDT",
+          "side": "LONG",
+          "stage": "WATCH",
+          "net_reward_risk": 0.16377570165688926
+        },
+        {
+          "symbol": "NEARUSDT",
+          "side": "LONG",
+          "stage": "WATCH",
+          "net_reward_risk": 0.32448117457174164
+        },
+        {
+          "symbol": "USELESSUSDT",
+          "side": "LONG",
+          "stage": "WATCH",
+          "net_reward_risk": 0.31165239720282534
+        },
+        {
+          "symbol": "1000SHIBUSDT",
+          "side": "LONG",
+          "stage": "WATCH",
+          "net_reward_risk": 1.0755034498232927
+        },
+        {
+          "symbol": "BCHUSDT",
+          "side": "LONG",
+          "stage": "WATCH",
+          "net_reward_risk": 0.07091059314972507
+        },
+        {
+          "symbol": "WALUSDT",
+          "side": "SHORT",
+          "stage": "WATCH",
+          "net_reward_risk": 0.19042255334212774
+        },
+        {
+          "symbol": "SUIUSDT",
+          "side": "LONG",
+          "stage": "WATCH",
+          "net_reward_risk": 0.008480248941639923
+        },
+        {
+          "symbol": "ETCUSDT",
+          "side": "LONG",
+          "stage": "WATCH",
+          "net_reward_risk": 0.886416950078693
+        },
+        {
+          "symbol": "AVAXUSDT",
+          "side": "LONG",
+          "stage": "WATCH",
+          "net_reward_risk": 2.32807845601239
+        },
+        {
+          "symbol": "CRVUSDT",
+          "side": "LONG",
+          "stage": "WATCH",
+          "net_reward_risk": 0.20656582665866327
+        },
+        {
+          "symbol": "HBARUSDT",
+          "side": "LONG",
+          "stage": "WATCH",
+          "net_reward_risk": 0.6190688015242795
+        },
+        {
+          "symbol": "INJUSDT",
+          "side": "LONG",
+          "stage": "WATCH",
+          "net_reward_risk": 0.6003519198357729
+        }
+      ]
+    }
+  ]
+}
