@@ -2268,7 +2268,20 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None, *, _partia
     confidence=int(round(float(v3.get("best_score") or 0.0)))
     reversal_plan=build_reversal_plan(price,k5,t5,t15,day_change_pct)
     structure_gate['_strategy_identity']=strategy_identity
+    gate_experiment=None
+    if native_v2_enabled() and os.getenv('LS_DATA_OPPORTUNITY_V2','0')=='1':
+        try:
+            from long_short_gate_experiment import variants
+            gate_experiment=variants(setup_plan,structure_gate,v3,evidence,k5,t15['atr_pct'])
+            print('PAIRED_GATE_CANDIDATE '+json.dumps({'symbol':symbol,
+                'direction':preferred_direction,'missing':gate_experiment['missing'],
+                'arms':[{k:a[k] for k in ('name','admitted','blockers','risk_pct','reward_pct','net_r')}
+                        for a in gate_experiment['arms']]},allow_nan=False),flush=True)
+        except (ValueError,TypeError,KeyError) as exc:
+            gate_experiment=None
+            print('PAIRED_GATE_RECORD_ERROR',symbol,type(exc).__name__,flush=True)
     payload={
+        "gate_experiment":gate_experiment,
         "strategy_identity":strategy_identity,
         "version":("LS_NATIVE_CHAIN_V2_2026-10-13" if native_v2_enabled() else VERSION),"frozen_config_hash":FROZEN_CONFIG_HASH,"data_mode":DATA_MODE,"market_regime":market_regime,
         "native_chain_v2":native_v2_enabled(),"partial_research_only":_partial_research,

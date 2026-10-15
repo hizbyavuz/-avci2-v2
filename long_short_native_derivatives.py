@@ -46,7 +46,7 @@ def fresh(stamp,now_ms,age_ms):
     delta=now_ms-number(stamp)
     return -2000<=delta<=age_ms
 
-def validate(payload,symbol,now_ms=None):
+def validate(payload,symbol,now_ms=None,allow_partial=False):
     now_ms=int(time.time()*1000) if now_ms is None else now_ms
     if payload.get('source')!=SOURCE or payload.get('symbol')!=symbol or set(payload.get('endpoints',[]))!=ENDPOINTS:
         raise ValueError('native derivative provenance mismatch')
@@ -55,33 +55,44 @@ def validate(payload,symbol,now_ms=None):
     if any(m.get(k)!=v for k,v in {'symbol':symbol,'status':'TRADING','contractType':'PERPETUAL',
                                   'quoteAsset':'USDT','marginAsset':'USDT'}.items()):
         raise ValueError('native contract mismatch')
-    current=payload.get('oi') or {};mark=payload.get('mark') or {}
-    if current.get('symbol')!=symbol or mark.get('symbol')!=symbol:raise ValueError('native symbol mismatch')
-    if not fresh(current.get('time'),now_ms,180000) or not fresh(mark.get('time'),now_ms,180000):
-        raise ValueError('native current fields stale')
-    history=payload.get('oi_history')
-    if not isinstance(history,list) or len(history)<13:raise ValueError('native OI history missing')
-    history=sorted(history,key=lambda r:number(r.get('timestamp')))[-13:]
-    for i,r in enumerate(history):
-        if r.get('symbol')!=symbol:raise ValueError('OI history symbol mismatch')
-        number(r.get('sumOpenInterest'),True)
-        if i and number(r['timestamp'])-number(history[i-1]['timestamp'])!=300000:
-            raise ValueError('OI history gap')
-    if not fresh(history[-1]['timestamp'],now_ms,660000):raise ValueError('OI history stale')
-    ls=payload.get('long_short')
-    if not isinstance(ls,list) or not ls:raise ValueError('native long/short missing')
-    ls=max(ls,key=lambda r:number(r.get('timestamp')))
-    if ls.get('symbol')!=symbol or not fresh(ls.get('timestamp'),now_ms,660000):
-        raise ValueError('long/short stale or wrong symbol')
-    return {'version':VERSION,'source':SOURCE,'symbol':symbol,'market_verified':True,
+    result={'version':VERSION,'source':SOURCE,'symbol':symbol,'market_verified':True,
         'observed_ms':int(payload['observed_ms']),'oi_unit':'BASE_ASSET',
-        'oi_now':number(current.get('openInterest'),True),'oi_fresh':True,
-        'oi_change_1h':(number(history[-1]['sumOpenInterest'],True)/number(history[0]['sumOpenInterest'],True)-1)*100,
-        'long_short_ratio':number(ls.get('longShortRatio'),True),'ls_fresh':True,
-        'long_short_definition':'BINANCE_GLOBAL_ACCOUNT_RATIO',
-        'funding_pct':number(mark.get('lastFundingRate'))*100,'funding_fresh':True,
-        'next_funding_ms':int(number(mark.get('nextFundingTime'),True)),
-        'mark_price':number(mark.get('markPrice'),True)}
+        'oi_fresh':False,'ls_fresh':False,'funding_fresh':False,
+        'oi_change_1h':None,'oi_now':None,'long_short_ratio':None,'funding_pct':None,
+        'long_short_definition':'BINANCE_GLOBAL_ACCOUNT_RATIO','field_errors':{}}
+    def oi_fields():
+        current=payload.get('oi') or {}
+        if current.get('symbol')!=symbol:raise ValueError('native OI symbol mismatch')
+        if not fresh(current.get('time'),now_ms,180000):raise ValueError('native OI stale')
+        history=payload.get('oi_history')
+        if not isinstance(history,list) or len(history)<13:raise ValueError('native OI history missing')
+        history=sorted(history,key=lambda r:number(r.get('timestamp')))[-13:]
+        for i,r in enumerate(history):
+            if r.get('symbol')!=symbol:raise ValueError('OI history symbol mismatch')
+            number(r.get('sumOpenInterest'),True)
+            if i and number(r['timestamp'])-number(history[i-1]['timestamp'])!=300000:raise ValueError('OI history gap')
+        if not fresh(history[-1]['timestamp'],now_ms,660000):raise ValueError('OI history stale')
+        return dict(oi_now=number(current.get('openInterest'),True),oi_fresh=True,
+            oi_change_1h=(number(history[-1]['sumOpenInterest'],True)/number(history[0]['sumOpenInterest'],True)-1)*100)
+    def ls_fields():
+        ls=payload.get('long_short')
+        if not isinstance(ls,list) or not ls:raise ValueError('native long/short missing')
+        ls=max(ls,key=lambda r:number(r.get('timestamp')))
+        if ls.get('symbol')!=symbol or not fresh(ls.get('timestamp'),now_ms,660000):raise ValueError('long/short stale or wrong symbol')
+        return dict(long_short_ratio=number(ls.get('longShortRatio'),True),ls_fresh=True)
+    def funding_fields():
+        mark=payload.get('mark') or {}
+        if mark.get('symbol')!=symbol:raise ValueError('native mark symbol mismatch')
+        if not fresh(mark.get('time'),now_ms,180000):raise ValueError('native mark stale')
+        return dict(funding_pct=number(mark.get('lastFundingRate'))*100,funding_fresh=True,
+            next_funding_ms=int(number(mark.get('nextFundingTime'),True)),mark_price=number(mark.get('markPrice'),True))
+    for field,reader in [('oi_change_1h',oi_fields),('long_short_ratio',ls_fields),('funding_pct',funding_fields)]:
+        try:result.update(reader())
+        except (ValueError,TypeError,KeyError,AttributeError) as exc:
+            if not allow_partial:raise
+            result['field_errors'][field]=str(exc)
+    if result['field_errors']:result['error']='; '.join(result['field_errors'].values())
+    return result
 
 def database():
     os.makedirs(root(),exist_ok=True)
@@ -109,7 +120,7 @@ def refresh(symbol):
         raise ValueError('NATIVE_REFRESH_PENDING')
     # An error keeps the short lease as retry backoff; it never stamps old data fresh.
     payload=relay_get('/derivatives',{'symbol':symbol})
-    result=validate(payload,symbol)
+    result=validate(payload,symbol,allow_partial=True)
     c=database()
     try:
         with c:
@@ -124,7 +135,7 @@ def snapshot(symbol):
         try:row=c.execute('SELECT payload FROM snapshots WHERE symbol=?',(symbol,)).fetchone()
         finally:c.close()
         if not row:raise ValueError('native snapshot unavailable')
-        return validate(json.loads(row[0]),symbol)
+        return validate(json.loads(row[0]),symbol,allow_partial=True)
     except (ValueError,TypeError,KeyError,sqlite3.Error) as e:
         return {'version':VERSION,'source':SOURCE,'symbol':symbol,'oi_fresh':False,'ls_fresh':False,
             'funding_fresh':False,'error':str(e),'oi_change_1h':None,'long_short_ratio':None,'funding_pct':None}
@@ -135,7 +146,8 @@ def evidence(symbol, refresh_stale=False):
         before=result['error']
         try:
             result=refresh(symbol)
-            print('NATIVE_DATA_RECOVERED '+json.dumps({'symbol':symbol,'previous_error':before,'version':REFRESH_VERSION}),flush=True)
+            event='NATIVE_DATA_PARTIAL' if result.get('error') else 'NATIVE_DATA_RECOVERED'
+            print(event+' '+json.dumps({'symbol':symbol,'previous_error':before,'field_errors':result.get('field_errors',{}),'version':REFRESH_VERSION}),flush=True)
         except Exception as exc:
             result=snapshot(symbol)
             result['refresh_error']=str(exc)[:160]

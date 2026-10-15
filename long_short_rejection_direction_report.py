@@ -31,7 +31,7 @@ def report(c, now_ms=None):
         for r in rows:
             p=json.loads(r['payload']); v=json.loads(r['result'] or '{}');v.setdefault('state',r['state']);pnls.append(v)
             why=[p.get('structure_reason')] if block=='STRUCTURE_BLOCKED' else p.get('hard_blockers',[])+p.get('direction_reasons',[])
-            for reason in why or [p.get('data_reason') or block]:
+            for reason in dict.fromkeys(why or [p.get('data_reason') or block]):
                 if reason:reasons[str(reason)]+=1
         for horizon in HORIZONS:
             counts=Counter(); raw=[];signed=[]; favourable=[];adverse=[]

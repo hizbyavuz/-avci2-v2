@@ -114,6 +114,7 @@ def record_analysis(a,partial=False,now_ms=None):
     eligible=bool(d.get('direction') in ('LONG','SHORT') and p.get('actionable_liquidity_ok')
         and (p.get('structure_gate') or {}).get('qualified_precheck') and float((p.get('t15') or {}).get('atr_pct',99))<4)
     data={'research_only':True,'missing':missing,'eligible_observation':eligible,
+        'gate_experiment':p.get('gate_experiment'),
         'strategy_identity':p.get('strategy_identity'),
         'analyst_status':getattr(a,'status',None),
         'stage':'DIRECTION_AND_STRUCTURE_PRECHECK_NOT_ENTRY_CONFIRMATION',
@@ -181,6 +182,8 @@ def resolve(now_ms=None):
     # Separate audit: never promotes observations into production signals.
     from long_short_rejection_audit import resolve as resolve_rejections
     resolve_rejections(now_ms=now_ms)
+    from long_short_gate_experiment import resolve as resolve_gate_experiment
+    resolve_gate_experiment(now_ms=now_ms)
 
 def main():
     stop=threading.Event()
