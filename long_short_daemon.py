@@ -92,6 +92,8 @@ def configure_state_paths() -> Path:
     # Core scoring, execution and risk thresholds are unchanged.
     if os.getenv('LS_EARLY_BREAKOUT_V1_ENABLED','0')=='1':
         os.environ.setdefault('LS_UNIFIED_CARD_ENABLED','1')
+    if os.getenv('LS_NATIVE_CHAIN_V2','0')=='1':
+        os.environ.setdefault('LS_CHART_FIRST_V1','1')
     enforce_futures_only()
     return sd
 
@@ -512,6 +514,11 @@ def main() -> int:
                          name="binance-derivative-coverage",daemon=True).start()
 
     if os.getenv('LS_NATIVE_CHAIN_V2','0')=='1':
+        from long_short_chart_first import enabled as chart_first_enabled
+        if chart_first_enabled() or os.getenv('LS_CHART_FIRST_PREVIEW','0')=='1':
+            threading.Thread(target=watcher_loop,
+                args=('chart_first','long_short_chart_first_worker.py'),
+                name='chart-first-v1',daemon=True).start()
         if os.getenv('LS_EARLY_BREAKOUT_V1_ENABLED','0')=='1':
             threading.Thread(target=watcher_loop,
                 args=('early_breakout_observer','long_short_breakout_observer.py'),

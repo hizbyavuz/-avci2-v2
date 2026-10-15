@@ -7,7 +7,7 @@ import os
 from functools import lru_cache
 from pathlib import Path
 
-VERSION='LS_LOCAL_LEVEL_AND_BROAD_DISCOVERY_V5_2026_10_15'
+VERSION='LS_CHART_FIRST_MULTIFRAME_V6_2026_10_15'
 
 
 @lru_cache(maxsize=1)
@@ -31,7 +31,7 @@ def snapshot():
         settings[module]=values
     settings['modes']={k:os.getenv(k,'0') for k in (
         'LS_NATIVE_CHAIN_V2','LS_BINANCE_FUTURES_ONLY','LS_STRUCTURAL_PLAN_V3',
-        'LS_QUALIFIED_SIGNAL_CHAIN_V1','LS_NATIVE_FUTURES_SNAPSHOT')}
+        'LS_QUALIFIED_SIGNAL_CHAIN_V1','LS_NATIVE_FUTURES_SNAPSHOT','LS_CHART_FIRST_V1')}
     # Include additional numeric/boolean LS overrides used inside functions.
     # Explicit defaults may create a conservative new cohort; secrets/paths do not.
     settings['numeric_overrides']={}

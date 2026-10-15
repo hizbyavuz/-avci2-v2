@@ -106,6 +106,9 @@ def simple_early(text):
 def render(sections):
     """One header, one evidence line and one risk line; decisions stay explicit."""
     from long_short_display import local_time
+    if 'CHART' in sections:
+        text=sections['CHART']['text']
+        return text if len(text)<=4096 else text[:4093]+'…'
     if 'OPPORTUNITY' in sections and 'CORE' not in sections:
         text=sections['OPPORTUNITY']['text']
         return text if len(text)<=4096 else text[:4093]+'…'
@@ -167,10 +170,13 @@ def render(sections):
 
 
 def publish(token, chat, symbol, source, text, direction, *, observed_at=None, post=None, episode_key=None):
+    from long_short_chart_first import enabled as chart_first_enabled
+    if chart_first_enabled() and source!='CHART':
+        return {'status':'LEGACY_REFERENCE_ONLY','message_id':None}
     from long_short_qualified_chain import enabled as qualified_chain_enabled
     if source == "EARLY" and qualified_chain_enabled():
         return {"status":"CANDIDATE_ONLY_V1","message_id":None}
-    if source not in ('CORE','EARLY','OPPORTUNITY') or direction not in ('LONG','SHORT'):
+    if source not in ('CORE','EARLY','OPPORTUNITY','CHART') or direction not in ('LONG','SHORT'):
         raise ValueError('invalid message card source/direction')
     if not token or not chat or not re.fullmatch(r'[^\W_]+USDT', symbol):
         raise ValueError('verified Telegram destination and symbol required')
@@ -213,7 +219,7 @@ def publish(token, chat, symbol, source, text, direction, *, observed_at=None, p
         new_episode = bool(source == 'EARLY' and episode_key and previous
             and previous.get('episode_key') and previous['episode_key'] != episode_key
             and row and row['status'] == 'DELIVERED')
-        if source=='OPPORTUNITY' and episode_key and row and row['status']=='DELIVERED':
+        if source in ('OPPORTUNITY','CHART') and episode_key and row and row['status']=='DELIVERED':
             new_episode=not previous or previous.get('episode_key')!=episode_key
         # A trade authorization must notify, not silently edit an earlier
         # opportunity card. Uncertain sends retain the existing no-retry rule.
@@ -228,7 +234,7 @@ def publish(token, chat, symbol, source, text, direction, *, observed_at=None, p
             sections = {}  # an old core idea must not leak into a new episode
         sections[source] = {'text':text,'direction':direction,'observed_at':stamp,
                             'episode_key':episode_key}
-        if source=='OPPORTUNITY':
+        if source in ('OPPORTUNITY','CHART'):
             sections={source:sections[source]}
         elif source=='CORE':
             sections.pop('OPPORTUNITY',None)

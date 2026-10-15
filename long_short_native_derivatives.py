@@ -182,7 +182,12 @@ def demand(analyst):
     current=[r[0] for r in native_futures_websocket_universe(quiet=True)]
     upcoming=[r[0] for r in native_futures_websocket_universe(slot_offsets=(1,),quiet=True)]
     live=live_watch_symbols(analyst)
-    return list(dict.fromkeys(current+upcoming+live+requested_symbols(analyst))),list(dict.fromkeys(live+current))
+    from long_short_chart_first import enabled as chart_first_enabled
+    chart=[]
+    if chart_first_enabled():
+        from long_short_chart_first_worker import active_symbols
+        chart=active_symbols()
+    return list(dict.fromkeys(chart+current+upcoming+live+requested_symbols(analyst))),list(dict.fromkeys(chart+live+current))
 
 
 def main():

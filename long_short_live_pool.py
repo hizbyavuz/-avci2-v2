@@ -1787,6 +1787,9 @@ def resolve_live_chat_id(token, configured=""):
 
 
 def send_telegram(msg, attempts=3):
+    from long_short_chart_first import enabled as chart_first_enabled
+    if chart_first_enabled():
+        raise RuntimeError('LEGACY_REFERENCE_ONLY: legacy message not delivered')
     token=(os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
     configured=(os.getenv("TELEGRAM_CHAT_ID") or "").strip()
     if not token:
@@ -2057,6 +2060,8 @@ def resolve_confirmed_trade_outcomes():
 
 def revalidate_core_delivery(event):
     """Recheck the market before delivering an unclaimed/recovered core event."""
+    from long_short_chart_first import enabled as chart_first_enabled
+    if chart_first_enabled():return {'qualified':False,'reason':'LEGACY_REFERENCE_ONLY'}
     if event['stage_to'] not in ('TRIGGERED','CLOSE_CONFIRMED'):
         return {'qualified':True,'reason':'NON_ENTRY_STATE'}
     from long_short_strategy_identity import snapshot

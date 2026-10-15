@@ -2881,6 +2881,8 @@ def resolve_telegram_chat(token, configured=""):
 
 
 def send_health_once(results):
+    from long_short_chart_first import enabled as chart_first_enabled
+    if chart_first_enabled():return
     """Send one deployment/data-health card per version after a real successful scan."""
     token=(os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
     if not token or not results:
@@ -2913,6 +2915,9 @@ def send_health_once(results):
 
 
 def send_telegram(msg):
+    from long_short_chart_first import enabled as chart_first_enabled
+    if chart_first_enabled():
+        raise RuntimeError('LEGACY_REFERENCE_ONLY: analyst message not delivered')
     token=(os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
     configured=(os.getenv("TELEGRAM_CHAT_ID") or "").strip()
     if not token:

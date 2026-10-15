@@ -99,6 +99,8 @@ def message(symbol,p,decision,observed_ms):
     ])
 
 def publish_recent(now_ms=None,publisher=None,token=None,chat=None):
+    from long_short_chart_first import enabled as chart_first_enabled
+    if chart_first_enabled():return
     from long_short_data_opportunity_v2 import connect,current_price
     from long_short_message_card import publish
     if os.getenv('LS_OPPORTUNITY_NOTICES_V1','1')=='0':return
