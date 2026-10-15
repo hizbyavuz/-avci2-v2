@@ -28,7 +28,11 @@ def main():
             by_day[day]["objects"]+=1
             by_day[day]["bytes"]+=size
             if day=='other' and len(non_daily)<50:
-                non_daily.append({'key':key,'bytes':size})
+                item={'key':key,'bytes':size}
+                if size>=1_000_000_000:
+                    head=client.head_object(Bucket=bucket,Key=key)
+                    item['sha256']=head.get('Metadata',{}).get('sha256')
+                non_daily.append(item)
             if key.endswith("/manifest.json"):
                 manifests.append(key)
     print("LS_BACKUP_INVENTORY "+json.dumps({

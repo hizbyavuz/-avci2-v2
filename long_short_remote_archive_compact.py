@@ -65,69 +65,6 @@ def compact(client, bucket, key):
         return manifest
 
 
-def deduplicate(client, bucket):
-    """Retire other byte-identical V4 copies, preserving a recovery pointer.
-
-    Daily backups and the new archive namespace are outside this operation.
-    Both the canonical compressed content and each redundant raw object are
-    read back; size/metadata equality alone never authorizes deletion.
-    """
-    objects = []
-    for page in client.get_paginator('list_objects_v2').paginate(Bucket=bucket):
-        objects.extend(page.get('Contents', []))
-    canonical = {}
-    manifest_pattern = re.compile(r'^archive/v4-native/([0-9a-f]{64})/manifest\.json$')
-    for obj in objects:
-        match = manifest_pattern.fullmatch(obj['Key'])
-        if not match: continue
-        with closing(client.get_object(Bucket=bucket, Key=obj['Key'])['Body']) as body:
-            m = json.loads(body.read())
-        original_key = obj['Key'].rsplit('/', 1)[0]+'/long_short_v4_native.db'
-        if (m.get('original_sha256') != match.group(1) or m.get('original_key') != original_key
-                or m.get('compressed_key') != original_key+'.gz'):
-            raise RuntimeError('Invalid canonical archive manifest')
-        canonical[m['original_sha256']] = m
-    checked_canonical, removed = set(), []
-    for obj in objects:
-        key = obj['Key']
-        if key.startswith(('daily/', 'archives/', 'archive/v4-native/')): continue
-        if not any(obj.get('Size') == m['original_bytes'] for m in canonical.values()): continue
-        head = client.head_object(Bucket=bucket, Key=key)
-        sha = head.get('Metadata', {}).get('sha256')
-        m = canonical.get(sha)
-        if not m or head['ContentLength'] != m['original_bytes']: continue
-        if sha not in checked_canonical:
-            h, count = hashlib.sha256(), 0
-            with closing(client.get_object(Bucket=bucket, Key=m['compressed_key'])['Body']) as raw:
-                with gzip.GzipFile(fileobj=raw, mode='rb') as restored:
-                    for block in iter(lambda: restored.read(CHUNK), b''):
-                        h.update(block); count += len(block)
-            if (h.hexdigest(), count) != (sha, m['original_bytes']):
-                raise RuntimeError('Canonical restore failed; duplicate retained')
-            checked_canonical.add(sha)
-        h, count = hashlib.sha256(), 0
-        with closing(client.get_object(Bucket=bucket, Key=key)['Body']) as raw:
-            for block in iter(lambda: raw.read(CHUNK), b''):
-                h.update(block); count += len(block)
-        if (h.hexdigest(), count) != (sha, m['original_bytes']):
-            raise RuntimeError('Duplicate bytes differ; original retained')
-        pointer = dict(schema=1, original_key=key, original_sha256=sha,
-            original_bytes=count, compressed_key=m['compressed_key'], restore=m['restore'])
-        pointer_key = key+'.recovery.json'
-        client.put_object(Bucket=bucket, Key=pointer_key,
-            Body=json.dumps(pointer, sort_keys=True).encode(), ContentType='application/json')
-        with closing(client.get_object(Bucket=bucket, Key=pointer_key)['Body']) as body:
-            if json.loads(body.read()) != pointer: raise RuntimeError('Recovery pointer verification failed')
-        current = client.head_object(Bucket=bucket, Key=key)
-        if any(current.get(k) != head.get(k) for k in ('ETag','ContentLength','Metadata','VersionId')):
-            raise RuntimeError('Duplicate changed during verification')
-        client.delete_object(Bucket=bucket, Key=key)
-        removed.append(dict(key=key, bytes=count, recovery_pointer=pointer_key))
-    print('LS_REMOTE_ARCHIVE_DEDUP '+json.dumps(dict(removed=removed,
-        freed_bytes=sum(r['bytes'] for r in removed))), flush=True)
-    return removed
-
-
 def main():
     import boto3
     from botocore.config import Config
@@ -144,7 +81,6 @@ def main():
         keys.extend(o['Key'] for o in page.get('Contents', []) if PATTERN.fullmatch(o['Key']))
     print('LS_REMOTE_ARCHIVE_COMPACT_START '+json.dumps({'raw_archives':len(keys)}), flush=True)
     for key in keys: compact(client, bucket, key)
-    deduplicate(client, bucket)
 
 
 if __name__ == '__main__': main()
