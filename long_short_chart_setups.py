@@ -1,4 +1,4 @@
-"""Two closed-candle hypotheses and explicit, cost-adjusted plan geometry.
+"""Closed-candle hypotheses and explicit, cost-adjusted plan geometry.
 
 No estimated success probabilities. The symmetric payoff floor is a declared
 selection policy for a new cohort, not a fitted claim about trading returns.
@@ -12,7 +12,7 @@ def true_range(rows):
     return sum(values)/len(values) if values else 0.0
 
 
-def setup(rows, direction, highs, lows, config):
+def iter_setups(rows, direction, highs, lows, config):
     """Return observed trigger/structural invalidation, never a fitted stop."""
     sign = 1 if direction == 'LONG' else -1
     # Reflect shorts into upward coordinates so pattern rules are identical.
@@ -35,13 +35,15 @@ def setup(rows, direction, highs, lows, config):
         crossed = r[-1][4] > top and r[-2][4] <= top
         approaching = r[-1][4] > r[-2][4] and r[-1][4] > r[-1][1]
         if compressed and ((not forming and crossed) or (forming and approaching)):
-            return dict(model='COMPRESSION_BREAKOUT', trigger=sign*top,
+            yield dict(model='COMPRESSION_BREAKOUT', trigger=sign*top,
                 stop=sign*(bottom-config['stop_buffer_atr']*base),
                 model_anchor_ms=int(box[0][0]), model_ready=crossed and not forming,
                 confirmation_ms=int(r[-1][6]) if crossed and not forming else None,
                 pattern_evidence=dict(box_start_ms=int(box[0][0]), box_end_ms=int(box[-1][6]),
                     box_high=max(x[2] for x in rows[end-n:end]),
                     box_low=min(x[3] for x in rows[end-n:end]), contraction_ratio=contraction))
+            # A completed box must not be repackaged as a new forming box.
+            break
     # A pullback must follow a confirmed swing extreme, retain a higher low,
     # contain two counter-direction closes, and turn from its actual trough.
     recent = [x for x in hh if x[0] >= r[-config['pullback_lookback_bars']][0]]
@@ -70,13 +72,57 @@ def setup(rows, direction, highs, lows, config):
     crossed = r[-1][4] > trigger and r[-2][4] <= trigger
     if r[-1][4] > trigger and not crossed:
         return None
-    return dict(model='PULLBACK_CONTINUATION', trigger=sign*trigger,
+    yield dict(model='PULLBACK_CONTINUATION', trigger=sign*trigger,
         stop=sign*(trough[3]-config['stop_buffer_atr']*base),
         model_anchor_ms=int(trough[0]), model_ready=crossed,
         confirmation_ms=int(r[-1][6]) if crossed else None,
         pattern_evidence=dict(peak_ms=peak_ms, trough_ms=int(trough[0]),
             prior_structural_level=sign*prior_lows[-1][1],
             counter_direction_closes=declines, turn_age_bars=age))
+
+
+def setup(rows, direction, highs, lows, config):
+    """Compatibility helper; admission must evaluate all hypotheses."""
+    return next(iter_setups(rows, direction, highs, lows, config), None)
+
+
+def setups(rows, direction, highs, lows, config):
+    candidates=list(iter_setups(rows, direction, highs, lows, config))
+    swing=swing_breakout(rows, direction, highs, lows, config)
+    if swing is not None:candidates.append(swing)
+    return candidates
+
+
+def swing_breakout(rows, direction, highs, lows, config):
+    """Break of an unbroken confirmed swing after a confirmed higher low.
+
+    Every pivot is supplied from closed candles with two-bar confirmation.
+    No synthetic target, ATR-fitted stop, or post-signal price is used.
+    """
+    sign=1 if direction=='LONG' else -1
+    r=rows if sign==1 else [[x[0],-x[1],-x[3],-x[2],-x[4],*x[5:]] for x in rows]
+    hh,ll=(highs,lows) if sign==1 else ([(t,-v) for t,v in lows],[(t,-v) for t,v in highs])
+    recent=[(t,v) for t,v in hh if t>=r[-config['pullback_lookback_bars']][0]]
+    if not recent:return None
+    peak_ms,trigger=recent[-1]
+    before=[(t,v) for t,v in ll if t<peak_ms]
+    after=[(t,v) for t,v in ll if t>peak_ms]
+    if not before or not after:return None
+    trough_ms,trough=after[-1]
+    if trough<=before[-1][1]:return None
+    # Once closed through, this level cannot produce another new signal.
+    if any(x[4]>trigger for x in r[:-1] if x[0]>peak_ms):return None
+    if any(x[3]<trough for x in r if x[0]>trough_ms):return None
+    if r[-1][4]<=r[-2][4] or r[-1][4]<=r[-1][1]:return None
+    base=true_range(r[-15:])
+    if base<=0:return None
+    ready=r[-1][4]>trigger and r[-2][4]<=trigger
+    return dict(model='SWING_BREAKOUT',trigger=sign*trigger,
+        stop=sign*(trough-config['stop_buffer_atr']*base),
+        model_anchor_ms=int(peak_ms),model_ready=ready,
+        confirmation_ms=int(r[-1][6]) if ready else None,
+        pattern_evidence=dict(peak_ms=int(peak_ms),trough_ms=int(trough_ms),
+            prior_structural_level=sign*before[-1][1],closed_level_previously_broken=False))
 
 
 def geometry(direction, entry, stop, obstacle, cost_pct):

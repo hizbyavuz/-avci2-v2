@@ -184,7 +184,7 @@ def resolve(c,kdb,now_ms):
       (now_ms,now_ms-3600000)).fetchall()
     for row in rows:
         p=json.loads(row['payload'])
-        modern=p.get('outcome_schema')=='PARTIAL_MINUTE_V2' or p.get('version','').startswith(('CHART_FIRST_TWO_SETUPS_V2_', 'CHART_FIRST_FLOW_REVERSAL_V3_', 'CHART_FIRST_PATH_GUARD_V3_1_', 'CHART_FIRST_RELIABILITY_V3_2_'))
+        modern=p.get('outcome_schema')=='PARTIAL_MINUTE_V2' or p.get('version','').startswith(('CHART_FIRST_TWO_SETUPS_V2_', 'CHART_FIRST_FLOW_REVERSAL_V3_', 'CHART_FIRST_PATH_GUARD_V3_1_', 'CHART_FIRST_RELIABILITY_V3_2_', 'CHART_FIRST_RELIABILITY_V3_3_'))
         start=(row['observed_ms']//60000+(0 if modern else 1))*60000
         for horizon in (15,60,180):
             end=((row['observed_ms']+horizon*60000+59999)//60000)*60000 if modern else start+horizon*60000
@@ -426,6 +426,11 @@ def scan():
         print('CHART_FIRST_SUMMARY '+json.dumps(dict(version=VERSION,config_hash=CONFIG_HASH,strategy_id=STRATEGY_ID,
             checked=len(decisions),directions=dict(Counter(p['direction'] for p in decisions.values())),
             stages=dict(Counter(p['stage'] for p in decisions.values())),reasons=dict(counts),
+            pattern_results=dict(Counter(x['model']+':'+x['reason'] for p in decisions.values()
+                                         for x in p.get('pattern_evaluations',[]))),
+            alternate_admissions=sum(p['stage'] in ('WATCH','READY') and
+                p.get('pattern_evaluations',[{}])[0].get('reason')!='OK'
+                for p in decisions.values()),
             eligible=[dict(symbol=p['symbol'],side=p['direction'],stage=p['stage'],scenario=p.get('scenario'),
                 daily=p['context']['1d']['direction'],four_hour=p['context']['4h']['direction'],hour=p['context']['1h']['direction'],
                 price=p['price'],trigger=p['trigger'],invalidation=p['stop'],obstacle=p.get('obstacle'),entry_limit=p['entry_limit'],

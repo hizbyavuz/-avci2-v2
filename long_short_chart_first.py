@@ -9,10 +9,10 @@ import json
 import math
 import os
 from pathlib import Path
-from long_short_chart_setups import setup, geometry, quality_limit
+from long_short_chart_setups import setups, geometry, quality_limit
 from long_short_chart_flow import reversal_reason, flow_note
 
-VERSION = 'CHART_FIRST_RELIABILITY_V3_2_2026_10_15'
+VERSION = 'CHART_FIRST_RELIABILITY_V3_3_2026_10_15'
 CONFIG = dict(pivot_confirmation_bars=2, daily_min_bars=20,
               approach_atr15=1.0, chase_atr5=1.0, level_tolerance_atr5=0.10,
               candle_grace_ms=20000, quote_max_age_ms=5000,
@@ -182,8 +182,23 @@ def assess(symbol, frames, price, quote_volume, now_ms, evidence=None, flow=None
     if mid['direction']==opposing:
         out['warnings'].append('15 dakikalık hareket hâlâ ters yönde; kısa dönüşün başarısız olma riski var.')
     out['scenario']=scenario
-    pattern=setup(frames['5m'], direction, local['highs'], local['lows'], CONFIG)
-    if pattern is None:return reject('NO_DEFINED_SETUP')
+    patterns=setups(frames['5m'], direction, local['highs'], local['lows'], CONFIG)
+    if not patterns:return reject('NO_DEFINED_SETUP')
+    evaluated=[assess_pattern(dict(out), pattern, frames, price, now_ms) for pattern in patterns]
+    # Prefer a fresh executable hypothesis to an unconfirmed watch. Within a
+    # stage retain declared model order, never rank by later market outcomes.
+    selected=next((p for stage in ('READY','WATCH') for p in evaluated if p['stage']==stage), evaluated[0])
+    selected['pattern_evaluations']=[dict(model=p['model'], stage=p['stage'], reason=p['reason'],
+                                         trigger=p['trigger'], stop=p['stop']) for p in evaluated]
+    return selected
+
+
+def assess_pattern(out, pattern, frames, price, now_ms):
+    direction=out['direction'];sign=1 if direction=='LONG' else -1
+    symbol=out['symbol']
+    def reject(reason):
+        out['reason']=reason
+        return out
     out.update(pattern)
     trigger,stop=pattern['trigger'],pattern['stop']
     if sign*(trigger-stop)<=0 or sign*(price-stop)<=0:return reject('LOCAL_IDEA_INVALIDATED')
