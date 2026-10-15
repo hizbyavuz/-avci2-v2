@@ -66,6 +66,20 @@ def parse_last_price(packet):
     return symbol, price, event_ms
 
 
+def parse_forming_range(packet):
+    tick=parse_last_price(packet)
+    if not tick:return None
+    try:
+        b=packet.get('data',packet)['k']
+        start,end=int(b['t']),int(b['T'])
+        op,hi,lo,cl=(float(b[k]) for k in ('o','h','l','c'))
+        if (start%60000 or end!=start+59999 or tick[2]<start or
+                not all(math.isfinite(v) and v>0 for v in (op,hi,lo,cl)) or
+                not lo<=min(op,cl)<=max(op,cl)<=hi):return None
+        return (tick[0],start,end,op,hi,lo,cl,tick[2])
+    except (KeyError,TypeError,ValueError,OverflowError):return None
+
+
 def parse_closed_kline(packet):
     """Return a storable row for a closed, internally consistent candle, else None.
 
@@ -128,6 +142,9 @@ def initialize(db):
     for name, dtype in (("quote_volume", "REAL"), ("trade_count", "INTEGER"), ("taker_buy_quote", "REAL")):
         if name not in columns:
             conn.execute(f"ALTER TABLE futures_closed_klines ADD COLUMN {name} {dtype}")
+    conn.execute("""CREATE TABLE IF NOT EXISTS futures_current_1m (
+        symbol TEXT PRIMARY KEY,open_ms INTEGER,close_ms INTEGER,open REAL,
+        high REAL,low REAL,close REAL,event_ms INTEGER,received_ms INTEGER,source TEXT)""")
     conn.commit()
     return conn
 
@@ -248,6 +265,7 @@ class FuturesKlineStream:
         self.uncovered = []
         self.buffer = []
         self.last_price = {}
+        self.current_ranges = {}
         self.gaps = GapTracker()
         self.next_id = 100
         self.totals = {"rows_written": 0, "duplicates": 0, "repaired": 0, "conflicts": 0,
@@ -306,7 +324,7 @@ class FuturesKlineStream:
 
     # ---- persistence ---------------------------------------------------
     def flush(self, conn):
-        if not self.buffer and not self.last_price:
+        if not self.buffer and not self.last_price and not self.current_ranges:
             return True
         rows = self.buffer
         prices = self.last_price
@@ -319,6 +337,12 @@ class FuturesKlineStream:
                 event_ms=excluded.event_ms, received_ms=excluded.received_ms, source=excluded.source
                 WHERE excluded.event_ms>=futures_last_price.event_ms""",
                              [(sym, px, ev, now_ms, SOURCE) for sym, (px, ev) in prices.items()])
+            conn.executemany("""INSERT INTO futures_current_1m VALUES(?,?,?,?,?,?,?,?,?,?)
+                ON CONFLICT(symbol) DO UPDATE SET open_ms=excluded.open_ms,close_ms=excluded.close_ms,
+                open=excluded.open,high=excluded.high,low=excluded.low,close=excluded.close,
+                event_ms=excluded.event_ms,received_ms=excluded.received_ms,source=excluded.source
+                WHERE excluded.event_ms>=futures_current_1m.event_ms""",
+                [(*r,now_ms,SOURCE) for r in self.current_ranges.values()])
             conn.commit()
         except sqlite3.OperationalError as exc:
             try:
@@ -330,6 +354,7 @@ class FuturesKlineStream:
             return False  # rows stay buffered; nothing is dropped
         self.buffer = []
         self.last_price = {}
+        self.current_ranges = {}
         self.totals["rows_written"] += stats["inserted"]
         self.totals["duplicates"] += stats["duplicate"]
         self.totals["repaired"] += stats["repaired"]
@@ -359,6 +384,10 @@ class FuturesKlineStream:
         tick = parse_last_price(packet)
         if tick and tick[0] in self.subscribed:
             self.last_price[tick[0]] = (tick[1], tick[2])
+        forming = parse_forming_range(packet)
+        if forming and forming[0] in self.subscribed:
+            previous=self.current_ranges.get(forming[0])
+            if not previous or forming[-1]>=previous[-1]:self.current_ranges[forming[0]]=forming
         row = parse_closed_kline(packet)
         if row and row[0] in self.subscribed:
             self.buffer.append(row)

@@ -181,7 +181,8 @@ class ChartV2Tests(unittest.TestCase):
             decision=dict(p,stage='REJECTED',reason='NO_DEFINED_SETUP',support={'oi_change_1h':None},
                           active_plan_obstacle=p['obstacle'])
             publisher=Mock(return_value={'status':'ACK'})
-            advance(c,k,{'XUSDT':decision},NOW,publisher,'token','123')
+            with patch('long_short_chart_first_worker.path_guard',return_value={'status':'CLEAR'}):
+                advance(c,k,{'XUSDT':decision},NOW,publisher,'token','123')
             saved=json.loads(c.execute('SELECT payload FROM episodes').fetchone()[0])
             self.assertEqual(saved['stage'],'READY')
             self.assertIsNone(saved['support']['oi_change_1h'])

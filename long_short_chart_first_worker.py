@@ -17,6 +17,7 @@ from datetime import datetime, timezone
 from long_short_chart_first import CONFIG, CONFIG_HASH, STRATEGY_ID, VERSION, assess, enabled, message, first_obstacle, daily_from_4h
 from long_short_chart_setups import geometry
 from long_short_chart_flow import hourly_flow, reversal_reason
+from long_short_chart_lifecycle import path_guard
 from long_short_chart_outcomes import outcome as outcome_v2
 
 STOP=threading.Event()
@@ -180,7 +181,7 @@ def resolve(c,kdb,now_ms):
       (now_ms,now_ms-3600000)).fetchall()
     for row in rows:
         p=json.loads(row['payload'])
-        modern=p.get('version','').startswith(('CHART_FIRST_TWO_SETUPS_V2_', 'CHART_FIRST_FLOW_REVERSAL_V3_'))
+        modern=p.get('version','').startswith(('CHART_FIRST_TWO_SETUPS_V2_', 'CHART_FIRST_FLOW_REVERSAL_V3_', 'CHART_FIRST_PATH_GUARD_V3_1_'))
         start=(row['observed_ms']//60000+(0 if modern else 1))*60000
         for horizon in (15,60,180):
             end=((row['observed_ms']+horizon*60000+59999)//60000)*60000 if modern else start+horizon*60000
@@ -240,7 +241,8 @@ def advance(c,kdb,decisions,now_ms,publisher,token,chat):
         previous_close=float(latest_rows[1][0]) if len(latest_rows)>1 else None
         evaluation=dict(p,stage='WATCH') if row['stage']=='READY' and row['delivery_stage']!='READY' else p
         stage=live_stage(evaluation,price,float(latest[0]),int(latest[1]),now_ms,previous_close)
-        if p.get('strategy_id')!=STRATEGY_ID:stage='EXPIRED'
+        if p.get('strategy_id')!=STRATEGY_ID:
+            stage='EXPIRED';p['expiry_reason']='STRATEGY_CHANGED'
         decision=decisions.get(row['symbol'])
         if stage in ('WATCH','READY') and decision:
             if decision['direction'] not in (p['direction'],'NONE'):stage='EXPIRED'
@@ -268,6 +270,16 @@ def advance(c,kdb,decisions,now_ms,publisher,token,chat):
                 if stage=='READY' and row['stage']=='WATCH':stage='WATCH'
                 if now_ms-int(latest[1])>600000:stage='EXPIRED'
         if stage=='READY' and row['delivery_stage']!='READY' and decision is None:stage='WATCH'
+        if p.get('strategy_id')==STRATEGY_ID:
+            guard=path_guard(kdb,p,now_ms)
+            if guard['status']!=p.get('path_guard',{}).get('status'):
+                print('CHART_FIRST_PATH_GUARD '+json.dumps(dict(episode_id=row['id'],symbol=row['symbol'],**guard)),flush=True)
+            p['path_guard']=guard
+            if guard['status'] in ('BROKEN','OBSTACLE_REACHED'):stage=guard['status']
+            elif guard['status']=='AMBIGUOUS':stage='EXPIRED'
+            elif guard['status']=='MISSING' and stage=='READY' and row['delivery_stage']!='READY':stage='WATCH'
+        # A failed completion edit must never reopen an already terminal episode.
+        if row['stage'] in ('BROKEN','EXPIRED','OBSTACLE_REACHED'):stage=row['stage']
         p.update(stage=stage,price=price,observed_ms=now_ms)
         p['geometry']=geometry(p['direction'],price,p['stop'],p.get('obstacle'),CONFIG['round_trip_cost_pct'])
         if stage!=row['stage']:

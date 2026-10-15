@@ -95,7 +95,8 @@ class FlowReversalTests(unittest.TestCase):
                 if not allowed:
                     decision.update(reason='REVERSAL_FLOW_NOT_ALIGNED',hourly_flow=dict(flow,buy_share=.4))
                 publisher=Mock(return_value={'status':'ACK'})
-                advance(c,k,{'X':decision},NOW,publisher,'token','123')
+                with patch('long_short_chart_first_worker.path_guard',return_value={'status':'CLEAR'}):
+                    advance(c,k,{'X':decision},NOW,publisher,'token','123')
                 self.assertEqual(c.execute('SELECT stage FROM episodes').fetchone()[0],'READY' if allowed else 'WATCH')
                 self.assertEqual(publisher.call_count,int(allowed))
                 if allowed:self.assertIn('ANA YÖNE TERS',publisher.call_args.args[4])

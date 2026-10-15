@@ -167,7 +167,8 @@ class ChartFirstTests(unittest.TestCase):
                    symbol='XUSDT',direction='LONG',trigger=100,stop=98,obstacle=103,entry_limit=101)
             c.execute('INSERT INTO episodes VALUES(?,?,?,?,?,?,?,?)',('e','XUSDT','LONG',NOW-1000,'READY',None,None,json.dumps(p)));c.commit()
             publish=Mock()
-            advance(c,k,{},NOW,publish,'token','123')
+            with patch('long_short_chart_first_worker.path_guard',return_value={'status':'CLEAR'}):
+                advance(c,k,{},NOW,publish,'token','123')
             publish.assert_not_called()
             self.assertEqual(c.execute('SELECT stage FROM episodes').fetchone()[0],'EXPIRED')
             self.assertEqual(c.execute('SELECT COUNT(*) FROM assessments').fetchone()[0],0)
@@ -185,7 +186,8 @@ class ChartFirstTests(unittest.TestCase):
             c.execute('INSERT INTO episodes VALUES(?,?,?,?,?,?,?,?)',('e','XUSDT','LONG',NOW-60000,'WATCH','WATCH',None,json.dumps(p)));c.commit()
             decision=dict(p,stage='READY',stop=99,support={'oi_change_1h':8})
             publisher=Mock(return_value={'status':'ACK'})
-            advance(c,k,{'XUSDT':decision},NOW,publisher,'token','123')
+            with patch('long_short_chart_first_worker.path_guard',return_value={'status':'CLEAR'}):
+                advance(c,k,{'XUSDT':decision},NOW,publisher,'token','123')
             saved=json.loads(c.execute('SELECT payload FROM episodes').fetchone()[0])
             self.assertEqual(saved['stop'],p['stop']);self.assertEqual(saved['support']['oi_change_1h'],8)
             self.assertEqual(c.execute('SELECT delivery_stage FROM episodes').fetchone()[0],'READY')
