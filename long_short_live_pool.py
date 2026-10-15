@@ -26,6 +26,7 @@ from long_short_telegram_delivery_integrity import policy as telegram_integrity_
 from long_short_dual_v32 import init as init_dual_v32, sync as sync_dual_v32, advance as advance_dual_v32
 from long_short_data_router import multi_venue_perp_klines, multi_venue_perp_universe
 from long_short_native_derivatives import enabled as native_v2_enabled
+from long_short_delivery_outbox import init as init_outbox, enqueue as enqueue_core_event, dispatch as dispatch_outbox
 
 ANALYST_DB=os.getenv("LS_DB","long_short_analyst.db")
 LIVE_DB=os.getenv("LS_LIVE_DB","long_short_live_pool.db")
@@ -432,6 +433,7 @@ def init_db():
             ("gain_before_short_confirmation","REAL",None),("time_early_short_to_confirmed_seconds","REAL",None),
             ("analyst_active","INTEGER","1"),("last_seen_watchlist_utc","TEXT",None),
             ("last_actionable_scan_time","TEXT",None),("setup_locked_at_utc","TEXT",None),
+            ("retest_seen_at_utc","TEXT",None),("confirmation_after_utc","TEXT",None),
         ]:
             if name not in cols:
                 clause=f" DEFAULT {default}" if default is not None else ""
@@ -453,6 +455,10 @@ def init_db():
             payload_json TEXT
         )""")
         event_cols={r[1] for r in con.execute("PRAGMA table_info(events)")}
+        init_outbox(con)
+        from long_short_strategy_identity import persist as persist_strategy
+        identity=persist_strategy(con)
+        print('LS_STRATEGY_EFFECTIVE '+json.dumps(identity),flush=True)
         for name,typ in {
             "condition_time_utc":"TEXT",
             "telegram_sent_time_utc":"TEXT",
@@ -806,6 +812,29 @@ def sync_watchlist(items):
             time.sleep(wait_seconds)
 
 
+def _after(timestamp, boundary):
+    """Strict UTC ordering; missing/naive/invalid evidence cannot confirm."""
+    try:
+        a=datetime.fromisoformat(str(timestamp).replace('Z','+00:00'))
+        b=datetime.fromisoformat(str(boundary).replace('Z','+00:00'))
+        return a.tzinfo is not None and b.tzinfo is not None and a>b
+    except (ValueError,TypeError):
+        return False
+
+
+def _native_trade_still_open(con,symbol,at):
+    """Do not rearm a terminal setup while its independent paper trade is open."""
+    from long_short_trade_ledger import HORIZON_MINUTES
+    cutoff=(datetime.fromisoformat(at)-timedelta(minutes=HORIZON_MINUTES+1)).isoformat()
+    ids=[r[0] for r in con.execute("""SELECT id FROM events WHERE symbol=?
+        AND stage_to='TRIGGERED' AND event_time_utc>=?""",(symbol,cutoff))]
+    if not ids:return False
+    if not con.execute("SELECT 1 FROM sqlite_master WHERE name='independent_paper_v1'").fetchone():return True
+    finished={r[0] for r in con.execute("""SELECT event_id FROM independent_paper_v1
+        WHERE state IN ('RESOLVED','ENTRY_MISSED','INVALID_SIGNAL')""")}
+    return any(i not in finished for i in ids)
+
+
 def _sync_watchlist_once(items):
     """Synchronize analyst observations without moving an active setup's goalposts.
 
@@ -836,6 +865,16 @@ def _sync_watchlist_once(items):
             old_radar=bool(old_gate.get("_radar_only")) if old else False
             old_setup_type=str(old_gate.get("_v3_setup_type") or "BREAKOUT") if old else "NONE"
             direction_changed=bool(old and str(old["direction"])!=str(x["direction"]))
+            old_identity=(old_gate.get('_strategy_identity') or {}).get('id')
+            new_identity=(x.get('structure_gate',{}).get('_strategy_identity') or {}).get('id')
+            version_changed=bool(new_actionable and new_identity and new_identity!=old_identity)
+            terminal=bool(old and old['stage'] in ('INVALIDATED','TRIGGERED','CLUSTER_BLOCKED'))
+            new_level=bool(old and not math.isclose(float(old['trigger_level']),float(x['trigger_level']),rel_tol=1e-12))
+            fresh_scan=bool(old and _after(x.get('scan_time'),old['analyst_scan_time']))
+            rearm=bool(new_actionable and terminal and fresh_scan and new_level
+                       and not _native_trade_still_open(con,x['symbol'],seen_at))
+            if version_changed and terminal and _native_trade_still_open(con,x['symbol'],seen_at):
+                version_changed=False
 
             # Only a fresh ACTIONABLE hypothesis may replace an actionable setup.
             # Same-direction recalculation is metadata, not a new trade idea.
@@ -844,11 +883,16 @@ def _sync_watchlist_once(items):
                 or (new_actionable and old_radar)
                 or (new_actionable and direction_changed)
                 or (new_actionable and (not old_radar) and old_setup_type!=new_setup_type)
+                or rearm or version_changed
             )
 
             if reset:
                 if old:
-                    if direction_changed:
+                    if version_changed:
+                        reason="RESET_STRATEGY_VERSION"
+                    elif rearm:
+                        reason="RESET_TERMINAL_NEW_LEVEL"
+                    elif direction_changed:
                         reason="RESET_ACTIONABLE_DIRECTION_FLIP"
                     elif old_radar and new_actionable:
                         reason="UPGRADE_RADAR_TO_ACTIONABLE"
@@ -875,6 +919,9 @@ def _sync_watchlist_once(items):
                  x["htf_direction"],x["htf_score"],json.dumps(x["htf_reasons"],ensure_ascii=False),
                  x["structure_gate_version"],json.dumps(x["structure_gate"],ensure_ascii=False),
                  1 if new_actionable else 0,seen_at,x["scan_time"] if new_actionable else None,seen_at,seen_at))
+                if old and (rearm or version_changed):
+                    con.execute('UPDATE watch_state SET confirmation_after_utc=? WHERE symbol=?',
+                                (seen_at,x['symbol']))
                 continue
 
             # Radar-to-radar is observational, so its moving level may refresh.
@@ -1278,7 +1325,8 @@ def live_structure_confirmation(row,closed,early):
     c=float(early.get("closed_5m_close") or closed)
     rng=max(h-l,1e-12)
     body_ratio=float(early.get("closed_5m_body_ratio") or 0.0)
-    close_loc=float(early.get("closed_5m_close_location") or 0.5)
+    value=early.get("closed_5m_close_location")
+    close_loc=float(value if value is not None else 0.5)
     vol_mult=float(early.get("closed_5m_volume_mult") or 0.0)
 
     if d=="LONG":
@@ -1413,6 +1461,10 @@ def next_stage(row,price,closed,structure_quality=None):
 
     sq=structure_quality or {}
     setup_type=str(sq.get("setup_type") or "BREAKOUT")
+    current_beyond=price>trig if direction=='LONG' else price<trig
+    confirmation_after=row['confirmation_after_utc'] if 'confirmation_after_utc' in row.keys() else None
+    if confirmation_after and not _after(sq.get('_closed_candle_time'),confirmation_after):
+        return stage
     if stage in ("WATCH","APPROACHING"):
         if close_ok and bool(sq.get("qualified")):
             return "CLOSE_CONFIRMED"
@@ -1430,7 +1482,8 @@ def next_stage(row,price,closed,structure_quality=None):
         # V3 has two legitimate paths:
         # FAST: strong acceptance, no forced retest.
         # RETEST: controlled revisit then renewed directional close.
-        if int(sq.get("acceptance_bars_beyond_last3") or 0)>=2 and bool(sq.get("qualified")):
+        if (current_beyond and close_ok and
+                int(sq.get("acceptance_bars_beyond_last3") or 0)>=2 and bool(sq.get("qualified"))):
             return "TRIGGERED"
         if in_retest:
             return "RETESTING"
@@ -1446,7 +1499,9 @@ def next_stage(row,price,closed,structure_quality=None):
     if stage=="RETESTING":
         # A touch is not enough. Re-entry requires a fresh qualified close back
         # in the trade direction.
-        if moving_away and close_ok and bool(sq.get("qualified")):
+        retest_time=row['retest_seen_at_utc'] if 'retest_seen_at_utc' in row.keys() else None
+        if (moving_away and current_beyond and close_ok and bool(sq.get("qualified"))
+                and _after(sq.get('_closed_candle_time'),retest_time)):
             return "TRIGGERED"
         return "RETESTING"
     return stage
@@ -1694,7 +1749,7 @@ def resolve_live_chat_id(token, configured=""):
     return resolve_chat_id(token, "", NOTIFY_DB, "Long/Short Live Pool")
 
 
-def send_telegram(msg):
+def send_telegram(msg, attempts=3):
     token=(os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
     configured=(os.getenv("TELEGRAM_CHAT_ID") or "").strip()
     if not token:
@@ -1703,7 +1758,7 @@ def send_telegram(msg):
     if configured and expected_chat and configured!=expected_chat:
         raise RuntimeError("TELEGRAM_CHAT_MISMATCH_PRE_SEND")
     last=None
-    for attempt in range(3):
+    for attempt in range(attempts):
         try:
             chat=resolve_live_chat_id(token,configured)
             if expected_chat and str(chat)!=expected_chat:
@@ -1734,7 +1789,7 @@ def send_telegram(msg):
             last=exc
             if str(exc).startswith(("TELEGRAM_ACK_", "TELEGRAM_CHAT_MISMATCH_PRE_SEND")):
                 break  # API acknowledged message_id; retry could duplicate delivery.
-            if attempt<2:
+            if attempt<attempts-1:
                 time.sleep(2.0*(attempt+1))
     raise last or RuntimeError("Telegram send failed")
 
@@ -1963,9 +2018,32 @@ def resolve_confirmed_trade_outcomes():
             "pending":pending,"target_sample":100},ensure_ascii=False),flush=True)
 
 
+def revalidate_core_delivery(event):
+    """Recheck the market before delivering an unclaimed/recovered core event."""
+    if event['stage_to'] not in ('TRIGGERED','CLOSE_CONFIRMED'):
+        return {'qualified':True,'reason':'NON_ENTRY_STATE'}
+    from long_short_strategy_identity import snapshot
+    row=json.loads(event['payload_json'])
+    if (row.get('_strategy_identity') or {}).get('id')!=snapshot()['id']:
+        return {'qualified':False,'reason':'STRATEGY_VERSION_CHANGED'}
+    price,closed,stamp,early=market_snapshot(event['symbol'])
+    quality=live_structure_confirmation(row,closed,early)
+    quality['_closed_candle_time']=stamp
+    if next_stage(row,price,closed,quality)!=event['stage_to']:
+        return {'qualified':False,'reason':'ENTRY_NO_LONGER_CONFIRMED'}
+    if event['stage_to']=='TRIGGERED':
+        data=binance_four_factor_confirmation_gate(event['symbol'])
+        if not data.get('qualified'):return data
+        execution=live_execution_gate(row,price,trigger_execution_proxy(event['symbol']))
+        result=futures_signal_authorization(early,execution)
+        return {**result,'checked_price':price,'checked_at_utc':now_iso()}
+    return {'qualified':True,'checked_price':price,'checked_at_utc':now_iso()}
+
+
 def loop_once():
     with sqlite3.connect(LIVE_DB,timeout=30) as con:
         con.row_factory=sqlite3.Row
+        dispatch_outbox(con,lambda msg:send_telegram(msg,attempts=1),revalidate_core_delivery)
         rows=con.execute("SELECT * FROM watch_state ORDER BY analyst_confidence DESC").fetchall()
         # V3.2 tracks both LONG and SHORT from the same snapshot. It is
         # independent of the frozen single-direction state and sends NO extra
@@ -2257,11 +2335,16 @@ def loop_once():
                                   delivery_guard.get("closed_candle_age_seconds"),
                                   flush=True)
 
-                        con.execute("""UPDATE watch_state SET stage=?,last_price=?,last_closed_5m=?,last_update_utc=?,
+                        transition=con.execute("""UPDATE watch_state SET stage=?,last_price=?,last_closed_5m=?,last_update_utc=?,
                                        close_confirmed_time=CASE WHEN ?='CLOSE_CONFIRMED' THEN ? ELSE close_confirmed_time END,
-                                       retest_seen=CASE WHEN ?='RETESTING' THEN 1 ELSE retest_seen END
-                                       WHERE symbol=?""",
-                            (new,price,closed,observed_time,new,condition_time,new,row["symbol"]))
+                                       retest_seen=CASE WHEN ?='RETESTING' THEN 1 ELSE retest_seen END,
+                                       retest_seen_at_utc=CASE WHEN ?='RETESTING' THEN ? ELSE retest_seen_at_utc END
+                                       WHERE symbol=? AND stage=? AND setup_locked_at_utc IS ?""",
+                            (new,price,closed,observed_time,new,condition_time,new,new,observed_time,
+                             row["symbol"],old,row['setup_locked_at_utc']))
+                        if transition.rowcount!=1:
+                            con.rollback()
+                            continue
                         if new=="TRIGGERED":
                             fresh=con.execute("SELECT early_signal_price,early_signal_time,direction FROM watch_state WHERE symbol=?",(row["symbol"],)).fetchone()
                             if fresh and fresh[0] is not None:
@@ -2285,13 +2368,10 @@ def loop_once():
                             last_price=?
                             WHERE symbol=? AND ended_at_utc IS NULL""",
                             (new,new,condition_time,new,condition_time,price,row["symbol"]))
-                        con.commit()
 
-                        sent_time=None
-                        delay=None
                         telegram_status=("SUPPRESSED" if suppression_reason
                                          else "NOT_APPLICABLE" if not msg else "PENDING")
-                        telegram_error=None
+                        from long_short_strategy_identity import event_identity
                         event_payload=dict(row)
                         event_payload["_analyst_active_at_event"]=bool(row["analyst_active"])
                         event_payload["_radar_only_at_event"]=_row_is_radar(row)
@@ -2299,58 +2379,31 @@ def loop_once():
                         event_payload["_live_price_source"]=str(early.get("live_price_source") or "UNKNOWN")
                         event_payload["_live_alert_version"]=STRUCTURE_GATE_VERSION
                         event_payload['_native_chain_v2']=native_v2_enabled()
+                        event_payload['_strategy_identity']=event_identity(json.loads(row['structure_gate_json'] or '{}'))
                         if new=='TRIGGERED':
                             event_payload['_trigger_execution_gate']=execution_check
+                            event_payload['_trigger_execution_proxy']=trigger_proxy
                         if delivery_guard is not None:
                             event_payload["_telegram_delivery_policy"]=delivery_guard
                         if suppression_reason:
                             event_payload["_telegram_suppression_reason"]=suppression_reason
-                        if msg and new in ("CLOSE_CONFIRMED","TRIGGERED"):
-                            # Recheck at actual send time: DB writes or analysis
-                            # can delay an otherwise timely stage transition.
-                            send_guard=telegram_integrity_policy(
-                                new,now_iso(),closed_candle_time,prior_visible=prior_seen)
-                            if not send_guard["allowed"]:
-                                suppression_reason=send_guard["reason"]
-                                delivery_guard=send_guard
-                                event_payload["_telegram_delivery_policy"]=send_guard
-                                event_payload["_telegram_suppression_reason"]=suppression_reason
-                                telegram_status="SUPPRESSED"
-                                msg=None
-                                print("TELEGRAM_SUPPRESSED_AT_SEND",row["symbol"],
-                                      new,suppression_reason,flush=True)
-                        if msg:
-                            print(msg)
-                            try:
-                                sent_time=send_telegram(msg)
-                                telegram_status="SENT"
-                            except Exception as exc:
-                                telegram_status="FAILED"
-                                telegram_error=type(exc).__name__+":"+str(exc)[:180]
-                                print("telegram direct send failed",row["symbol"],new,telegram_error)
-                            if sent_time:
-                                try:
-                                    delay=(datetime.fromisoformat(sent_time)-datetime.fromisoformat(condition_time)).total_seconds()
-                                except Exception:
-                                    delay=None
-                                if delay is not None:
-                                    print(f"ALERT_DELAY {row['symbol']} {new}: {delay:.1f}s")
-                        if new=="TRIGGERED":
-                            event_payload["_trigger_execution_proxy"]=trigger_proxy
-                            event_payload["_trigger_execution_gate"]=execution_check
-
-                        _commit_with_lock_retry(con, """INSERT INTO events(
-                            event_time_utc,symbol,direction,stage_from,stage_to,price,closed_5m,
-                            condition_time_utc,telegram_sent_time_utc,telegram_status,telegram_error,delay_seconds,payload_json
-                        ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                        # Persist state, immutable signal and its pending message
+                        # together BEFORE performing any Telegram network I/O.
+                        event_id=enqueue_core_event(con,
                             (observed_time,row["symbol"],row["direction"],old,new,price,closed,
-                             condition_time,sent_time,telegram_status,telegram_error,delay,
-                             json.dumps(event_payload,ensure_ascii=False)))
+                             condition_time,None,telegram_status,None,None,
+                             json.dumps(event_payload,ensure_ascii=False)),
+                            msg,closed_candle_time,prior_seen)
+                        con.commit()
+                        if msg:
+                            dispatch_outbox(con,lambda text:send_telegram(text,attempts=1),
+                                            revalidate_core_delivery,event_id=event_id)
                     else:
                         con.execute("UPDATE watch_state SET last_price=?,last_closed_5m=?,last_update_utc=? WHERE symbol=?",
                                     (price,closed,observed_time,row["symbol"]))
                         con.commit()
                 except Exception as exc:
+                    con.rollback()
                     print("live error",row["symbol"],type(exc).__name__,str(exc)[:120])
             for dsym,dfuture in dual_extra.items():
                 try:

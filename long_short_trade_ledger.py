@@ -117,6 +117,7 @@ def resolve(db_path, now_ms=None, bars_reader=None, funding_reader=None):
         for ev in events:
             p=json.loads(ev['payload_json'])
             base={'version':VERSION,'symbol':ev['symbol'],'direction':ev['direction'],
+                  'strategy_cohort':(p.get('_strategy_identity') or {}).get('cohort_id','LEGACY_UNVERSIONED'),
                   'telegram_status':ev['telegram_status'],'signal_time':ev['event_time_utc'],
                   'horizon_minutes':HORIZON_MINUTES,
                   'execution_model':'NEXT_FULL_1M_OPEN_PLUS_SIGNAL_BOOK_COST_PROXY',
@@ -170,7 +171,8 @@ def resolve(db_path, now_ms=None, bars_reader=None, funding_reader=None):
         groups=defaultdict(list)
         for raw, in c.execute('SELECT payload FROM independent_paper_v1'):
             row=json.loads(raw)
-            groups[(row.get('geometry_version','UNKNOWN'),row.get('geometry_config_hash','UNKNOWN'))].append(row)
+            groups[(row.get('strategy_cohort','LEGACY_UNVERSIONED'),
+                    row.get('geometry_version','UNKNOWN'),row.get('geometry_config_hash','UNKNOWN'))].append(row)
         report={'version':VERSION,'groups':{':'.join(k):summarize(v) for k,v in groups.items()},
                 'telegram_independent':True,'horizon_minutes':HORIZON_MINUTES,'edge_proven':False}
         print('INDEPENDENT_PAPER_SUMMARY '+json.dumps(report,allow_nan=False),flush=True)

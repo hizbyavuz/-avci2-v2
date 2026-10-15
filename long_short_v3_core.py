@@ -89,12 +89,35 @@ def compression_features(k15: dict[str,Any], t15: dict[str,Any]) -> dict[str,flo
 
 
 def beta_residual_3h(coin_1h: dict[str,Any], btc_1h: dict[str,Any]) -> dict[str,float]:
-    cc=[float(x) for x in coin_1h.get("close",[])]
-    bc=[float(x) for x in btc_1h.get("close",[])]
-    n=min(len(cc),len(bc),72)
-    if n<12:
-        return {"beta":1.0,"residual_3h_pct":0.0,"coin_3h_pct":0.0,"btc_3h_pct":0.0}
-    cc=cc[-n:]; bc=bc[-n:]
+    # Pair the SAME closed UTC hours. Positional zip can compare different
+    # hours after a gap or a delayed feed and fabricate relative strength.
+    empty={"available":False,"beta":1.0,"residual_3h_pct":0.0,
+           "coin_3h_pct":0.0,"btc_3h_pct":0.0}
+    def series(k):
+        raw,closes=k.get('raw',[]),k.get('close',[])
+        if len(raw)!=len(closes):raise ValueError('TIMESTAMP_COUNT_MISMATCH')
+        result={}
+        for row,close in zip(raw,closes):
+            stamp=int(row[0]); value=float(close)
+            if stamp!=float(row[0]) or stamp%3600000 or stamp in result:
+                raise ValueError('INVALID_HOURLY_TIMESTAMPS')
+            if not math.isfinite(value) or value<=0:raise ValueError('INVALID_CLOSE')
+            result[stamp]=value
+        return result
+    try:
+        coin,btc=series(coin_1h),series(btc_1h)
+        if not coin or not btc or max(coin)!=max(btc):
+            return {**empty,'reason':'LATEST_HOUR_MISMATCH'}
+        stamps=sorted(coin.keys() & btc.keys())
+        tail=[stamps[-1]]
+        for stamp in reversed(stamps[:-1]):
+            if tail[-1]-stamp!=3600000 or len(tail)>=72:break
+            tail.append(stamp)
+        stamps=list(reversed(tail))
+        if len(stamps)<12:return {**empty,'reason':'INSUFFICIENT_ALIGNED_HOURS'}
+        cc=[coin[t] for t in stamps]; bc=[btc[t] for t in stamps]; n=len(stamps)
+    except (ValueError,TypeError,KeyError,IndexError,OverflowError) as exc:
+        return {**empty,'reason':str(exc)}
     cr=[cc[i]/cc[i-1]-1.0 for i in range(1,n)]
     br=[bc[i]/bc[i-1]-1.0 for i in range(1,n)]
     mb=_mean(br); mc=_mean(cr)
@@ -104,6 +127,7 @@ def beta_residual_3h(coin_1h: dict[str,Any], btc_1h: dict[str,Any]) -> dict[str,
     coin3=_pct(cc[-4],cc[-1]) if len(cc)>=4 else 0.0
     btc3=_pct(bc[-4],bc[-1]) if len(bc)>=4 else 0.0
     return {
+        "available":True,"aligned_hours":n,"last_open_ms":stamps[-1],
         "beta":beta,
         "residual_3h_pct":coin3-beta*btc3,
         "coin_3h_pct":coin3,

@@ -303,7 +303,7 @@ def rsi(closes, period=14):
         losses.append(max(-d, 0.0))
     ag, al = mean(gains), mean(losses)
     if al <= 1e-12:
-        return 100.0
+        return 50.0 if ag <= 1e-12 else 100.0
     rs = ag / al
     return 100.0 - 100.0 / (1.0 + rs)
 
@@ -2052,28 +2052,9 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None, *, _partia
     else:
         status="NO_TRADE"
 
-    # Research-only counterfactuals. These do NOT change the live decision.
-    # They allow forward tests to answer whether each layer adds edge or only
-    # delays/filters good moves.
-    def _decision_from_scores(ll,ss):
-        ll=max(0,min(100,int(round(ll))))
-        ss=max(0,min(100,int(round(ss))))
-        ee=abs(ll-ss); bb=max(ll,ss)
-        if bb<55 or ee<12:
-            return "WAIT"
-        dd="LONG" if ll>ss else "SHORT"
-        trig=chart["long_trigger"] if dd=="LONG" else chart["short_trigger"]
-        return dd if trig else "WAIT"
-
+    # Component score counterfactuals use the production direction function
+    # below. They are not a full entry/exit/PnL ablation experiment.
     ablations={}
-    for cname,delta in components.items():
-        ll=raw_long-float(delta.get("long",0.0))
-        ss=raw_short-float(delta.get("short",0.0))
-        ablations[cname]={
-            "long_score":max(0,min(100,int(round(ll)))),
-            "short_score":max(0,min(100,int(round(ss)))),
-            "decision":_decision_from_scores(ll,ss),
-        }
 
     # Discovery is intentionally broader than the actionable universe. Preserve
     # the original 25M USDT liquidity safety floor for real WAIT/LONG/SHORT setups,
@@ -2163,8 +2144,20 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None, *, _partia
         residual=residual,
         phase=str(v3_hard_gate_shadow.get("phase") or "NONE"),
     )
+    for cname,delta in components.items():
+        counterfactual=production_decide_direction(
+            long_score=max(0,min(100,int(round(raw_long-float(delta.get('long',0)))))),
+            short_score=max(0,min(100,int(round(raw_short-float(delta.get('short',0)))))),
+            deriv_ready=deriv_ready,actionable_liquidity_ok=actionable_liquidity_ok,
+            external_only_unverified=external_only_unverified,spot_flow=spot_flow,
+            residual=residual,phase=str(v3_hard_gate_shadow.get('phase') or 'NONE'))
+        ablations[cname]={**counterfactual,'decision':counterfactual['direction'],
+                         'scope':'DIRECTION_SCORE_COMPONENT_ONLY_NOT_TRADE_OR_PNL'}
 
+    from long_short_strategy_identity import reference as strategy_snapshot
+    strategy_identity=strategy_snapshot()
     print("V2_PARTIAL_DIRECTION_RESEARCH" if _partial_research else "PRODUCTION_DIRECTION_AUDIT",json.dumps({
+        "strategy_id":strategy_identity['id'],
         "symbol":symbol,"direction":v3.get("direction"),
         "eligible":v3.get("eligible"),"hard_blockers":v3.get("hard_blockers"),
         "decision_reasons":v3.get("decision_reasons"),
@@ -2272,7 +2265,9 @@ def score_symbol(symbol, market_regime, day_change_pct=0.0, pre=None, *, _partia
     rr1=None
     confidence=int(round(float(v3.get("best_score") or 0.0)))
     reversal_plan=build_reversal_plan(price,k5,t5,t15,day_change_pct)
+    structure_gate['_strategy_identity']=strategy_identity
     payload={
+        "strategy_identity":strategy_identity,
         "version":("LS_NATIVE_CHAIN_V2_2026-10-13" if native_v2_enabled() else VERSION),"frozen_config_hash":FROZEN_CONFIG_HASH,"data_mode":DATA_MODE,"market_regime":market_regime,
         "native_chain_v2":native_v2_enabled(),"partial_research_only":_partial_research,
         "native_derivative_evidence":evidence if native_v2_enabled() else None,
@@ -2840,7 +2835,7 @@ def send_health_once(results):
         f"Veri sağlığı: {ready}/{len(results)} derin tarama coininde V3.1 türev çekirdeği TAM.\n"
         f"Kaynak: Binance Futures {native} | Çoklu-venue {multi}.\n"
         f"OI + Funding + Taker + Long/Short eksikse gerçek sinyal kilitlenir.\n"
-        f"Order-book snapshot yalnız tanısal; final yön kararı vermez.\n"
+        f"Emir defteri yön puanına katkı verir; girişte maliyet ayrıca kontrol edilir.\n"
         f"📊 15dk / 1s / 3s sonuç ölçümü açık.\n"
         f"🤖 Otomatik emir KAPALI — Telegram analiz/uyarı modu."
     )

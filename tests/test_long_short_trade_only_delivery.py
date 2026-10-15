@@ -37,7 +37,7 @@ class TradeOnlyTelegramTests(unittest.TestCase):
         self.assertIn("116.2500",msg)
         self.assertIn("TP1:",msg)
         self.assertIn("TP2:",msg)
-        self.assertIn("Tip: 🟦 Güçlü/Stabil",msg)
+        self.assertIn("Tip: 🟦 Daha sakin",msg)
         self.assertIn("otomatik emir açılmadı",msg)
         self.assertNotIn("DEVAM MOTORU",msg)
         self.assertNotIn("OYNAK RADAR",msg)
