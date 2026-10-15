@@ -12,7 +12,7 @@ from pathlib import Path
 from long_short_chart_setups import setup, geometry, quality_limit
 from long_short_chart_flow import reversal_reason, flow_note
 
-VERSION = 'CHART_FIRST_PATH_GUARD_V3_1_2026_10_15'
+VERSION = 'CHART_FIRST_RELIABILITY_V3_2_2026_10_15'
 CONFIG = dict(pivot_confirmation_bars=2, daily_min_bars=20,
               approach_atr15=1.0, chase_atr5=1.0, level_tolerance_atr5=0.10,
               candle_grace_ms=20000, quote_max_age_ms=5000,
@@ -30,7 +30,8 @@ STRATEGY_ID = hashlib.sha256((CONFIG_HASH+VERSION).encode()+Path(__file__).read_
     Path(__file__).with_name('long_short_chart_setups.py').read_bytes()+
     Path(__file__).with_name('long_short_chart_outcomes.py').read_bytes()+
     Path(__file__).with_name('long_short_chart_flow.py').read_bytes()+
-    Path(__file__).with_name('long_short_chart_lifecycle.py').read_bytes()).hexdigest()
+    Path(__file__).with_name('long_short_chart_lifecycle.py').read_bytes()+
+    Path(__file__).with_name('long_short_chart_dispatch_audit.py').read_bytes()).hexdigest()
 PERIODS = {'5m':300000, '15m':900000, '1h':3600000, '4h':14400000, '1d':86400000}
 
 
@@ -127,6 +128,8 @@ def assess(symbol, frames, price, quote_volume, now_ms, evidence=None, flow=None
              price=price, direction='NONE', stage='REJECTED', reason=None,
              context={}, support=supporting_data(evidence), warnings=[])
     out['strategy_id']=STRATEGY_ID
+    out['outcome_schema']='PARTIAL_MINUTE_V2'
+    out['cost_assumption_pct']=CONFIG['round_trip_cost_pct']
     out['hourly_flow']=flow or {'status':'UNAVAILABLE'}
     def reject(reason):
         out['reason']=reason
@@ -204,6 +207,10 @@ def assess(symbol, frames, price, quote_volume, now_ms, evidence=None, flow=None
     if g['net_reward_risk']+1e-10<CONFIG['min_net_reward_risk']:
         return reject('NET_REWARD_BELOW_STRUCTURAL_RISK')
     ready=pattern['model_ready'] and sign*(price-trigger)>=0
+    # The dispatcher has always required a <=75s-old confirmation. The scan
+    # must not advertise an already expired break as READY for another 5m.
+    if pattern['model_ready'] and not 250<=now_ms-int(pattern['confirmation_ms'])<=75000:
+        return reject('CONFIRMATION_WINDOW_EXPIRED')
     entry_limit=trigger+sign*CONFIG['chase_atr5']*a5
     boundary=quality_limit(direction,stop,obstacle,CONFIG['round_trip_cost_pct'],
                            CONFIG['min_net_reward_risk'])

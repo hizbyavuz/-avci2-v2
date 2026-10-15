@@ -369,11 +369,16 @@ def lean_maintenance() -> None:
 
 def lean_health(sd: Path) -> None:
     from long_short_runtime_profile import health
+    last_validation=0
     while not STOP.wait(120):
         try:
             report = health(sd)
             (sd/'long_short_data_health.json').write_text(json.dumps(report))
             print('CHART_RUNTIME_HEALTH '+json.dumps(report), flush=True)
+            if time.time()-last_validation>=900:
+                from long_short_chart_reliability import emit
+                emit(sd)
+                last_validation=time.time()
         except Exception as exc:
             print('CHART_RUNTIME_HEALTH_ERROR '+type(exc).__name__, flush=True)
 
