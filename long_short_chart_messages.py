@@ -30,6 +30,8 @@ def message(p, stage=None):
         rows.append(f'🔔 Beklenen: 5 dk mum {p["trigger"]:.10g} {relation} kapansın, fiyat bu seviyeyi korusun.')
     rows.extend(['',f'🎯 {"Yükselişin" if up else "Düşüşün"} zorlanabileceği ilk yer: {p["obstacle"]:.10g}',
                  f'🛑 {p["stop"]:.10g} {"altına düşerse" if up else "üstüne çıkarsa"} fikir bozulur.'])
+    if p.get('intermediate_level') is not None and (1 if up else -1)*(p['intermediate_level']-p['price'])>0:
+        rows.append(f'⚠️ Arada {p["intermediate_level"]:.10g} seviyesi var; fiyat burada takılabilir.')
     entry=p['price'] if stage=='READY' else p['trigger']
     g=geometry(side,entry,p['stop'],p.get('obstacle'),CONFIG['round_trip_cost_pct'])
     if g.get('valid'):

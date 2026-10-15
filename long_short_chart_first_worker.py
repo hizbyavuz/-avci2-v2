@@ -184,7 +184,7 @@ def resolve(c,kdb,now_ms):
       (now_ms,now_ms-3600000)).fetchall()
     for row in rows:
         p=json.loads(row['payload'])
-        modern=p.get('outcome_schema')=='PARTIAL_MINUTE_V2' or p.get('version','').startswith(('CHART_FIRST_TWO_SETUPS_V2_', 'CHART_FIRST_FLOW_REVERSAL_V3_', 'CHART_FIRST_PATH_GUARD_V3_1_', 'CHART_FIRST_RELIABILITY_V3_2_', 'CHART_FIRST_RELIABILITY_V3_3_'))
+        modern=p.get('outcome_schema')=='PARTIAL_MINUTE_V2' or p.get('version','').startswith(('CHART_FIRST_TWO_SETUPS_V2_', 'CHART_FIRST_FLOW_REVERSAL_V3_', 'CHART_FIRST_PATH_GUARD_V3_1_', 'CHART_FIRST_RELIABILITY_V3_2_', 'CHART_FIRST_RELIABILITY_V3_3_', 'CHART_FIRST_STRUCTURE_V4_'))
         start=(row['observed_ms']//60000+(0 if modern else 1))*60000
         for horizon in (15,60,180):
             end=((row['observed_ms']+horizon*60000+59999)//60000)*60000 if modern else start+horizon*60000
@@ -356,7 +356,7 @@ def scan():
     universe=native_futures_websocket_universe(all_eligible=True,quiet=True)
     path=os.path.join(root(),'binance_futures_kline_shadow.db')
     c=connect();kdb=sqlite3.connect('file:'+os.path.abspath(path)+'?mode=ro',uri=True,timeout=5)
-    decisions={};counts=Counter()
+    decisions={};counts=Counter();comparison=Counter();rescued=[]
     active={r['symbol']:json.loads(r['payload']) for r in c.execute('SELECT symbol,payload FROM episodes WHERE ended_ms IS NULL')}
     try:
         for symbol,qv,_,_ in universe:
@@ -364,10 +364,18 @@ def scan():
             try:
                 frames,derived=candles(kdb,symbol,with_provenance=True)
                 p=assess(symbol,frames,price,qv,stamp,flow=hourly_flow(kdb,symbol,stamp))
+                previous=assess(symbol,frames,price,qv,stamp,flow=p.get('hourly_flow'),comparison_v3=True)
+                comparison[previous['stage']+':'+previous['reason']]+=1
+                if p['stage'] in ('WATCH','READY') and previous['stage']=='REJECTED':
+                    rescued.append(dict(symbol=symbol,old_reason=previous['reason'],new_stage=p['stage'],
+                        model=p.get('model'),old_obstacle=previous.get('obstacle'),
+                        new_obstacle=p.get('obstacle'),intermediate=p.get('intermediate_level')))
                 p['chart_tail_aggregated_from_native_5m']=derived
                 old=active.get(symbol)
                 if old and p.get('context') and '1d' in p['context']:
                     all_frames=dict(frames,**{'1d':daily_from_4h(frames['4h'])})
+                    if old.get('target_policy')=='STRUCTURAL_15M_PLUS_V4':
+                        all_frames={tf:all_frames[tf] for tf in CONFIG['target_timeframes']}
                     p['active_plan_obstacle']=first_obstacle(all_frames,old['direction'],old['trigger'],old['atr5'])[0]
                 if p['stage'] in ('WATCH','READY') or old and p.get('context'):
                     # Cached validated fields only: no serial REST refresh can
@@ -426,6 +434,7 @@ def scan():
         print('CHART_FIRST_SUMMARY '+json.dumps(dict(version=VERSION,config_hash=CONFIG_HASH,strategy_id=STRATEGY_ID,
             checked=len(decisions),directions=dict(Counter(p['direction'] for p in decisions.values())),
             stages=dict(Counter(p['stage'] for p in decisions.values())),reasons=dict(counts),
+            same_tick_v3_rules=dict(comparison),newly_eligible=rescued,
             pattern_results=dict(Counter(x['model']+':'+x['reason'] for p in decisions.values()
                                          for x in p.get('pattern_evaluations',[]))),
             alternate_admissions=sum(p['stage'] in ('WATCH','READY') and

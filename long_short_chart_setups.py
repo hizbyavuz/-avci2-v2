@@ -125,6 +125,34 @@ def swing_breakout(rows, direction, highs, lows, config):
             prior_structural_level=sign*before[-1][1],closed_level_previously_broken=False))
 
 
+def level_watch(rows, direction, highs, lows, config):
+    """Conditional watch of a confirmed local level, without shape gating.
+
+    The level remains unbroken on earlier closes. A confirmed opposite swing
+    supplies invalidation; proximity, costs and larger-timeframe room are
+    checked by admission. This is not an unconditional direction signal.
+    """
+    sign=1 if direction=='LONG' else -1
+    r=rows if sign==1 else [[x[0],-x[1],-x[3],-x[2],-x[4],*x[5:]] for x in rows]
+    hh,ll=(highs,lows) if sign==1 else ([(t,-v) for t,v in lows],[(t,-v) for t,v in highs])
+    recent=[(t,v) for t,v in hh if t>=r[-config['pullback_lookback_bars']][0]]
+    if not recent or not ll:return None
+    stamp,trigger=recent[-1]
+    stop_ms,structural_stop=ll[-1]
+    if stop_ms<r[-config['pullback_lookback_bars']][0]:return None
+    if any(x[4]>trigger for x in r[:-1] if x[0]>stamp):return None
+    if any(x[3]<structural_stop for x in r if x[0]>stop_ms):return None
+    base=true_range(r[-15:])
+    if base<=0 or structural_stop>=trigger:return None
+    ready=r[-1][4]>trigger and r[-2][4]<=trigger
+    return dict(model='CONFIRMED_LEVEL_WATCH',trigger=sign*trigger,
+        stop=sign*(structural_stop-config['stop_buffer_atr']*base),
+        model_anchor_ms=int(stamp),model_ready=ready,
+        confirmation_ms=int(r[-1][6]) if ready else None,
+        pattern_evidence=dict(level_ms=int(stamp),invalidation_ms=int(stop_ms),
+                              condition='UNBROKEN_CONFIRMED_LEVEL'))
+
+
 def geometry(direction, entry, stop, obstacle, cost_pct):
     """Percentage of notional; fees/slippage are an assumption, not a fill."""
     if obstacle is None or not all(isinstance(x, (int, float)) and

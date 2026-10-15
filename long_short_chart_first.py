@@ -9,11 +9,11 @@ import json
 import math
 import os
 from pathlib import Path
-from long_short_chart_setups import setups, geometry, quality_limit
+from long_short_chart_setups import setups, level_watch, geometry, quality_limit
 from long_short_chart_flow import reversal_reason, flow_note
 
-VERSION = 'CHART_FIRST_RELIABILITY_V3_3_2026_10_15'
-CONFIG = dict(pivot_confirmation_bars=2, daily_min_bars=20,
+VERSION = 'CHART_FIRST_STRUCTURE_V4_2026_10_15'
+CONFIG = dict(target_timeframes=('15m','1h','4h','1d'), pivot_confirmation_bars=2, daily_min_bars=20,
               approach_atr15=1.0, chase_atr5=1.0, level_tolerance_atr5=0.10,
               candle_grace_ms=20000, quote_max_age_ms=5000,
               min_quote_volume=25000000, round_trip_cost_pct=0.30,
@@ -123,11 +123,12 @@ def first_obstacle(frames, direction, trigger, atr5):
     return (levels[0][1],levels[0][2]) if levels else (None,None)
 
 
-def assess(symbol, frames, price, quote_volume, now_ms, evidence=None, flow=None):
+def assess(symbol, frames, price, quote_volume, now_ms, evidence=None, flow=None, comparison_v3=False):
     out=dict(version=VERSION,config_hash=CONFIG_HASH,symbol=symbol,observed_ms=now_ms,
              price=price, direction='NONE', stage='REJECTED', reason=None,
              context={}, support=supporting_data(evidence), warnings=[])
     out['strategy_id']=STRATEGY_ID
+    out['target_policy']='ALL_TIMEFRAMES_V3' if comparison_v3 else 'STRUCTURAL_15M_PLUS_V4'
     out['outcome_schema']='PARTIAL_MINUTE_V2'
     out['cost_assumption_pct']=CONFIG['round_trip_cost_pct']
     out['hourly_flow']=flow or {'status':'UNAVAILABLE'}
@@ -183,6 +184,9 @@ def assess(symbol, frames, price, quote_volume, now_ms, evidence=None, flow=None
         out['warnings'].append('15 dakikalık hareket hâlâ ters yönde; kısa dönüşün başarısız olma riski var.')
     out['scenario']=scenario
     patterns=setups(frames['5m'], direction, local['highs'], local['lows'], CONFIG)
+    if not comparison_v3:
+        level=level_watch(frames['5m'],direction,local['highs'],local['lows'],CONFIG)
+        if level is not None:patterns.append(level)
     if not patterns:return reject('NO_DEFINED_SETUP')
     evaluated=[assess_pattern(dict(out), pattern, frames, price, now_ms) for pattern in patterns]
     # Prefer a fresh executable hypothesis to an unconfirmed watch. Within a
@@ -207,9 +211,15 @@ def assess_pattern(out, pattern, frames, price, now_ms):
     out.update(atr5=a5,atr15=a15)
     if sign*(price-trigger)>CONFIG['chase_atr5']*a5:return reject('ENTRY_ALREADY_EXTENDED')
     if sign*(trigger-price)>CONFIG['approach_atr15']*a15:return reject('ENTRY_NOT_NEAR')
-    # First distinct obstacle from ALL timeframes, anchored to the trigger.
-    # Do not silently skip a crossed obstacle and manufacture a farther target.
-    obstacle,obstacle_tf=first_obstacle(frames,direction,trigger,a5)
+    # 5m controls execution timing; 15m+ supplies the first structural target.
+    # Keep the nearer 5m hurdle visible, never relabel it as already crossed.
+    # Anchoring to the trigger still rejects a crossed structural target.
+    target_frames=frames if out['target_policy']=='ALL_TIMEFRAMES_V3' else {
+        tf:frames[tf] for tf in CONFIG['target_timeframes']}
+    obstacle,obstacle_tf=first_obstacle(target_frames,direction,trigger,a5)
+    micro,_=first_obstacle({'5m':frames['5m']},direction,trigger,a5)
+    out['intermediate_level']=micro if (micro is not None and obstacle is not None and
+        sign*(micro-trigger)>0 and sign*(obstacle-micro)>0) else None
     out['obstacle']=obstacle
     out['obstacle_timeframe']=obstacle_tf
     entry=max(price,trigger) if sign==1 else min(price,trigger)
