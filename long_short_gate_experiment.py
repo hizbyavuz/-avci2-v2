@@ -72,7 +72,9 @@ def ingest(c,now_ms):
     init(c)
     old=c.execute('SELECT last_id FROM gate_experiment_cursor WHERE version=?',(VERSION,)).fetchone()
     cursor=old[0] if old else 0
-    rows=c.execute('SELECT * FROM observations WHERE id>? AND observed_ms<=? ORDER BY id LIMIT 2000',(cursor,now_ms)).fetchall()
+    rows=c.execute('''SELECT * FROM observations WHERE id>? AND observed_ms<=?
+        AND json_valid(payload) AND json_extract(payload,'$.gate_experiment.version')=?
+        ORDER BY id LIMIT 2000''',(cursor,now_ms,VERSION)).fetchall()
     for row in rows:
         p=json.loads(row['payload']);experiment=p.get('gate_experiment')
         cursor=row['id']
@@ -166,7 +168,6 @@ def resolve(now_ms=None):
 def emit_report(c,now_ms):
     global _last_slot
     if _last_slot==now_ms//300000:return
-    _last_slot=now_ms//300000
     from long_short_trade_ledger import summarize
     results={(r['observation_id'],r['arm'],r['confirmation']):json.loads(r['payload'])
         for r in c.execute('SELECT * FROM gate_experiment_results')}
@@ -174,6 +175,8 @@ def emit_report(c,now_ms):
     for row in c.execute('SELECT * FROM gate_experiment_episodes'):
         for arm in json.loads(row['payload'])['arms']:
             groups[(row['strategy_id'],row['data_cohort'],row['direction'],arm['name'])].append((row,arm))
+    if not groups:return
+    _last_slot=now_ms//300000
     for (strategy,cohort,direction,arm_name),rows in groups.items():
         blocks=Counter(reason for _,arm in rows for reason in arm['blockers'])
         modes={mode:summarize([results.get((r['observation_id'],arm_name,mode),{'state':'PENDING'})
