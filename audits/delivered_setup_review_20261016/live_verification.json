@@ -1,0 +1,340 @@
+{
+  "deployment_id": "21ba4373-94f6-4ea5-8c22-fa8356cbacef",
+  "commit": "da8bb84dca5cb17092374c5d9a6e2c244c82a6a2",
+  "observed_status": "SUCCESS",
+  "strategy_id": "b3154047e7fc7631de651a4431bd478e61b54098ebb63faed6bd216cf2bc762a",
+  "config_hash": "d9fdffbee356ce8984080979c33f38948ae46409dadc1b284520eb9558eae557",
+  "strategy_unchanged": true,
+  "startup_export": {
+    "exported": 566,
+    "invalid": 0,
+    "truncated": false
+  },
+  "progression": {
+    "timestamp": "2026-10-16T14:53:09.305781243Z",
+    "version": "DELIVERY_OUTCOME_LANE_V1_2026_10_16",
+    "observed_ms": 1792162389143,
+    "batch": {
+      "selected": 1,
+      "RESOLVED": 1
+    },
+    "coverage": [
+      {
+        "horizon": 15,
+        "stage": "DELIVERED_READY",
+        "records": 154,
+        "resolved": 148,
+        "boundary_ambiguous": 2,
+        "data_unresolved": 2,
+        "pending": 2,
+        "missing_due": 0
+      },
+      {
+        "horizon": 15,
+        "stage": "DELIVERED_WATCH",
+        "records": 468,
+        "resolved": 448,
+        "boundary_ambiguous": 8,
+        "data_unresolved": 6,
+        "pending": 6,
+        "missing_due": 0
+      },
+      {
+        "horizon": 30,
+        "stage": "DELIVERED_READY",
+        "records": 154,
+        "resolved": 146,
+        "boundary_ambiguous": 2,
+        "data_unresolved": 2,
+        "pending": 4,
+        "missing_due": 0
+      },
+      {
+        "horizon": 30,
+        "stage": "DELIVERED_WATCH",
+        "records": 468,
+        "resolved": 444,
+        "boundary_ambiguous": 8,
+        "data_unresolved": 6,
+        "pending": 10,
+        "missing_due": 0
+      },
+      {
+        "horizon": 60,
+        "stage": "DELIVERED_READY",
+        "records": 154,
+        "resolved": 141,
+        "boundary_ambiguous": 2,
+        "data_unresolved": 2,
+        "pending": 9,
+        "missing_due": 0
+      },
+      {
+        "horizon": 60,
+        "stage": "DELIVERED_WATCH",
+        "records": 468,
+        "resolved": 433,
+        "boundary_ambiguous": 8,
+        "data_unresolved": 6,
+        "pending": 21,
+        "missing_due": 0
+      },
+      {
+        "horizon": 180,
+        "stage": "DELIVERED_READY",
+        "records": 154,
+        "resolved": 133,
+        "boundary_ambiguous": 2,
+        "data_unresolved": 2,
+        "pending": 17,
+        "missing_due": 0
+      },
+      {
+        "horizon": 180,
+        "stage": "DELIVERED_WATCH",
+        "records": 468,
+        "resolved": 391,
+        "boundary_ambiguous": 6,
+        "data_unresolved": 7,
+        "pending": 64,
+        "missing_due": 0
+      }
+    ]
+  },
+  "query_windows": [
+    {
+      "index": 0,
+      "count": 191,
+      "parsed": 191,
+      "capped": false,
+      "first": "2026-10-16T14:50:24.126506573Z",
+      "last": "2026-10-16T14:50:27.179092627Z"
+    },
+    {
+      "index": 1,
+      "count": 331,
+      "parsed": 331,
+      "capped": false,
+      "first": "2026-10-16T14:50:34.131417962Z",
+      "last": "2026-10-16T14:50:58.483081016Z"
+    },
+    {
+      "index": 2,
+      "count": 330,
+      "parsed": 330,
+      "capped": false,
+      "first": "2026-10-16T14:51:06.651416054Z",
+      "last": "2026-10-16T14:51:27.703939920Z"
+    },
+    {
+      "index": 3,
+      "count": 333,
+      "parsed": 333,
+      "capped": false,
+      "first": "2026-10-16T14:51:37.455308737Z",
+      "last": "2026-10-16T14:51:59.979946278Z"
+    },
+    {
+      "index": 4,
+      "count": 303,
+      "parsed": 303,
+      "capped": false,
+      "first": "2026-10-16T14:52:07.853222130Z",
+      "last": "2026-10-16T14:52:29.322921979Z"
+    },
+    {
+      "index": 5,
+      "count": 255,
+      "parsed": 255,
+      "capped": false,
+      "first": "2026-10-16T14:52:30.168024666Z",
+      "last": "2026-10-16T14:52:54.846266432Z"
+    },
+    {
+      "index": 6,
+      "count": 27,
+      "parsed": 27,
+      "capped": false,
+      "first": "2026-10-16T14:53:00.702336632Z",
+      "last": "2026-10-16T14:53:09.299787915Z"
+    },
+    {
+      "index": 7,
+      "count": 133,
+      "parsed": 133,
+      "capped": false,
+      "first": "2026-10-16T14:50:34.147396275Z",
+      "last": "2026-10-16T14:53:02.547839247Z"
+    }
+  ],
+  "unique_exported_outcomes": 2346,
+  "current_strategy_stats": [
+    {
+      "stage": "DELIVERED_WATCH",
+      "horizon": 15,
+      "exported": 413,
+      "resolved": 399,
+      "unresolved": 6,
+      "boundary": 8,
+      "direction": {
+        "n": 407,
+        "right": 174,
+        "wrong": 225,
+        "mean": -0.10753621629302554
+      },
+      "net": {
+        "n": 0,
+        "positive": 0,
+        "mean": null
+      }
+    },
+    {
+      "stage": "DELIVERED_WATCH",
+      "horizon": 30,
+      "exported": 409,
+      "resolved": 395,
+      "unresolved": 6,
+      "boundary": 8,
+      "direction": {
+        "n": 403,
+        "right": 174,
+        "wrong": 225,
+        "mean": -0.07436581793290561
+      },
+      "net": {
+        "n": 0,
+        "positive": 0,
+        "mean": null
+      }
+    },
+    {
+      "stage": "DELIVERED_WATCH",
+      "horizon": 60,
+      "exported": 398,
+      "resolved": 384,
+      "unresolved": 6,
+      "boundary": 8,
+      "direction": {
+        "n": 392,
+        "right": 174,
+        "wrong": 216,
+        "mean": -0.13065367749293932
+      },
+      "net": {
+        "n": 0,
+        "positive": 0,
+        "mean": null
+      }
+    },
+    {
+      "stage": "DELIVERED_WATCH",
+      "horizon": 180,
+      "exported": 355,
+      "resolved": 343,
+      "unresolved": 6,
+      "boundary": 6,
+      "direction": {
+        "n": 349,
+        "right": 161,
+        "wrong": 188,
+        "mean": -0.20774527275957194
+      },
+      "net": {
+        "n": 0,
+        "positive": 0,
+        "mean": null
+      }
+    },
+    {
+      "stage": "DELIVERED_READY",
+      "horizon": 15,
+      "exported": 132,
+      "resolved": 130,
+      "unresolved": 0,
+      "boundary": 2,
+      "direction": {
+        "n": 132,
+        "right": 66,
+        "wrong": 66,
+        "mean": -0.07709468533187233
+      },
+      "net": {
+        "n": 130,
+        "positive": 48,
+        "mean": -0.38227807667138164
+      }
+    },
+    {
+      "stage": "DELIVERED_READY",
+      "horizon": 30,
+      "exported": 133,
+      "resolved": 129,
+      "unresolved": 2,
+      "boundary": 2,
+      "direction": {
+        "n": 131,
+        "right": 55,
+        "wrong": 75,
+        "mean": -0.18124818004259174
+      },
+      "net": {
+        "n": 129,
+        "positive": 51,
+        "mean": -0.4283658651782
+      }
+    },
+    {
+      "stage": "DELIVERED_READY",
+      "horizon": 60,
+      "exported": 126,
+      "resolved": 124,
+      "unresolved": 0,
+      "boundary": 2,
+      "direction": {
+        "n": 126,
+        "right": 48,
+        "wrong": 77,
+        "mean": -0.2796815189417525
+      },
+      "net": {
+        "n": 124,
+        "positive": 56,
+        "mean": -0.4809742106294845
+      }
+    },
+    {
+      "stage": "DELIVERED_READY",
+      "horizon": 180,
+      "exported": 117,
+      "resolved": 115,
+      "unresolved": 0,
+      "boundary": 2,
+      "direction": {
+        "n": 117,
+        "right": 48,
+        "wrong": 69,
+        "mean": -0.6876062606915079
+      },
+      "net": {
+        "n": 115,
+        "positive": 58,
+        "mean": -0.5759041747864632
+      }
+    }
+  ],
+  "signal_health": {
+    "timestamp": "2026-10-16T14:53:37.595336490Z",
+    "checked": 153,
+    "stages": {
+      "REJECTED": 143,
+      "WATCH": 10
+    }
+  },
+  "notes": [
+    "Startup database lock recovered on next worker cycle; no lost queue items were inferred.",
+    "WebSocket reconnects occurred; fresh-price checks recovered and 10 WATCH candidates were evaluated by 14:52:34 UTC.",
+    "Missing_due was zero across all stage/horizon groups; data-unresolved and boundary-ambiguous records remain explicit.",
+    "Exported historical READY data-unresolved rows are not replayed until due for retry; primary event export has 117 rows, including 2 boundary cases; coverage separately records 2 data-unresolved cases.",
+    "No signal rules, order execution, or Telegram destination were changed."
+  ]
+}
