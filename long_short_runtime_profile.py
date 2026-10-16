@@ -14,6 +14,7 @@ WORKERS = (
     ('binance_futures_history', 'long_short_futures_history_worker.py'),
     ('binance_taker_shadow', 'long_short_taker_shadow_worker.py'),
     ('chart_first', 'long_short_chart_first_worker.py'),
+    ('chart_delivery_outcomes', 'long_short_chart_delivery_outcomes.py'),
 )
 RETIRED = ('analyst', 'continuation', 'reversal', 'early_breakout_observer',
            'data_opportunity_research', 'v2_shadow', 'research_validation',
