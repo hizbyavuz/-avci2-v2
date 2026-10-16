@@ -11,8 +11,9 @@ from collections import Counter
 from datetime import datetime,timezone
 
 from long_short_major_move import CONFIG,CONFIG_HASH,VERSION,assess,rank,message,exit_message,tracking_message,strategy_id
-from long_short_major_move_store import root,db,connect,universe,frames,quote,save_assessment,initial_progress,measure,health
+from long_short_major_move_store import root,db,connect,universe,frames,quote,save_assessment,initial_progress,measure,health,EVALUATION_HOURS,OUTCOME_VERSION
 from long_short_chart_flow import hourly_flow
+from long_short_major_context import capture as capture_context,record as record_context,compact as compact_context,observer_id,VERSION as CONTEXT_VERSION,RULES as CONTEXT_RULES
 
 STOP=threading.Event()
 
@@ -30,6 +31,8 @@ def publish_candidate(c,kdb,p,sid,publisher,token,chat,now_ms):
     if not token or not chat:return 'TELEGRAM_NOT_CONFIGURED'
     reason=eligible_to_publish(c,p,now_ms)
     if reason:return reason
+    context=capture_context(kdb,p['symbol'],p['direction'],now_ms)
+    now_ms=int(time.time()*1000)
     fresh=quote(kdb,p['symbol'],now_ms)
     sign=1 if p['direction']=='LONG' else -1
     if fresh is None:return 'FRESH_PRICE_MISSING'
@@ -40,8 +43,11 @@ def publish_candidate(c,kdb,p,sid,publisher,token,chat,now_ms):
     if not 0<risk<=CONFIG['max_stop_pct']:return 'INVALID_CURRENT_RISK'
     if p['obstacle'] and sign*(p['obstacle']/fresh-1)*100<CONFIG['min_room_pct']:return 'ROOM_CHANGED'
     p=dict(p,price=fresh,observed_ms=now_ms,risk_pct=risk,strategy_id=sid,
+           hourly_flow=context['flow'],
            objective=fresh*(1+sign*CONFIG['min_room_pct']/100),expires_ms=now_ms+p['horizon_hours']*3600000)
     eid=hashlib.sha256(json.dumps([sid,p['symbol'],p['model'],p['direction'],p['confirmation_ms'],p['trigger']],sort_keys=True).encode()).hexdigest()
+    p['market_context']=compact_context(context);p['context_snapshot_id']=eid
+    record_context(c,eid,'SIGNAL',context)
     c.execute('INSERT INTO ideas VALUES(?,?,?,?,?,?,?,?)',(eid,p['symbol'],now_ms,None,'PUBLISH_PENDING',json.dumps(p),'{}',now_ms));c.commit()
     try:
         receipt=publisher(token,chat,p['symbol'],'CHART',message(p),p['direction'],
@@ -65,6 +71,7 @@ def publish_candidate(c,kdb,p,sid,publisher,token,chat,now_ms):
     c.execute('UPDATE ideas SET delivered_ms=?,state=?,payload=?,progress=?,updated_ms=? WHERE id=?',
               (accepted_ms,state,json.dumps(p),json.dumps(progress),accepted_ms,eid));c.commit()
     print('MAJOR_MOVE_DELIVERED '+json.dumps(dict(idea_id=eid,state=state,signal=p)),flush=True)
+    print('MAJOR_CONTEXT_SIGNAL '+json.dumps(dict(idea_id=eid,context=context)),flush=True)
     return 'DELIVERED'
 
 
@@ -127,7 +134,13 @@ def scan(c,kdb,sid,publisher=None):
                      hourly_flow(kdb,symbol,stamp))
         except (ValueError,sqlite3.Error) as exc:
             p=dict(version=VERSION,symbol=symbol,observed_ms=now_ms,stage='REJECTED',reason=str(exc)[:80],direction='NONE')
-        p['strategy_id']=sid;save_assessment(c,p,sid);counts[p['reason']]+=1
+        p['strategy_id']=sid
+        if p['stage'] in ('WATCH','READY'):
+            key=hashlib.sha256(json.dumps([sid,symbol,p['direction'],bucket,observer_id()]).encode()).hexdigest()
+            if not c.execute('SELECT 1 FROM context_snapshots WHERE id=?',(key,)).fetchone():
+                record_context(c,key,'CANDIDATE',capture_context(kdb,symbol,p['direction'],int(time.time()*1000)))
+            p['context_scan_id']=key
+        save_assessment(c,p,sid);counts[p['reason']]+=1
         if p['stage'] in ('WATCH','READY'):candidates.append(p)
     c.commit();ordered=rank(candidates);gates=Counter();sent=0
     if publisher is None:
@@ -148,9 +161,15 @@ def main():
     for sig in (signal.SIGTERM,signal.SIGINT):signal.signal(sig,lambda *_:STOP.set())
     sid=strategy_id();c=connect()
     c.execute('INSERT OR IGNORE INTO manifests VALUES(?,?)',(sid,json.dumps(dict(version=VERSION,config_hash=CONFIG_HASH,config=CONFIG,validation='UNPROVEN_RESEARCH_VERSION',automatic_orders=False))));c.commit()
+    c.execute('INSERT OR IGNORE INTO manifests VALUES(?,?)',('context:'+observer_id(),json.dumps(dict(
+        version=CONTEXT_VERSION,rules=CONTEXT_RULES,installed_ms=int(time.time()*1000),
+        outcome_version=OUTCOME_VERSION,evaluation_hours=EVALUATION_HOURS,
+        selection_config_hash=CONFIG_HASH,intervention='OBSERVATION_ONLY_NO_SIGNAL_RULE_CHANGE'))));c.commit()
     recover_interrupted(c);retire_old_episodes();c.close()
     print('MAJOR_MOVE_START '+json.dumps(dict(version=VERSION,strategy_id=sid,config_hash=CONFIG_HASH,automatic_orders=False,primary_horizon_hours=24)),flush=True)
-    next_scan=0;next_health=0
+    print('MAJOR_CONTEXT_START '+json.dumps(dict(version=CONTEXT_VERSION,observer_id=observer_id(),
+        mode='OBSERVATION_ONLY',evaluation_hours=EVALUATION_HOURS,selection_config_hash=CONFIG_HASH)),flush=True)
+    next_scan=0;next_health=0;next_comparison=0
     while not STOP.is_set():
         c=kdb=None
         try:
@@ -163,6 +182,10 @@ def main():
             if time.monotonic()>=next_health:
                 next_health=time.monotonic()+300
                 print('MAJOR_MOVE_HEALTH '+json.dumps(health()),flush=True)
+            if time.monotonic()>=next_comparison:
+                from long_short_major_context_report import emit_report
+                emit_report(c,now)
+                next_comparison=time.monotonic()+3600
         except (sqlite3.Error,ValueError,OSError) as exc:
             print('MAJOR_MOVE_ERROR '+json.dumps(dict(error=type(exc).__name__,detail=str(exc)[:160])),flush=True)
             if args.once:raise
