@@ -21,6 +21,14 @@ RETIRED = ('analyst', 'continuation', 'reversal', 'early_breakout_observer',
            'independent_paper', 'context_scorecard', 'operational_audit',
            'coinalyze_probes', 'gate_bybit_probes', 'v4_native_probe')
 
+MAJOR_WORKERS = tuple((name,script) for name,script in WORKERS
+    if name not in ('chart_first','chart_delivery_outcomes','binance_taker_shadow')) + (
+    ('major_move','long_short_major_move_worker.py'),)
+
+
+def major_enabled():
+    return enabled() and os.getenv('LS_MAJOR_MOVE_V1','1')=='1'
+
 
 def enabled():
     return all(os.getenv(k, '0') == '1' for k in
@@ -35,6 +43,9 @@ def demand(limit=90, full_chart=False):
     Candle/price consumers cover the full chart liquidity universe; bounded
     auxiliary consumers retain their existing rotating request list.
     """
+    if major_enabled():
+        from long_short_major_move_store import demand as major_demand
+        return major_demand(limit,full_chart)
     from long_short_chart_first_worker import active_symbols, root
     from long_short_analyst import native_futures_websocket_universe
     active = active_symbols()
@@ -66,6 +77,9 @@ def demand(limit=90, full_chart=False):
 
 def health(root):
     """Report the current worker's records, never the retired analyst's clock."""
+    if major_enabled():
+        from long_short_major_move_store import health as major_health
+        return major_health(root)
     path = Path(root) / 'chart_first_v1.db'
     now = int(time.time()*1000)
     out = dict(profile=PROFILE, observed_ms=now, available=path.is_file())
