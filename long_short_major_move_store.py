@@ -34,6 +34,12 @@ def connect():
       CREATE TABLE IF NOT EXISTS ideas(id TEXT PRIMARY KEY,symbol TEXT,created_ms INTEGER,delivered_ms INTEGER,
         state TEXT,payload TEXT,progress TEXT,updated_ms INTEGER);
       CREATE INDEX IF NOT EXISTS major_ideas_time ON ideas(delivered_ms,state);
+      CREATE TABLE IF NOT EXISTS research_ideas(id TEXT PRIMARY KEY,symbol TEXT,created_ms INTEGER,reference_ms INTEGER,
+        state TEXT,payload TEXT,progress TEXT,updated_ms INTEGER);
+      CREATE INDEX IF NOT EXISTS research_ideas_time ON research_ideas(updated_ms,state);
+      CREATE INDEX IF NOT EXISTS research_ideas_symbol ON research_ideas(symbol,created_ms);
+      CREATE TABLE IF NOT EXISTS research_outcomes(idea_id TEXT,horizon_hours REAL,state TEXT,payload TEXT,
+        PRIMARY KEY(idea_id,horizon_hours));
       CREATE TABLE IF NOT EXISTS outcomes(idea_id TEXT,horizon_hours INTEGER,state TEXT,payload TEXT,
         PRIMARY KEY(idea_id,horizon_hours));
       CREATE TABLE IF NOT EXISTS market_snapshots(bucket INTEGER,symbol TEXT,payload TEXT,PRIMARY KEY(bucket,symbol));
@@ -70,7 +76,10 @@ def demand(limit=90,full_chart=False):
     path=root()/'major_move_v1.db'
     if path.exists():
         c=db(path,True)
-        try:urgent=[r[0] for r in c.execute("SELECT DISTINCT symbol FROM ideas WHERE delivered_ms>=? AND state NOT IN ('DONE','UNRESOLVED_ENTRY') ORDER BY delivered_ms DESC",(now-73*3600000,))]
+        try:
+            urgent=[r[0] for r in c.execute("SELECT DISTINCT symbol FROM ideas WHERE delivered_ms>=? AND state NOT IN ('DONE','UNRESOLVED_ENTRY') ORDER BY delivered_ms DESC",(now-73*3600000,))]
+            if c.execute("SELECT 1 FROM sqlite_master WHERE name='research_ideas'").fetchone():
+                urgent += [r[0] for r in c.execute("SELECT DISTINCT symbol FROM research_ideas WHERE reference_ms>=? AND state NOT IN ('DONE','DONE_DATA_GAP')",(now-73*3600000,))]
         finally:c.close()
     values=universe(now);symbols=[r[0] for r in values]
     # When the native feed cap is reached, keep current evidence first and
@@ -81,8 +90,10 @@ def demand(limit=90,full_chart=False):
     return requested[:limit],urgent[:limit]
 
 
-def quote(c,symbol,now_ms):
+def quote(c,symbol,now_ms=None):
     r=c.execute('SELECT price,event_ms,received_ms,source FROM futures_last_price WHERE symbol=?',(symbol,)).fetchone()
+    # Capture AFTER the read: a concurrent collector write must not look futuristic.
+    now_ms=int(time.time()*1000) if now_ms is None else now_ms
     if not r or r[3]!='BINANCE_UM_FUTURES_WEBSOCKET' or not all(0<=now_ms-int(t)<=CONFIG['quote_max_age_ms'] for t in r[1:3]):return None
     return r[0] if finite(r[0]) and r[0]>0 else None
 
@@ -188,8 +199,13 @@ def advance_path(p,progress,bars):
     return g,outputs
 
 
-def measure(c,kdb,now_ms,emit=print):
-    rows=c.execute("SELECT * FROM ideas WHERE delivered_ms IS NOT NULL AND state NOT IN ('DONE','DONE_DATA_GAP','UNRESOLVED_ENTRY') ORDER BY updated_ms LIMIT ?",(CONFIG['outcome_batch'],)).fetchall()
+def measure(c,kdb,now_ms,emit=print,paper=False):
+    # Table names are internal constants; research references never become deliveries.
+    ideas='research_ideas' if paper else 'ideas'
+    outcomes='research_outcomes' if paper else 'outcomes'
+    reference='reference_ms' if paper else 'delivered_ms'
+    prefix='MAJOR_RESEARCH_OUTCOME ' if paper else 'MAJOR_MOVE_OUTCOME '
+    rows=c.execute(f"SELECT * FROM {ideas} WHERE {reference} IS NOT NULL AND state NOT IN ('DONE','DONE_DATA_GAP','UNRESOLVED_ENTRY') ORDER BY updated_ms LIMIT ?",(CONFIG['outcome_batch'],)).fetchall()
     for row in rows:
         p=json.loads(row['payload']);g=json.loads(row['progress'])
         bars=kdb.execute("SELECT open_ms,open,high,low,close,close_ms,source FROM futures_closed_klines WHERE symbol=? AND interval='1m' AND open_ms>=? AND close_ms<? ORDER BY open_ms LIMIT ?",(p['symbol'],g['cursor_ms'],now_ms-250,CONFIG['candle_batch'])).fetchall()
@@ -199,17 +215,17 @@ def measure(c,kdb,now_ms,emit=print):
         if g['evaluated_ms']+1>=p['observed_ms']+72*3600000:state='DONE'
         elif g['missing_since_ms'] is not None:state='DATA_PENDING'
         if state=='DATA_PENDING' and now_ms>p['observed_ms']+96*3600000:state='DONE_DATA_GAP'
-        c.execute('UPDATE ideas SET state=?,progress=?,updated_ms=? WHERE id=?',(state,json.dumps(g),now_ms,row['id']))
+        c.execute(f'UPDATE {ideas} SET state=?,progress=?,updated_ms=? WHERE id=?',(state,json.dumps(g),now_ms,row['id']))
         for result in results:
             status='UNRESOLVED_BOUNDARY' if result['first_minute_ambiguous'] else 'RESOLVED'
-            c.execute("""INSERT INTO outcomes VALUES(?,?,?,?) ON CONFLICT(idea_id,horizon_hours)
+            c.execute(f"""INSERT INTO {outcomes} VALUES(?,?,?,?) ON CONFLICT(idea_id,horizon_hours)
                 DO UPDATE SET state=excluded.state,payload=excluded.payload
-                WHERE outcomes.state='DATA_PENDING'""",(row['id'],result['horizon_hours'],status,json.dumps(result)))
-            emit('MAJOR_MOVE_OUTCOME '+json.dumps(dict(idea_id=row['id'],symbol=p['symbol'],state=status,**result)))
+                WHERE {outcomes}.state='DATA_PENDING'""",(row['id'],result['horizon_hours'],status,json.dumps(result)))
+            emit(prefix+json.dumps(dict(idea_id=row['id'],symbol=p['symbol'],strategy_id=p.get('strategy_id'),reference_kind=p.get('reference_kind','TELEGRAM_ACK'),state=status,**result)))
         # Mature gaps remain explicit and can be repaired on the next pass.
         for hours in EVALUATION_HOURS:
             if now_ms>=p['observed_ms']+hours*3600000 and g['evaluated_ms']<p['observed_ms']+hours*3600000-1 and g['missing_since_ms'] is not None:
-                c.execute('INSERT OR IGNORE INTO outcomes VALUES(?,?,?,?)',(row['id'],hours,'DATA_PENDING',json.dumps({'missing_from_ms':g['missing_since_ms']})))
+                c.execute(f'INSERT OR IGNORE INTO {outcomes} VALUES(?,?,?,?)',(row['id'],hours,'DATA_PENDING',json.dumps({'missing_from_ms':g['missing_since_ms']})))
         c.commit()
 
 
@@ -220,5 +236,21 @@ def health(state_root=None):
     try:return dict(profile=VERSION,available=True,latest_scan_ms=c.execute('SELECT MAX(observed_ms) FROM assessments').fetchone()[0],
         ideas=dict(c.execute('SELECT state,COUNT(*) FROM ideas GROUP BY state')),
         context_snapshots=dict(c.execute('SELECT phase,COUNT(*) FROM context_snapshots GROUP BY phase')),
-        outcomes=dict(c.execute('SELECT state,COUNT(*) FROM outcomes GROUP BY state')))
+        outcomes=dict(c.execute('SELECT state,COUNT(*) FROM outcomes GROUP BY state')),
+        research_ideas=dict(c.execute('SELECT state,COUNT(*) FROM research_ideas GROUP BY state')),
+        research_outcomes=dict(c.execute('SELECT state,COUNT(*) FROM research_outcomes GROUP BY state')))
     finally:c.close()
+
+
+def record_research(c,p,sid):
+    """One forward reference per coin per strategy per 24h; no Telegram effect."""
+    if p['stage']!='READY':return False
+    prior=c.execute("SELECT created_ms FROM research_ideas WHERE symbol=? AND json_extract(payload,'$.strategy_id')=? ORDER BY created_ms DESC LIMIT 1",(p['symbol'],sid)).fetchone()
+    if prior and p['observed_ms']-prior[0]<CONFIG['cooldown_hours']*3600000:return False
+    eid=hashlib.sha256(json.dumps(['PAPER',sid,p['symbol'],p['confirmation_ms'],p['direction']]).encode()).hexdigest()
+    plan=dict(p,strategy_id=sid,reference_kind='FORWARD_PAPER_QUOTE_NOT_DELIVERED')
+    context_id=hashlib.sha256(json.dumps([sid,p['symbol'],p['direction'],p['observed_ms']//900000]).encode()).hexdigest()
+    plan['research_context_key']=context_id
+    c.execute('INSERT OR IGNORE INTO research_ideas VALUES(?,?,?,?,?,?,?,?)',
+              (eid,p['symbol'],p['observed_ms'],p['observed_ms'],'TRACKING',json.dumps(plan),json.dumps(initial_progress(plan)),p['observed_ms']))
+    return True

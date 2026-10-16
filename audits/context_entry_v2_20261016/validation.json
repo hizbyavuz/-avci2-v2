@@ -1,0 +1,13 @@
+{
+  "version": "MAJOR_CONTEXT_ENTRY_V2_2026_10_16",
+  "strategy_id": "461a12e56f4e932dfb751572d644f537a1a060b3c74bc3d26a8a6287dc6db8c0",
+  "config_hash": "9b201f99c343d1d6eb1bc6c69808b28289abe611a1ca79c37115dddffa9c2ca7",
+  "baseline_id": "16d77225ac66b9fd9d1d0f48c5df2103d73a72bc8d2b65ffd6db08fe01f0d493",
+  "baseline_commit": "d5b750b88e24333c2bd3853ff0c6e6f564abfd47",
+  "tests_passed": 74,
+  "frozen_baseline_source_sha256": "290ae977557084d56e12b75519f293c842f16c1a78dbc28d67a1c8e8990017f0",
+  "status": "VALIDATED_LOCALLY_NOT_YET_DEPLOYED",
+  "comparison_evidence": "IN_SAMPLE_COVERAGE_ONLY_NO_EXECUTIONS_NO_PROFIT_CLAIM",
+  "runtime_workers": 5,
+  "automatic_orders": false
+}

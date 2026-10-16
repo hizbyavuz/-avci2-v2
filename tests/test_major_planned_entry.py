@@ -2,7 +2,7 @@
 import unittest
 from unittest.mock import patch
 
-import long_short_major_move as core
+import long_short_major_move_v1_1_frozen as core
 import test_major_move as fixtures
 
 

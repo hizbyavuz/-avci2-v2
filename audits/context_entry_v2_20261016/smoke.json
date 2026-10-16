@@ -1,0 +1,619 @@
+{
+  "mode": "LOCAL_SQLITE_WITH_FAKE_PUBLISHER_NO_NETWORK",
+  "universe": 153,
+  "first_scan_ms": 776.3,
+  "idle_poll_mean_ms": 0.72,
+  "max_rss_kib": 27272,
+  "fake_deliveries": 3,
+  "duplicate_deliveries": 0,
+  "ideas": {
+    "TRACKING": 3
+  },
+  "research_references": 14,
+  "research_report": {
+    "generated_ms": 1792171800500,
+    "signal_from_ms": 1789579800500,
+    "signal_until_ms": 1792171800501,
+    "selection_rules_changed": false,
+    "primary_horizon_hours": 24,
+    "reference_kind": "FORWARD_PAPER_QUOTE_NOT_DELIVERED",
+    "portfolio_limits_applied": false,
+    "notes": [
+      "Akış SUPPORT grubu alış/satış baskısı ve aynı saatlik fiyat hareketinin uyumudur; kâr tahmini değildir.",
+      "OI artış/azalışı, funding maliyeti ve hesap oranı yön oyu sayılmaz.",
+      "Yön doğruluğu, ham fiyat eşiğine erişim ve kapanan plan getirisi farklı ölçümlerdir.",
+      "Reference net: plan daha önce kapandıysa o sonuç; açıksa vade sonunda kapatılsaydı oluşacak varsayımsal sonuç.",
+      "Eksik/belirsiz veriler birincil kazanç-kayıp hesabına katılmaz; sayıları ayrıca gösterilir.",
+      "Dakikalık mum kapanışıyla vade ölçümü; en fazla bir dakika zaman sapması vardır.",
+      "Gruplar gözlemseldir; model/yön ve piyasa koşulları farkı nedensellik değildir. Wilson aralığı sinyal bağımsızlığı varsayar; kümelenme belirsizliği artırabilir.",
+      "Negatif sonuçlar ve eski sürümün eksik bağlamı silinmez; geçmiş veri sonradan doldurulmaz."
+    ],
+    "horizons": [
+      {
+        "hours": 0.25,
+        "groups": [
+          {
+            "strategy_id": "LOCAL_V2_SMOKE",
+            "observer_id": "f5632f7aabc22f381aac72f0ba5e66a46b24a66e481b6c79e57a05010e5b3b94",
+            "axis": "availability",
+            "group": "MISSING",
+            "label": "Veri eksik",
+            "counts": {
+              "signals": 14,
+              "not_mature": 14
+            },
+            "distinct_symbols": 14,
+            "direction_correct_pct": null,
+            "direction_wilson_95_pct": null,
+            "mean_directional_return_pct": null,
+            "mean_mfe_pct": null,
+            "mean_mae_pct": null,
+            "observed_reach_10_pct": null,
+            "mean_reference_net_pct": null,
+            "closed_plan_positive_pct": null,
+            "closed_plan_mean_net_pct": null,
+            "closed_plan_profit_factor": null,
+            "evidence": "DESCRIPTIVE_ONLY_SMALL_SAMPLE"
+          },
+          {
+            "strategy_id": "LOCAL_V2_SMOKE",
+            "observer_id": "f5632f7aabc22f381aac72f0ba5e66a46b24a66e481b6c79e57a05010e5b3b94",
+            "axis": "flow",
+            "group": "MISSING",
+            "label": "Veri eksik",
+            "counts": {
+              "signals": 14,
+              "not_mature": 14
+            },
+            "distinct_symbols": 14,
+            "direction_correct_pct": null,
+            "direction_wilson_95_pct": null,
+            "mean_directional_return_pct": null,
+            "mean_mfe_pct": null,
+            "mean_mae_pct": null,
+            "observed_reach_10_pct": null,
+            "mean_reference_net_pct": null,
+            "closed_plan_positive_pct": null,
+            "closed_plan_mean_net_pct": null,
+            "closed_plan_profit_factor": null,
+            "evidence": "DESCRIPTIVE_ONLY_SMALL_SAMPLE"
+          },
+          {
+            "strategy_id": "LOCAL_V2_SMOKE",
+            "observer_id": "f5632f7aabc22f381aac72f0ba5e66a46b24a66e481b6c79e57a05010e5b3b94",
+            "axis": "flow_x_oi",
+            "group": "MISSING|MISSING",
+            "label": "MISSING|MISSING",
+            "counts": {
+              "signals": 14,
+              "not_mature": 14
+            },
+            "distinct_symbols": 14,
+            "direction_correct_pct": null,
+            "direction_wilson_95_pct": null,
+            "mean_directional_return_pct": null,
+            "mean_mfe_pct": null,
+            "mean_mae_pct": null,
+            "observed_reach_10_pct": null,
+            "mean_reference_net_pct": null,
+            "closed_plan_positive_pct": null,
+            "closed_plan_mean_net_pct": null,
+            "closed_plan_profit_factor": null,
+            "evidence": "DESCRIPTIVE_ONLY_SMALL_SAMPLE"
+          },
+          {
+            "strategy_id": "LOCAL_V2_SMOKE",
+            "observer_id": "f5632f7aabc22f381aac72f0ba5e66a46b24a66e481b6c79e57a05010e5b3b94",
+            "axis": "funding_cost",
+            "group": "MISSING",
+            "label": "Veri eksik",
+            "counts": {
+              "signals": 14,
+              "not_mature": 14
+            },
+            "distinct_symbols": 14,
+            "direction_correct_pct": null,
+            "direction_wilson_95_pct": null,
+            "mean_directional_return_pct": null,
+            "mean_mfe_pct": null,
+            "mean_mae_pct": null,
+            "observed_reach_10_pct": null,
+            "mean_reference_net_pct": null,
+            "closed_plan_positive_pct": null,
+            "closed_plan_mean_net_pct": null,
+            "closed_plan_profit_factor": null,
+            "evidence": "DESCRIPTIVE_ONLY_SMALL_SAMPLE"
+          },
+          {
+            "strategy_id": "LOCAL_V2_SMOKE",
+            "observer_id": "f5632f7aabc22f381aac72f0ba5e66a46b24a66e481b6c79e57a05010e5b3b94",
+            "axis": "model_direction",
+            "group": "TOP_BREAKDOWN|SHORT",
+            "label": "TOP_BREAKDOWN|SHORT",
+            "counts": {
+              "signals": 8,
+              "not_mature": 8
+            },
+            "distinct_symbols": 8,
+            "direction_correct_pct": null,
+            "direction_wilson_95_pct": null,
+            "mean_directional_return_pct": null,
+            "mean_mfe_pct": null,
+            "mean_mae_pct": null,
+            "observed_reach_10_pct": null,
+            "mean_reference_net_pct": null,
+            "closed_plan_positive_pct": null,
+            "closed_plan_mean_net_pct": null,
+            "closed_plan_profit_factor": null,
+            "evidence": "DESCRIPTIVE_ONLY_SMALL_SAMPLE"
+          },
+          {
+            "strategy_id": "LOCAL_V2_SMOKE",
+            "observer_id": "f5632f7aabc22f381aac72f0ba5e66a46b24a66e481b6c79e57a05010e5b3b94",
+            "axis": "model_direction",
+            "group": "TREND_CONTINUATION_SHORT|SHORT",
+            "label": "TREND_CONTINUATION_SHORT|SHORT",
+            "counts": {
+              "signals": 6,
+              "not_mature": 6
+            },
+            "distinct_symbols": 6,
+            "direction_correct_pct": null,
+            "direction_wilson_95_pct": null,
+            "mean_directional_return_pct": null,
+            "mean_mfe_pct": null,
+            "mean_mae_pct": null,
+            "observed_reach_10_pct": null,
+            "mean_reference_net_pct": null,
+            "closed_plan_positive_pct": null,
+            "closed_plan_mean_net_pct": null,
+            "closed_plan_profit_factor": null,
+            "evidence": "DESCRIPTIVE_ONLY_SMALL_SAMPLE"
+          },
+          {
+            "strategy_id": "LOCAL_V2_SMOKE",
+            "observer_id": "f5632f7aabc22f381aac72f0ba5e66a46b24a66e481b6c79e57a05010e5b3b94",
+            "axis": "model_direction_flow",
+            "group": "TOP_BREAKDOWN|SHORT|MISSING",
+            "label": "TOP_BREAKDOWN|SHORT|MISSING",
+            "counts": {
+              "signals": 8,
+              "not_mature": 8
+            },
+            "distinct_symbols": 8,
+            "direction_correct_pct": null,
+            "direction_wilson_95_pct": null,
+            "mean_directional_return_pct": null,
+            "mean_mfe_pct": null,
+            "mean_mae_pct": null,
+            "observed_reach_10_pct": null,
+            "mean_reference_net_pct": null,
+            "closed_plan_positive_pct": null,
+            "closed_plan_mean_net_pct": null,
+            "closed_plan_profit_factor": null,
+            "evidence": "DESCRIPTIVE_ONLY_SMALL_SAMPLE"
+          },
+          {
+            "strategy_id": "LOCAL_V2_SMOKE",
+            "observer_id": "f5632f7aabc22f381aac72f0ba5e66a46b24a66e481b6c79e57a05010e5b3b94",
+            "axis": "model_direction_flow",
+            "group": "TREND_CONTINUATION_SHORT|SHORT|MISSING",
+            "label": "TREND_CONTINUATION_SHORT|SHORT|MISSING",
+            "counts": {
+              "signals": 6,
+              "not_mature": 6
+            },
+            "distinct_symbols": 6,
+            "direction_correct_pct": null,
+            "direction_wilson_95_pct": null,
+            "mean_directional_return_pct": null,
+            "mean_mfe_pct": null,
+            "mean_mae_pct": null,
+            "observed_reach_10_pct": null,
+            "mean_reference_net_pct": null,
+            "closed_plan_positive_pct": null,
+            "closed_plan_mean_net_pct": null,
+            "closed_plan_profit_factor": null,
+            "evidence": "DESCRIPTIVE_ONLY_SMALL_SAMPLE"
+          },
+          {
+            "strategy_id": "LOCAL_V2_SMOKE",
+            "observer_id": "f5632f7aabc22f381aac72f0ba5e66a46b24a66e481b6c79e57a05010e5b3b94",
+            "axis": "oi_price",
+            "group": "MISSING",
+            "label": "Veri eksik",
+            "counts": {
+              "signals": 14,
+              "not_mature": 14
+            },
+            "distinct_symbols": 14,
+            "direction_correct_pct": null,
+            "direction_wilson_95_pct": null,
+            "mean_directional_return_pct": null,
+            "mean_mfe_pct": null,
+            "mean_mae_pct": null,
+            "observed_reach_10_pct": null,
+            "mean_reference_net_pct": null,
+            "closed_plan_positive_pct": null,
+            "closed_plan_mean_net_pct": null,
+            "closed_plan_profit_factor": null,
+            "evidence": "DESCRIPTIVE_ONLY_SMALL_SAMPLE"
+          },
+          {
+            "strategy_id": "LOCAL_V2_SMOKE",
+            "observer_id": "f5632f7aabc22f381aac72f0ba5e66a46b24a66e481b6c79e57a05010e5b3b94",
+            "axis": "overall",
+            "group": "ALL",
+            "label": "ALL",
+            "counts": {
+              "signals": 14,
+              "not_mature": 14
+            },
+            "distinct_symbols": 14,
+            "direction_correct_pct": null,
+            "direction_wilson_95_pct": null,
+            "mean_directional_return_pct": null,
+            "mean_mfe_pct": null,
+            "mean_mae_pct": null,
+            "observed_reach_10_pct": null,
+            "mean_reference_net_pct": null,
+            "closed_plan_positive_pct": null,
+            "closed_plan_mean_net_pct": null,
+            "closed_plan_profit_factor": null,
+            "evidence": "DESCRIPTIVE_ONLY_SMALL_SAMPLE"
+          }
+        ]
+      },
+      {
+        "hours": 24,
+        "groups": [
+          {
+            "strategy_id": "LOCAL_V2_SMOKE",
+            "observer_id": "f5632f7aabc22f381aac72f0ba5e66a46b24a66e481b6c79e57a05010e5b3b94",
+            "axis": "availability",
+            "group": "MISSING",
+            "label": "Veri eksik",
+            "counts": {
+              "signals": 14,
+              "not_mature": 14
+            },
+            "distinct_symbols": 14,
+            "direction_correct_pct": null,
+            "direction_wilson_95_pct": null,
+            "mean_directional_return_pct": null,
+            "mean_mfe_pct": null,
+            "mean_mae_pct": null,
+            "observed_reach_10_pct": null,
+            "mean_reference_net_pct": null,
+            "closed_plan_positive_pct": null,
+            "closed_plan_mean_net_pct": null,
+            "closed_plan_profit_factor": null,
+            "evidence": "DESCRIPTIVE_ONLY_SMALL_SAMPLE"
+          },
+          {
+            "strategy_id": "LOCAL_V2_SMOKE",
+            "observer_id": "f5632f7aabc22f381aac72f0ba5e66a46b24a66e481b6c79e57a05010e5b3b94",
+            "axis": "flow",
+            "group": "MISSING",
+            "label": "Veri eksik",
+            "counts": {
+              "signals": 14,
+              "not_mature": 14
+            },
+            "distinct_symbols": 14,
+            "direction_correct_pct": null,
+            "direction_wilson_95_pct": null,
+            "mean_directional_return_pct": null,
+            "mean_mfe_pct": null,
+            "mean_mae_pct": null,
+            "observed_reach_10_pct": null,
+            "mean_reference_net_pct": null,
+            "closed_plan_positive_pct": null,
+            "closed_plan_mean_net_pct": null,
+            "closed_plan_profit_factor": null,
+            "evidence": "DESCRIPTIVE_ONLY_SMALL_SAMPLE"
+          },
+          {
+            "strategy_id": "LOCAL_V2_SMOKE",
+            "observer_id": "f5632f7aabc22f381aac72f0ba5e66a46b24a66e481b6c79e57a05010e5b3b94",
+            "axis": "flow_x_oi",
+            "group": "MISSING|MISSING",
+            "label": "MISSING|MISSING",
+            "counts": {
+              "signals": 14,
+              "not_mature": 14
+            },
+            "distinct_symbols": 14,
+            "direction_correct_pct": null,
+            "direction_wilson_95_pct": null,
+            "mean_directional_return_pct": null,
+            "mean_mfe_pct": null,
+            "mean_mae_pct": null,
+            "observed_reach_10_pct": null,
+            "mean_reference_net_pct": null,
+            "closed_plan_positive_pct": null,
+            "closed_plan_mean_net_pct": null,
+            "closed_plan_profit_factor": null,
+            "evidence": "DESCRIPTIVE_ONLY_SMALL_SAMPLE"
+          },
+          {
+            "strategy_id": "LOCAL_V2_SMOKE",
+            "observer_id": "f5632f7aabc22f381aac72f0ba5e66a46b24a66e481b6c79e57a05010e5b3b94",
+            "axis": "funding_cost",
+            "group": "MISSING",
+            "label": "Veri eksik",
+            "counts": {
+              "signals": 14,
+              "not_mature": 14
+            },
+            "distinct_symbols": 14,
+            "direction_correct_pct": null,
+            "direction_wilson_95_pct": null,
+            "mean_directional_return_pct": null,
+            "mean_mfe_pct": null,
+            "mean_mae_pct": null,
+            "observed_reach_10_pct": null,
+            "mean_reference_net_pct": null,
+            "closed_plan_positive_pct": null,
+            "closed_plan_mean_net_pct": null,
+            "closed_plan_profit_factor": null,
+            "evidence": "DESCRIPTIVE_ONLY_SMALL_SAMPLE"
+          },
+          {
+            "strategy_id": "LOCAL_V2_SMOKE",
+            "observer_id": "f5632f7aabc22f381aac72f0ba5e66a46b24a66e481b6c79e57a05010e5b3b94",
+            "axis": "model_direction",
+            "group": "TOP_BREAKDOWN|SHORT",
+            "label": "TOP_BREAKDOWN|SHORT",
+            "counts": {
+              "signals": 8,
+              "not_mature": 8
+            },
+            "distinct_symbols": 8,
+            "direction_correct_pct": null,
+            "direction_wilson_95_pct": null,
+            "mean_directional_return_pct": null,
+            "mean_mfe_pct": null,
+            "mean_mae_pct": null,
+            "observed_reach_10_pct": null,
+            "mean_reference_net_pct": null,
+            "closed_plan_positive_pct": null,
+            "closed_plan_mean_net_pct": null,
+            "closed_plan_profit_factor": null,
+            "evidence": "DESCRIPTIVE_ONLY_SMALL_SAMPLE"
+          },
+          {
+            "strategy_id": "LOCAL_V2_SMOKE",
+            "observer_id": "f5632f7aabc22f381aac72f0ba5e66a46b24a66e481b6c79e57a05010e5b3b94",
+            "axis": "model_direction",
+            "group": "TREND_CONTINUATION_SHORT|SHORT",
+            "label": "TREND_CONTINUATION_SHORT|SHORT",
+            "counts": {
+              "signals": 6,
+              "not_mature": 6
+            },
+            "distinct_symbols": 6,
+            "direction_correct_pct": null,
+            "direction_wilson_95_pct": null,
+            "mean_directional_return_pct": null,
+            "mean_mfe_pct": null,
+            "mean_mae_pct": null,
+            "observed_reach_10_pct": null,
+            "mean_reference_net_pct": null,
+            "closed_plan_positive_pct": null,
+            "closed_plan_mean_net_pct": null,
+            "closed_plan_profit_factor": null,
+            "evidence": "DESCRIPTIVE_ONLY_SMALL_SAMPLE"
+          },
+          {
+            "strategy_id": "LOCAL_V2_SMOKE",
+            "observer_id": "f5632f7aabc22f381aac72f0ba5e66a46b24a66e481b6c79e57a05010e5b3b94",
+            "axis": "model_direction_flow",
+            "group": "TOP_BREAKDOWN|SHORT|MISSING",
+            "label": "TOP_BREAKDOWN|SHORT|MISSING",
+            "counts": {
+              "signals": 8,
+              "not_mature": 8
+            },
+            "distinct_symbols": 8,
+            "direction_correct_pct": null,
+            "direction_wilson_95_pct": null,
+            "mean_directional_return_pct": null,
+            "mean_mfe_pct": null,
+            "mean_mae_pct": null,
+            "observed_reach_10_pct": null,
+            "mean_reference_net_pct": null,
+            "closed_plan_positive_pct": null,
+            "closed_plan_mean_net_pct": null,
+            "closed_plan_profit_factor": null,
+            "evidence": "DESCRIPTIVE_ONLY_SMALL_SAMPLE"
+          },
+          {
+            "strategy_id": "LOCAL_V2_SMOKE",
+            "observer_id": "f5632f7aabc22f381aac72f0ba5e66a46b24a66e481b6c79e57a05010e5b3b94",
+            "axis": "model_direction_flow",
+            "group": "TREND_CONTINUATION_SHORT|SHORT|MISSING",
+            "label": "TREND_CONTINUATION_SHORT|SHORT|MISSING",
+            "counts": {
+              "signals": 6,
+              "not_mature": 6
+            },
+            "distinct_symbols": 6,
+            "direction_correct_pct": null,
+            "direction_wilson_95_pct": null,
+            "mean_directional_return_pct": null,
+            "mean_mfe_pct": null,
+            "mean_mae_pct": null,
+            "observed_reach_10_pct": null,
+            "mean_reference_net_pct": null,
+            "closed_plan_positive_pct": null,
+            "closed_plan_mean_net_pct": null,
+            "closed_plan_profit_factor": null,
+            "evidence": "DESCRIPTIVE_ONLY_SMALL_SAMPLE"
+          },
+          {
+            "strategy_id": "LOCAL_V2_SMOKE",
+            "observer_id": "f5632f7aabc22f381aac72f0ba5e66a46b24a66e481b6c79e57a05010e5b3b94",
+            "axis": "oi_price",
+            "group": "MISSING",
+            "label": "Veri eksik",
+            "counts": {
+              "signals": 14,
+              "not_mature": 14
+            },
+            "distinct_symbols": 14,
+            "direction_correct_pct": null,
+            "direction_wilson_95_pct": null,
+            "mean_directional_return_pct": null,
+            "mean_mfe_pct": null,
+            "mean_mae_pct": null,
+            "observed_reach_10_pct": null,
+            "mean_reference_net_pct": null,
+            "closed_plan_positive_pct": null,
+            "closed_plan_mean_net_pct": null,
+            "closed_plan_profit_factor": null,
+            "evidence": "DESCRIPTIVE_ONLY_SMALL_SAMPLE"
+          },
+          {
+            "strategy_id": "LOCAL_V2_SMOKE",
+            "observer_id": "f5632f7aabc22f381aac72f0ba5e66a46b24a66e481b6c79e57a05010e5b3b94",
+            "axis": "overall",
+            "group": "ALL",
+            "label": "ALL",
+            "counts": {
+              "signals": 14,
+              "not_mature": 14
+            },
+            "distinct_symbols": 14,
+            "direction_correct_pct": null,
+            "direction_wilson_95_pct": null,
+            "mean_directional_return_pct": null,
+            "mean_mfe_pct": null,
+            "mean_mae_pct": null,
+            "observed_reach_10_pct": null,
+            "mean_reference_net_pct": null,
+            "closed_plan_positive_pct": null,
+            "closed_plan_mean_net_pct": null,
+            "closed_plan_profit_factor": null,
+            "evidence": "DESCRIPTIVE_ONLY_SMALL_SAMPLE"
+          }
+        ]
+      }
+    ]
+  },
+  "scan_lines": [
+    {
+      "version": "MAJOR_CONTEXT_ENTRY_V2_2026_10_16",
+      "strategy_id": "LOCAL_V2_SMOKE",
+      "universe": 153,
+      "checked": 153,
+      "reasons": {
+        "NO_MAJOR_MOVE_STRUCTURE": 95,
+        "OK": 14,
+        "WAIT_OBSTACLE_BREAK": 19,
+        "PLANNED_STOP_TOO_DISTANT": 11,
+        "WAIT_BREAK_OR_RETEST": 8,
+        "LATE_CHASE": 5,
+        "HISTORY_MISSING_4h": 1
+      },
+      "pending": 11,
+      "paired": {
+        "baseline_REJECTED": 153,
+        "v2_new_reference": 14
+      },
+      "gates": {
+        "DELIVERED": 3
+      },
+      "delivered": 3,
+      "elapsed_ms": 776,
+      "max_evaluated_candle_age_ms": 501,
+      "eligible": [
+        {
+          "symbol": "ZECUSDT",
+          "direction": "SHORT",
+          "stage": "READY",
+          "model": "TREND_CONTINUATION_SHORT",
+          "reason": "OK"
+        },
+        {
+          "symbol": "INJUSDT",
+          "direction": "SHORT",
+          "stage": "READY",
+          "model": "TOP_BREAKDOWN",
+          "reason": "OK"
+        },
+        {
+          "symbol": "BERAUSDT",
+          "direction": "SHORT",
+          "stage": "READY",
+          "model": "TOP_BREAKDOWN",
+          "reason": "OK"
+        },
+        {
+          "symbol": "HBARUSDT",
+          "direction": "SHORT",
+          "stage": "READY",
+          "model": "TREND_CONTINUATION_SHORT",
+          "reason": "OK"
+        },
+        {
+          "symbol": "RAYSOLUSDT",
+          "direction": "SHORT",
+          "stage": "READY",
+          "model": "TREND_CONTINUATION_SHORT",
+          "reason": "OK"
+        },
+        {
+          "symbol": "TAOUSDT",
+          "direction": "SHORT",
+          "stage": "READY",
+          "model": "TOP_BREAKDOWN",
+          "reason": "OK"
+        },
+        {
+          "symbol": "牛来USDT",
+          "direction": "SHORT",
+          "stage": "READY",
+          "model": "TOP_BREAKDOWN",
+          "reason": "OK"
+        },
+        {
+          "symbol": "MORPHOUSDT",
+          "direction": "SHORT",
+          "stage": "READY",
+          "model": "TOP_BREAKDOWN",
+          "reason": "OK"
+        },
+        {
+          "symbol": "UNIUSDT",
+          "direction": "SHORT",
+          "stage": "READY",
+          "model": "TREND_CONTINUATION_SHORT",
+          "reason": "OK"
+        },
+        {
+          "symbol": "AAVEUSDT",
+          "direction": "SHORT",
+          "stage": "READY",
+          "model": "TOP_BREAKDOWN",
+          "reason": "OK"
+        },
+        {
+          "symbol": "STRKUSDT",
+          "direction": "SHORT",
+          "stage": "READY",
+          "model": "TOP_BREAKDOWN",
+          "reason": "OK"
+        },
+        {
+          "symbol": "VIRTUALUSDT",
+          "direction": "SHORT",
+          "stage": "READY",
+          "model": "TREND_CONTINUATION_SHORT",
+          "reason": "OK"
+        }
+      ]
+    }
+  ],
+  "note": "Local timing only; not live Railway latency/RAM or actual Telegram delivery. 5m/OI missing is deliberate and explicitly labelled."
+}

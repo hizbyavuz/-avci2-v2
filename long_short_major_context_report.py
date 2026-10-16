@@ -81,12 +81,17 @@ def groups(p):
     yield 'model_direction_flow',model+'|'+g.get('flow',missing)
 
 
-def report(c,now_ms=None,since_ms=None,until_ms=None,horizons=EVALUATION_HOURS):
+def report(c,now_ms=None,since_ms=None,until_ms=None,horizons=EVALUATION_HOURS,paper=False):
+    ideas='research_ideas' if paper else 'ideas'
+    outcomes='research_outcomes' if paper else 'outcomes'
+    reference='reference_ms' if paper else 'delivered_ms'
     now_ms=int(time.time()*1000) if now_ms is None else now_ms
     since_ms=now_ms-30*86400000 if since_ms is None else since_ms
     until_ms=now_ms+1 if until_ms is None else until_ms
     answer=dict(generated_ms=now_ms,signal_from_ms=since_ms,signal_until_ms=until_ms,
         selection_rules_changed=False,primary_horizon_hours=24,
+        reference_kind='FORWARD_PAPER_QUOTE_NOT_DELIVERED' if paper else 'TELEGRAM_ACK',
+        portfolio_limits_applied=not paper,
         notes=['Akış SUPPORT grubu alış/satış baskısı ve aynı saatlik fiyat hareketinin uyumudur; kâr tahmini değildir.',
                'OI artış/azalışı, funding maliyeti ve hesap oranı yön oyu sayılmaz.',
                'Yön doğruluğu, ham fiyat eşiğine erişim ve kapanan plan getirisi farklı ölçümlerdir.',
@@ -97,9 +102,9 @@ def report(c,now_ms=None,since_ms=None,until_ms=None,horizons=EVALUATION_HOURS):
                'Negatif sonuçlar ve eski sürümün eksik bağlamı silinmez; geçmiş veri sonradan doldurulmaz.'],horizons=[])
     for h in horizons:
         accum={}
-        rows=c.execute('''SELECT i.symbol,i.state,i.delivered_ms,i.payload,o.state AS outcome_state,o.payload AS outcome_payload
-            FROM ideas i LEFT JOIN outcomes o ON o.idea_id=i.id AND o.horizon_hours=?
-            WHERE i.delivered_ms IS NOT NULL AND i.delivered_ms>=? AND i.delivered_ms<? ORDER BY i.delivered_ms''',(h,since_ms,until_ms))
+        rows=c.execute(f'''SELECT i.symbol,i.state,i.{reference} AS delivered_ms,i.payload,o.state AS outcome_state,o.payload AS outcome_payload
+            FROM {ideas} i LEFT JOIN {outcomes} o ON o.idea_id=i.id AND o.horizon_hours=?
+            WHERE i.{reference} IS NOT NULL AND i.{reference}>=? AND i.{reference}<? ORDER BY i.{reference}''',(h,since_ms,until_ms))
         for row in rows:
             p=json.loads(row['payload']);o=json.loads(row['outcome_payload']) if row['outcome_payload'] else None
             sid=p.get('strategy_id','UNKNOWN');oid=(p.get('market_context') or {}).get('observer_id','LEGACY_NO_CONTEXT')
@@ -125,14 +130,14 @@ def details(c,since_ms,until_ms):
             outcome=json.loads(r['outcome_payload']) if r['outcome_payload'] else None)
 
 
-def emit_report(c,now_ms):
-    result=report(c,now_ms)
-    path=root()/'major_context_comparison.json';temp=path.with_suffix('.tmp')
+def emit_report(c,now_ms,paper=False):
+    result=report(c,now_ms,paper=paper)
+    path=root()/('major_paired_comparison.json' if paper else 'major_context_comparison.json');temp=path.with_suffix('.tmp')
     temp.write_text(json.dumps(result,ensure_ascii=False),encoding='utf-8');temp.replace(path)
     for horizon in result['horizons']:
         if horizon['hours'] not in (1,24,72):continue
         selected=[g for g in horizon['groups'] if g['axis'] in ('overall','flow','oi_price','model_direction')]
-        print('MAJOR_CONTEXT_COMPARISON '+json.dumps(dict(generated_ms=now_ms,horizon_hours=horizon['hours'],
+        print(('MAJOR_PAIRED_COMPARISON ' if paper else 'MAJOR_CONTEXT_COMPARISON ')+json.dumps(dict(reference_kind=result['reference_kind'],generated_ms=now_ms,horizon_hours=horizon['hours'],
               since_ms=result['signal_from_ms'],groups=selected)),flush=True)
 
 
@@ -144,13 +149,15 @@ def timestamp(value):
 
 def main():
     parser=argparse.ArgumentParser();parser.add_argument('--since',type=timestamp);parser.add_argument('--until',type=timestamp)
-    parser.add_argument('--hours',type=float,choices=EVALUATION_HOURS);parser.add_argument('--details',action='store_true')
-    args=parser.parse_args();c=db(root()/'major_move_v1.db',True);now=int(time.time()*1000)
+    parser.add_argument('--hours',type=float,choices=EVALUATION_HOURS);parser.add_argument('--details',action='store_true');parser.add_argument('--research',action='store_true')
+    args=parser.parse_args()
+    if args.details and args.research:parser.error('--research currently supports grouped reports; raw rows remain in research_ideas/research_outcomes')
+    c=db(root()/'major_move_v1.db',True);now=int(time.time()*1000)
     try:
         if args.details:
             for row in details(c,args.since if args.since is not None else now-30*86400000,args.until if args.until is not None else now+1):
                 print(json.dumps(row,ensure_ascii=False))
-        else:print(json.dumps(report(c,now,args.since,args.until,[args.hours] if args.hours else EVALUATION_HOURS),ensure_ascii=False,indent=2))
+        else:print(json.dumps(report(c,now,args.since,args.until,[args.hours] if args.hours else EVALUATION_HOURS,paper=args.research),ensure_ascii=False,indent=2))
     finally:c.close()
 
 

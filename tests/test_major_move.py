@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-import long_short_major_move as core
+import long_short_major_move_v1_1_frozen as core
 import long_short_major_move_store as store
 import long_short_major_move_worker as worker
 
