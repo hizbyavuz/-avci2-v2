@@ -1,0 +1,157 @@
+{
+  "scope": "EXPLORATORY_POST_HOC_NO_HELD_OUT_VALIDATION",
+  "primary_horizon_minutes": 180,
+  "total": {
+    "n": 115,
+    "positive": 58,
+    "mean_net_pct": -0.5759041747864632,
+    "median_net_pct": 0.019051959890592773,
+    "mean_net_r": -0.26585403358022414,
+    "endpoint_right": 47,
+    "endpoint_wrong": 68,
+    "mean_directional_endpoint_pct": -0.7091031689652232
+  },
+  "excluded_exported_boundary": 2,
+  "data_unresolved_not_in_startup_export": 2,
+  "groups": {
+    "daily:opposing": {
+      "n": 56,
+      "positive": 28,
+      "mean_net_pct": -0.5019177212606751,
+      "median_net_pct": -0.061158688548545725,
+      "mean_net_r": -0.21784293495342077,
+      "endpoint_right": 25,
+      "endpoint_wrong": 31,
+      "mean_directional_endpoint_pct": -0.5535097664282045
+    },
+    "daily:range": {
+      "n": 8,
+      "positive": 4,
+      "mean_net_pct": -0.6354185176167257,
+      "median_net_pct": -0.5934890615420128,
+      "mean_net_r": -0.3973676387034198,
+      "endpoint_right": 4,
+      "endpoint_wrong": 4,
+      "mean_directional_endpoint_pct": 0.6423395871684598
+    },
+    "daily:same": {
+      "n": 51,
+      "positive": 26,
+      "mean_net_pct": -0.6478086189982677,
+      "median_net_pct": 0.019051959890592773,
+      "mean_net_r": -0.29794251754327167,
+      "endpoint_right": 18,
+      "endpoint_wrong": 33,
+      "mean_directional_endpoint_pct": -1.0919418472229194
+    },
+    "flow:aligned": {
+      "n": 81,
+      "positive": 40,
+      "mean_net_pct": -0.5716536405840245,
+      "median_net_pct": -0.0031086273139965814,
+      "mean_net_r": -0.27425702224760445,
+      "endpoint_right": 31,
+      "endpoint_wrong": 50,
+      "mean_directional_endpoint_pct": -0.28400533881482304
+    },
+    "flow:not_aligned": {
+      "n": 34,
+      "positive": 18,
+      "mean_net_pct": -0.586030447445214,
+      "median_net_pct": 0.0853056002855404,
+      "mean_net_r": -0.24583514881381816,
+      "endpoint_right": 16,
+      "endpoint_wrong": 18,
+      "mean_directional_endpoint_pct": -1.7218362349117646
+    },
+    "model:COMPRESSION_BREAKOUT": {
+      "n": 28,
+      "positive": 19,
+      "mean_net_pct": -0.1852377054139044,
+      "median_net_pct": 0.3349849731097812,
+      "mean_net_r": -0.02950346906477037,
+      "endpoint_right": 15,
+      "endpoint_wrong": 13,
+      "mean_directional_endpoint_pct": -0.9453446940903335
+    },
+    "model:CONFIRMED_LEVEL_WATCH": {
+      "n": 57,
+      "positive": 28,
+      "mean_net_pct": -0.7957631244034964,
+      "median_net_pct": -0.1968492123030849,
+      "mean_net_r": -0.26110487300110524,
+      "endpoint_right": 21,
+      "endpoint_wrong": 36,
+      "mean_directional_endpoint_pct": -0.43376043723326074
+    },
+    "model:PULLBACK_CONTINUATION": {
+      "n": 25,
+      "positive": 9,
+      "mean_net_pct": -0.4592733336662447,
+      "median_net_pct": -0.648520280622533,
+      "mean_net_r": -0.5175727625270328,
+      "endpoint_right": 9,
+      "endpoint_wrong": 16,
+      "mean_directional_endpoint_pct": -1.377933610650926
+    },
+    "model:SWING_BREAKOUT": {
+      "n": 5,
+      "positive": 2,
+      "mean_net_pct": -0.8403985832397052,
+      "median_net_pct": -0.5675329638830438,
+      "mean_net_r": -0.384963980734678,
+      "endpoint_right": 2,
+      "endpoint_wrong": 3,
+      "mean_directional_endpoint_pct": 0.8190944384195366
+    },
+    "reward_risk:at_least_one": {
+      "n": 8,
+      "positive": 4,
+      "mean_net_pct": -0.970340832348515,
+      "median_net_pct": 0.01872247549819539,
+      "mean_net_r": -0.03682869958015234,
+      "endpoint_right": 5,
+      "endpoint_wrong": 3,
+      "mean_directional_endpoint_pct": -3.4239576154183644
+    },
+    "reward_risk:below_one": {
+      "n": 107,
+      "positive": 54,
+      "mean_net_pct": -0.5464135835668705,
+      "median_net_pct": 0.019051959890592773,
+      "mean_net_r": -0.2829774230381734,
+      "endpoint_right": 42,
+      "endpoint_wrong": 65,
+      "mean_directional_endpoint_pct": -0.506123397267792
+    },
+    "scenario:CONTINUATION": {
+      "n": 87,
+      "positive": 43,
+      "mean_net_pct": -0.5820228254480644,
+      "median_net_pct": -0.0031086273139965814,
+      "mean_net_r": -0.2542380795169943,
+      "endpoint_right": 34,
+      "endpoint_wrong": 53,
+      "mean_directional_endpoint_pct": -0.9298725410654552
+    },
+    "scenario:REVERSAL_ATTEMPT": {
+      "n": 28,
+      "positive": 15,
+      "mean_net_pct": -0.5568926530879166,
+      "median_net_pct": 0.057768901405208795,
+      "mean_net_r": -0.30194646227668837,
+      "endpoint_right": 13,
+      "endpoint_wrong": 15,
+      "mean_directional_endpoint_pct": -0.023141191368073293
+    }
+  },
+  "promotion_decision": "NONE",
+  "notes": [
+    "Features are from the saved Telegram delivery, never a later chart.",
+    "Raw direction and stop/target reference P&L are separate outcomes.",
+    "R divides reference return by the saved cost-adjusted stop loss; it is not an executable portfolio.",
+    "Short, correlated sample; overlapping feature groups are not independent experiments.",
+    "High reward/risk subgroup has only 8 resolved records; no reliability claim.",
+    "Current data has already been examined; a future rule needs a new untouched evaluation period."
+  ]
+}
