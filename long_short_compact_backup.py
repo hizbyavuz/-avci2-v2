@@ -57,17 +57,17 @@ def run(client, bucket, state):
     now = datetime.datetime.now(datetime.timezone.utc)
     day, stamp = now.strftime('%Y-%m-%d'), now.strftime('%Y%m%dT%H%M%SZ')
     prefix = f'daily/{day}/{stamp}/'
+    sources = sorted(set(state.glob('*.db')) | set(state.glob('*.sqlite')))
+    expected = [p.name for p in sources]
     # Only a verified schema-2 set counts as today's compact backup.
     for page in client.get_paginator('list_objects_v2').paginate(Bucket=bucket, Prefix=f'daily/{day}/'):
         for item in page.get('Contents', []):
             key = item['Key']
             if not key.endswith('/manifest.json'): continue
             m = json.loads(client.get_object(Bucket=bucket, Key=key)['Body'].read())
-            if valid_manifest(client, bucket, key, m):
+            if set(m.get('expected_sources',[]))==set(expected) and valid_manifest(client, bucket, key, m):
                 print('LS_BACKUP_COMPACT_ALREADY_PRESENT '+key, flush=True)
                 return
-    sources = sorted(set(state.glob('*.db')) | set(state.glob('*.sqlite')))
-    expected = [p.name for p in sources]
     if not REQUIRED.issubset(expected): raise RuntimeError('Core state is incomplete; keep old backup')
     archives = []
     archive_dir = state/'legacy-archive'
