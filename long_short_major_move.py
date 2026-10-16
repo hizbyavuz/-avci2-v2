@@ -9,12 +9,12 @@ import math
 import statistics
 from pathlib import Path
 
-VERSION = 'MAJOR_MOVE_V1_2026_10_16'
+VERSION = 'MAJOR_MOVE_V1_1_PLANNED_ENTRY_2026_10_16'
 CONFIG = dict(min_quote_volume=8000000, min_history_4h=180, major_leg_pct=10.0,
               wake_volume_multiple=1.5, relative_strength_pp=2.0,
               min_retention=.50, max_early_gain_pct=10.0,
               min_room_pct=10.0, max_stop_pct=8.0, chase_atr15=.5,
-              compression_ratio=.8, stop_buffer_atr1h=.15,
+              compression_ratio=.8, stop_buffer_atr1h=.15, planned_entry_geometry=True,
               quote_max_age_ms=5000, max_active=12, max_new_per_scan=3,
               cooldown_hours=24, scan_seconds=60, round_trip_cost_pct=.30,
               horizons_hours=[6,24,72], reach_thresholds_pct=[10,20,30,40,50,60,70,80,100],
@@ -43,6 +43,22 @@ def pivots(rows, high=True):
         v=rows[i][field];around=[r[field] for r in rows[i-2:i]+rows[i+1:i+3]]
         if (v>max(around) if high else v<min(around)):values.append((rows[i][0],v))
     return values
+
+
+def planned_geometry(direction, price, trigger, stop, levels):
+    """Best entry still permitted by a directional break, not today's WATCH price.
+
+    A later entry farther through the trigger can only worsen fixed-stop risk.
+    Recompute the nearest obstacle from that entry; levels behind it do not
+    become negative reward. Execution still rechecks the actual live quote.
+    """
+    sign=1 if direction=='LONG' else -1
+    entry=max(price,trigger) if sign==1 else min(price,trigger)
+    ahead=[v for _,v in levels if sign*(v-entry)>0]
+    obstacle=(min(ahead) if sign==1 else max(ahead)) if ahead else None
+    return dict(planned_entry=entry,planned_risk_pct=sign*(entry-stop)/entry*100,
+                planned_obstacle=obstacle,
+                planned_room_pct=sign*(obstacle/entry-1)*100 if obstacle else None)
 
 
 def validate(frames, now_ms):
@@ -134,6 +150,12 @@ def assess(symbol,frames,price,quote_volume,now_ms,btc_frames,flow=None):
     obstacle=min(ahead) if sign==1 and ahead else max(ahead) if ahead else None
     room=sign*(obstacle/price-1)*100 if obstacle else None
     if room is not None and room<CONFIG['min_room_pct']:return reject('MAJOR_ROOM_BLOCKED')
+    geometry=planned_geometry(side,price,trigger,stop,levels)
+    out.update(geometry)
+    if geometry['planned_risk_pct']>CONFIG['max_stop_pct']:
+        return reject('PLANNED_STOP_TOO_DISTANT')
+    if geometry['planned_room_pct'] is not None and geometry['planned_room_pct']<CONFIG['min_room_pct']:
+        return reject('PLANNED_ROOM_BLOCKED')
     objective=price*(1+sign*CONFIG['min_room_pct']/100)
     horizon=CONFIG['max_plan_hours']
     # Fresh 15m break plus holding the same side. Old breaks cannot be replayed.
