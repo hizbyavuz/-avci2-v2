@@ -111,7 +111,7 @@ class RuntimeTests(unittest.TestCase):
         import long_short_daemon as daemon
         daemon.STOP.set()
         try:
-            with patch.dict(os.environ, {'LS_FUTURES_HISTORY_RELAY_URL':'http://relay.railway.internal'}), \
+            with patch.dict(os.environ, {'LS_FUTURES_HISTORY_RELAY_URL':'http://relay.railway.internal','LS_MAJOR_MOVE_V1':'0'}), \
                  patch.object(daemon.threading, 'Thread') as thread:
                 daemon.run_chart_runtime(Path('/tmp'))
                 targets = [call.kwargs['target'] for call in thread.call_args_list]
@@ -142,7 +142,8 @@ class RuntimeTests(unittest.TestCase):
             c.execute('CREATE TABLE assessments(symbol TEXT, observed_ms INTEGER, stage TEXT)')
             c.execute('INSERT INTO assessments VALUES(?,?,?)', ('PENDINGUSDT', int(time.time()*1000), 'DELIVERED_READY'))
             c.commit(); c.close()
-            with patch.object(worker, 'root', return_value=tmp), \
+            with patch.dict(os.environ, {'LS_MAJOR_MOVE_V1':'0'}), \
+                 patch.object(worker, 'root', return_value=tmp), \
                  patch.object(worker, 'active_symbols', return_value=['ACTIVEUSDT']), \
                  patch.object(analyst, 'native_futures_websocket_universe', return_value=[('ROTATEUSDT',)]):
                 requested, urgent = profile.demand(3)
@@ -236,6 +237,12 @@ class BackupTests(unittest.TestCase):
             n = len(s3.objects)
             backup.run(s3, 'bucket', root)
             self.assertEqual(len(s3.objects), n)
+            # A verified old snapshot must not hide a newly introduced motor DB.
+            extra=sqlite3.connect(root/'major_move_v1.db')
+            extra.execute('CREATE TABLE evidence(id INTEGER)');extra.commit();extra.close()
+            backup.run(s3, 'bucket', root)
+            inventories=[json.loads(v[0]) for k,v in s3.objects.items() if k.startswith('daily/') and k.endswith('/manifest.json')]
+            self.assertTrue(any('major_move_v1.db' in m['expected_sources'] for m in inventories))
             first = manifest['databases'][0]
             restored = root/'restore.db'
             restored.write_bytes(gzip.decompress(s3.objects[first['key']][0]))
