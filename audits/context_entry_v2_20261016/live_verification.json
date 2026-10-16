@@ -1,0 +1,542 @@
+{
+  "verified_at_utc": "2026-10-16T19:30:20Z",
+  "deployment_id": "23137f2d-b209-435d-b0b7-740ce1272c93",
+  "status": "SUCCESS",
+  "deployed_commit": "72a255ac26bcdd4a082a8f4db6de1556a06e5e7f",
+  "strategy_id": "461a12e56f4e932dfb751572d644f537a1a060b3c74bc3d26a8a6287dc6db8c0",
+  "live_candle_scan": [
+    {
+      "timestamp": "2026-10-16T19:30:05.805891466Z",
+      "version": "MAJOR_CONTEXT_ENTRY_V2_2026_10_16",
+      "strategy_id": "461a12e56f4e932dfb751572d644f537a1a060b3c74bc3d26a8a6287dc6db8c0",
+      "universe": 151,
+      "checked": 149,
+      "reasons": {
+        "NO_MAJOR_MOVE_STRUCTURE": 113,
+        "WAIT_BREAK_OR_RETEST": 27,
+        "PLANNED_STOP_TOO_DISTANT": 6,
+        "OK": 1,
+        "WAIT_OBSTACLE_BREAK": 3,
+        "HISTORY_MISSING_4h": 1
+      },
+      "pending": 0,
+      "paired": {
+        "baseline_REJECTED": 149,
+        "v2_new_reference": 1
+      },
+      "gates": {
+        "DELIVERED": 1
+      },
+      "delivered": 1,
+      "elapsed_ms": 2954,
+      "max_evaluated_candle_age_ms": 4135,
+      "eligible": [
+        {
+          "symbol": "SIRENUSDT",
+          "direction": "LONG",
+          "stage": "READY",
+          "model": "MAJOR_CONTINUATION",
+          "reason": "OK"
+        },
+        {
+          "symbol": "RIVERUSDT",
+          "direction": "SHORT",
+          "stage": "WATCH",
+          "model": "TOP_BREAKDOWN",
+          "reason": "WAIT_OBSTACLE_BREAK"
+        },
+        {
+          "symbol": "INITUSDT",
+          "direction": "SHORT",
+          "stage": "WATCH",
+          "model": "TOP_BREAKDOWN",
+          "reason": "WAIT_BREAK_OR_RETEST"
+        },
+        {
+          "symbol": "BASEDUSDT",
+          "direction": "LONG",
+          "stage": "WATCH",
+          "model": "MAJOR_CONTINUATION",
+          "reason": "WAIT_BREAK_OR_RETEST"
+        },
+        {
+          "symbol": "AVAUSDT",
+          "direction": "LONG",
+          "stage": "WATCH",
+          "model": "MAJOR_CONTINUATION",
+          "reason": "WAIT_BREAK_OR_RETEST"
+        },
+        {
+          "symbol": "ZROUSDT",
+          "direction": "SHORT",
+          "stage": "WATCH",
+          "model": "TOP_BREAKDOWN",
+          "reason": "WAIT_BREAK_OR_RETEST"
+        },
+        {
+          "symbol": "USUSDT",
+          "direction": "SHORT",
+          "stage": "WATCH",
+          "model": "TREND_CONTINUATION_SHORT",
+          "reason": "WAIT_BREAK_OR_RETEST"
+        },
+        {
+          "symbol": "HUMAUSDT",
+          "direction": "SHORT",
+          "stage": "WATCH",
+          "model": "TREND_CONTINUATION_SHORT",
+          "reason": "WAIT_BREAK_OR_RETEST"
+        },
+        {
+          "symbol": "ZECUSDT",
+          "direction": "SHORT",
+          "stage": "WATCH",
+          "model": "TREND_CONTINUATION_SHORT",
+          "reason": "WAIT_BREAK_OR_RETEST"
+        },
+        {
+          "symbol": "INJUSDT",
+          "direction": "SHORT",
+          "stage": "WATCH",
+          "model": "TOP_BREAKDOWN",
+          "reason": "WAIT_BREAK_OR_RETEST"
+        },
+        {
+          "symbol": "RLCUSDT",
+          "direction": "SHORT",
+          "stage": "WATCH",
+          "model": "TOP_BREAKDOWN",
+          "reason": "WAIT_BREAK_OR_RETEST"
+        },
+        {
+          "symbol": "ARCUSDT",
+          "direction": "SHORT",
+          "stage": "WATCH",
+          "model": "TREND_CONTINUATION_SHORT",
+          "reason": "WAIT_OBSTACLE_BREAK"
+        }
+      ]
+    },
+    {
+      "timestamp": "2026-10-16T19:30:07.579763981Z",
+      "version": "MAJOR_CONTEXT_ENTRY_V2_2026_10_16",
+      "strategy_id": "461a12e56f4e932dfb751572d644f537a1a060b3c74bc3d26a8a6287dc6db8c0",
+      "universe": 151,
+      "checked": 2,
+      "reasons": {
+        "NO_MAJOR_MOVE_STRUCTURE": 113,
+        "WAIT_BREAK_OR_RETEST": 27,
+        "PLANNED_STOP_TOO_DISTANT": 6,
+        "OK": 1,
+        "WAIT_OBSTACLE_BREAK": 3,
+        "HISTORY_MISSING_4h": 1
+      },
+      "pending": 0,
+      "paired": {
+        "baseline_REJECTED": 2
+      },
+      "gates": {},
+      "delivered": 0,
+      "elapsed_ms": 43,
+      "max_evaluated_candle_age_ms": 7185,
+      "eligible": [
+        {
+          "symbol": "SIRENUSDT",
+          "direction": "LONG",
+          "stage": "READY",
+          "model": "MAJOR_CONTINUATION",
+          "reason": "OK"
+        },
+        {
+          "symbol": "RIVERUSDT",
+          "direction": "SHORT",
+          "stage": "WATCH",
+          "model": "TOP_BREAKDOWN",
+          "reason": "WAIT_OBSTACLE_BREAK"
+        },
+        {
+          "symbol": "INITUSDT",
+          "direction": "SHORT",
+          "stage": "WATCH",
+          "model": "TOP_BREAKDOWN",
+          "reason": "WAIT_BREAK_OR_RETEST"
+        },
+        {
+          "symbol": "BASEDUSDT",
+          "direction": "LONG",
+          "stage": "WATCH",
+          "model": "MAJOR_CONTINUATION",
+          "reason": "WAIT_BREAK_OR_RETEST"
+        },
+        {
+          "symbol": "AVAUSDT",
+          "direction": "LONG",
+          "stage": "WATCH",
+          "model": "MAJOR_CONTINUATION",
+          "reason": "WAIT_BREAK_OR_RETEST"
+        },
+        {
+          "symbol": "ZROUSDT",
+          "direction": "SHORT",
+          "stage": "WATCH",
+          "model": "TOP_BREAKDOWN",
+          "reason": "WAIT_BREAK_OR_RETEST"
+        },
+        {
+          "symbol": "USUSDT",
+          "direction": "SHORT",
+          "stage": "WATCH",
+          "model": "TREND_CONTINUATION_SHORT",
+          "reason": "WAIT_BREAK_OR_RETEST"
+        },
+        {
+          "symbol": "HUMAUSDT",
+          "direction": "SHORT",
+          "stage": "WATCH",
+          "model": "TREND_CONTINUATION_SHORT",
+          "reason": "WAIT_BREAK_OR_RETEST"
+        },
+        {
+          "symbol": "ZECUSDT",
+          "direction": "SHORT",
+          "stage": "WATCH",
+          "model": "TREND_CONTINUATION_SHORT",
+          "reason": "WAIT_BREAK_OR_RETEST"
+        },
+        {
+          "symbol": "INJUSDT",
+          "direction": "SHORT",
+          "stage": "WATCH",
+          "model": "TOP_BREAKDOWN",
+          "reason": "WAIT_BREAK_OR_RETEST"
+        },
+        {
+          "symbol": "RLCUSDT",
+          "direction": "SHORT",
+          "stage": "WATCH",
+          "model": "TOP_BREAKDOWN",
+          "reason": "WAIT_BREAK_OR_RETEST"
+        },
+        {
+          "symbol": "ARCUSDT",
+          "direction": "SHORT",
+          "stage": "WATCH",
+          "model": "TREND_CONTINUATION_SHORT",
+          "reason": "WAIT_OBSTACLE_BREAK"
+        }
+      ]
+    }
+  ],
+  "deliveries": [
+    {
+      "timestamp": "2026-10-16T19:30:05.800780151Z",
+      "idea_id": "e865522cc5fe242e567ef3623303d76eff805d7688471e40b19393f442221f5f",
+      "state": "TRACKING",
+      "signal": {
+        "version": "MAJOR_CONTEXT_ENTRY_V2_2026_10_16",
+        "config_hash": "9b201f99c343d1d6eb1bc6c69808b28289abe611a1ca79c37115dddffa9c2ca7",
+        "symbol": "SIRENUSDT",
+        "observed_ms": 1792179005083,
+        "price": 0.02983,
+        "stage": "READY",
+        "reason": "OK",
+        "direction": "LONG",
+        "features": {
+          "price": 0.02982,
+          "return_4h_pct": 3.757828810020869,
+          "return_24h_pct": -3.276029841063899,
+          "btc_return_4h_pct": 0.028939265555760763,
+          "relative_strength_4h_pp": 3.7288895444651082,
+          "volume_1h_multiple": 0.20702909790015095,
+          "compression_ratio": 0.3654649762731071,
+          "box_width_pct": 9.772883688919473,
+          "leg_base": 0.02033,
+          "leg_peak": 0.0378,
+          "leg_gain_pct": 85.93212001967534,
+          "peak_ms": 1792123200000,
+          "retention": 0.5432169433314252,
+          "drawdown_from_peak_pct": -21.111111111111114,
+          "range_7d_position": 0.49971379507727526,
+          "atr1h": 0.002931428571428572,
+          "atr15": 0.000557142857142857,
+          "prior_day_high": 0.0378,
+          "box_high": 0.03041,
+          "box_low": 0.02757,
+          "confirmed_hour_highs": [
+            [
+              1791936000000,
+              0.02283
+            ],
+            [
+              1791954000000,
+              0.02268
+            ],
+            [
+              1791968400000,
+              0.02266
+            ],
+            [
+              1791997200000,
+              0.02211
+            ],
+            [
+              1792083600000,
+              0.03267
+            ],
+            [
+              1792112400000,
+              0.03587
+            ],
+            [
+              1792123200000,
+              0.0378
+            ],
+            [
+              1792137600000,
+              0.03159
+            ],
+            [
+              1792155600000,
+              0.032
+            ],
+            [
+              1792166400000,
+              0.03041
+            ]
+          ],
+          "confirmed_hour_lows": [
+            [
+              1791964800000,
+              0.02192
+            ],
+            [
+              1791993600000,
+              0.02132
+            ],
+            [
+              1792029600000,
+              0.02093
+            ],
+            [
+              1792058400000,
+              0.02033
+            ],
+            [
+              1792116000000,
+              0.0303
+            ],
+            [
+              1792137600000,
+              0.02463
+            ],
+            [
+              1792155600000,
+              0.0252
+            ]
+          ],
+          "down_leg_pct": 10.950503723171256,
+          "down_peak": 0.02283,
+          "down_trough": 0.02033,
+          "context_4h": "UP",
+          "context_4h_close_ms": 1792166399999,
+          "context_daily": "UP",
+          "context_daily_close_ms": 1792108799999
+        },
+        "hourly_flow": {
+          "status": "OK",
+          "start_ms": 1792175400000,
+          "end_ms": 1792179000000,
+          "window_minutes": 60,
+          "buy_share": 0.5553432398870362,
+          "quote_volume": 1267295.8026700001,
+          "price_return_pct": 2.4742268041237025,
+          "previous_30m_buy_share": 0.5074892991258191,
+          "recent_30m_buy_share": 0.5879798103203854
+        },
+        "model": "MAJOR_CONTINUATION",
+        "trigger": 0.02976,
+        "stop": 0.028746428571428572,
+        "planned_entry": 0.02985,
+        "planned_risk_pct": 3.6970567121320914,
+        "planned_obstacle": 0.0378,
+        "planned_room_pct": 26.63316582914572,
+        "obstacle": 0.0378,
+        "structural_room_pct": 26.71806905799532,
+        "obstacle_to_risk": 7.203883495145624,
+        "objective": 0.032813,
+        "objective_pct": 10,
+        "objective_label": "RESEARCH_MILESTONE_NOT_FORECAST",
+        "risk_pct": 3.6324888654757856,
+        "entry_limit": 0.030038571428571432,
+        "entry_kind": "BREAK",
+        "break_ms": 1792178999999,
+        "entry_valid_until_ms": 1792179899999,
+        "horizon_hours": 72,
+        "expires_ms": 1792438204169,
+        "gain_before_signal_pct": 46.728971962616804,
+        "confirmation_ms": 1792178999999,
+        "source": "BINANCE_UM_FUTURES",
+        "strategy_id": "461a12e56f4e932dfb751572d644f537a1a060b3c74bc3d26a8a6287dc6db8c0",
+        "context_scan_id": "10811394387e2afa628dd34e05d2a97b774d663576a7618a8a62ca23fd6343af",
+        "market_context": {
+          "version": "MAJOR_CONTEXT_OBSERVER_V1_2026_10_16",
+          "observer_id": "f5632f7aabc22f381aac72f0ba5e66a46b24a66e481b6c79e57a05010e5b3b94",
+          "captured_ms": 1792179004167,
+          "groups": {
+            "flow": "SUPPORT",
+            "oi_price": "MISSING",
+            "funding_cost": "MISSING",
+            "availability": "PARTIAL"
+          },
+          "issues": [
+            "NATIVE_RECEIPT_STALE_OR_FUTURE"
+          ]
+        },
+        "relative_strength_percentile": 100,
+        "context_snapshot_id": "e865522cc5fe242e567ef3623303d76eff805d7688471e40b19393f442221f5f",
+        "notice_price": 0.02983,
+        "accepted_price": 0.02983,
+        "notice_objective": 0.032813
+      }
+    }
+  ],
+  "stream_health": [
+    {
+      "timestamp": "2026-10-16T19:29:47.621943134Z",
+      "conflicts": 0,
+      "connection_age_seconds": 123,
+      "connections": 1,
+      "covered": 151,
+      "disconnects": 0,
+      "duplicates": 0,
+      "gaps_detected": 0,
+      "invalid_messages": 0,
+      "missing_bars_detected": 0,
+      "pending_rows": 0,
+      "repaired": 0,
+      "requested": 151,
+      "rows_written": 302,
+      "streams": 906,
+      "tracked": 151,
+      "uncovered": [],
+      "write_retries": 0
+    }
+  ],
+  "heartbeat": {
+    "timestamp": "2026-10-16T19:29:44.408399286Z",
+    "telegram_configured": true,
+    "telegram_chat_configured": true,
+    "processes": {
+      "binance_futures_universe": {
+        "state": "RUNNING",
+        "script": "long_short_futures_universe_worker.py",
+        "started_at_utc": "2026-10-16T19:27:44.347524+00:00",
+        "pid": 4,
+        "updated_at_utc": "2026-10-16T19:27:44.349418+00:00"
+      },
+      "binance_futures_kline_shadow": {
+        "state": "RUNNING",
+        "script": "long_short_futures_kline_worker.py",
+        "started_at_utc": "2026-10-16T19:27:44.348017+00:00",
+        "pid": 6,
+        "updated_at_utc": "2026-10-16T19:27:44.349118+00:00"
+      },
+      "binance_native_derivatives": {
+        "state": "RUNNING",
+        "script": "long_short_native_derivatives.py",
+        "started_at_utc": "2026-10-16T19:27:44.348629+00:00",
+        "pid": 7,
+        "updated_at_utc": "2026-10-16T19:27:44.349482+00:00"
+      },
+      "binance_futures_history": {
+        "state": "RUNNING",
+        "script": "long_short_futures_history_worker.py",
+        "started_at_utc": "2026-10-16T19:27:44.349263+00:00",
+        "pid": 11,
+        "updated_at_utc": "2026-10-16T19:27:44.350888+00:00"
+      },
+      "major_move": {
+        "state": "RUNNING",
+        "script": "long_short_major_move_worker.py",
+        "started_at_utc": "2026-10-16T19:27:44.349803+00:00",
+        "pid": 12,
+        "updated_at_utc": "2026-10-16T19:27:44.351672+00:00"
+      },
+      "storage_audit": {
+        "state": "EXITED",
+        "script": "long_short_storage_audit.py",
+        "started_at_utc": "2026-10-16T19:27:44.351087+00:00",
+        "pid": null,
+        "updated_at_utc": "2026-10-16T19:27:45.351974+00:00",
+        "returncode": 0,
+        "elapsed_seconds": 1
+      },
+      "backup_inventory": {
+        "state": "EXITED",
+        "script": "long_short_backup_inventory.py",
+        "started_at_utc": "2026-10-16T19:27:45.352201+00:00",
+        "pid": null,
+        "updated_at_utc": "2026-10-16T19:27:47.354145+00:00",
+        "returncode": 0,
+        "elapsed_seconds": 2
+      },
+      "daily_backup": {
+        "state": "EXITED",
+        "script": "long_short_daily_backup.py",
+        "started_at_utc": "2026-10-16T19:27:47.354335+00:00",
+        "pid": null,
+        "updated_at_utc": "2026-10-16T19:27:54.357346+00:00",
+        "returncode": 0,
+        "elapsed_seconds": 7
+      },
+      "backup_retention": {
+        "state": "EXITED",
+        "script": "long_short_backup_retention.py",
+        "started_at_utc": "2026-10-16T19:27:54.357463+00:00",
+        "pid": null,
+        "updated_at_utc": "2026-10-16T19:28:02.359303+00:00",
+        "returncode": 0,
+        "elapsed_seconds": 8
+      },
+      "backup_inventory_after_cleanup": {
+        "state": "EXITED",
+        "script": "long_short_backup_inventory.py",
+        "started_at_utc": "2026-10-16T19:28:02.359434+00:00",
+        "pid": null,
+        "updated_at_utc": "2026-10-16T19:28:04.360368+00:00",
+        "returncode": 0,
+        "elapsed_seconds": 2
+      }
+    },
+    "resources": {
+      "process_rss_mb": {
+        "supervisor": 37.15,
+        "binance_futures_universe": 29.48,
+        "binance_futures_kline_shadow": 37.36,
+        "binance_native_derivatives": 34.1,
+        "binance_futures_history": 30.61,
+        "major_move": 39.51
+      },
+      "total_process_rss_mb": 208.21,
+      "cgroup_current_mb": 577.35,
+      "cgroup_anon_mb": 126.46,
+      "cgroup_file_cache_mb": 443.98,
+      "memory_events": {
+        "low": 0,
+        "high": 0,
+        "max": 0,
+        "oom": 0,
+        "oom_kill": 0,
+        "oom_group_kill": 0
+      }
+    }
+  },
+  "first_ack_delay_from_closed_candle_ms": 5084,
+  "limitations": [
+    "Operational verification, not profitability evidence.",
+    "First delivery has valid flow context but OI/funding context was stale and explicitly marked MISSING/PARTIAL.",
+    "One symbol still has insufficient 4h history; retained as a data issue.",
+    "Memory sample is shortly after startup; file cache differs from process RSS and no long-run stability claim is made.",
+    "No mature outcomes yet."
+  ]
+}
