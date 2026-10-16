@@ -1,0 +1,653 @@
+{
+  "strategy_id": "b3154047e7fc7631de651a4431bd478e61b54098ebb63faed6bd216cf2bc762a",
+  "outcome_timestamp": "2026-10-16T14:40:33.146528088Z",
+  "groups": [
+    {
+      "model": "COMPRESSION_BREAKOUT",
+      "horizon": 15,
+      "measured": 30,
+      "positive": 17,
+      "unresolved": 0,
+      "net_sum_pct": -5.675099782969253,
+      "mean_net_pct": -0.18916999276564178
+    },
+    {
+      "model": "CONFIRMED_LEVEL_WATCH",
+      "horizon": 15,
+      "measured": 65,
+      "positive": 23,
+      "unresolved": 3,
+      "net_sum_pct": -28.403687003701563,
+      "mean_net_pct": -0.43697980005694714
+    },
+    {
+      "model": "PULLBACK_CONTINUATION",
+      "horizon": 15,
+      "measured": 28,
+      "positive": 7,
+      "unresolved": 1,
+      "net_sum_pct": -12.00071837378061,
+      "mean_net_pct": -0.4285970847778789
+    },
+    {
+      "model": "SWING_BREAKOUT",
+      "horizon": 15,
+      "measured": 6,
+      "positive": 1,
+      "unresolved": 0,
+      "net_sum_pct": -3.2536328345534202,
+      "mean_net_pct": -0.5422721390922367
+    },
+    {
+      "model": "COMPRESSION_BREAKOUT",
+      "horizon": 60,
+      "measured": 29,
+      "positive": 18,
+      "unresolved": 0,
+      "net_sum_pct": -8.791847929339129,
+      "mean_net_pct": -0.3031671699772113
+    },
+    {
+      "model": "CONFIRMED_LEVEL_WATCH",
+      "horizon": 60,
+      "measured": 62,
+      "positive": 27,
+      "unresolved": 3,
+      "net_sum_pct": -30.992902566010667,
+      "mean_net_pct": -0.49988552525823654
+    },
+    {
+      "model": "PULLBACK_CONTINUATION",
+      "horizon": 60,
+      "measured": 27,
+      "positive": 9,
+      "unresolved": 1,
+      "net_sum_pct": -14.414426966363509,
+      "mean_net_pct": -0.5338676654208707
+    },
+    {
+      "model": "SWING_BREAKOUT",
+      "horizon": 60,
+      "measured": 5,
+      "positive": 2,
+      "unresolved": 0,
+      "net_sum_pct": -4.507744874922013,
+      "mean_net_pct": -0.9015489749844026
+    },
+    {
+      "model": "COMPRESSION_BREAKOUT",
+      "horizon": 180,
+      "measured": 28,
+      "positive": 19,
+      "unresolved": 0,
+      "net_sum_pct": -5.186655751589324,
+      "mean_net_pct": -0.18523770541390444
+    },
+    {
+      "model": "CONFIRMED_LEVEL_WATCH",
+      "horizon": 180,
+      "measured": 56,
+      "positive": 28,
+      "unresolved": 3,
+      "net_sum_pct": -43.73913057843972,
+      "mean_net_pct": -0.7810559031864236
+    },
+    {
+      "model": "PULLBACK_CONTINUATION",
+      "horizon": 180,
+      "measured": 25,
+      "positive": 9,
+      "unresolved": 1,
+      "net_sum_pct": -11.481833341656117,
+      "mean_net_pct": -0.4592733336662447
+    },
+    {
+      "model": "SWING_BREAKOUT",
+      "horizon": 180,
+      "measured": 5,
+      "positive": 2,
+      "unresolved": 0,
+      "net_sum_pct": -4.201992916198526,
+      "mean_net_pct": -0.8403985832397052
+    }
+  ],
+  "payoff_quality": {
+    "delivered": 135,
+    "valid_geometry": 134,
+    "invalid_geometry": 1,
+    "net_reward_below_loss": 124,
+    "binary_break_even_above_75": 82,
+    "binary_break_even_above_90": 28,
+    "median_net_reward_risk": 0.25951772003233975,
+    "median_binary_break_even_pct": 79.3955770876108,
+    "invalid_examples": [
+      {
+        "version": "CHART_FIRST_STRUCTURE_V4_1_2026_10_15",
+        "strategy_id": "b3154047e7fc7631de651a4431bd478e61b54098ebb63faed6bd216cf2bc762a",
+        "episode_id": "0af05d721e94dd2ea3c7e600857094551958033beae8bfc7b709c217c13e27aa",
+        "symbol": "FILUSDT",
+        "direction": "LONG",
+        "model": "PULLBACK_CONTINUATION",
+        "stage": "DELIVERED_READY",
+        "observed_ms": 1792095316714,
+        "price": 1.1452,
+        "trigger": 1.1367,
+        "stop": 1.130366,
+        "obstacle": 1.1486,
+        "entry_limit": 1.1451645064805585,
+        "geometry": {
+          "valid": false,
+          "reason": "NO_NET_ROOM",
+          "reference_entry": 1.1452,
+          "gross_room_pct": 0.2968913726859998,
+          "invalidation_pct": 1.2953195948305984,
+          "cost_assumption_pct": 0.3,
+          "net_room_pct": -0.0031086273140001897,
+          "loss_with_cost_pct": 1.5953195948305985,
+          "net_reward_risk": -0.0019485921968696712,
+          "break_even_win_rate_pct": 100.19523966216919
+        },
+        "scenario": "CONTINUATION",
+        "hourly_flow": {
+          "status": "OK",
+          "start_ms": 1792091700000,
+          "end_ms": 1792095300000,
+          "window_minutes": 60,
+          "buy_share": 0.5559192984780456,
+          "quote_volume": 16632329.206349999,
+          "price_return_pct": 2.7530364372469585,
+          "previous_30m_buy_share": 0.6214954256943621,
+          "recent_30m_buy_share": 0.49057662344222974
+        },
+        "log_timestamp": "2026-10-15T20:15:16.718349588Z"
+      }
+    ],
+    "scope": "SIGNAL_TIME_PAYOFF_GEOMETRY_NOT_REALIZED_RETURNS; BINARY_TARGET_STOP_IGNORES_TIMEOUT"
+  },
+  "coverage": [
+    {
+      "timestamp": "2026-10-16T14:43:05.678736529Z",
+      "strategy_id": "b3154047e7fc7631de651a4431bd478e61b54098ebb63faed6bd216cf2bc762a",
+      "version": "CHART_FIRST_STRUCTURE_V4_1_2026_10_15",
+      "stage": "DELIVERED_READY",
+      "horizon": 180,
+      "primary_endpoint": true,
+      "records": 135,
+      "pending": 16,
+      "missing": 0,
+      "unresolved": 4,
+      "resolved": 115,
+      "symbols": 71,
+      "utc_days": 2,
+      "reasons": {
+        "TELEGRAM_ACK": 135
+      },
+      "barriers": {
+        "INVALIDATION": 46,
+        "HORIZON": 12,
+        "OBSTACLE": 57
+      },
+      "directions": {
+        "LONG": 89,
+        "SHORT": 46
+      },
+      "models": {
+        "CONFIRMED_LEVEL_WATCH": 69,
+        "PULLBACK_CONTINUATION": 30,
+        "SWING_BREAKOUT": 6,
+        "COMPRESSION_BREAKOUT": 30
+      },
+      "scenarios": {
+        "REVERSAL_ATTEMPT": 33,
+        "CONTINUATION": 102
+      },
+      "invalid_entry_geometry": 1,
+      "reference_net": {
+        "n": 115,
+        "positive": 58,
+        "negative": 57,
+        "mean_pct": -0.5759041747864632,
+        "median_pct": 0.019051959890592773,
+        "profit_factor": 0.4197155692210445,
+        "profit_factor_status": "DEFINED"
+      },
+      "direction_only": {
+        "n": 117,
+        "positive": 48,
+        "negative": 69,
+        "mean_pct": -0.6876062606915077,
+        "median_pct": -0.2600038049337283,
+        "profit_factor": 0.5186565050248253,
+        "profit_factor_status": "DEFINED",
+        "equal_random_direction_mean_pct": 0,
+        "scope": "RAW_ENDPOINT_DIRECTION_TEST_NOT_TRADES_OR_STOP_TARGET_COMPARISON"
+      },
+      "daily_reference_net": [
+        {
+          "utc_day": 20741,
+          "count": 31,
+          "mean_pct": -0.5430491566905228
+        },
+        {
+          "utc_day": 20742,
+          "count": 84,
+          "mean_pct": -0.5880292409885364
+        }
+      ],
+      "known_boundary_pessimistic": {
+        "n": 117,
+        "positive": 58,
+        "negative": 59,
+        "mean_pct": -0.6628324802797432,
+        "median_pct": -0.0031086273139965814,
+        "profit_factor": 0.3818356860866536,
+        "profit_factor_status": "DEFINED"
+      },
+      "sensitivity_complete": false,
+      "status": "UNVALIDATED_REFERENCE_MODEL",
+      "limitations": [
+        "Costs are assumed; actual spread/slippage/funding not measured",
+        "Correlated observations and concurrent positions are not independent",
+        "No held-out executable strategy comparison has passed"
+      ]
+    },
+    {
+      "timestamp": "2026-10-16T14:43:05.668979446Z",
+      "strategy_id": "b3154047e7fc7631de651a4431bd478e61b54098ebb63faed6bd216cf2bc762a",
+      "version": "CHART_FIRST_STRUCTURE_V4_1_2026_10_15",
+      "stage": "DELIVERED_WATCH",
+      "horizon": 15,
+      "primary_endpoint": false,
+      "records": 415,
+      "pending": 6,
+      "missing": 409,
+      "unresolved": 0,
+      "resolved": 0,
+      "symbols": 94,
+      "utc_days": 2,
+      "reasons": {
+        "TELEGRAM_ACK": 415
+      },
+      "barriers": {},
+      "directions": {
+        "SHORT": 151,
+        "LONG": 264
+      },
+      "models": {
+        "CONFIRMED_LEVEL_WATCH": 272,
+        "COMPRESSION_BREAKOUT": 77,
+        "PULLBACK_CONTINUATION": 44,
+        "SWING_BREAKOUT": 22
+      },
+      "scenarios": {
+        "CONTINUATION": 310,
+        "REVERSAL_ATTEMPT": 105
+      },
+      "invalid_entry_geometry": 0,
+      "reference_net": {
+        "n": 0,
+        "positive": 0,
+        "negative": 0,
+        "mean_pct": null,
+        "median_pct": null,
+        "profit_factor": null,
+        "profit_factor_status": "NO_LOSSES_OR_NO_SAMPLE"
+      },
+      "direction_only": {
+        "n": 0,
+        "positive": 0,
+        "negative": 0,
+        "mean_pct": null,
+        "median_pct": null,
+        "profit_factor": null,
+        "profit_factor_status": "NO_LOSSES_OR_NO_SAMPLE",
+        "equal_random_direction_mean_pct": null,
+        "scope": "RAW_ENDPOINT_DIRECTION_TEST_NOT_TRADES_OR_STOP_TARGET_COMPARISON"
+      },
+      "daily_reference_net": [],
+      "known_boundary_pessimistic": {
+        "n": 0,
+        "positive": 0,
+        "negative": 0,
+        "mean_pct": null,
+        "median_pct": null,
+        "profit_factor": null,
+        "profit_factor_status": "NO_LOSSES_OR_NO_SAMPLE"
+      },
+      "sensitivity_complete": false,
+      "status": "UNVALIDATED_REFERENCE_MODEL",
+      "limitations": [
+        "Costs are assumed; actual spread/slippage/funding not measured",
+        "Correlated observations and concurrent positions are not independent",
+        "No held-out executable strategy comparison has passed"
+      ]
+    },
+    {
+      "timestamp": "2026-10-16T14:43:05.674344893Z",
+      "strategy_id": "b3154047e7fc7631de651a4431bd478e61b54098ebb63faed6bd216cf2bc762a",
+      "version": "CHART_FIRST_STRUCTURE_V4_1_2026_10_15",
+      "stage": "DELIVERED_WATCH",
+      "horizon": 60,
+      "primary_endpoint": false,
+      "records": 415,
+      "pending": 19,
+      "missing": 396,
+      "unresolved": 0,
+      "resolved": 0,
+      "symbols": 94,
+      "utc_days": 2,
+      "reasons": {
+        "TELEGRAM_ACK": 415
+      },
+      "barriers": {},
+      "directions": {
+        "SHORT": 151,
+        "LONG": 264
+      },
+      "models": {
+        "CONFIRMED_LEVEL_WATCH": 272,
+        "COMPRESSION_BREAKOUT": 77,
+        "PULLBACK_CONTINUATION": 44,
+        "SWING_BREAKOUT": 22
+      },
+      "scenarios": {
+        "CONTINUATION": 310,
+        "REVERSAL_ATTEMPT": 105
+      },
+      "invalid_entry_geometry": 0,
+      "reference_net": {
+        "n": 0,
+        "positive": 0,
+        "negative": 0,
+        "mean_pct": null,
+        "median_pct": null,
+        "profit_factor": null,
+        "profit_factor_status": "NO_LOSSES_OR_NO_SAMPLE"
+      },
+      "direction_only": {
+        "n": 0,
+        "positive": 0,
+        "negative": 0,
+        "mean_pct": null,
+        "median_pct": null,
+        "profit_factor": null,
+        "profit_factor_status": "NO_LOSSES_OR_NO_SAMPLE",
+        "equal_random_direction_mean_pct": null,
+        "scope": "RAW_ENDPOINT_DIRECTION_TEST_NOT_TRADES_OR_STOP_TARGET_COMPARISON"
+      },
+      "daily_reference_net": [],
+      "known_boundary_pessimistic": {
+        "n": 0,
+        "positive": 0,
+        "negative": 0,
+        "mean_pct": null,
+        "median_pct": null,
+        "profit_factor": null,
+        "profit_factor_status": "NO_LOSSES_OR_NO_SAMPLE"
+      },
+      "sensitivity_complete": false,
+      "status": "UNVALIDATED_REFERENCE_MODEL",
+      "limitations": [
+        "Costs are assumed; actual spread/slippage/funding not measured",
+        "Correlated observations and concurrent positions are not independent",
+        "No held-out executable strategy comparison has passed"
+      ]
+    },
+    {
+      "timestamp": "2026-10-16T14:43:05.674355090Z",
+      "strategy_id": "b3154047e7fc7631de651a4431bd478e61b54098ebb63faed6bd216cf2bc762a",
+      "version": "CHART_FIRST_STRUCTURE_V4_1_2026_10_15",
+      "stage": "DELIVERED_WATCH",
+      "horizon": 180,
+      "primary_endpoint": true,
+      "records": 415,
+      "pending": 60,
+      "missing": 355,
+      "unresolved": 0,
+      "resolved": 0,
+      "symbols": 94,
+      "utc_days": 2,
+      "reasons": {
+        "TELEGRAM_ACK": 415
+      },
+      "barriers": {},
+      "directions": {
+        "SHORT": 151,
+        "LONG": 264
+      },
+      "models": {
+        "CONFIRMED_LEVEL_WATCH": 272,
+        "COMPRESSION_BREAKOUT": 77,
+        "PULLBACK_CONTINUATION": 44,
+        "SWING_BREAKOUT": 22
+      },
+      "scenarios": {
+        "CONTINUATION": 310,
+        "REVERSAL_ATTEMPT": 105
+      },
+      "invalid_entry_geometry": 0,
+      "reference_net": {
+        "n": 0,
+        "positive": 0,
+        "negative": 0,
+        "mean_pct": null,
+        "median_pct": null,
+        "profit_factor": null,
+        "profit_factor_status": "NO_LOSSES_OR_NO_SAMPLE"
+      },
+      "direction_only": {
+        "n": 0,
+        "positive": 0,
+        "negative": 0,
+        "mean_pct": null,
+        "median_pct": null,
+        "profit_factor": null,
+        "profit_factor_status": "NO_LOSSES_OR_NO_SAMPLE",
+        "equal_random_direction_mean_pct": null,
+        "scope": "RAW_ENDPOINT_DIRECTION_TEST_NOT_TRADES_OR_STOP_TARGET_COMPARISON"
+      },
+      "daily_reference_net": [],
+      "known_boundary_pessimistic": {
+        "n": 0,
+        "positive": 0,
+        "negative": 0,
+        "mean_pct": null,
+        "median_pct": null,
+        "profit_factor": null,
+        "profit_factor_status": "NO_LOSSES_OR_NO_SAMPLE"
+      },
+      "sensitivity_complete": false,
+      "status": "UNVALIDATED_REFERENCE_MODEL",
+      "limitations": [
+        "Costs are assumed; actual spread/slippage/funding not measured",
+        "Correlated observations and concurrent positions are not independent",
+        "No held-out executable strategy comparison has passed"
+      ]
+    },
+    {
+      "timestamp": "2026-10-16T14:43:05.674362256Z",
+      "strategy_id": "b3154047e7fc7631de651a4431bd478e61b54098ebb63faed6bd216cf2bc762a",
+      "version": "CHART_FIRST_STRUCTURE_V4_1_2026_10_15",
+      "stage": "DELIVERED_READY",
+      "horizon": 15,
+      "primary_endpoint": false,
+      "records": 135,
+      "pending": 2,
+      "missing": 0,
+      "unresolved": 4,
+      "resolved": 129,
+      "symbols": 71,
+      "utc_days": 2,
+      "reasons": {
+        "TELEGRAM_ACK": 135
+      },
+      "barriers": {
+        "HORIZON": 81,
+        "OBSTACLE": 35,
+        "INVALIDATION": 13
+      },
+      "directions": {
+        "LONG": 89,
+        "SHORT": 46
+      },
+      "models": {
+        "CONFIRMED_LEVEL_WATCH": 69,
+        "PULLBACK_CONTINUATION": 30,
+        "SWING_BREAKOUT": 6,
+        "COMPRESSION_BREAKOUT": 30
+      },
+      "scenarios": {
+        "REVERSAL_ATTEMPT": 33,
+        "CONTINUATION": 102
+      },
+      "invalid_entry_geometry": 1,
+      "reference_net": {
+        "n": 129,
+        "positive": 48,
+        "negative": 81,
+        "mean_pct": -0.382427426317867,
+        "median_pct": -0.2413886384129757,
+        "profit_factor": 0.3830192280384561,
+        "profit_factor_status": "DEFINED"
+      },
+      "direction_only": {
+        "n": 131,
+        "positive": 66,
+        "negative": 65,
+        "mean_pct": -0.07720218695826267,
+        "median_pct": 0.008958700391192842,
+        "profit_factor": 0.8312685756827848,
+        "profit_factor_status": "DEFINED",
+        "equal_random_direction_mean_pct": 0,
+        "scope": "RAW_ENDPOINT_DIRECTION_TEST_NOT_TRADES_OR_STOP_TARGET_COMPARISON"
+      },
+      "daily_reference_net": [
+        {
+          "utc_day": 20741,
+          "count": 31,
+          "mean_pct": -0.15552896043528278
+        },
+        {
+          "utc_day": 20742,
+          "count": 98,
+          "mean_pct": -0.45420143083174574
+        }
+      ],
+      "known_boundary_pessimistic": {
+        "n": 131,
+        "positive": 48,
+        "negative": 83,
+        "mean_pct": -0.46301952738390495,
+        "median_pct": -0.2758053366514687,
+        "profit_factor": 0.3355100337211927,
+        "profit_factor_status": "DEFINED"
+      },
+      "sensitivity_complete": false,
+      "status": "UNVALIDATED_REFERENCE_MODEL",
+      "limitations": [
+        "Costs are assumed; actual spread/slippage/funding not measured",
+        "Correlated observations and concurrent positions are not independent",
+        "No held-out executable strategy comparison has passed"
+      ]
+    },
+    {
+      "timestamp": "2026-10-16T14:43:05.678726080Z",
+      "strategy_id": "b3154047e7fc7631de651a4431bd478e61b54098ebb63faed6bd216cf2bc762a",
+      "version": "CHART_FIRST_STRUCTURE_V4_1_2026_10_15",
+      "stage": "DELIVERED_READY",
+      "horizon": 60,
+      "primary_endpoint": false,
+      "records": 135,
+      "pending": 8,
+      "missing": 0,
+      "unresolved": 4,
+      "resolved": 123,
+      "symbols": 71,
+      "utc_days": 2,
+      "reasons": {
+        "TELEGRAM_ACK": 135
+      },
+      "barriers": {
+        "INVALIDATION": 39,
+        "HORIZON": 35,
+        "OBSTACLE": 49
+      },
+      "directions": {
+        "LONG": 89,
+        "SHORT": 46
+      },
+      "models": {
+        "CONFIRMED_LEVEL_WATCH": 69,
+        "PULLBACK_CONTINUATION": 30,
+        "SWING_BREAKOUT": 6,
+        "COMPRESSION_BREAKOUT": 30
+      },
+      "scenarios": {
+        "REVERSAL_ATTEMPT": 33,
+        "CONTINUATION": 102
+      },
+      "invalid_entry_geometry": 1,
+      "reference_net": {
+        "n": 123,
+        "positive": 56,
+        "negative": 67,
+        "mean_pct": -0.4772920515173603,
+        "median_pct": -0.24027533072535884,
+        "profit_factor": 0.41726296940728563,
+        "profit_factor_status": "DEFINED"
+      },
+      "direction_only": {
+        "n": 125,
+        "positive": 48,
+        "negative": 76,
+        "mean_pct": -0.27684793284192044,
+        "median_pct": -0.24671052631578538,
+        "profit_factor": 0.6906156551821468,
+        "profit_factor_status": "DEFINED",
+        "equal_random_direction_mean_pct": 0,
+        "scope": "RAW_ENDPOINT_DIRECTION_TEST_NOT_TRADES_OR_STOP_TARGET_COMPARISON"
+      },
+      "daily_reference_net": [
+        {
+          "utc_day": 20741,
+          "count": 31,
+          "mean_pct": -0.23966151691955775
+        },
+        {
+          "utc_day": 20742,
+          "count": 92,
+          "mean_pct": -0.5573632099144459
+        }
+      ],
+      "known_boundary_pessimistic": {
+        "n": 125,
+        "positive": 56,
+        "negative": 69,
+        "mean_pct": -0.5602347394313761,
+        "median_pct": -0.3864095119590735,
+        "profit_factor": 0.37510537206481875,
+        "profit_factor_status": "DEFINED"
+      },
+      "sensitivity_complete": false,
+      "status": "UNVALIDATED_REFERENCE_MODEL",
+      "limitations": [
+        "Costs are assumed; actual spread/slippage/funding not measured",
+        "Correlated observations and concurrent positions are not independent",
+        "No held-out executable strategy comparison has passed"
+      ]
+    }
+  ],
+  "promoted_models": [],
+  "edge_proven": false,
+  "status": "MEASUREMENT_RELEASE_BLOCKED; DESCRIPTIVE_EVIDENCE_ONLY",
+  "limitations": [
+    "Aggregate results are not linked to individual delivery rows; no feature/outcome causal attribution.",
+    "Returns use recorded levels and assumed 0.30% round-trip cost, not actual fills, spread or funding.",
+    "Equal-notional average signal returns are not portfolio returns or equal-risk position sizing results.",
+    "Horizons have different mature samples; their averages are not a paired holding-time experiment.",
+    "Same-symbol and concurrent signals are correlated; this is a short two-UTC-day sample.",
+    "Missing, pending and ambiguous records are retained and are not counted as ordinary wins/losses.",
+    "Model group reports use a rolling 24h window; coverage is a separate 30-day delivery inventory.",
+    "No thresholds were optimized; no model passed a held-out validation or was promoted."
+  ]
+}
