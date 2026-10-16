@@ -152,8 +152,8 @@ class Paths(unittest.TestCase):
         rows=[self.bar(60000+i*60000) for i in range(360)]
         rows.append(self.bar(60000+360*60000,99.,150.,145.))
         g,out=store.advance_path(p,g,rows)
-        self.assertEqual(len(out),1);self.assertEqual(out[0]['horizon_hours'],6)
-        self.assertLess(out[0]['max_favorable_pct'],2);self.assertGreater(g['max_favorable_pct'],40)
+        self.assertEqual([o['horizon_hours'] for o in out],[.25,.5,1,3,6])
+        self.assertLess(out[-1]['max_favorable_pct'],2);self.assertGreater(g['max_favorable_pct'],40)
 
     def test_short_path_mirrors_long_and_never_counts_pre_signal_gain(self):
         p=self.plan(side='SHORT');p['gain_before_signal_pct']=90
