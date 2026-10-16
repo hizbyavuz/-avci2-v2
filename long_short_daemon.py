@@ -333,6 +333,8 @@ def heartbeat_loop(sd: Path) -> None:
                 "processes": json.loads(json.dumps(STATUS)),
             }
         try:
+            from long_short_runtime_resources import snapshot as memory_snapshot
+            snapshot['resources'] = memory_snapshot(snapshot['processes'])
             health_path.write_text(json.dumps(snapshot, ensure_ascii=False, indent=2), encoding="utf-8")
         except Exception as exc:
             print("[daemon] health write error", type(exc).__name__, str(exc)[:160], flush=True)
@@ -348,9 +350,11 @@ def handle_signal(signum, _frame) -> None:
 
 def lean_maintenance() -> None:
     """Retire legacy files once; serialize archive and backup I/O thereafter."""
-    run_child('chart_v1_delivery_audit', 'long_short_v1_delivery_audit.py')
-    run_child('chart_selection_audit', 'long_short_chart_selection_audit.py')
-    run_child('legacy_archive', 'long_short_legacy_archive.py')
+    from long_short_runtime_profile import major_enabled
+    if not major_enabled():
+        run_child('chart_v1_delivery_audit', 'long_short_v1_delivery_audit.py')
+        run_child('chart_selection_audit', 'long_short_chart_selection_audit.py')
+        run_child('legacy_archive', 'long_short_legacy_archive.py')
     while not STOP.is_set():
         run_child('storage_audit', 'long_short_storage_audit.py')
         if os.getenv('LS_BACKUP_BUCKET'):
@@ -358,7 +362,8 @@ def lean_maintenance() -> None:
             rc = run_child('daily_backup', 'long_short_daily_backup.py')
             if rc == 0:
                 run_child('backup_retention', 'long_short_backup_retention.py')
-                run_child('remote_archive_compact', 'long_short_remote_archive_compact.py')
+                if not major_enabled():
+                    run_child('remote_archive_compact', 'long_short_remote_archive_compact.py')
                 run_child('backup_inventory_after_cleanup', 'long_short_backup_inventory.py')
             elif STOP.wait(3600):
                 return
@@ -375,7 +380,8 @@ def lean_health(sd: Path) -> None:
             report = health(sd)
             (sd/'long_short_data_health.json').write_text(json.dumps(report))
             print('CHART_RUNTIME_HEALTH '+json.dumps(report), flush=True)
-            if time.time()-last_validation>=900:
+            from long_short_runtime_profile import major_enabled
+            if not major_enabled() and time.time()-last_validation>=900:
                 from long_short_chart_reliability import emit
                 emit(sd)
                 last_validation=time.time()
@@ -384,7 +390,13 @@ def lean_health(sd: Path) -> None:
 
 
 def run_chart_runtime(sd: Path) -> int:
-    from long_short_runtime_profile import PROFILE, WORKERS, RETIRED
+    from long_short_runtime_profile import PROFILE, WORKERS, RETIRED, MAJOR_WORKERS, major_enabled
+    if major_enabled():
+        from long_short_major_move_store import connect as major_connect
+        major_connect().close()  # New evidence must exist before the backup inventory.
+        PROFILE='MAJOR_MOVE_V1_2026_10_16'
+        WORKERS=MAJOR_WORKERS
+        RETIRED=RETIRED+('chart_first','chart_delivery_outcomes','binance_taker_shadow')
     os.environ.update(LS_RUNTIME_PROFILE=PROFILE, LS_EARLY_BREAKOUT_V1_ENABLED='0',
         LS_DATA_OPPORTUNITY_V2='0', LS_BINANCE_DERIVATIVE_AUDIT_ENABLED='0',
         LS_V4_RECLAIM_ENABLED='1', LS_STORAGE_DEEP_AUDIT='0')
