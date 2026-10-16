@@ -107,7 +107,7 @@ class RuntimeTests(unittest.TestCase):
             self.assertTrue(profile.enabled())
             with patch.dict(os.environ, {'LS_CHART_FIRST_V1':'0'}): self.assertFalse(profile.enabled())
 
-    def test_six_workers_and_no_legacy_loops(self):
+    def test_chart_workers_include_delivery_measurement_and_no_legacy_loops(self):
         import long_short_daemon as daemon
         daemon.STOP.set()
         try:
@@ -115,7 +115,10 @@ class RuntimeTests(unittest.TestCase):
                  patch.object(daemon.threading, 'Thread') as thread:
                 daemon.run_chart_runtime(Path('/tmp'))
                 targets = [call.kwargs['target'] for call in thread.call_args_list]
-                self.assertEqual(targets.count(daemon.watcher_loop), 6)
+                self.assertEqual(targets.count(daemon.watcher_loop), 7)
+                measured = [call.kwargs['args'] for call in thread.call_args_list
+                            if call.kwargs['target'] == daemon.watcher_loop]
+                self.assertIn(('chart_delivery_outcomes', 'long_short_chart_delivery_outcomes.py'), measured)
                 self.assertNotIn(daemon.analyst_loop, targets)
                 self.assertNotIn(daemon.research_loop, targets)
                 self.assertNotIn(daemon.paper_ledger_loop, targets)
