@@ -9,6 +9,8 @@ from pathlib import Path
 from long_short_major_move import CONFIG, CONFIG_HASH, VERSION, finite
 
 SOURCES={'BINANCE_UM_FUTURES_WEBSOCKET','BINANCE_UM_FUTURES_ARCHIVE','BINANCE_UM_FUTURES_REST'}
+EVALUATION_HOURS=(.25,.5,1,3,6,24,72)  # Secondary observations; selection CONFIG stays frozen.
+OUTCOME_VERSION='MAJOR_PATH_OBSERVER_V2_2026_10_16'
 EXCLUDED={'USDC','FDUSD','TUSD','USDP','DAI','BUSD','USDE','USDS','PYUSD','RLUSD','USD1','USDD','GUSD','FRAX','LUSD','USD0','EURC','EUR','TRY','BTCST'}
 
 
@@ -34,7 +36,11 @@ def connect():
       CREATE INDEX IF NOT EXISTS major_ideas_time ON ideas(delivered_ms,state);
       CREATE TABLE IF NOT EXISTS outcomes(idea_id TEXT,horizon_hours INTEGER,state TEXT,payload TEXT,
         PRIMARY KEY(idea_id,horizon_hours));
-      CREATE TABLE IF NOT EXISTS market_snapshots(bucket INTEGER,symbol TEXT,payload TEXT,PRIMARY KEY(bucket,symbol));''')
+      CREATE TABLE IF NOT EXISTS market_snapshots(bucket INTEGER,symbol TEXT,payload TEXT,PRIMARY KEY(bucket,symbol));
+      CREATE TABLE IF NOT EXISTS context_snapshots(id TEXT PRIMARY KEY,phase TEXT,observed_ms INTEGER,
+        symbol TEXT,observer_id TEXT,payload TEXT);
+      CREATE INDEX IF NOT EXISTS context_snapshot_time ON context_snapshots(observed_ms);
+      CREATE INDEX IF NOT EXISTS context_snapshot_phase ON context_snapshots(phase,observed_ms);''')
     return c
 
 
@@ -99,6 +105,7 @@ def initial_progress(p):
     return dict(cursor_ms=p['observed_ms']//60000*60000,first_barrier=None,
         boundary_ambiguous=False,max_favorable_pct=0.,max_adverse_pct=0.,milestones={},plan_exit=None,
         active_stop=p['stop'],hour_bar=None,trail_armed=False,
+        post_stop_max_favorable_pct=0.,post_stop_milestones={},
         evaluated_ms=p['observed_ms'],last_close=p['price'],missing_since_ms=None)
 
 
@@ -129,6 +136,11 @@ def advance_path(p,progress,bars):
         g['max_adverse_pct']=max(g['max_adverse_pct'],adverse)
         for threshold in CONFIG['reach_thresholds_pct']:
             if favorable+1e-10>=threshold:g['milestones'].setdefault(str(threshold),[max(t,p['observed_ms']),end])
+        exit_=g.get('plan_exit')
+        if exit_ and exit_['kind']=='STOP' and t>exit_['at_ms']:
+            g['post_stop_max_favorable_pct']=max(g.get('post_stop_max_favorable_pct',0.),favorable)
+            for threshold in CONFIG['reach_thresholds_pct']:
+                if favorable+1e-10>=threshold:g.setdefault('post_stop_milestones',{}).setdefault(str(threshold),[t,end])
         if not partial and g['first_barrier'] is None and (stop_hit or target_hit):
             g['first_barrier']=dict(kind='STOP' if stop_hit else 'OBJECTIVE',minute_open_ms=t,
                 same_minute_ambiguous=bool(stop_hit and target_hit))
@@ -154,12 +166,20 @@ def advance_path(p,progress,bars):
             hb=None
         g['hour_bar']=hb
         g.update(cursor_ms=t+60000,evaluated_ms=end,last_close=cl,missing_since_ms=None)
-        for hours in CONFIG['horizons_hours']:
+        for hours in EVALUATION_HOURS:
             due=p['observed_ms']+hours*3600000
             if t<due<=end+1:
-                out=dict(horizon_hours=hours,directional_return_pct=sign*(cl/price-1)*100,
+                raw_return=(cl/price-1)*100;directional=sign*raw_return
+                out=dict(outcome_version=OUTCOME_VERSION,horizon_hours=hours,
+                    entry_price=price,horizon_price=cl,evaluated_at_ms=end,
+                    price_return_pct=raw_return,signal_direction=p['direction'],
+                    market_direction='UP' if raw_return>0 else 'DOWN' if raw_return<0 else 'FLAT',
+                    direction_verdict='ALIGNED' if directional>0 else 'OPPOSED' if directional<0 else 'FLAT',
+                    directional_return_pct=directional,
                     max_favorable_pct=g['max_favorable_pct'],max_adverse_pct=g['max_adverse_pct'],
                     milestones=dict(g['milestones']),first_barrier=g['first_barrier'],plan_exit=g['plan_exit'],active_stop=g['active_stop'],
+                    post_stop_max_favorable_pct=g.get('post_stop_max_favorable_pct',0.),
+                    post_stop_milestones=dict(g.get('post_stop_milestones',{})),
                     first_minute_ambiguous=g['boundary_ambiguous'],cost_assumption_pct=CONFIG['round_trip_cost_pct'])
                 if not g['boundary_ambiguous']:
                     out['reference_net_return_pct']=(g['plan_exit']['net_return_pct'] if g['plan_exit'] else sign*(cl/price-1)*100-CONFIG['round_trip_cost_pct'])
@@ -187,7 +207,7 @@ def measure(c,kdb,now_ms,emit=print):
                 WHERE outcomes.state='DATA_PENDING'""",(row['id'],result['horizon_hours'],status,json.dumps(result)))
             emit('MAJOR_MOVE_OUTCOME '+json.dumps(dict(idea_id=row['id'],symbol=p['symbol'],state=status,**result)))
         # Mature gaps remain explicit and can be repaired on the next pass.
-        for hours in CONFIG['horizons_hours']:
+        for hours in EVALUATION_HOURS:
             if now_ms>=p['observed_ms']+hours*3600000 and g['evaluated_ms']<p['observed_ms']+hours*3600000-1 and g['missing_since_ms'] is not None:
                 c.execute('INSERT OR IGNORE INTO outcomes VALUES(?,?,?,?)',(row['id'],hours,'DATA_PENDING',json.dumps({'missing_from_ms':g['missing_since_ms']})))
         c.commit()
@@ -199,5 +219,6 @@ def health(state_root=None):
     c=db(path,True)
     try:return dict(profile=VERSION,available=True,latest_scan_ms=c.execute('SELECT MAX(observed_ms) FROM assessments').fetchone()[0],
         ideas=dict(c.execute('SELECT state,COUNT(*) FROM ideas GROUP BY state')),
+        context_snapshots=dict(c.execute('SELECT phase,COUNT(*) FROM context_snapshots GROUP BY phase')),
         outcomes=dict(c.execute('SELECT state,COUNT(*) FROM outcomes GROUP BY state')))
     finally:c.close()
