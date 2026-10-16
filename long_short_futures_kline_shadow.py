@@ -35,6 +35,7 @@ SUBSCRIBE_CHUNK = 100            # params per control message
 CONTROL_MESSAGE_GAP_SECONDS = 0.25   # <= 4 control messages/s (limit is 10/s)
 PLANNED_RECONNECT_SECONDS = 23 * 3600
 RETENTION_SECONDS = 24 * 3600    # keep a symbol subscribed 24h after last request
+MAX_PENDING_CANDLES = 5000       # stop receiving during prolonged SQLite lock
 
 COLUMNS = ("symbol,interval,open_ms,close_ms,open,high,low,close,volume,"
            "source,received_ms,quote_volume,trade_count,taker_buy_quote")
@@ -118,6 +119,8 @@ def parse_closed_kline(packet):
 def connect(db, timeout=30):
     conn = sqlite3.connect(db, timeout=timeout)
     conn.execute("PRAGMA busy_timeout=%d" % int(timeout * 1000))
+    conn.execute('PRAGMA cache_size=-2048')
+    conn.execute('PRAGMA temp_store=FILE')
     return conn
 
 
@@ -404,6 +407,10 @@ class FuturesKlineStream:
             while not stop.is_set():
                 if max_runtime is not None and self.clock() - started >= max_runtime:
                     break
+                if len(self.buffer)>=MAX_PENDING_CANDLES and not self.flush(conn):
+                    log('FUTURES_KLINE_BACKPRESSURE', {'pending_rows':len(self.buffer)})
+                    stop.wait(5)
+                    continue
                 requested = []
                 try:
                     requested = requested_fn()
@@ -421,8 +428,10 @@ class FuturesKlineStream:
                         if max_runtime is not None and now - started >= max_runtime:
                             break
                         if now - last_flush >= flush_seconds or len(self.buffer) >= 500:
-                            self.flush(conn)
+                            written=self.flush(conn)
                             last_flush = now
+                            if not written and len(self.buffer)>=MAX_PENDING_CANDLES:
+                                raise RuntimeError('BUFFER_CAP_RECONNECT_AFTER_DATABASE_RECOVERS')
                         if now - last_refresh >= refresh_seconds:
                             requested = requested_fn()
                             self.apply(requested)
@@ -729,7 +738,7 @@ def continuous_main():
     initialize(db).close()
 
     # Archive imports never block the WebSocket. One worker, WAL + busy_timeout.
-    pending = queue.Queue()
+    pending = queue.Queue(maxsize=CHART_MAX_SYMBOLS)
     scheduled = set()
     next_due = {}
     lock = threading.Lock()
@@ -760,12 +769,17 @@ def continuous_main():
     def requested():
         symbols = requested_symbols(analyst)
         with lock:
+            for s in list(next_due):
+                if s not in symbols and s not in scheduled:next_due.pop(s,None)
             due = [s for s in symbols if s not in scheduled and time.monotonic() >= next_due.get(s, 0)]
+            queued=[]
             for s in due:
+                try:pending.put_nowait(s)
+                except queue.Full:break
                 scheduled.add(s)
-                pending.put(s)
-        if due:
-            log("FUTURES_KLINE_ARCHIVE_SCHEDULED", {"symbols": due})
+                queued.append(s)
+        if queued:
+            log("FUTURES_KLINE_ARCHIVE_SCHEDULED", {"symbols": queued})
         return symbols
 
     log("FUTURES_REST_BRIDGE_DISABLED_HTTP_418_451")
