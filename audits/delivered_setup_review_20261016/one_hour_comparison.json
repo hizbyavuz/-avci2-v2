@@ -1,0 +1,3022 @@
+{
+  "cutoff": "2026-10-16T15:03:00Z",
+  "strategy_id": "b3154047e7fc7631de651a4431bd478e61b54098ebb63faed6bd216cf2bc762a",
+  "horizon": 60,
+  "methodology": "Exploratory associations in the already observed sample; no independent validation or causality.",
+  "coverage": {
+    "delivered_ready": 138,
+    "matched": 127,
+    "absent_due": 2,
+    "horizon_pending": 9
+  },
+  "total": {
+    "n": 127,
+    "coins": 68,
+    "episodes": 127,
+    "states": {
+      "RESOLVED": 125,
+      "UNRESOLVED_BOUNDARY": 2
+    },
+    "direction": {
+      "n": 127,
+      "right": 48,
+      "wrong": 78,
+      "flat": 1,
+      "rate_pct": 37.79527559055118,
+      "descriptive_wilson_95_pct": [
+        29.837563538262497,
+        46.469665966726744
+      ]
+    },
+    "first_exit": {
+      "HORIZON": 37,
+      "INVALIDATION": 39,
+      "OBSTACLE": 49,
+      "AMBIGUOUS_OR_UNKNOWN": 2
+    },
+    "net": {
+      "n": 125,
+      "positive": 56,
+      "negative": 69,
+      "mean_pct": -0.4887455816322543,
+      "median_pct": -0.3864095119590735,
+      "mean_r": -0.2907733766547105,
+      "average_positive_pct": 0.7506517719993488,
+      "average_negative_pct": -1.4946332889274685,
+      "profit_factor": 0.407608094282022
+    }
+  },
+  "group_comparisons": {
+    "side": {
+      "LONG": {
+        "n": 85,
+        "coins": 51,
+        "episodes": 85,
+        "states": {
+          "RESOLVED": 85
+        },
+        "direction": {
+          "n": 85,
+          "right": 29,
+          "wrong": 56,
+          "flat": 0,
+          "rate_pct": 34.11764705882353,
+          "descriptive_wilson_95_pct": [
+            24.921771761762066,
+            44.687060136807965
+          ]
+        },
+        "first_exit": {
+          "HORIZON": 25,
+          "INVALIDATION": 25,
+          "OBSTACLE": 35
+        },
+        "net": {
+          "n": 85,
+          "positive": 37,
+          "negative": 48,
+          "mean_pct": -0.5135771787634276,
+          "median_pct": -0.436372491720238,
+          "mean_r": -0.2821010047278735,
+          "average_positive_pct": 0.9103138222770382,
+          "average_negative_pct": -1.6111598253987864,
+          "profit_factor": 0.43552491003276816
+        }
+      },
+      "SHORT": {
+        "n": 42,
+        "coins": 26,
+        "episodes": 42,
+        "states": {
+          "RESOLVED": 40,
+          "UNRESOLVED_BOUNDARY": 2
+        },
+        "direction": {
+          "n": 42,
+          "right": 19,
+          "wrong": 22,
+          "flat": 1,
+          "rate_pct": 45.23809523809524,
+          "descriptive_wilson_95_pct": [
+            31.223163818638522,
+            60.05113725287732
+          ]
+        },
+        "first_exit": {
+          "INVALIDATION": 14,
+          "HORIZON": 12,
+          "OBSTACLE": 14,
+          "AMBIGUOUS_OR_UNKNOWN": 2
+        },
+        "net": {
+          "n": 40,
+          "positive": 19,
+          "negative": 21,
+          "mean_pct": -0.43597843772851114,
+          "median_pct": -0.10915170716852524,
+          "mean_r": -0.30920216699923914,
+          "average_positive_pct": 0.4397309372480591,
+          "average_negative_pct": -1.22828691985017,
+          "profit_factor": 0.3239078703336047
+        }
+      }
+    },
+    "model": {
+      "COMPRESSION_BREAKOUT": {
+        "n": 29,
+        "coins": 24,
+        "episodes": 29,
+        "states": {
+          "RESOLVED": 29
+        },
+        "direction": {
+          "n": 29,
+          "right": 17,
+          "wrong": 12,
+          "flat": 0,
+          "rate_pct": 58.620689655172406,
+          "descriptive_wilson_95_pct": [
+            40.737528478515245,
+            74.4870647203545
+          ]
+        },
+        "first_exit": {
+          "OBSTACLE": 15,
+          "HORIZON": 7,
+          "INVALIDATION": 7
+        },
+        "net": {
+          "n": 29,
+          "positive": 18,
+          "negative": 11,
+          "mean_pct": -0.3031671699772113,
+          "median_pct": 0.17399124939232485,
+          "mean_r": -0.06609072484070978,
+          "average_positive_pct": 1.0216758630534966,
+          "average_negative_pct": -2.4710921331183697,
+          "profit_factor": 0.676556413273601
+        }
+      },
+      "CONFIRMED_LEVEL_WATCH": {
+        "n": 66,
+        "coins": 46,
+        "episodes": 66,
+        "states": {
+          "RESOLVED": 64,
+          "UNRESOLVED_BOUNDARY": 2
+        },
+        "direction": {
+          "n": 66,
+          "right": 20,
+          "wrong": 46,
+          "flat": 0,
+          "rate_pct": 30.303030303030305,
+          "descriptive_wilson_95_pct": [
+            20.553868699544754,
+            42.21903455582168
+          ]
+        },
+        "first_exit": {
+          "HORIZON": 28,
+          "INVALIDATION": 13,
+          "OBSTACLE": 23,
+          "AMBIGUOUS_OR_UNKNOWN": 2
+        },
+        "net": {
+          "n": 64,
+          "positive": 27,
+          "negative": 37,
+          "mean_pct": -0.5215496552094865,
+          "median_pct": -0.41139100183965577,
+          "mean_r": -0.2675787190477567,
+          "average_positive_pct": 0.7195458474385525,
+          "average_negative_pct": -1.4272139409256233,
+          "profit_factor": 0.3679013928626189
+        }
+      },
+      "PULLBACK_CONTINUATION": {
+        "n": 27,
+        "coins": 26,
+        "episodes": 27,
+        "states": {
+          "RESOLVED": 27
+        },
+        "direction": {
+          "n": 27,
+          "right": 9,
+          "wrong": 17,
+          "flat": 1,
+          "rate_pct": 33.33333333333333,
+          "descriptive_wilson_95_pct": [
+            18.64305444359335,
+            52.17558012789452
+          ]
+        },
+        "first_exit": {
+          "INVALIDATION": 17,
+          "OBSTACLE": 9,
+          "HORIZON": 1
+        },
+        "net": {
+          "n": 27,
+          "positive": 9,
+          "negative": 18,
+          "mean_pct": -0.5338676654208706,
+          "median_pct": -0.6750389772372964,
+          "mean_r": -0.5618547633972676,
+          "average_positive_pct": 0.3998990334384361,
+          "average_negative_pct": -1.000751014850524,
+          "profit_factor": 0.19979946435436116
+        }
+      },
+      "SWING_BREAKOUT": {
+        "n": 5,
+        "coins": 5,
+        "episodes": 5,
+        "states": {
+          "RESOLVED": 5
+        },
+        "direction": {
+          "n": 5,
+          "right": 2,
+          "wrong": 3,
+          "flat": 0,
+          "rate_pct": 40.0,
+          "descriptive_wilson_95_pct": [
+            11.76182311592533,
+            76.9280067791163
+          ]
+        },
+        "first_exit": {
+          "OBSTACLE": 2,
+          "HORIZON": 1,
+          "INVALIDATION": 2
+        },
+        "net": {
+          "n": 5,
+          "positive": 2,
+          "negative": 3,
+          "mean_pct": -0.9015489749844028,
+          "median_pct": -0.8732849226065318,
+          "mean_r": -0.4269848861351151,
+          "average_positive_pct": 0.30975225760687697,
+          "average_negative_pct": -1.7090831300452558,
+          "profit_factor": 0.12082589865934913
+        }
+      }
+    },
+    "scenario": {
+      "CONTINUATION": {
+        "n": 97,
+        "coins": 54,
+        "episodes": 97,
+        "states": {
+          "RESOLVED": 96,
+          "UNRESOLVED_BOUNDARY": 1
+        },
+        "direction": {
+          "n": 97,
+          "right": 36,
+          "wrong": 60,
+          "flat": 1,
+          "rate_pct": 37.11340206185567,
+          "descriptive_wilson_95_pct": [
+            28.162225477573223,
+            47.046418574088
+          ]
+        },
+        "first_exit": {
+          "HORIZON": 29,
+          "INVALIDATION": 30,
+          "OBSTACLE": 37,
+          "AMBIGUOUS_OR_UNKNOWN": 1
+        },
+        "net": {
+          "n": 96,
+          "positive": 43,
+          "negative": 53,
+          "mean_pct": -0.48825665738207374,
+          "median_pct": -0.40091926155860186,
+          "mean_r": -0.28701679276248593,
+          "average_positive_pct": 0.8403563509862724,
+          "average_negative_pct": -1.5661879660582791,
+          "profit_factor": 0.4353235778137888
+        }
+      },
+      "REVERSAL_ATTEMPT": {
+        "n": 30,
+        "coins": 22,
+        "episodes": 30,
+        "states": {
+          "RESOLVED": 29,
+          "UNRESOLVED_BOUNDARY": 1
+        },
+        "direction": {
+          "n": 30,
+          "right": 12,
+          "wrong": 18,
+          "flat": 0,
+          "rate_pct": 40.0,
+          "descriptive_wilson_95_pct": [
+            24.590394326083402,
+            57.67994750172616
+          ]
+        },
+        "first_exit": {
+          "OBSTACLE": 12,
+          "HORIZON": 8,
+          "INVALIDATION": 9,
+          "AMBIGUOUS_OR_UNKNOWN": 1
+        },
+        "net": {
+          "n": 29,
+          "positive": 13,
+          "negative": 16,
+          "mean_pct": -0.49036408949492105,
+          "median_pct": -0.06565115500501956,
+          "mean_r": -0.30320896471172976,
+          "average_positive_pct": 0.45393662611952496,
+          "average_negative_pct": -1.2576084209316585,
+          "profit_factor": 0.29327372700707827
+        }
+      }
+    },
+    "model_by_side": {
+      "COMPRESSION_BREAKOUT / LONG": {
+        "n": 16,
+        "coins": 14,
+        "episodes": 16,
+        "states": {
+          "RESOLVED": 16
+        },
+        "direction": {
+          "n": 16,
+          "right": 8,
+          "wrong": 8,
+          "flat": 0,
+          "rate_pct": 50.0,
+          "descriptive_wilson_95_pct": [
+            27.99923761135083,
+            72.00076238864916
+          ]
+        },
+        "first_exit": {
+          "OBSTACLE": 10,
+          "HORIZON": 2,
+          "INVALIDATION": 4
+        },
+        "net": {
+          "n": 16,
+          "positive": 11,
+          "negative": 5,
+          "mean_pct": -0.5077045839186588,
+          "median_pct": 0.3390128260150063,
+          "mean_r": -0.0029584433948452718,
+          "average_positive_pct": 1.2056586457443454,
+          "average_negative_pct": -4.2771036891772685,
+          "profit_factor": 0.620150740640047
+        }
+      },
+      "COMPRESSION_BREAKOUT / SHORT": {
+        "n": 13,
+        "coins": 11,
+        "episodes": 13,
+        "states": {
+          "RESOLVED": 13
+        },
+        "direction": {
+          "n": 13,
+          "right": 9,
+          "wrong": 4,
+          "flat": 0,
+          "rate_pct": 69.23076923076923,
+          "descriptive_wilson_95_pct": [
+            42.36888781333764,
+            87.31950283838191
+          ]
+        },
+        "first_exit": {
+          "OBSTACLE": 5,
+          "HORIZON": 5,
+          "INVALIDATION": 3
+        },
+        "net": {
+          "n": 13,
+          "positive": 7,
+          "negative": 6,
+          "mean_pct": -0.05142881435696829,
+          "median_pct": 0.10595399188092519,
+          "mean_r": -0.14379199431254305,
+          "average_positive_pct": 0.7325600616821624,
+          "average_negative_pct": -0.9660825030692874,
+          "profit_factor": 0.8846588180415068
+        }
+      },
+      "CONFIRMED_LEVEL_WATCH / LONG": {
+        "n": 49,
+        "coins": 37,
+        "episodes": 49,
+        "states": {
+          "RESOLVED": 49
+        },
+        "direction": {
+          "n": 49,
+          "right": 15,
+          "wrong": 34,
+          "flat": 0,
+          "rate_pct": 30.612244897959183,
+          "descriptive_wilson_95_pct": [
+            19.51532349314748,
+            44.52815740069374
+          ]
+        },
+        "first_exit": {
+          "HORIZON": 22,
+          "INVALIDATION": 9,
+          "OBSTACLE": 18
+        },
+        "net": {
+          "n": 49,
+          "positive": 20,
+          "negative": 29,
+          "mean_pct": -0.47498194802919086,
+          "median_pct": -0.436372491720238,
+          "mean_r": -0.26063197992924475,
+          "average_positive_pct": 0.8667354305932488,
+          "average_negative_pct": -1.400304278113632,
+          "profit_factor": 0.4268704896254156
+        }
+      },
+      "CONFIRMED_LEVEL_WATCH / SHORT": {
+        "n": 17,
+        "coins": 13,
+        "episodes": 17,
+        "states": {
+          "RESOLVED": 15,
+          "UNRESOLVED_BOUNDARY": 2
+        },
+        "direction": {
+          "n": 17,
+          "right": 5,
+          "wrong": 12,
+          "flat": 0,
+          "rate_pct": 29.411764705882355,
+          "descriptive_wilson_95_pct": [
+            13.279793865556403,
+            53.13353332621391
+          ]
+        },
+        "first_exit": {
+          "INVALIDATION": 4,
+          "HORIZON": 6,
+          "OBSTACLE": 5,
+          "AMBIGUOUS_OR_UNKNOWN": 2
+        },
+        "net": {
+          "n": 15,
+          "positive": 7,
+          "negative": 8,
+          "mean_pct": -0.6736708319984523,
+          "median_pct": -0.15265225933203092,
+          "mean_r": -0.2902714001682291,
+          "average_positive_pct": 0.2990041812822779,
+          "average_negative_pct": -1.5247614686190913,
+          "profit_factor": 0.17158661469779832
+        }
+      },
+      "PULLBACK_CONTINUATION / LONG": {
+        "n": 16,
+        "coins": 15,
+        "episodes": 16,
+        "states": {
+          "RESOLVED": 16
+        },
+        "direction": {
+          "n": 16,
+          "right": 5,
+          "wrong": 11,
+          "flat": 0,
+          "rate_pct": 31.25,
+          "descriptive_wilson_95_pct": [
+            14.164435051961052,
+            55.596068133265945
+          ]
+        },
+        "first_exit": {
+          "INVALIDATION": 11,
+          "OBSTACLE": 5
+        },
+        "net": {
+          "n": 16,
+          "positive": 4,
+          "negative": 12,
+          "mean_pct": -0.6010096567456419,
+          "median_pct": -0.7776441574075197,
+          "mean_r": -0.6265849287714473,
+          "average_positive_pct": 0.6162882984959708,
+          "average_negative_pct": -1.0067756418261795,
+          "profit_factor": 0.20404688422870862
+        }
+      },
+      "PULLBACK_CONTINUATION / SHORT": {
+        "n": 11,
+        "coins": 11,
+        "episodes": 11,
+        "states": {
+          "RESOLVED": 11
+        },
+        "direction": {
+          "n": 11,
+          "right": 4,
+          "wrong": 6,
+          "flat": 1,
+          "rate_pct": 36.36363636363637,
+          "descriptive_wilson_95_pct": [
+            15.166223614131383,
+            64.62032231083627
+          ]
+        },
+        "first_exit": {
+          "OBSTACLE": 4,
+          "INVALIDATION": 6,
+          "HORIZON": 1
+        },
+        "net": {
+          "n": 11,
+          "positive": 5,
+          "negative": 6,
+          "mean_pct": -0.4362065871302942,
+          "median_pct": -0.47697394010114386,
+          "mean_r": -0.4677017955802787,
+          "average_positive_pct": 0.22678762139240832,
+          "average_negative_pct": -0.988701760899213,
+          "profit_factor": 0.1911493353888534
+        }
+      },
+      "SWING_BREAKOUT / LONG": {
+        "n": 4,
+        "coins": 4,
+        "episodes": 4,
+        "states": {
+          "RESOLVED": 4
+        },
+        "direction": {
+          "n": 4,
+          "right": 1,
+          "wrong": 3,
+          "flat": 0,
+          "rate_pct": 25.0,
+          "descriptive_wilson_95_pct": [
+            4.558606264463622,
+            69.93639475573634
+          ]
+        },
+        "first_exit": {
+          "OBSTACLE": 2,
+          "HORIZON": 1,
+          "INVALIDATION": 1
+        },
+        "net": {
+          "n": 4,
+          "positive": 2,
+          "negative": 2,
+          "mean_pct": -0.6601292227080443,
+          "median_pct": -0.4110529823381668,
+          "mean_r": -0.28373110766889315,
+          "average_positive_pct": 0.30975225760687697,
+          "average_negative_pct": -1.6300107030229656,
+          "profit_factor": 0.19003081208756506
+        }
+      },
+      "SWING_BREAKOUT / SHORT": {
+        "n": 1,
+        "coins": 1,
+        "episodes": 1,
+        "states": {
+          "RESOLVED": 1
+        },
+        "direction": {
+          "n": 1,
+          "right": 1,
+          "wrong": 0,
+          "flat": 0,
+          "rate_pct": 100.0,
+          "descriptive_wilson_95_pct": [
+            20.654329147389294,
+            100.0
+          ]
+        },
+        "first_exit": {
+          "INVALIDATION": 1
+        },
+        "net": {
+          "n": 1,
+          "positive": 0,
+          "negative": 1,
+          "mean_pct": -1.8672279840898363,
+          "median_pct": -1.8672279840898363,
+          "mean_r": -1.0000000000000029,
+          "average_positive_pct": null,
+          "average_negative_pct": -1.8672279840898363,
+          "profit_factor": 0.0
+        }
+      }
+    },
+    "volume_5m": {
+      "BELOW_NORMAL": {
+        "n": 61,
+        "coins": 42,
+        "episodes": 61,
+        "states": {
+          "RESOLVED": 61
+        },
+        "direction": {
+          "n": 61,
+          "right": 24,
+          "wrong": 36,
+          "flat": 1,
+          "rate_pct": 39.34426229508197,
+          "descriptive_wilson_95_pct": [
+            28.068166862043626,
+            51.882975614391256
+          ]
+        },
+        "first_exit": {
+          "HORIZON": 12,
+          "INVALIDATION": 22,
+          "OBSTACLE": 27
+        },
+        "net": {
+          "n": 61,
+          "positive": 30,
+          "negative": 31,
+          "mean_pct": -0.5338191779272061,
+          "median_pct": -0.0031086273139965814,
+          "mean_r": -0.27484701257612504,
+          "average_positive_pct": 0.9545793955232003,
+          "average_negative_pct": -1.9742048941695347,
+          "profit_factor": 0.46792838703058914
+        }
+      },
+      "NORMAL_OR_ABOVE": {
+        "n": 66,
+        "coins": 51,
+        "episodes": 66,
+        "states": {
+          "RESOLVED": 64,
+          "UNRESOLVED_BOUNDARY": 2
+        },
+        "direction": {
+          "n": 66,
+          "right": 24,
+          "wrong": 42,
+          "flat": 0,
+          "rate_pct": 36.36363636363637,
+          "descriptive_wilson_95_pct": [
+            25.806811940620943,
+            48.42058262078659
+          ]
+        },
+        "first_exit": {
+          "HORIZON": 25,
+          "INVALIDATION": 17,
+          "OBSTACLE": 22,
+          "AMBIGUOUS_OR_UNKNOWN": 2
+        },
+        "net": {
+          "n": 64,
+          "positive": 26,
+          "negative": 38,
+          "mean_pct": -0.4457848101636284,
+          "median_pct": -0.4284722567690799,
+          "mean_r": -0.3059531924171123,
+          "average_positive_pct": 0.5153506679333665,
+          "average_negative_pct": -1.1034038214931512,
+          "profit_factor": 0.31956419297762145
+        }
+      }
+    },
+    "volume_15m": {
+      "BELOW_NORMAL": {
+        "n": 86,
+        "coins": 52,
+        "episodes": 86,
+        "states": {
+          "RESOLVED": 84,
+          "UNRESOLVED_BOUNDARY": 2
+        },
+        "direction": {
+          "n": 86,
+          "right": 37,
+          "wrong": 49,
+          "flat": 0,
+          "rate_pct": 43.02325581395349,
+          "descriptive_wilson_95_pct": [
+            33.07917119906583,
+            53.56398742678232
+          ]
+        },
+        "first_exit": {
+          "HORIZON": 18,
+          "OBSTACLE": 40,
+          "INVALIDATION": 26,
+          "AMBIGUOUS_OR_UNKNOWN": 2
+        },
+        "net": {
+          "n": 84,
+          "positive": 44,
+          "negative": 40,
+          "mean_pct": -0.13550353575834764,
+          "median_pct": 0.024906354807480435,
+          "mean_r": -0.21996248365214305,
+          "average_positive_pct": 0.7703402827474345,
+          "average_negative_pct": -1.131931736114708,
+          "profit_factor": 0.7486090229528705
+        }
+      },
+      "NORMAL_OR_ABOVE": {
+        "n": 41,
+        "coins": 36,
+        "episodes": 41,
+        "states": {
+          "RESOLVED": 41
+        },
+        "direction": {
+          "n": 41,
+          "right": 11,
+          "wrong": 29,
+          "flat": 1,
+          "rate_pct": 26.82926829268293,
+          "descriptive_wilson_95_pct": [
+            15.694805281336684,
+            41.933825276002935
+          ]
+        },
+        "first_exit": {
+          "HORIZON": 19,
+          "INVALIDATION": 13,
+          "OBSTACLE": 9
+        },
+        "net": {
+          "n": 41,
+          "positive": 12,
+          "negative": 29,
+          "mean_pct": -1.21246099269099,
+          "median_pct": -0.7346206382714213,
+          "mean_r": -0.4358493525624097,
+          "average_positive_pct": 0.6784605659230348,
+          "average_negative_pct": -1.994911292807138,
+          "profit_factor": 0.14072921645830164
+        }
+      }
+    },
+    "hourly_flow_and_response": {
+      "ALIGNED": {
+        "n": 90,
+        "coins": 55,
+        "episodes": 90,
+        "states": {
+          "RESOLVED": 88,
+          "UNRESOLVED_BOUNDARY": 2
+        },
+        "direction": {
+          "n": 90,
+          "right": 35,
+          "wrong": 55,
+          "flat": 0,
+          "rate_pct": 38.88888888888889,
+          "descriptive_wilson_95_pct": [
+            29.469758863910055,
+            49.217731545460616
+          ]
+        },
+        "first_exit": {
+          "INVALIDATION": 25,
+          "HORIZON": 31,
+          "OBSTACLE": 32,
+          "AMBIGUOUS_OR_UNKNOWN": 2
+        },
+        "net": {
+          "n": 88,
+          "positive": 39,
+          "negative": 49,
+          "mean_pct": -0.40685071629487635,
+          "median_pct": -0.2117877995673753,
+          "mean_r": -0.2748596223651218,
+          "average_positive_pct": 0.7218026805739122,
+          "average_negative_pct": -1.3051666852312591,
+          "profit_factor": 0.4401706062296853
+        }
+      },
+      "NOT_ALIGNED": {
+        "n": 37,
+        "coins": 33,
+        "episodes": 37,
+        "states": {
+          "RESOLVED": 37
+        },
+        "direction": {
+          "n": 37,
+          "right": 13,
+          "wrong": 23,
+          "flat": 1,
+          "rate_pct": 35.13513513513514,
+          "descriptive_wilson_95_pct": [
+            21.82540663110087,
+            51.24127048243044
+          ]
+        },
+        "first_exit": {
+          "HORIZON": 6,
+          "INVALIDATION": 14,
+          "OBSTACLE": 17
+        },
+        "net": {
+          "n": 37,
+          "positive": 17,
+          "negative": 20,
+          "mean_pct": -0.6835225586508831,
+          "median_pct": -0.48754688672167895,
+          "mean_r": -0.3286223057758944,
+          "average_positive_pct": 0.8168349817400564,
+          "average_negative_pct": -1.9588264679831815,
+          "profit_factor": 0.35445188526266597
+        }
+      }
+    },
+    "oi_change": {
+      "NEGATIVE": {
+        "n": 55,
+        "coins": 42,
+        "episodes": 55,
+        "states": {
+          "RESOLVED": 54,
+          "UNRESOLVED_BOUNDARY": 1
+        },
+        "direction": {
+          "n": 55,
+          "right": 23,
+          "wrong": 32,
+          "flat": 0,
+          "rate_pct": 41.81818181818181,
+          "descriptive_wilson_95_pct": [
+            29.737567047718926,
+            54.96713166883534
+          ]
+        },
+        "first_exit": {
+          "HORIZON": 17,
+          "INVALIDATION": 17,
+          "OBSTACLE": 20,
+          "AMBIGUOUS_OR_UNKNOWN": 1
+        },
+        "net": {
+          "n": 54,
+          "positive": 24,
+          "negative": 30,
+          "mean_pct": -0.48110084579257556,
+          "median_pct": -0.29451237552613446,
+          "mean_r": -0.3044496556658085,
+          "average_positive_pct": 0.6523250964305503,
+          "average_negative_pct": -1.3878415995710762,
+          "profit_factor": 0.3760227948965684
+        }
+      },
+      "POSITIVE": {
+        "n": 65,
+        "coins": 43,
+        "episodes": 65,
+        "states": {
+          "RESOLVED": 64,
+          "UNRESOLVED_BOUNDARY": 1
+        },
+        "direction": {
+          "n": 65,
+          "right": 22,
+          "wrong": 42,
+          "flat": 1,
+          "rate_pct": 33.84615384615385,
+          "descriptive_wilson_95_pct": [
+            23.53333876864659,
+            45.961850186868666
+          ]
+        },
+        "first_exit": {
+          "HORIZON": 20,
+          "INVALIDATION": 18,
+          "OBSTACLE": 26,
+          "AMBIGUOUS_OR_UNKNOWN": 1
+        },
+        "net": {
+          "n": 64,
+          "positive": 29,
+          "negative": 35,
+          "mean_pct": -0.49819863959743177,
+          "median_pct": -0.3133424213422162,
+          "mean_r": -0.2580260860509064,
+          "average_positive_pct": 0.8749377255828724,
+          "average_negative_pct": -1.6359401993182552,
+          "profit_factor": 0.44313869266085926
+        }
+      },
+      "UNKNOWN": {
+        "n": 7,
+        "coins": 7,
+        "episodes": 7,
+        "states": {
+          "RESOLVED": 7
+        },
+        "direction": {
+          "n": 7,
+          "right": 3,
+          "wrong": 4,
+          "flat": 0,
+          "rate_pct": 42.857142857142854,
+          "descriptive_wilson_95_pct": [
+            15.821692226262684,
+            74.95457695909742
+          ]
+        },
+        "first_exit": {
+          "INVALIDATION": 4,
+          "OBSTACLE": 3
+        },
+        "net": {
+          "n": 7,
+          "positive": 3,
+          "negative": 4,
+          "mean_pct": -0.4612912995710108,
+          "median_pct": -0.47697394010114386,
+          "mean_r": -0.4846744526610204,
+          "average_positive_pct": 0.3358342919090099,
+          "average_negative_pct": -1.0591354931810262,
+          "profit_factor": 0.23781255613979044
+        }
+      }
+    },
+    "taker_alignment": {
+      "NEGATIVE": {
+        "n": 20,
+        "coins": 20,
+        "episodes": 20,
+        "states": {
+          "RESOLVED": 20
+        },
+        "direction": {
+          "n": 20,
+          "right": 9,
+          "wrong": 10,
+          "flat": 1,
+          "rate_pct": 45.0,
+          "descriptive_wilson_95_pct": [
+            25.819502085709296,
+            65.79179916924002
+          ]
+        },
+        "first_exit": {
+          "OBSTACLE": 9,
+          "INVALIDATION": 8,
+          "HORIZON": 3
+        },
+        "net": {
+          "n": 20,
+          "positive": 9,
+          "negative": 11,
+          "mean_pct": -0.9983430807758107,
+          "median_pct": -0.3278521709417445,
+          "mean_r": -0.3710782805170341,
+          "average_positive_pct": 0.3036122615423202,
+          "average_negative_pct": -2.0635792699451905,
+          "profit_factor": 0.12037823590735484
+        }
+      },
+      "POSITIVE": {
+        "n": 107,
+        "coins": 62,
+        "episodes": 107,
+        "states": {
+          "RESOLVED": 105,
+          "UNRESOLVED_BOUNDARY": 2
+        },
+        "direction": {
+          "n": 107,
+          "right": 39,
+          "wrong": 68,
+          "flat": 0,
+          "rate_pct": 36.44859813084112,
+          "descriptive_wilson_95_pct": [
+            27.945974844690113,
+            45.89056306165552
+          ]
+        },
+        "first_exit": {
+          "HORIZON": 34,
+          "INVALIDATION": 31,
+          "OBSTACLE": 40,
+          "AMBIGUOUS_OR_UNKNOWN": 2
+        },
+        "net": {
+          "n": 105,
+          "positive": 47,
+          "negative": 58,
+          "mean_pct": -0.39167939131919594,
+          "median_pct": -0.3864095119590735,
+          "mean_r": -0.27547720449045837,
+          "average_positive_pct": 0.8362550825123969,
+          "average_negative_pct": -1.3867297408034178,
+          "profit_factor": 0.4886712678881397
+        }
+      }
+    },
+    "funding_in_signal_direction": {
+      "NEGATIVE": {
+        "n": 42,
+        "coins": 26,
+        "episodes": 42,
+        "states": {
+          "RESOLVED": 41,
+          "UNRESOLVED_BOUNDARY": 1
+        },
+        "direction": {
+          "n": 42,
+          "right": 17,
+          "wrong": 25,
+          "flat": 0,
+          "rate_pct": 40.476190476190474,
+          "descriptive_wilson_95_pct": [
+            27.042647671209085,
+            55.505954471822584
+          ]
+        },
+        "first_exit": {
+          "HORIZON": 12,
+          "OBSTACLE": 13,
+          "INVALIDATION": 16,
+          "AMBIGUOUS_OR_UNKNOWN": 1
+        },
+        "net": {
+          "n": 41,
+          "positive": 16,
+          "negative": 25,
+          "mean_pct": -0.6543955191698093,
+          "median_pct": -0.7093826067714135,
+          "mean_r": -0.38757131755683094,
+          "average_positive_pct": 0.6537277969664297,
+          "average_negative_pct": -1.4915944414970024,
+          "profit_factor": 0.28049567524441316
+        }
+      },
+      "POSITIVE": {
+        "n": 78,
+        "coins": 49,
+        "episodes": 78,
+        "states": {
+          "RESOLVED": 77,
+          "UNRESOLVED_BOUNDARY": 1
+        },
+        "direction": {
+          "n": 78,
+          "right": 28,
+          "wrong": 49,
+          "flat": 1,
+          "rate_pct": 35.8974358974359,
+          "descriptive_wilson_95_pct": [
+            26.1454020206891,
+            46.97340308576044
+          ]
+        },
+        "first_exit": {
+          "HORIZON": 25,
+          "INVALIDATION": 19,
+          "OBSTACLE": 33,
+          "AMBIGUOUS_OR_UNKNOWN": 1
+        },
+        "net": {
+          "n": 77,
+          "positive": 37,
+          "negative": 40,
+          "mean_pct": -0.4030382119619809,
+          "median_pct": -0.05845410628019215,
+          "mean_r": -0.22160424536859225,
+          "average_positive_pct": 0.8261986920209089,
+          "average_negative_pct": -1.540082348146154,
+          "profit_factor": 0.49622917309536935
+        }
+      },
+      "UNKNOWN": {
+        "n": 7,
+        "coins": 7,
+        "episodes": 7,
+        "states": {
+          "RESOLVED": 7
+        },
+        "direction": {
+          "n": 7,
+          "right": 3,
+          "wrong": 4,
+          "flat": 0,
+          "rate_pct": 42.857142857142854,
+          "descriptive_wilson_95_pct": [
+            15.821692226262684,
+            74.95457695909742
+          ]
+        },
+        "first_exit": {
+          "INVALIDATION": 4,
+          "OBSTACLE": 3
+        },
+        "net": {
+          "n": 7,
+          "positive": 3,
+          "negative": 4,
+          "mean_pct": -0.4612912995710108,
+          "median_pct": -0.47697394010114386,
+          "mean_r": -0.4846744526610204,
+          "average_positive_pct": 0.3358342919090099,
+          "average_negative_pct": -1.0591354931810262,
+          "profit_factor": 0.23781255613979044
+        }
+      }
+    },
+    "net_reward_risk": {
+      "AT_LEAST_ONE": {
+        "n": 10,
+        "coins": 9,
+        "episodes": 10,
+        "states": {
+          "RESOLVED": 10
+        },
+        "direction": {
+          "n": 10,
+          "right": 2,
+          "wrong": 8,
+          "flat": 0,
+          "rate_pct": 20.0,
+          "descriptive_wilson_95_pct": [
+            5.6680947980693315,
+            50.98431532792765
+          ]
+        },
+        "first_exit": {
+          "INVALIDATION": 5,
+          "HORIZON": 4,
+          "OBSTACLE": 1
+        },
+        "net": {
+          "n": 10,
+          "positive": 2,
+          "negative": 8,
+          "mean_pct": -1.5616739035567537,
+          "median_pct": -0.9357898614353541,
+          "mean_r": -0.4269588590182714,
+          "average_positive_pct": 3.0573480111043834,
+          "average_negative_pct": -2.716429382222038,
+          "profit_factor": 0.2813756204296644
+        }
+      },
+      "BELOW_ONE": {
+        "n": 117,
+        "coins": 64,
+        "episodes": 117,
+        "states": {
+          "RESOLVED": 115,
+          "UNRESOLVED_BOUNDARY": 2
+        },
+        "direction": {
+          "n": 117,
+          "right": 46,
+          "wrong": 70,
+          "flat": 1,
+          "rate_pct": 39.31623931623932,
+          "descriptive_wilson_95_pct": [
+            30.94022423100855,
+            48.37153595753579
+          ]
+        },
+        "first_exit": {
+          "HORIZON": 33,
+          "INVALIDATION": 34,
+          "OBSTACLE": 48,
+          "AMBIGUOUS_OR_UNKNOWN": 2
+        },
+        "net": {
+          "n": 115,
+          "positive": 54,
+          "negative": 61,
+          "mean_pct": -0.39544746668229785,
+          "median_pct": -0.15265225933203092,
+          "mean_r": -0.2789311607970095,
+          "average_positive_pct": 0.6652185779584217,
+          "average_negative_pct": -1.3343977357085086,
+          "profit_factor": 0.44130921694001085
+        }
+      }
+    },
+    "hourly_flow_acceleration": {
+      "NEGATIVE": {
+        "n": 44,
+        "coins": 35,
+        "episodes": 44,
+        "states": {
+          "RESOLVED": 44
+        },
+        "direction": {
+          "n": 44,
+          "right": 16,
+          "wrong": 27,
+          "flat": 1,
+          "rate_pct": 36.36363636363637,
+          "descriptive_wilson_95_pct": [
+            23.783334127491422,
+            51.13389272110895
+          ]
+        },
+        "first_exit": {
+          "INVALIDATION": 13,
+          "OBSTACLE": 17,
+          "HORIZON": 14
+        },
+        "net": {
+          "n": 44,
+          "positive": 20,
+          "negative": 24,
+          "mean_pct": -0.3545439415624334,
+          "median_pct": -0.4259007514391841,
+          "mean_r": -0.2602178329550913,
+          "average_positive_pct": 0.8811895021112762,
+          "average_negative_pct": -1.3843218112905247,
+          "profit_factor": 0.5304580041313955
+        }
+      },
+      "POSITIVE": {
+        "n": 83,
+        "coins": 49,
+        "episodes": 83,
+        "states": {
+          "RESOLVED": 81,
+          "UNRESOLVED_BOUNDARY": 2
+        },
+        "direction": {
+          "n": 83,
+          "right": 32,
+          "wrong": 51,
+          "flat": 0,
+          "rate_pct": 38.55421686746988,
+          "descriptive_wilson_95_pct": [
+            28.81099453171214,
+            49.310090293993525
+          ]
+        },
+        "first_exit": {
+          "HORIZON": 23,
+          "INVALIDATION": 26,
+          "OBSTACLE": 32,
+          "AMBIGUOUS_OR_UNKNOWN": 2
+        },
+        "net": {
+          "n": 81,
+          "positive": 36,
+          "negative": 45,
+          "mean_pct": -0.561645237966478,
+          "median_pct": -0.24027533072535884,
+          "mean_r": -0.3073714497754913,
+          "average_positive_pct": 0.6781308108260559,
+          "average_negative_pct": -1.553466077000505,
+          "profit_factor": 0.3492220761642472
+        }
+      }
+    },
+    "three_hour_time_block": {
+      "2026-10-15 21:00": {
+        "n": 10,
+        "coins": 10,
+        "episodes": 10,
+        "states": {
+          "RESOLVED": 10
+        },
+        "direction": {
+          "n": 10,
+          "right": 4,
+          "wrong": 6,
+          "flat": 0,
+          "rate_pct": 40.0,
+          "descriptive_wilson_95_pct": [
+            16.817758120350966,
+            68.73304525498135
+          ]
+        },
+        "first_exit": {
+          "OBSTACLE": 5,
+          "HORIZON": 1,
+          "INVALIDATION": 4
+        },
+        "net": {
+          "n": 10,
+          "positive": 4,
+          "negative": 6,
+          "mean_pct": -0.6021820754732717,
+          "median_pct": -0.2197405595171173,
+          "mean_r": -0.40264406072727255,
+          "average_positive_pct": 0.23895555500534654,
+          "average_negative_pct": -1.1629404957923506,
+          "profit_factor": 0.136983537776246
+        }
+      },
+      "2026-10-16 00:00": {
+        "n": 22,
+        "coins": 19,
+        "episodes": 22,
+        "states": {
+          "RESOLVED": 21,
+          "UNRESOLVED_BOUNDARY": 1
+        },
+        "direction": {
+          "n": 22,
+          "right": 12,
+          "wrong": 9,
+          "flat": 1,
+          "rate_pct": 54.54545454545454,
+          "descriptive_wilson_95_pct": [
+            34.65947328904156,
+            73.07998556799515
+          ]
+        },
+        "first_exit": {
+          "OBSTACLE": 11,
+          "HORIZON": 4,
+          "INVALIDATION": 6,
+          "AMBIGUOUS_OR_UNKNOWN": 1
+        },
+        "net": {
+          "n": 21,
+          "positive": 12,
+          "negative": 9,
+          "mean_pct": -0.06703267951302727,
+          "median_pct": 0.10595399188092519,
+          "mean_r": -0.23964005750238174,
+          "average_positive_pct": 0.657424889865179,
+          "average_negative_pct": -1.0329761053506357,
+          "profit_factor": 0.8485835396189488
+        }
+      },
+      "2026-10-16 03:00": {
+        "n": 23,
+        "coins": 21,
+        "episodes": 23,
+        "states": {
+          "RESOLVED": 23
+        },
+        "direction": {
+          "n": 23,
+          "right": 8,
+          "wrong": 15,
+          "flat": 0,
+          "rate_pct": 34.78260869565217,
+          "descriptive_wilson_95_pct": [
+            18.811054636982238,
+            55.11002309310836
+          ]
+        },
+        "first_exit": {
+          "INVALIDATION": 9,
+          "OBSTACLE": 6,
+          "HORIZON": 8
+        },
+        "net": {
+          "n": 23,
+          "positive": 8,
+          "negative": 15,
+          "mean_pct": -1.2495948001675656,
+          "median_pct": -0.4415155023800296,
+          "mean_r": -0.37436606473226114,
+          "average_positive_pct": 0.8461236617158228,
+          "average_negative_pct": -2.3673113131720394,
+          "profit_factor": 0.19062383151898984
+        }
+      },
+      "2026-10-16 06:00": {
+        "n": 20,
+        "coins": 16,
+        "episodes": 20,
+        "states": {
+          "RESOLVED": 19,
+          "UNRESOLVED_BOUNDARY": 1
+        },
+        "direction": {
+          "n": 20,
+          "right": 8,
+          "wrong": 12,
+          "flat": 0,
+          "rate_pct": 40.0,
+          "descriptive_wilson_95_pct": [
+            21.880396741419272,
+            61.342205768479396
+          ]
+        },
+        "first_exit": {
+          "OBSTACLE": 11,
+          "INVALIDATION": 6,
+          "HORIZON": 2,
+          "AMBIGUOUS_OR_UNKNOWN": 1
+        },
+        "net": {
+          "n": 19,
+          "positive": 11,
+          "negative": 8,
+          "mean_pct": -0.3079753163986206,
+          "median_pct": 0.12043984476066721,
+          "mean_r": -0.19560219109480187,
+          "average_positive_pct": 0.7022231659453545,
+          "average_negative_pct": -1.6969982296215864,
+          "profit_factor": 0.568979293154697
+        }
+      },
+      "2026-10-16 09:00": {
+        "n": 25,
+        "coins": 22,
+        "episodes": 25,
+        "states": {
+          "RESOLVED": 25
+        },
+        "direction": {
+          "n": 25,
+          "right": 6,
+          "wrong": 19,
+          "flat": 0,
+          "rate_pct": 24.0,
+          "descriptive_wilson_95_pct": [
+            11.496157730326725,
+            43.43005995523856
+          ]
+        },
+        "first_exit": {
+          "HORIZON": 14,
+          "OBSTACLE": 5,
+          "INVALIDATION": 6
+        },
+        "net": {
+          "n": 25,
+          "positive": 8,
+          "negative": 17,
+          "mean_pct": -0.7012289779628602,
+          "median_pct": -0.5947823523631655,
+          "mean_r": -0.3828619918153644,
+          "average_positive_pct": 0.634979504890894,
+          "average_negative_pct": -1.3300329698940385,
+          "profit_factor": 0.22466652437822224
+        }
+      },
+      "2026-10-16 12:00": {
+        "n": 18,
+        "coins": 16,
+        "episodes": 18,
+        "states": {
+          "RESOLVED": 18
+        },
+        "direction": {
+          "n": 18,
+          "right": 8,
+          "wrong": 10,
+          "flat": 0,
+          "rate_pct": 44.44444444444444,
+          "descriptive_wilson_95_pct": [
+            24.559231101389127,
+            66.28393057174837
+          ]
+        },
+        "first_exit": {
+          "OBSTACLE": 10,
+          "INVALIDATION": 5,
+          "HORIZON": 3
+        },
+        "net": {
+          "n": 18,
+          "positive": 10,
+          "negative": 8,
+          "mean_pct": 0.26174903307064834,
+          "median_pct": 0.19024861570131085,
+          "mean_r": -0.07994319428380346,
+          "average_positive_pct": 1.2415115246669275,
+          "average_negative_pct": -0.9629540814247006,
+          "profit_factor": 1.6115923238391834
+        }
+      },
+      "2026-10-16 15:00": {
+        "n": 9,
+        "coins": 9,
+        "episodes": 9,
+        "states": {
+          "RESOLVED": 9
+        },
+        "direction": {
+          "n": 9,
+          "right": 2,
+          "wrong": 7,
+          "flat": 0,
+          "rate_pct": 22.22222222222222,
+          "descriptive_wilson_95_pct": [
+            6.322376231222723,
+            54.74166563271946
+          ]
+        },
+        "first_exit": {
+          "HORIZON": 5,
+          "INVALIDATION": 3,
+          "OBSTACLE": 1
+        },
+        "net": {
+          "n": 9,
+          "positive": 3,
+          "negative": 6,
+          "mean_pct": -0.6946930455886516,
+          "median_pct": -0.8141853720594281,
+          "mean_r": -0.4389335394311396,
+          "average_positive_pct": 0.4010609762126973,
+          "average_negative_pct": -1.2425700564893263,
+          "profit_factor": 0.16138364759321017
+        }
+      }
+    },
+    "context_5m": {
+      "ALIGNED": {
+        "n": 104,
+        "coins": 63,
+        "episodes": 104,
+        "states": {
+          "RESOLVED": 102,
+          "UNRESOLVED_BOUNDARY": 2
+        },
+        "direction": {
+          "n": 104,
+          "right": 39,
+          "wrong": 64,
+          "flat": 1,
+          "rate_pct": 37.5,
+          "descriptive_wilson_95_pct": [
+            28.79712524652439,
+            47.09344017535363
+          ]
+        },
+        "first_exit": {
+          "HORIZON": 33,
+          "INVALIDATION": 30,
+          "OBSTACLE": 39,
+          "AMBIGUOUS_OR_UNKNOWN": 2
+        },
+        "net": {
+          "n": 102,
+          "positive": 46,
+          "negative": 56,
+          "mean_pct": -0.5151620528249815,
+          "median_pct": -0.3133424213422162,
+          "mean_r": -0.2760396335894453,
+          "average_positive_pct": 0.7089042443187287,
+          "average_negative_pct": -1.5206450826216007,
+          "profit_factor": 0.3829389298957725
+        }
+      },
+      "OPPOSING": {
+        "n": 4,
+        "coins": 4,
+        "episodes": 4,
+        "states": {
+          "RESOLVED": 4
+        },
+        "direction": {
+          "n": 4,
+          "right": 0,
+          "wrong": 4,
+          "flat": 0,
+          "rate_pct": 0.0,
+          "descriptive_wilson_95_pct": [
+            0.0,
+            48.990002040399915
+          ]
+        },
+        "first_exit": {
+          "INVALIDATION": 3,
+          "HORIZON": 1
+        },
+        "net": {
+          "n": 4,
+          "positive": 0,
+          "negative": 4,
+          "mean_pct": -0.9579512739496974,
+          "median_pct": -0.7793839202364092,
+          "mean_r": -0.8549983727364656,
+          "average_positive_pct": null,
+          "average_negative_pct": -0.9579512739496974,
+          "profit_factor": 0.0
+        }
+      },
+      "RANGE": {
+        "n": 19,
+        "coins": 16,
+        "episodes": 19,
+        "states": {
+          "RESOLVED": 19
+        },
+        "direction": {
+          "n": 19,
+          "right": 9,
+          "wrong": 10,
+          "flat": 0,
+          "rate_pct": 47.368421052631575,
+          "descriptive_wilson_95_pct": [
+            27.329505487448547,
+            68.29251748817488
+          ]
+        },
+        "first_exit": {
+          "OBSTACLE": 10,
+          "INVALIDATION": 6,
+          "HORIZON": 3
+        },
+        "net": {
+          "n": 19,
+          "positive": 10,
+          "negative": 9,
+          "mean_pct": -0.2481506957939411,
+          "median_pct": 0.030760749724368097,
+          "mean_r": -0.25108610340892284,
+          "average_positive_pct": 0.9426903993302018,
+          "average_negative_pct": -1.5713074681541,
+          "profit_factor": 0.6666001392229332
+        }
+      }
+    },
+    "context_15m": {
+      "ALIGNED": {
+        "n": 74,
+        "coins": 50,
+        "episodes": 74,
+        "states": {
+          "RESOLVED": 72,
+          "UNRESOLVED_BOUNDARY": 2
+        },
+        "direction": {
+          "n": 74,
+          "right": 24,
+          "wrong": 49,
+          "flat": 1,
+          "rate_pct": 32.432432432432435,
+          "descriptive_wilson_95_pct": [
+            22.863921647459506,
+            43.73491496432648
+          ]
+        },
+        "first_exit": {
+          "INVALIDATION": 24,
+          "HORIZON": 23,
+          "OBSTACLE": 25,
+          "AMBIGUOUS_OR_UNKNOWN": 2
+        },
+        "net": {
+          "n": 72,
+          "positive": 28,
+          "negative": 44,
+          "mean_pct": -0.7494478450059214,
+          "median_pct": -0.5735373050414214,
+          "mean_r": -0.3523888398809844,
+          "average_positive_pct": 0.742621685782334,
+          "average_negative_pct": -1.6989466373257205,
+          "profit_factor": 0.278159081647682
+        }
+      },
+      "OPPOSING": {
+        "n": 23,
+        "coins": 21,
+        "episodes": 23,
+        "states": {
+          "RESOLVED": 23
+        },
+        "direction": {
+          "n": 23,
+          "right": 11,
+          "wrong": 12,
+          "flat": 0,
+          "rate_pct": 47.82608695652174,
+          "descriptive_wilson_95_pct": [
+            29.23686953994572,
+            67.03757013578151
+          ]
+        },
+        "first_exit": {
+          "HORIZON": 9,
+          "INVALIDATION": 5,
+          "OBSTACLE": 9
+        },
+        "net": {
+          "n": 23,
+          "positive": 12,
+          "negative": 11,
+          "mean_pct": 0.07267479639895731,
+          "median_pct": 0.01803725579280241,
+          "mean_r": -0.1319389045519215,
+          "average_positive_pct": 0.9314648085017218,
+          "average_negative_pct": -0.8641870349858767,
+          "profit_factor": 1.1758373897301415
+        }
+      },
+      "RANGE": {
+        "n": 30,
+        "coins": 27,
+        "episodes": 30,
+        "states": {
+          "RESOLVED": 30
+        },
+        "direction": {
+          "n": 30,
+          "right": 13,
+          "wrong": 17,
+          "flat": 0,
+          "rate_pct": 43.333333333333336,
+          "descriptive_wilson_95_pct": [
+            27.37723743061511,
+            60.80299045459127
+          ]
+        },
+        "first_exit": {
+          "INVALIDATION": 10,
+          "OBSTACLE": 15,
+          "HORIZON": 5
+        },
+        "net": {
+          "n": 30,
+          "positive": 16,
+          "negative": 14,
+          "mean_pct": -0.29348243935938206,
+          "median_pct": 0.024906354807480435,
+          "mean_r": -0.26466936019045806,
+          "average_positive_pct": 0.6290946455023451,
+          "average_negative_pct": -1.3478562506299274,
+          "profit_factor": 0.533413936990332
+        }
+      }
+    },
+    "context_1h": {
+      "ALIGNED": {
+        "n": 127,
+        "coins": 68,
+        "episodes": 127,
+        "states": {
+          "RESOLVED": 125,
+          "UNRESOLVED_BOUNDARY": 2
+        },
+        "direction": {
+          "n": 127,
+          "right": 48,
+          "wrong": 78,
+          "flat": 1,
+          "rate_pct": 37.79527559055118,
+          "descriptive_wilson_95_pct": [
+            29.837563538262497,
+            46.469665966726744
+          ]
+        },
+        "first_exit": {
+          "HORIZON": 37,
+          "INVALIDATION": 39,
+          "OBSTACLE": 49,
+          "AMBIGUOUS_OR_UNKNOWN": 2
+        },
+        "net": {
+          "n": 125,
+          "positive": 56,
+          "negative": 69,
+          "mean_pct": -0.4887455816322543,
+          "median_pct": -0.3864095119590735,
+          "mean_r": -0.2907733766547105,
+          "average_positive_pct": 0.7506517719993488,
+          "average_negative_pct": -1.4946332889274685,
+          "profit_factor": 0.407608094282022
+        }
+      }
+    },
+    "context_4h": {
+      "ALIGNED": {
+        "n": 57,
+        "coins": 33,
+        "episodes": 57,
+        "states": {
+          "RESOLVED": 56,
+          "UNRESOLVED_BOUNDARY": 1
+        },
+        "direction": {
+          "n": 57,
+          "right": 22,
+          "wrong": 34,
+          "flat": 1,
+          "rate_pct": 38.59649122807017,
+          "descriptive_wilson_95_pct": [
+            27.06253699552471,
+            51.57050355567709
+          ]
+        },
+        "first_exit": {
+          "HORIZON": 16,
+          "INVALIDATION": 19,
+          "OBSTACLE": 21,
+          "AMBIGUOUS_OR_UNKNOWN": 1
+        },
+        "net": {
+          "n": 56,
+          "positive": 25,
+          "negative": 31,
+          "mean_pct": -0.7060090546219143,
+          "median_pct": -0.5071147544894459,
+          "mean_r": -0.30128696308857833,
+          "average_positive_pct": 0.880088554019279,
+          "average_negative_pct": -1.9851200293325542,
+          "profit_factor": 0.35753446814253853
+        }
+      },
+      "OPPOSING": {
+        "n": 30,
+        "coins": 22,
+        "episodes": 30,
+        "states": {
+          "RESOLVED": 29,
+          "UNRESOLVED_BOUNDARY": 1
+        },
+        "direction": {
+          "n": 30,
+          "right": 12,
+          "wrong": 18,
+          "flat": 0,
+          "rate_pct": 40.0,
+          "descriptive_wilson_95_pct": [
+            24.590394326083402,
+            57.67994750172616
+          ]
+        },
+        "first_exit": {
+          "OBSTACLE": 12,
+          "HORIZON": 8,
+          "INVALIDATION": 9,
+          "AMBIGUOUS_OR_UNKNOWN": 1
+        },
+        "net": {
+          "n": 29,
+          "positive": 13,
+          "negative": 16,
+          "mean_pct": -0.49036408949492105,
+          "median_pct": -0.06565115500501956,
+          "mean_r": -0.30320896471172976,
+          "average_positive_pct": 0.45393662611952496,
+          "average_negative_pct": -1.2576084209316585,
+          "profit_factor": 0.29327372700707827
+        }
+      },
+      "RANGE": {
+        "n": 40,
+        "coins": 27,
+        "episodes": 40,
+        "states": {
+          "RESOLVED": 40
+        },
+        "direction": {
+          "n": 40,
+          "right": 14,
+          "wrong": 26,
+          "flat": 0,
+          "rate_pct": 35.0,
+          "descriptive_wilson_95_pct": [
+            22.13433317104915,
+            50.494403006462626
+          ]
+        },
+        "first_exit": {
+          "INVALIDATION": 11,
+          "HORIZON": 13,
+          "OBSTACLE": 16
+        },
+        "net": {
+          "n": 40,
+          "positive": 18,
+          "negative": 22,
+          "mean_pct": -0.18340330124629683,
+          "median_pct": -0.3278521709417445,
+          "mean_r": -0.2670385543059566,
+          "average_positive_pct": 0.7851727356626521,
+          "average_negative_pct": -0.9758746041718005,
+          "profit_factor": 0.658295700805188
+        }
+      }
+    },
+    "context_1d": {
+      "ALIGNED": {
+        "n": 57,
+        "coins": 34,
+        "episodes": 57,
+        "states": {
+          "RESOLVED": 56,
+          "UNRESOLVED_BOUNDARY": 1
+        },
+        "direction": {
+          "n": 57,
+          "right": 23,
+          "wrong": 33,
+          "flat": 1,
+          "rate_pct": 40.35087719298245,
+          "descriptive_wilson_95_pct": [
+            28.617323526539984,
+            53.30294155524615
+          ]
+        },
+        "first_exit": {
+          "HORIZON": 12,
+          "OBSTACLE": 25,
+          "INVALIDATION": 19,
+          "AMBIGUOUS_OR_UNKNOWN": 1
+        },
+        "net": {
+          "n": 56,
+          "positive": 27,
+          "negative": 29,
+          "mean_pct": -0.652108538087489,
+          "median_pct": -0.03437989115950807,
+          "mean_r": -0.2939570915302254,
+          "average_positive_pct": 0.8352396330164009,
+          "average_negative_pct": -2.0368809732531794,
+          "profit_factor": 0.38177827272004594
+        }
+      },
+      "OPPOSING": {
+        "n": 62,
+        "coins": 38,
+        "episodes": 62,
+        "states": {
+          "RESOLVED": 61,
+          "UNRESOLVED_BOUNDARY": 1
+        },
+        "direction": {
+          "n": 62,
+          "right": 21,
+          "wrong": 41,
+          "flat": 0,
+          "rate_pct": 33.87096774193548,
+          "descriptive_wilson_95_pct": [
+            23.34153463018197,
+            46.282532828689014
+          ]
+        },
+        "first_exit": {
+          "INVALIDATION": 17,
+          "HORIZON": 23,
+          "OBSTACLE": 21,
+          "AMBIGUOUS_OR_UNKNOWN": 1
+        },
+        "net": {
+          "n": 61,
+          "positive": 26,
+          "negative": 35,
+          "mean_pct": -0.31656749783914856,
+          "median_pct": -0.4415155023800296,
+          "mean_r": -0.2800369025041175,
+          "average_positive_pct": 0.7244776292289913,
+          "average_negative_pct": -1.089915306518338,
+          "profit_factor": 0.493784589035781
+        }
+      },
+      "RANGE": {
+        "n": 8,
+        "coins": 6,
+        "episodes": 8,
+        "states": {
+          "RESOLVED": 8
+        },
+        "direction": {
+          "n": 8,
+          "right": 4,
+          "wrong": 4,
+          "flat": 0,
+          "rate_pct": 50.0,
+          "descriptive_wilson_95_pct": [
+            21.521252682444185,
+            78.47874731755581
+          ]
+        },
+        "first_exit": {
+          "OBSTACLE": 3,
+          "INVALIDATION": 3,
+          "HORIZON": 2
+        },
+        "net": {
+          "n": 8,
+          "positive": 3,
+          "negative": 5,
+          "mean_pct": -0.6580627753680426,
+          "median_pct": -0.299364639783761,
+          "mean_r": -0.3503529879243773,
+          "average_positive_pct": 0.21620359352231305,
+          "average_negative_pct": -1.1826225967022561,
+          "profit_factor": 0.10969023970548014
+        }
+      }
+    }
+  },
+  "endpoint_groups": {
+    "RIGHT": {
+      "stats": {
+        "n": 48,
+        "coins": 37,
+        "episodes": 48,
+        "states": {
+          "RESOLVED": 47,
+          "UNRESOLVED_BOUNDARY": 1
+        },
+        "direction": {
+          "n": 48,
+          "right": 48,
+          "wrong": 0,
+          "flat": 0,
+          "rate_pct": 100.0,
+          "descriptive_wilson_95_pct": [
+            92.58973488472576,
+            99.99999999999999
+          ]
+        },
+        "first_exit": {
+          "HORIZON": 13,
+          "OBSTACLE": 31,
+          "INVALIDATION": 3,
+          "AMBIGUOUS_OR_UNKNOWN": 1
+        },
+        "net": {
+          "n": 47,
+          "positive": 38,
+          "negative": 9,
+          "mean_pct": 0.6214963712111466,
+          "median_pct": 0.21541232986389575,
+          "mean_r": 0.15311510924489083,
+          "average_positive_pct": 0.8984463664941863,
+          "average_negative_pct": -0.5478480533172431,
+          "profit_factor": 6.924256079978972
+        }
+      },
+      "signal_time_features": {
+        "volume_5m_multiple": {
+          "n": 48,
+          "median": 0.995,
+          "mean": 1.243125
+        },
+        "volume_15m_multiple": {
+          "n": 48,
+          "median": 0.68,
+          "mean": 0.879375
+        },
+        "gross_room_pct": {
+          "n": 48,
+          "median": 0.8117192521708798,
+          "mean": 1.6350916540850438
+        },
+        "loss_with_cost_pct": {
+          "n": 48,
+          "median": 1.891377269806724,
+          "mean": 2.871312601289869
+        },
+        "net_reward_risk": {
+          "n": 48,
+          "median": 0.28150381895317067,
+          "mean": 0.34883749086772875
+        },
+        "oi_change_1h": {
+          "n": 45,
+          "median": -0.005544966441173305,
+          "mean": -0.15063524523500313
+        },
+        "funding_pct": {
+          "n": 45,
+          "median": 0.005,
+          "mean": 0.002450533333333333
+        },
+        "taker_ratio": {
+          "n": 48,
+          "median": 1.0786067133482904,
+          "mean": 1.122008193997381
+        },
+        "long_short_ratio": {
+          "n": 45,
+          "median": 1.2717,
+          "mean": 1.3166133333333334
+        },
+        "signed_previous_hour_price_move_pct": {
+          "n": 48,
+          "median": 0.9030411299324248,
+          "mean": 1.2293699959423607
+        },
+        "signed_distance_from_trigger_pct": {
+          "n": 48,
+          "median": 0.13559892985470778,
+          "mean": 0.2456949381140635
+        },
+        "watch_to_ready_minutes": {
+          "n": 33,
+          "median": 13.356916666666667,
+          "mean": 25.658463636363635
+        },
+        "move_from_watch_to_ready_pct": {
+          "n": 33,
+          "median": 0.7905138339921125,
+          "mean": 1.0160078236904275
+        }
+      }
+    },
+    "WRONG": {
+      "stats": {
+        "n": 78,
+        "coins": 50,
+        "episodes": 78,
+        "states": {
+          "RESOLVED": 77,
+          "UNRESOLVED_BOUNDARY": 1
+        },
+        "direction": {
+          "n": 78,
+          "right": 0,
+          "wrong": 78,
+          "flat": 0,
+          "rate_pct": 0.0,
+          "descriptive_wilson_95_pct": [
+            0.0,
+            4.693945377411976
+          ]
+        },
+        "first_exit": {
+          "HORIZON": 24,
+          "INVALIDATION": 36,
+          "OBSTACLE": 17,
+          "AMBIGUOUS_OR_UNKNOWN": 1
+        },
+        "net": {
+          "n": 77,
+          "positive": 17,
+          "negative": 60,
+          "mean_pct": -1.1759608012520808,
+          "median_pct": -0.8141853720594281,
+          "mean_r": -0.5699997050817552,
+          "average_positive_pct": 0.4500048682194064,
+          "average_negative_pct": -1.6366510742690024,
+          "profit_factor": 0.07790382527673428
+        }
+      },
+      "signal_time_features": {
+        "volume_5m_multiple": {
+          "n": 78,
+          "median": 1.1150000000000002,
+          "mean": 1.275
+        },
+        "volume_15m_multiple": {
+          "n": 78,
+          "median": 0.845,
+          "mean": 0.963974358974359
+        },
+        "gross_room_pct": {
+          "n": 78,
+          "median": 0.685410137847011,
+          "mean": 1.6949652685464442
+        },
+        "loss_with_cost_pct": {
+          "n": 78,
+          "median": 1.5956671465065553,
+          "mean": 2.479709878319596
+        },
+        "net_reward_risk": {
+          "n": 78,
+          "median": 0.24412061879083174,
+          "mean": 0.45069690297775034
+        },
+        "oi_change_1h": {
+          "n": 74,
+          "median": 0.07436163168385024,
+          "mean": 0.368132637057356
+        },
+        "funding_pct": {
+          "n": 74,
+          "median": 0.005,
+          "mean": -0.001494418918918919
+        },
+        "taker_ratio": {
+          "n": 78,
+          "median": 1.1871004892044204,
+          "mean": 1.3151860610932304
+        },
+        "long_short_ratio": {
+          "n": 74,
+          "median": 1.2048999999999999,
+          "mean": 1.217727027027027
+        },
+        "signed_previous_hour_price_move_pct": {
+          "n": 78,
+          "median": 0.6176750404525255,
+          "mean": 0.651208605889756
+        },
+        "signed_distance_from_trigger_pct": {
+          "n": 78,
+          "median": 0.10526539325178552,
+          "mean": 0.22890926136201759
+        },
+        "watch_to_ready_minutes": {
+          "n": 51,
+          "median": 15.395366666666666,
+          "mean": 27.97420163398693
+        },
+        "move_from_watch_to_ready_pct": {
+          "n": 50,
+          "median": 0.5361665391933168,
+          "mean": 0.876377498684463
+        }
+      }
+    },
+    "FLAT": {
+      "stats": {
+        "n": 1,
+        "coins": 1,
+        "episodes": 1,
+        "states": {
+          "RESOLVED": 1
+        },
+        "direction": {
+          "n": 1,
+          "right": 0,
+          "wrong": 0,
+          "flat": 1,
+          "rate_pct": 0.0,
+          "descriptive_wilson_95_pct": [
+            0.0,
+            79.34567085261071
+          ]
+        },
+        "first_exit": {
+          "OBSTACLE": 1
+        },
+        "net": {
+          "n": 1,
+          "positive": 1,
+          "negative": 0,
+          "mean_pct": 0.24545454545454898,
+          "median_pct": 0.24545454545454898,
+          "mean_r": 0.346895074946474,
+          "average_positive_pct": 0.24545454545454898,
+          "average_negative_pct": null,
+          "profit_factor": null
+        }
+      },
+      "signal_time_features": {
+        "volume_5m_multiple": {
+          "n": 1,
+          "median": 0.75,
+          "mean": 0.75
+        },
+        "volume_15m_multiple": {
+          "n": 1,
+          "median": 1.14,
+          "mean": 1.14
+        },
+        "gross_room_pct": {
+          "n": 1,
+          "median": 0.5454545454545484,
+          "mean": 0.5454545454545484
+        },
+        "loss_with_cost_pct": {
+          "n": 1,
+          "median": 0.7075757575757531,
+          "mean": 0.7075757575757531
+        },
+        "net_reward_risk": {
+          "n": 1,
+          "median": 0.3468950749464732,
+          "mean": 0.3468950749464732
+        },
+        "oi_change_1h": {
+          "n": 1,
+          "median": 0.7878551357369368,
+          "mean": 0.7878551357369368
+        },
+        "funding_pct": {
+          "n": 1,
+          "median": -0.020904,
+          "mean": -0.020904
+        },
+        "taker_ratio": {
+          "n": 1,
+          "median": 1.4910075306523134,
+          "mean": 1.4910075306523134
+        },
+        "long_short_ratio": {
+          "n": 1,
+          "median": 1.4426,
+          "mean": 1.4426
+        },
+        "signed_previous_hour_price_move_pct": {
+          "n": 1,
+          "median": 0.990990990990992,
+          "mean": 0.990990990990992
+        },
+        "signed_distance_from_trigger_pct": {
+          "n": 1,
+          "median": -0.0,
+          "mean": 0.0
+        }
+      }
+    }
+  },
+  "sensitivities": {
+    "compression": {
+      "direction_advantage_pp": 26.988036593947914,
+      "leave_one_coin_out_advantage_range_pp": [
+        23.922902494331066,
+        30.187969924812023
+      ],
+      "leave_one_time_block_out_advantage_range_pp": [
+        22.401960784313726,
+        36.66666666666666
+      ],
+      "by_side": {
+        "LONG": {
+          "group": {
+            "n": 16,
+            "coins": 14,
+            "episodes": 16,
+            "states": {
+              "RESOLVED": 16
+            },
+            "direction": {
+              "n": 16,
+              "right": 8,
+              "wrong": 8,
+              "flat": 0,
+              "rate_pct": 50.0,
+              "descriptive_wilson_95_pct": [
+                27.99923761135083,
+                72.00076238864916
+              ]
+            },
+            "first_exit": {
+              "OBSTACLE": 10,
+              "HORIZON": 2,
+              "INVALIDATION": 4
+            },
+            "net": {
+              "n": 16,
+              "positive": 11,
+              "negative": 5,
+              "mean_pct": -0.5077045839186588,
+              "median_pct": 0.3390128260150063,
+              "mean_r": -0.0029584433948452718,
+              "average_positive_pct": 1.2056586457443454,
+              "average_negative_pct": -4.2771036891772685,
+              "profit_factor": 0.620150740640047
+            }
+          },
+          "rest": {
+            "n": 69,
+            "coins": 47,
+            "episodes": 69,
+            "states": {
+              "RESOLVED": 69
+            },
+            "direction": {
+              "n": 69,
+              "right": 21,
+              "wrong": 48,
+              "flat": 0,
+              "rate_pct": 30.434782608695656,
+              "descriptive_wilson_95_pct": [
+                20.84947626304856,
+                42.08379263823863
+              ]
+            },
+            "first_exit": {
+              "HORIZON": 23,
+              "INVALIDATION": 21,
+              "OBSTACLE": 25
+            },
+            "net": {
+              "n": 69,
+              "positive": 26,
+              "negative": 43,
+              "mean_pct": -0.5149389398868522,
+              "median_pct": -0.5522922577196774,
+              "mean_r": -0.34682971460219886,
+              "average_positive_pct": 0.7853602431177927,
+              "average_negative_pct": -1.301166352866405,
+              "profit_factor": 0.3649563971314241
+            }
+          }
+        },
+        "SHORT": {
+          "group": {
+            "n": 13,
+            "coins": 11,
+            "episodes": 13,
+            "states": {
+              "RESOLVED": 13
+            },
+            "direction": {
+              "n": 13,
+              "right": 9,
+              "wrong": 4,
+              "flat": 0,
+              "rate_pct": 69.23076923076923,
+              "descriptive_wilson_95_pct": [
+                42.36888781333764,
+                87.31950283838191
+              ]
+            },
+            "first_exit": {
+              "OBSTACLE": 5,
+              "HORIZON": 5,
+              "INVALIDATION": 3
+            },
+            "net": {
+              "n": 13,
+              "positive": 7,
+              "negative": 6,
+              "mean_pct": -0.05142881435696829,
+              "median_pct": 0.10595399188092519,
+              "mean_r": -0.14379199431254305,
+              "average_positive_pct": 0.7325600616821624,
+              "average_negative_pct": -0.9660825030692874,
+              "profit_factor": 0.8846588180415068
+            }
+          },
+          "rest": {
+            "n": 29,
+            "coins": 20,
+            "episodes": 29,
+            "states": {
+              "RESOLVED": 27,
+              "UNRESOLVED_BOUNDARY": 2
+            },
+            "direction": {
+              "n": 29,
+              "right": 10,
+              "wrong": 18,
+              "flat": 1,
+              "rate_pct": 34.48275862068966,
+              "descriptive_wilson_95_pct": [
+                19.94050874919048,
+                52.655223492844016
+              ]
+            },
+            "first_exit": {
+              "INVALIDATION": 11,
+              "HORIZON": 7,
+              "OBSTACLE": 9,
+              "AMBIGUOUS_OR_UNKNOWN": 2
+            },
+            "net": {
+              "n": 27,
+              "positive": 12,
+              "negative": 15,
+              "mean_pct": -0.6211319600925873,
+              "median_pct": -0.47697394010114386,
+              "mean_r": -0.38884410199653724,
+              "average_positive_pct": 0.26891394799483226,
+              "average_negative_pct": -1.333168686562523,
+              "profit_factor": 0.16136829537345765
+            }
+          }
+        }
+      },
+      "equal_coin_weight_group_direction_rate_pct": 54.166666666666664,
+      "equal_coin_weight_group_net_mean_pct": -0.29852404962486623
+    },
+    "high_volume_15m": {
+      "direction_advantage_pp": -16.19398752127056,
+      "leave_one_coin_out_advantage_range_pp": [
+        -18.02325581395349,
+        -14.63414634146341
+      ],
+      "leave_one_time_block_out_advantage_range_pp": [
+        -22.62483429076447,
+        -13.445378151260499
+      ],
+      "by_side": {
+        "LONG": {
+          "group": {
+            "n": 30,
+            "coins": 26,
+            "episodes": 30,
+            "states": {
+              "RESOLVED": 30
+            },
+            "direction": {
+              "n": 30,
+              "right": 8,
+              "wrong": 22,
+              "flat": 0,
+              "rate_pct": 26.666666666666668,
+              "descriptive_wilson_95_pct": [
+                14.182495553910618,
+                44.44830204431169
+              ]
+            },
+            "first_exit": {
+              "HORIZON": 14,
+              "INVALIDATION": 9,
+              "OBSTACLE": 7
+            },
+            "net": {
+              "n": 30,
+              "positive": 8,
+              "negative": 22,
+              "mean_pct": -1.3053790962150216,
+              "median_pct": -0.9664714213672096,
+              "mean_r": -0.4331979963104117,
+              "average_positive_pct": 0.8452925543070896,
+              "average_negative_pct": -2.0874415145866982,
+              "profit_factor": 0.14725160370204807
+            }
+          },
+          "rest": {
+            "n": 55,
+            "coins": 35,
+            "episodes": 55,
+            "states": {
+              "RESOLVED": 55
+            },
+            "direction": {
+              "n": 55,
+              "right": 21,
+              "wrong": 34,
+              "flat": 0,
+              "rate_pct": 38.18181818181819,
+              "descriptive_wilson_95_pct": [
+                26.515766317415235,
+                51.3910207176076
+              ]
+            },
+            "first_exit": {
+              "INVALIDATION": 16,
+              "OBSTACLE": 28,
+              "HORIZON": 11
+            },
+            "net": {
+              "n": 55,
+              "positive": 29,
+              "negative": 26,
+              "mean_pct": -0.08168522378983085,
+              "median_pct": 0.041005967604424154,
+              "mean_r": -0.19968446386467084,
+              "average_positive_pct": 0.9282507237859895,
+              "average_negative_pct": -1.2081522422397843,
+              "profit_factor": 0.8569752555448533
+            }
+          }
+        },
+        "SHORT": {
+          "group": {
+            "n": 11,
+            "coins": 11,
+            "episodes": 11,
+            "states": {
+              "RESOLVED": 11
+            },
+            "direction": {
+              "n": 11,
+              "right": 3,
+              "wrong": 7,
+              "flat": 1,
+              "rate_pct": 27.27272727272727,
+              "descriptive_wilson_95_pct": [
+                9.745880573921466,
+                56.56502930102463
+              ]
+            },
+            "first_exit": {
+              "INVALIDATION": 4,
+              "HORIZON": 5,
+              "OBSTACLE": 2
+            },
+            "net": {
+              "n": 11,
+              "positive": 4,
+              "negative": 7,
+              "mean_pct": -0.9590479830799946,
+              "median_pct": -0.648520280622533,
+              "mean_r": -0.44308032415876775,
+              "average_positive_pct": 0.3447965891549251,
+              "average_negative_pct": -1.7041020243570917,
+              "profit_factor": 0.11561902958748925
+            }
+          },
+          "rest": {
+            "n": 31,
+            "coins": 21,
+            "episodes": 31,
+            "states": {
+              "RESOLVED": 29,
+              "UNRESOLVED_BOUNDARY": 2
+            },
+            "direction": {
+              "n": 31,
+              "right": 16,
+              "wrong": 15,
+              "flat": 0,
+              "rate_pct": 51.61290322580645,
+              "descriptive_wilson_95_pct": [
+                34.84011828697318,
+                68.03001396872116
+              ]
+            },
+            "first_exit": {
+              "HORIZON": 7,
+              "OBSTACLE": 12,
+              "INVALIDATION": 10,
+              "AMBIGUOUS_OR_UNKNOWN": 2
+            },
+            "net": {
+              "n": 29,
+              "positive": 15,
+              "negative": 14,
+              "mean_pct": -0.2375727481124312,
+              "median_pct": 0.01803725579280241,
+              "mean_r": -0.2584207970421765,
+              "average_positive_pct": 0.4650467634062282,
+              "average_negative_pct": -0.9903793675967092,
+              "profit_factor": 0.5031045735261251
+            }
+          }
+        }
+      },
+      "equal_coin_weight_group_direction_rate_pct": 27.314814814814813,
+      "equal_coin_weight_group_net_mean_pct": -0.968086820895335
+    }
+  },
+  "paired_horizons": {
+    "15": {
+      "other": {
+        "n": 127,
+        "coins": 68,
+        "episodes": 127,
+        "states": {
+          "RESOLVED": 125,
+          "UNRESOLVED_BOUNDARY": 2
+        },
+        "direction": {
+          "n": 127,
+          "right": 63,
+          "wrong": 64,
+          "flat": 0,
+          "rate_pct": 49.60629921259843,
+          "descriptive_wilson_95_pct": [
+            41.050635287739304,
+            58.18508179306681
+          ]
+        },
+        "first_exit": {
+          "HORIZON": 80,
+          "OBSTACLE": 32,
+          "INVALIDATION": 13,
+          "AMBIGUOUS_OR_UNKNOWN": 2
+        },
+        "net": {
+          "n": 125,
+          "positive": 45,
+          "negative": 80,
+          "mean_pct": -0.4025850338733169,
+          "median_pct": -0.2758053366514687,
+          "mean_r": -0.22886357163847315,
+          "average_positive_pct": 0.6483055901816531,
+          "average_negative_pct": -0.9937110099042374,
+          "profit_factor": 0.36697982697436626
+        }
+      },
+      "same_messages_at_60m": {
+        "n": 127,
+        "coins": 68,
+        "episodes": 127,
+        "states": {
+          "RESOLVED": 125,
+          "UNRESOLVED_BOUNDARY": 2
+        },
+        "direction": {
+          "n": 127,
+          "right": 48,
+          "wrong": 78,
+          "flat": 1,
+          "rate_pct": 37.79527559055118,
+          "descriptive_wilson_95_pct": [
+            29.837563538262497,
+            46.469665966726744
+          ]
+        },
+        "first_exit": {
+          "HORIZON": 37,
+          "INVALIDATION": 39,
+          "OBSTACLE": 49,
+          "AMBIGUOUS_OR_UNKNOWN": 2
+        },
+        "net": {
+          "n": 125,
+          "positive": 56,
+          "negative": 69,
+          "mean_pct": -0.4887455816322543,
+          "median_pct": -0.3864095119590735,
+          "mean_r": -0.2907733766547105,
+          "average_positive_pct": 0.7506517719993488,
+          "average_negative_pct": -1.4946332889274685,
+          "profit_factor": 0.407608094282022
+        }
+      }
+    },
+    "30": {
+      "other": {
+        "n": 127,
+        "coins": 68,
+        "episodes": 127,
+        "states": {
+          "RESOLVED": 125,
+          "UNRESOLVED_BOUNDARY": 2
+        },
+        "direction": {
+          "n": 127,
+          "right": 53,
+          "wrong": 74,
+          "flat": 0,
+          "rate_pct": 41.732283464566926,
+          "descriptive_wilson_95_pct": [
+            33.52200013017047,
+            50.42805856675773
+          ]
+        },
+        "first_exit": {
+          "OBSTACLE": 39,
+          "HORIZON": 64,
+          "INVALIDATION": 22,
+          "AMBIGUOUS_OR_UNKNOWN": 2
+        },
+        "net": {
+          "n": 125,
+          "positive": 48,
+          "negative": 77,
+          "mean_pct": -0.4486969063428209,
+          "median_pct": -0.3376435159043731,
+          "mean_r": -0.25661759650657145,
+          "average_positive_pct": 0.672962068066891,
+          "average_negative_pct": -1.1479128903904334,
+          "profit_factor": 0.3654535332462401
+        }
+      },
+      "same_messages_at_60m": {
+        "n": 127,
+        "coins": 68,
+        "episodes": 127,
+        "states": {
+          "RESOLVED": 125,
+          "UNRESOLVED_BOUNDARY": 2
+        },
+        "direction": {
+          "n": 127,
+          "right": 48,
+          "wrong": 78,
+          "flat": 1,
+          "rate_pct": 37.79527559055118,
+          "descriptive_wilson_95_pct": [
+            29.837563538262497,
+            46.469665966726744
+          ]
+        },
+        "first_exit": {
+          "HORIZON": 37,
+          "INVALIDATION": 39,
+          "OBSTACLE": 49,
+          "AMBIGUOUS_OR_UNKNOWN": 2
+        },
+        "net": {
+          "n": 125,
+          "positive": 56,
+          "negative": 69,
+          "mean_pct": -0.4887455816322543,
+          "median_pct": -0.3864095119590735,
+          "mean_r": -0.2907733766547105,
+          "average_positive_pct": 0.7506517719993488,
+          "average_negative_pct": -1.4946332889274685,
+          "profit_factor": 0.407608094282022
+        }
+      }
+    },
+    "180": {
+      "other": {
+        "n": 118,
+        "coins": 64,
+        "episodes": 118,
+        "states": {
+          "RESOLVED": 116,
+          "UNRESOLVED_BOUNDARY": 2
+        },
+        "direction": {
+          "n": 118,
+          "right": 48,
+          "wrong": 70,
+          "flat": 0,
+          "rate_pct": 40.67796610169492,
+          "descriptive_wilson_95_pct": [
+            32.244335262312795,
+            49.699434353319305
+          ]
+        },
+        "first_exit": {
+          "INVALIDATION": 46,
+          "HORIZON": 12,
+          "OBSTACLE": 58,
+          "AMBIGUOUS_OR_UNKNOWN": 2
+        },
+        "net": {
+          "n": 116,
+          "positive": 59,
+          "negative": 57,
+          "mean_pct": -0.5656150199485629,
+          "median_pct": 0.024906354807480435,
+          "mean_r": -0.26002989013771693,
+          "average_positive_pct": 0.822382785666218,
+          "average_negative_pct": -2.002314502953336,
+          "profit_factor": 0.4251271819436158
+        }
+      },
+      "same_messages_at_60m": {
+        "n": 118,
+        "coins": 64,
+        "episodes": 118,
+        "states": {
+          "RESOLVED": 116,
+          "UNRESOLVED_BOUNDARY": 2
+        },
+        "direction": {
+          "n": 118,
+          "right": 45,
+          "wrong": 72,
+          "flat": 1,
+          "rate_pct": 38.13559322033898,
+          "descriptive_wilson_95_pct": [
+            29.876863810798277,
+            47.14247933636984
+          ]
+        },
+        "first_exit": {
+          "OBSTACLE": 48,
+          "INVALIDATION": 36,
+          "HORIZON": 32,
+          "AMBIGUOUS_OR_UNKNOWN": 2
+        },
+        "net": {
+          "n": 116,
+          "positive": 53,
+          "negative": 63,
+          "mean_pct": -0.4689423599716921,
+          "median_pct": -0.2117877995673753,
+          "mean_r": -0.27653337784847554,
+          "average_positive_pct": 0.7788106196291148,
+          "average_negative_pct": -1.5186393110644343,
+          "profit_factor": 0.4314321916870576
+        }
+      }
+    }
+  },
+  "direction_transitions_15m_to_60m": [
+    {
+      "at_15m": "RIGHT",
+      "at_60m": "RIGHT",
+      "n": 34
+    },
+    {
+      "at_15m": "RIGHT",
+      "at_60m": "WRONG",
+      "n": 29
+    },
+    {
+      "at_15m": "WRONG",
+      "at_60m": "FLAT",
+      "n": 1
+    },
+    {
+      "at_15m": "WRONG",
+      "at_60m": "RIGHT",
+      "n": 14
+    },
+    {
+      "at_15m": "WRONG",
+      "at_60m": "WRONG",
+      "n": 49
+    }
+  ],
+  "examples": [
+    {
+      "reason": "largest_net_loss",
+      "assessment_id": 19111,
+      "time_tr": "2026-10-16T04:10:06.610000+03:00",
+      "symbol": "STBLUSDT",
+      "direction": "LONG",
+      "model": "COMPRESSION_BREAKOUT",
+      "price": 0.03617,
+      "stop": 0.031234300000000003,
+      "obstacle": 0.0542,
+      "volume_5m_multiple": 0.92,
+      "volume_15m_multiple": 2.44,
+      "endpoint_direction": "WRONG",
+      "first_exit": "INVALIDATION",
+      "first_exit_minute": 14,
+      "reference_net_pct": -13.94583909317113
+    },
+    {
+      "reason": "largest_net_loss",
+      "assessment_id": 25359,
+      "time_tr": "2026-10-16T09:00:07.546000+03:00",
+      "symbol": "BTWUSDT",
+      "direction": "LONG",
+      "model": "CONFIRMED_LEVEL_WATCH",
+      "price": 2.0393,
+      "stop": 1.8634885714285714,
+      "obstacle": 2.0615,
+      "volume_5m_multiple": 0.99,
+      "volume_15m_multiple": 1.15,
+      "endpoint_direction": "WRONG",
+      "first_exit": "HORIZON",
+      "first_exit_minute": null,
+      "reference_net_pct": -6.115721080763003
+    },
+    {
+      "reason": "largest_net_loss",
+      "assessment_id": 20047,
+      "time_tr": "2026-10-16T04:50:07.205000+03:00",
+      "symbol": "BTWUSDT",
+      "direction": "SHORT",
+      "model": "CONFIRMED_LEVEL_WATCH",
+      "price": 1.8031,
+      "stop": 1.9039792857142857,
+      "obstacle": 1.7554,
+      "volume_5m_multiple": 0.79,
+      "volume_15m_multiple": 1.27,
+      "endpoint_direction": "WRONG",
+      "first_exit": "INVALIDATION",
+      "first_exit_minute": 13,
+      "reference_net_pct": -5.894769325843596
+    },
+    {
+      "reason": "target_first_then_wrong_endpoint",
+      "assessment_id": 12087,
+      "time_tr": "2026-10-15T23:05:13.142000+03:00",
+      "symbol": "SANDUSDT",
+      "direction": "LONG",
+      "model": "CONFIRMED_LEVEL_WATCH",
+      "price": 0.05647,
+      "stop": 0.05572457142857143,
+      "obstacle": 0.05685,
+      "volume_5m_multiple": 1.26,
+      "volume_15m_multiple": 0.65,
+      "endpoint_direction": "WRONG",
+      "first_exit": "OBSTACLE",
+      "first_exit_minute": 14,
+      "reference_net_pct": 0.372923676288284
+    },
+    {
+      "reason": "target_first_then_wrong_endpoint",
+      "assessment_id": 14926,
+      "time_tr": "2026-10-16T01:00:26.991000+03:00",
+      "symbol": "FILUSDT",
+      "direction": "LONG",
+      "model": "CONFIRMED_LEVEL_WATCH",
+      "price": 1.1878,
+      "stop": 1.1468185714285715,
+      "obstacle": 1.1931,
+      "volume_5m_multiple": 1.03,
+      "volume_15m_multiple": 0.9,
+      "endpoint_direction": "WRONG",
+      "first_exit": "OBSTACLE",
+      "first_exit_minute": 1,
+      "reference_net_pct": 0.1462030644889703
+    },
+    {
+      "reason": "target_first_then_wrong_endpoint",
+      "assessment_id": 16347,
+      "time_tr": "2026-10-16T02:00:32.109000+03:00",
+      "symbol": "BATUSDT",
+      "direction": "LONG",
+      "model": "CONFIRMED_LEVEL_WATCH",
+      "price": 0.21743,
+      "stop": 0.2112525,
+      "obstacle": 0.21885,
+      "volume_5m_multiple": 0.6,
+      "volume_15m_multiple": 0.44,
+      "endpoint_direction": "WRONG",
+      "first_exit": "OBSTACLE",
+      "first_exit_minute": 2,
+      "reference_net_pct": 0.3530837510922982
+    }
+  ],
+  "limitations": [
+    "125 resolved barrier models, 2 boundary-ambiguous; endpoint direction still observable in all 127.",
+    "Two mature outcomes not exported; nine signals not yet mature at snapshot; neither counted as failures.",
+    "One strategy, roughly 18 hours of signal times, 68 coins, repeated coins and shared market moves.",
+    "Wilson intervals are descriptive and ignore correlation and multiple comparisons; not proof of statistical edge.",
+    "0.30% assumed total cost and reference exits, not actual user fills, leverage, funding or account PnL.",
+    "Cost-adjusted R uses recorded stop distance; it is a comparison metric, not a measured portfolio return.",
+    "No archived BTC/sector response or pre-signal candle range-position series included in this export.",
+    "No future chart data was used to generate signal-time features. Hypotheses arose after viewing outcomes.",
+    "Directional endpoints include up to the next minute close; first-minute barrier ambiguity remains explicit.",
+    "One-hour endpoint was requested by user; original primary horizon remains 180 minutes."
+  ]
+}
