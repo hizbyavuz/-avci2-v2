@@ -1,0 +1,26 @@
+{
+  "version": "MAJOR_CONTEXT_DELIVERY_V3_2026_10_17",
+  "base_commit": "e80bbd05016b2ec00d0154ab752c744e921f164e",
+  "previous_live_commit": "72a255ac26bcdd4a082a8f4db6de1556a06e5e7f",
+  "strategy_id": "75f6944fd1b2d259f09025c0bd1804fc695bb6e950a54000f8ef3a10291dbfe5",
+  "config_hash": "f56b366aa8ab0a1ea66f6d3ff1b52a73ef577b5452a11a7c3a570a20f9c865ce",
+  "early_observer_id": "fa570ffcddee188caf3c9786e865d9c0835dbd422d6dc88b9c5a37d46a11fe06",
+  "tests_passed": 81,
+  "validation_command": "PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=.:tests:../test_dependencies python -m unittest discover -s tests -p 'test_*.py' -q",
+  "validation_scope": "Targeted major model, context, delivery, early observer and Telegram card test files; not the entire repository suite",
+  "live_signal_selection_rules_changed": false,
+  "delivery_policy_changed": true,
+  "early_observer_telegram": false,
+  "automatic_orders": false,
+  "source_sha256": {
+    "long_short_major_move.py": "bc1b9bdd579ca568cf569059d029057d5f8c5a41bb7e61bd7a622bae9f018534",
+    "long_short_major_move_store.py": "03b4fc6f85e376f09c586aa0c4411d494e11b35262cce137620338af45d2a8ea",
+    "long_short_major_move_worker.py": "d5ce9d09e1d4e60a0671375c259dec6b740d4e0fef8ae3d4d59214b3ca4edb7d",
+    "long_short_major_context_report.py": "490cf2132ede64ec8aa94e08bc298b8da5975409e03f2e6a9eb9a4391c16dfc1",
+    "long_short_major_delivery.py": "64be3672241be43fcd6ea4af35998bdde7972e95e2543de5c5a4e487b0f4bada",
+    "long_short_early_observer.py": "9304eda8aefd1c28d181c4b3d4ca1cc1e71b1403b7d1ee3cd2d1b840c7d3db42",
+    "tests/test_major_delivery_v3.py": "359b33aeab5e02f0fd2c2b86f65cedbf51b02fae005521b190507ac46be71e32",
+    "tests/test_major_context.py": "427aba3322fcd6e6c4d5c2980a551dd537808048657c707734359de77455344f"
+  },
+  "frozen_baseline_sha256": "9d9eb7de13ebe13d10c5d74aea57d4ad63a62c23d5865aa42079fcebb86329ff"
+}

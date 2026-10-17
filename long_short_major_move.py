@@ -10,20 +10,23 @@ from pathlib import Path
 import long_short_major_move_v1_1_frozen as baseline
 from long_short_major_move_v1_1_frozen import finite, atr, pivots, validate, planned_geometry
 
-VERSION = 'MAJOR_CONTEXT_ENTRY_V2_2026_10_16'
+VERSION = 'MAJOR_CONTEXT_DELIVERY_V3_2026_10_17'
+CONTEXT_VERSIONS = {'MAJOR_CONTEXT_ENTRY_V2_2026_10_16', VERSION}
 BASELINE_ID = '16d77225ac66b9fd9d1d0f48c5df2103d73a72bc8d2b65ffd6db08fe01f0d493'
 CONFIG = dict(baseline.CONFIG, version=VERSION, min_room_pct=10.,
               obstacle_confirmation_atr15=1., stop_buffer_atr15=.15,
               retest_tolerance_atr15=.15, retest_bars=4,
               entry_valid_ms=900000, poll_seconds=2, quote_retry_seconds=5,
               data_retry_seconds=10, maintenance_seconds=30,
-              baseline_id=BASELINE_ID, room_is_veto=False)
+              baseline_id=BASELINE_ID, room_is_veto=False,
+              notification_window_ms=900000, max_notifications_per_window=3)
 CONFIG_HASH = hashlib.sha256(json.dumps(CONFIG, sort_keys=True).encode()).hexdigest()
 
 
 def strategy_id():
     names = ['long_short_major_move.py', 'long_short_major_move_worker.py',
-             'long_short_major_move_store.py', 'long_short_major_move_v1_1_frozen.py']
+             'long_short_major_move_store.py', 'long_short_major_move_v1_1_frozen.py',
+             'long_short_major_delivery.py']
     return hashlib.sha256(CONFIG_HASH.encode() + b''.join(Path(__file__).with_name(n).read_bytes() for n in names)).hexdigest()
 
 
@@ -189,7 +192,7 @@ rank = baseline.rank
 
 
 def message(p):
-    if p.get('version') != VERSION:
+    if p.get('version') not in CONTEXT_VERSIONS:
         return baseline.message(p)
     from datetime import datetime, timezone, timedelta
     from long_short_chart_flow import flow_note
@@ -198,10 +201,19 @@ def message(p):
     trends = {'UP':'yukarı', 'DOWN':'aşağı', 'MIXED':'karışık', 'UNAVAILABLE':'eksik'}
     f=p['features']; side=p['direction']; fmt=lambda x:f'{x:.8g}'
     stamp=datetime.fromtimestamp(p['observed_ms']/1000,timezone(timedelta(hours=3))).strftime('%d.%m %H:%M')
+    origin=p.get('first_eligibility')
+    timing=[]
+    if origin:
+        first=datetime.fromtimestamp(origin['observed_ms']/1000,timezone(timedelta(hours=3))).strftime('%d.%m %H:%M')
+        elapsed=max(0,(p['observed_ms']-origin['observed_ms'])/60000)
+        move=(1 if side=='LONG' else -1)*(p['price']/origin['price']-1)*100
+        timing=[f'İlk uygunluk: {first}, fiyat {fmt(origin["price"])}; {elapsed:.0f} dk önce.',
+                f'İlk uygunluktan beri bu yönde %{move:+.2f} hareket; bu mesajın ölçümü giriş referansından başlar.']
     return '\n'.join([
         f'{"🟢" if side=="LONG" else "🔴"} {side} | {p["symbol"]} — {names[p["model"]]}',
         'Durum: Giriş adayı; yeni modelin başarısı henüz doğrulanmadı.',
         f'Giriş referansı: {fmt(p["price"])} | Stop: {fmt(p["stop"])} (%{p["risk_pct"]:.1f})',
+        *timing,
         f'Büyük yapı: 4 saatlik {trends[f["context_4h"]]}; günlük {trends[f["context_daily"]]}.',
         f'Giriş nedeni: 15 dakikalık {"kırılma" if p["entry_kind"]=="BREAK" else "kırılan seviyenin yeniden korunması"}; seviye {fmt(p["trigger"])}.',
         f'Hacim: normalin {f["volume_1h_multiple"]:.1f} katı | BTC’ye göre 4 saat: {f["relative_strength_4h_pp"]:+.1f} puan.',
@@ -209,7 +221,7 @@ def message(p):
         flow_note(p.get('hourly_flow'),side),
         f'%10 hareket ölçüm seviyesi: {fmt(p["objective"])}; fiyat tahmini değildir.',
         'Stop sonrası hareket de ölçülür. %10 sonrası saatlik yapıyla takip sürer; en çok 72 saat.',
-        f'{stamp} Türkiye | MAJOR V2'])
+        f'{stamp} Türkiye | '+('MAJOR V3' if p.get('version')==VERSION else 'MAJOR V2')])
 
 
 def exit_message(p,g):
@@ -223,3 +235,4 @@ def exit_message(p,g):
 def tracking_message(p,g):
     lines=message(p).splitlines();lines[1]='Durum: %10 eşiği görüldü; takip sürüyor.'
     return '\n'.join(lines+[f'Güncel takip eden stop: {g["active_stop"]:.8g}'])
+

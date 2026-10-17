@@ -10,20 +10,13 @@ import time
 from collections import Counter
 from datetime import datetime,timezone
 
-from long_short_major_move import CONFIG,CONFIG_HASH,VERSION,assess,rank,message,exit_message,tracking_message,strategy_id,BASELINE_ID,baseline
-from long_short_major_move_store import root,db,connect,universe,frames,quote,save_assessment,initial_progress,measure,health,EVALUATION_HOURS,OUTCOME_VERSION,record_research
+from long_short_major_move import CONFIG,CONFIG_HASH,VERSION,CONTEXT_VERSIONS,assess,rank,message,exit_message,tracking_message,strategy_id,BASELINE_ID,baseline
+from long_short_major_move_store import root,db,connect,universe,frames,quote,save_assessment,initial_progress,measure,health,EVALUATION_HOURS,OUTCOME_VERSION,record_research,measurement_contract
 from long_short_major_context import capture as capture_context,record as record_context,compact as compact_context,observer_id,VERSION as CONTEXT_VERSION,RULES as CONTEXT_RULES
+from long_short_major_delivery import eligible_to_publish,attach_first_eligibility
+from long_short_early_observer import EarlyScanner,observer_id as early_observer_id,RULES as EARLY_RULES,VERSION as EARLY_VERSION
 
 STOP=threading.Event()
-
-
-def eligible_to_publish(c,p,now_ms):
-    prior=c.execute('SELECT created_ms FROM ideas WHERE symbol=? ORDER BY created_ms DESC LIMIT 1',(p['symbol'],)).fetchone()
-    if prior and now_ms-prior[0]<CONFIG['cooldown_hours']*3600000:return 'COOLDOWN'
-    n=c.execute("""SELECT COUNT(*) FROM ideas WHERE delivered_ms IS NOT NULL
-        AND state IN ('TRACKING','DATA_PENDING') AND json_extract(progress,'$.plan_exit') IS NULL
-        AND json_extract(payload,'$.expires_ms')>?""",(now_ms,)).fetchone()[0]
-    return 'ACTIVE_LIMIT' if n>=CONFIG['max_active'] else None
 
 
 def publish_candidate(c,kdb,p,sid,publisher,token,chat,now_ms):
@@ -41,12 +34,14 @@ def publish_candidate(c,kdb,p,sid,publisher,token,chat,now_ms):
     if sign*(fresh-p['entry_limit'])>0:return 'LATE_CHASE'
     risk=sign*(fresh-p['stop'])/fresh*100
     if not 0<risk<=CONFIG['max_stop_pct']:return 'INVALID_CURRENT_RISK'
-    if p.get('version')!=VERSION and p['obstacle'] and sign*(p['obstacle']/fresh-1)*100<baseline.CONFIG['min_room_pct']:return 'ROOM_CHANGED'
-    if p.get('version')==VERSION and p['obstacle'] and sign*(fresh-p['obstacle'])>=0:return 'OBSTACLE_CROSSED_WAIT_CONFIRMATION'
+    if p.get('version') not in CONTEXT_VERSIONS and p['obstacle'] and sign*(p['obstacle']/fresh-1)*100<baseline.CONFIG['min_room_pct']:return 'ROOM_CHANGED'
+    if p.get('version') in CONTEXT_VERSIONS and p['obstacle'] and sign*(fresh-p['obstacle'])>=0:return 'OBSTACLE_CROSSED_WAIT_CONFIRMATION'
     p=dict(p,price=fresh,observed_ms=now_ms,risk_pct=risk,strategy_id=sid,
            hourly_flow=context['flow'],
            structural_room_pct=sign*(p['obstacle']/fresh-1)*100 if p['obstacle'] else None,
            objective=fresh*(1+sign*CONFIG['min_room_pct']/100),expires_ms=now_ms+p['horizon_hours']*3600000)
+    attach_first_eligibility(c,p)
+    measurement_contract(p)
     eid=hashlib.sha256(json.dumps([sid,p['symbol'],p['model'],p['direction'],p['confirmation_ms'],p['trigger']],sort_keys=True).encode()).hexdigest()
     p['market_context']=compact_context(context);p['context_snapshot_id']=eid
     record_context(c,eid,'SIGNAL',context)
@@ -66,6 +61,9 @@ def publish_candidate(c,kdb,p,sid,publisher,token,chat,now_ms):
         state='UNRESOLVED_ENTRY';progress={}
     else:
         p['price']=accepted_price
+        if p.get('first_eligibility'):
+            p['first_eligibility_age_ms']=accepted_ms-p['first_eligibility']['observed_ms']
+            p['move_since_first_eligibility_pct']=sign*(accepted_price/p['first_eligibility']['price']-1)*100
         p['notice_objective']=p['objective']
         p['objective']=accepted_price*(1+sign*CONFIG['min_room_pct']/100)
         p['gain_before_signal_pct']=(accepted_price/p['features']['leg_base']-1)*100
@@ -184,7 +182,8 @@ class CandleScanner:
             if missing:self.retry_at[symbol]=started+CONFIG['data_retry_seconds']
             else:self.retry_at.pop(symbol,None)
             attach_context(c,kdb,p,sid,bucket)
-            if record_research(c,p,sid):paired['v2_new_reference']+=1
+            attach_first_eligibility(c,p)
+            if record_research(c,p,sid):paired['current_new_reference']+=1
             save_assessment(c,p,sid)
             if p['stage']=='READY':self.pending[symbol]=p
             else:self.pending.pop(symbol,None)
@@ -202,8 +201,12 @@ class CandleScanner:
                     self.pending.pop(p['symbol'],None);continue
                 if attempts>=CONFIG['max_new_per_scan']:break
                 result=publish_candidate(c,kdb,p,sid,publisher,token,chat,stamp)
-                gates[result]+=1;sent+=result=='DELIVERED';attempts+=1
-                if result not in ('FRESH_PRICE_MISSING','BREAK_NOT_HELD','LATE_CHASE','ACTIVE_LIMIT','TELEGRAM_NOT_CONFIGURED'):
+                gates[result]+=1;sent+=result=='DELIVERED'
+                attempts+=result in ('DELIVERED','DELIVERY_UNCERTAIN')
+                # Rejected/cooling candidates must not starve the next ranked one.
+                # A global budget block applies to every remaining candidate.
+                if result=='NOTIFICATION_RATE_LIMIT':break
+                if result not in ('FRESH_PRICE_MISSING','BREAK_NOT_HELD','LATE_CHASE','TELEGRAM_NOT_CONFIGURED'):
                     self.pending.pop(p['symbol'],None)
         if checked or gates or started>=self.log_at:
             self.log_at=started+60
@@ -224,6 +227,17 @@ def main():
     for sig in (signal.SIGTERM,signal.SIGINT):signal.signal(sig,lambda *_:STOP.set())
     sid=strategy_id();c=connect()
     c.execute('INSERT OR IGNORE INTO manifests VALUES(?,?)',(sid,json.dumps(dict(version=VERSION,config_hash=CONFIG_HASH,config=CONFIG,validation='UNPROVEN_RESEARCH_VERSION',automatic_orders=False))));c.commit()
+    c.execute('INSERT OR IGNORE INTO manifests VALUES(?,?)',('delivery:'+sid,json.dumps(dict(
+        installed_ms=int(time.time()*1000),version=VERSION,source_strategy_id=sid,
+        intervention='PAPER_CAP_REMOVED_NOTIFICATION_BUDGET_FIRST_ELIGIBILITY',
+        selection_rules='UNCHANGED_FROM_CONTEXT_ENTRY_V2',active_plan_limit=False,
+        notification_window_ms=CONFIG['notification_window_ms'],max_notifications=CONFIG['max_notifications_per_window'],
+        origin_window_hours=CONFIG['cooldown_hours'],origin_effect='DESCRIPTIVE_NOT_A_NEW_VETO',
+        outcome_version=OUTCOME_VERSION,evaluation_hours=EVALUATION_HOURS))));c.commit()
+    c.execute('INSERT OR IGNORE INTO manifests VALUES(?,?)',('early:'+early_observer_id(),json.dumps(dict(
+        version=EARLY_VERSION,observer_id=early_observer_id(),rules=EARLY_RULES,
+        installed_ms=int(time.time()*1000),validation='UNPROVEN_OBSERVATION_ONLY',automatic_orders=False,
+        telegram_enabled=False))));c.commit()
     c.execute('INSERT OR IGNORE INTO manifests VALUES(?,?)',('context:'+observer_id(),json.dumps(dict(
         version=CONTEXT_VERSION,rules=CONTEXT_RULES,installed_ms=int(time.time()*1000),
         outcome_version=OUTCOME_VERSION,evaluation_hours=EVALUATION_HOURS,
@@ -237,12 +251,18 @@ def main():
     print('MAJOR_MOVE_START '+json.dumps(dict(version=VERSION,strategy_id=sid,config_hash=CONFIG_HASH,automatic_orders=False,primary_horizon_hours=24)),flush=True)
     print('MAJOR_CONTEXT_START '+json.dumps(dict(version=CONTEXT_VERSION,observer_id=observer_id(),
         mode='OBSERVATION_ONLY',evaluation_hours=EVALUATION_HOURS,selection_config_hash=CONFIG_HASH)),flush=True)
-    scanner=CandleScanner();next_maintenance=0;next_health=0;next_comparison=0
+    print('MAJOR_DELIVERY_START '+json.dumps(dict(version=VERSION,active_plan_limit=False,
+        notification_window_ms=CONFIG['notification_window_ms'],max_notifications=CONFIG['max_notifications_per_window'],
+        first_eligibility_persistent=True,outcome_version=OUTCOME_VERSION)),flush=True)
+    print('EARLY_OBSERVER_START '+json.dumps(dict(version=EARLY_VERSION,observer_id=early_observer_id(),
+        rules=EARLY_RULES,telegram_enabled=False)),flush=True)
+    scanner=CandleScanner();early=EarlyScanner();next_maintenance=0;next_health=0;next_comparison=0
     while not STOP.is_set():
         c=kdb=None
         try:
             c=connect();kdb=db(root()/'binance_futures_kline_shadow.db',True);now=int(time.time()*1000)
             scanner.run(c,kdb,sid)
+            early.run(c,kdb,scanner.items)
             if time.monotonic()>=next_maintenance:
                 next_maintenance=time.monotonic()+CONFIG['maintenance_seconds']
                 measure(c,kdb,now,emit=lambda x:print(x,flush=True))
@@ -267,3 +287,4 @@ def main():
 
 
 if __name__=='__main__':main()
+

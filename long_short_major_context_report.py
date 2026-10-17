@@ -7,7 +7,7 @@ from collections import Counter
 from datetime import datetime,timezone
 
 from long_short_major_move import finite
-from long_short_major_move_store import EVALUATION_HOURS,db,root
+from long_short_major_move_store import EVALUATION_HOURS,LEGACY_EVALUATION_HOURS,db,root
 
 LABELS={'SUPPORT':'Akış ve fiyat yönü destekliyor','CONFLICT':'Akış ve fiyat ters yönde',
         'MIXED':'Akış ile fiyat çelişiyor','NEUTRAL':'Nötr','MISSING':'Veri eksik',
@@ -91,7 +91,7 @@ def report(c,now_ms=None,since_ms=None,until_ms=None,horizons=EVALUATION_HOURS,p
     answer=dict(generated_ms=now_ms,signal_from_ms=since_ms,signal_until_ms=until_ms,
         selection_rules_changed=False,primary_horizon_hours=24,
         reference_kind='FORWARD_PAPER_QUOTE_NOT_DELIVERED' if paper else 'TELEGRAM_ACK',
-        portfolio_limits_applied=not paper,
+        delivery_policy='VERSIONED_NOTIFICATION_ADMISSION' if not paper else 'NO_DELIVERY_LIMITS',
         notes=['Akış SUPPORT grubu alış/satış baskısı ve aynı saatlik fiyat hareketinin uyumudur; kâr tahmini değildir.',
                'OI artış/azalışı, funding maliyeti ve hesap oranı yön oyu sayılmaz.',
                'Yön doğruluğu, ham fiyat eşiğine erişim ve kapanan plan getirisi farklı ölçümlerdir.',
@@ -107,6 +107,7 @@ def report(c,now_ms=None,since_ms=None,until_ms=None,horizons=EVALUATION_HOURS,p
             WHERE i.{reference} IS NOT NULL AND i.{reference}>=? AND i.{reference}<? ORDER BY i.{reference}''',(h,since_ms,until_ms))
         for row in rows:
             p=json.loads(row['payload']);o=json.loads(row['outcome_payload']) if row['outcome_payload'] else None
+            if h not in p.get('evaluation_hours',LEGACY_EVALUATION_HOURS):continue
             sid=p.get('strategy_id','UNKNOWN');oid=(p.get('market_context') or {}).get('observer_id','LEGACY_NO_CONTEXT')
             for axis,value in groups(p):
                 key=(sid,oid,axis,value)
@@ -135,7 +136,7 @@ def emit_report(c,now_ms,paper=False):
     path=root()/('major_paired_comparison.json' if paper else 'major_context_comparison.json');temp=path.with_suffix('.tmp')
     temp.write_text(json.dumps(result,ensure_ascii=False),encoding='utf-8');temp.replace(path)
     for horizon in result['horizons']:
-        if horizon['hours'] not in (1,24,72):continue
+        if horizon['hours'] not in (1,2,3,24,72):continue
         selected=[g for g in horizon['groups'] if g['axis'] in ('overall','flow','oi_price','model_direction')]
         print(('MAJOR_PAIRED_COMPARISON ' if paper else 'MAJOR_CONTEXT_COMPARISON ')+json.dumps(dict(reference_kind=result['reference_kind'],generated_ms=now_ms,horizon_hours=horizon['hours'],
               since_ms=result['signal_from_ms'],groups=selected)),flush=True)
@@ -162,3 +163,4 @@ def main():
 
 
 if __name__=='__main__':main()
+

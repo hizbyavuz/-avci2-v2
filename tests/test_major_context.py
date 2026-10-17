@@ -148,9 +148,10 @@ class PathAndReportTests(unittest.TestCase):
 
     def test_empty_report_and_zero_net_are_not_fake_success(self):
         with tempfile.TemporaryDirectory() as tmp,patch.dict(os.environ,{'LS_STATE_DIR':tmp}):
-            c=store.connect();r=reporting.report(c,NOW);self.assertEqual(len(r['horizons']),7)
+            c=store.connect();r=reporting.report(c,NOW);self.assertEqual(len(r['horizons']),8)
             self.assertTrue(all(not h['groups'] for h in r['horizons']));c.close()
             self.assertIsNone(reporting.Stats().result()['direction_correct_pct'])
 
 
 if __name__=='__main__':unittest.main()
+

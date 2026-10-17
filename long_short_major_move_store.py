@@ -9,8 +9,11 @@ from pathlib import Path
 from long_short_major_move import CONFIG, CONFIG_HASH, VERSION, finite
 
 SOURCES={'BINANCE_UM_FUTURES_WEBSOCKET','BINANCE_UM_FUTURES_ARCHIVE','BINANCE_UM_FUTURES_REST'}
-EVALUATION_HOURS=(.25,.5,1,3,6,24,72)  # Secondary observations; selection CONFIG stays frozen.
-OUTCOME_VERSION='MAJOR_PATH_OBSERVER_V2_2026_10_16'
+LEGACY_EVALUATION_HOURS=(.25,.5,1,3,6,24,72)
+EVALUATION_HOURS=(.25,.5,1,2,3,6,24,72)
+LEGACY_OUTCOME_VERSION='MAJOR_PATH_OBSERVER_V2_2026_10_16'
+OUTCOME_VERSION='MAJOR_PATH_OBSERVER_V3_2026_10_17'
+REACH_THRESHOLDS=(1,2,3,5,10,20,30,40,50,60,70,80,100)
 EXCLUDED={'USDC','FDUSD','TUSD','USDP','DAI','BUSD','USDE','USDS','PYUSD','RLUSD','USD1','USDD','GUSD','FRAX','LUSD','USD0','EURC','EUR','TRY','BTCST'}
 
 
@@ -34,6 +37,10 @@ def connect():
       CREATE TABLE IF NOT EXISTS ideas(id TEXT PRIMARY KEY,symbol TEXT,created_ms INTEGER,delivered_ms INTEGER,
         state TEXT,payload TEXT,progress TEXT,updated_ms INTEGER);
       CREATE INDEX IF NOT EXISTS major_ideas_time ON ideas(delivered_ms,state);
+      CREATE INDEX IF NOT EXISTS major_ideas_symbol ON ideas(symbol,created_ms);
+      CREATE TABLE IF NOT EXISTS eligibility_origins(id TEXT PRIMARY KEY,symbol TEXT,direction TEXT,
+        observed_ms INTEGER,payload TEXT);
+      CREATE INDEX IF NOT EXISTS eligibility_origin_lookup ON eligibility_origins(symbol,direction,observed_ms);
       CREATE TABLE IF NOT EXISTS research_ideas(id TEXT PRIMARY KEY,symbol TEXT,created_ms INTEGER,reference_ms INTEGER,
         state TEXT,payload TEXT,progress TEXT,updated_ms INTEGER);
       CREATE INDEX IF NOT EXISTS research_ideas_time ON research_ideas(updated_ms,state);
@@ -120,6 +127,14 @@ def initial_progress(p):
         evaluated_ms=p['observed_ms'],last_close=p['price'],missing_since_ms=None)
 
 
+def measurement_contract(p, hours=72):
+    """Freeze observation settings only for new references; old paths stay old."""
+    p.update(outcome_version=OUTCOME_VERSION,measurement_hours=hours,
+             evaluation_hours=[h for h in EVALUATION_HOURS if h<=hours],
+             reach_thresholds_pct=list(REACH_THRESHOLDS))
+    return p
+
+
 def advance_path(p,progress,bars):
     """Streaming OHLC bounds; retain path after the stop for reversal analysis.
 
@@ -145,12 +160,12 @@ def advance_path(p,progress,bars):
         adverse=-sign*((observed_lo if sign==1 else observed_hi)/price-1)*100
         g['max_favorable_pct']=max(g['max_favorable_pct'],favorable)
         g['max_adverse_pct']=max(g['max_adverse_pct'],adverse)
-        for threshold in CONFIG['reach_thresholds_pct']:
+        for threshold in p.get('reach_thresholds_pct',CONFIG['reach_thresholds_pct']):
             if favorable+1e-10>=threshold:g['milestones'].setdefault(str(threshold),[max(t,p['observed_ms']),end])
         exit_=g.get('plan_exit')
         if exit_ and exit_['kind']=='STOP' and t>exit_['at_ms']:
             g['post_stop_max_favorable_pct']=max(g.get('post_stop_max_favorable_pct',0.),favorable)
-            for threshold in CONFIG['reach_thresholds_pct']:
+            for threshold in p.get('reach_thresholds_pct',CONFIG['reach_thresholds_pct']):
                 if favorable+1e-10>=threshold:g.setdefault('post_stop_milestones',{}).setdefault(str(threshold),[t,end])
         if not partial and g['first_barrier'] is None and (stop_hit or target_hit):
             g['first_barrier']=dict(kind='STOP' if stop_hit else 'OBJECTIVE',minute_open_ms=t,
@@ -168,7 +183,7 @@ def advance_path(p,progress,bars):
         if t%3600000==0 and not partial:hb=dict(start=t,low=lo,high=hi,count=0)
         if hb:
             hb.update(low=min(hb['low'],lo),high=max(hb['high'],hi),count=hb['count']+1)
-        if not partial and target_hit:g['trail_armed']=True
+        if not partial and target_hit and p.get('trailing_enabled',True):g['trail_armed']=True
         if (end+1)%3600000==0:
             if hb and hb['count']==60 and g['trail_armed'] and not g['boundary_ambiguous'] and not g['plan_exit']:
                 buffer=CONFIG['stop_buffer_atr1h']*p['features']['atr1h']
@@ -177,11 +192,11 @@ def advance_path(p,progress,bars):
             hb=None
         g['hour_bar']=hb
         g.update(cursor_ms=t+60000,evaluated_ms=end,last_close=cl,missing_since_ms=None)
-        for hours in EVALUATION_HOURS:
+        for hours in p.get('evaluation_hours',LEGACY_EVALUATION_HOURS):
             due=p['observed_ms']+hours*3600000
             if t<due<=end+1:
                 raw_return=(cl/price-1)*100;directional=sign*raw_return
-                out=dict(outcome_version=OUTCOME_VERSION,horizon_hours=hours,
+                out=dict(outcome_version=p.get('outcome_version',LEGACY_OUTCOME_VERSION),horizon_hours=hours,
                     entry_price=price,horizon_price=cl,evaluated_at_ms=end,
                     price_return_pct=raw_return,signal_direction=p['direction'],
                     market_direction='UP' if raw_return>0 else 'DOWN' if raw_return<0 else 'FLAT',
@@ -195,7 +210,7 @@ def advance_path(p,progress,bars):
                 if not g['boundary_ambiguous']:
                     out['reference_net_return_pct']=(g['plan_exit']['net_return_pct'] if g['plan_exit'] else sign*(cl/price-1)*100-CONFIG['round_trip_cost_pct'])
                 outputs.append(out)
-        if end+1>=p['observed_ms']+72*3600000:break
+        if end+1>=p['observed_ms']+p.get('measurement_hours',72)*3600000:break
     return g,outputs
 
 
@@ -212,9 +227,9 @@ def measure(c,kdb,now_ms,emit=print,paper=False):
         g,results=advance_path(p,g,bars)
         if not bars and g['cursor_ms']+60000<now_ms-250:g['missing_since_ms']=g['cursor_ms']
         state='TRACKING'
-        if g['evaluated_ms']+1>=p['observed_ms']+72*3600000:state='DONE'
+        if g['evaluated_ms']+1>=p['observed_ms']+p.get('measurement_hours',72)*3600000:state='DONE'
         elif g['missing_since_ms'] is not None:state='DATA_PENDING'
-        if state=='DATA_PENDING' and now_ms>p['observed_ms']+96*3600000:state='DONE_DATA_GAP'
+        if state=='DATA_PENDING' and now_ms>p['observed_ms']+(p.get('measurement_hours',72)+24)*3600000:state='DONE_DATA_GAP'
         c.execute(f'UPDATE {ideas} SET state=?,progress=?,updated_ms=? WHERE id=?',(state,json.dumps(g),now_ms,row['id']))
         for result in results:
             status='UNRESOLVED_BOUNDARY' if result['first_minute_ambiguous'] else 'RESOLVED'
@@ -223,7 +238,7 @@ def measure(c,kdb,now_ms,emit=print,paper=False):
                 WHERE {outcomes}.state='DATA_PENDING'""",(row['id'],result['horizon_hours'],status,json.dumps(result)))
             emit(prefix+json.dumps(dict(idea_id=row['id'],symbol=p['symbol'],strategy_id=p.get('strategy_id'),reference_kind=p.get('reference_kind','TELEGRAM_ACK'),state=status,**result)))
         # Mature gaps remain explicit and can be repaired on the next pass.
-        for hours in EVALUATION_HOURS:
+        for hours in p.get('evaluation_hours',LEGACY_EVALUATION_HOURS):
             if now_ms>=p['observed_ms']+hours*3600000 and g['evaluated_ms']<p['observed_ms']+hours*3600000-1 and g['missing_since_ms'] is not None:
                 c.execute(f'INSERT OR IGNORE INTO {outcomes} VALUES(?,?,?,?)',(row['id'],hours,'DATA_PENDING',json.dumps({'missing_from_ms':g['missing_since_ms']})))
         c.commit()
@@ -245,12 +260,14 @@ def health(state_root=None):
 def record_research(c,p,sid):
     """One forward reference per coin per strategy per 24h; no Telegram effect."""
     if p['stage']!='READY':return False
-    prior=c.execute("SELECT created_ms FROM research_ideas WHERE symbol=? AND json_extract(payload,'$.strategy_id')=? ORDER BY created_ms DESC LIMIT 1",(p['symbol'],sid)).fetchone()
-    if prior and p['observed_ms']-prior[0]<CONFIG['cooldown_hours']*3600000:return False
+    prior=c.execute("SELECT created_ms FROM research_ideas WHERE symbol=? AND json_extract(payload,'$.strategy_id')=? AND (?=0 OR json_extract(payload,'$.direction')=?) ORDER BY created_ms DESC LIMIT 1",(p['symbol'],sid,int(p.get('observation_only',False)),p['direction'])).fetchone()
+    if prior and p['observed_ms']-prior[0]<p.get('research_cooldown_hours',CONFIG['cooldown_hours'])*3600000:return False
     eid=hashlib.sha256(json.dumps(['PAPER',sid,p['symbol'],p['confirmation_ms'],p['direction']]).encode()).hexdigest()
     plan=dict(p,strategy_id=sid,reference_kind='FORWARD_PAPER_QUOTE_NOT_DELIVERED')
+    measurement_contract(plan,p.get('measurement_hours',72))
     context_id=hashlib.sha256(json.dumps([sid,p['symbol'],p['direction'],p['observed_ms']//900000]).encode()).hexdigest()
     plan['research_context_key']=context_id
     c.execute('INSERT OR IGNORE INTO research_ideas VALUES(?,?,?,?,?,?,?,?)',
               (eid,p['symbol'],p['observed_ms'],p['observed_ms'],'TRACKING',json.dumps(plan),json.dumps(initial_progress(plan)),p['observed_ms']))
     return True
+
