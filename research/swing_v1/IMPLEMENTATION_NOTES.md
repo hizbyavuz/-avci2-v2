@@ -110,3 +110,10 @@ yerine yazılmadı. Eylül, kripto üyeliği, tam dakika planları ve funding ek
 giriş verisi. Karar ve ölçüm kuralları değişmedi. Altı yeni test geçti; toplam
 125 geçiş kaydı var. Küçük örnek sonuçları `MINUTE_FINDINGS.md`, tam veri isteği
 `MINUTE_DATA_REQUESTS.json` içinde. Funding ve genel kârlılık hâlâ bilinmiyor.
+
+
+## 22 Ekim: ağ erişimi düzeldi, kapsam tamamlandı
+
+Güncel sonuç `DATA_REFRESH_FINDINGS.md`: Ağustos için 479/479 dakika arşivi, 625 adayın 556 geçerli tam planı ve 69 geçersiz girişi. LONG ücret/kayma sonrası, funding öncesi ortalama +%4,02; SHORT −%1,35. Evren hâlâ sınıflandırılmamış USDT sözleşmeleridir. Önceki 14 bilinen kayıt birebir korundu.
+
+Eylül: 869 saatlik arşiv doğrulandı, 31 gerçek arşiv 404; 615 aday. LONG ham %30 erişimi %11,91, eşleştirilmiş kontrol %12,54. Ağustos bulgusunu genel avantaj saymak için destek yok. Eylül dakika planı ve funding tamamlanmadı. Karar/çıkış kuralları aynı, canlı/Telegram kapalı. Ayrıntı ve kanıtlar yeni raporda; önceki kısmi raporlar tarihsel kayıt olarak korunur.

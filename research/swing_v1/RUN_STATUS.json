@@ -1,6 +1,6 @@
 {
   "date": "2026-10-22",
-  "research_stage": "FULL_AUGUST_FEE_ONLY_REPLAY",
+  "research_stage": "AUGUST_FULL_FEE_ONLY_REPLAY_AND_SEPTEMBER_RAW_SCREEN_COMPLETE",
   "live_deployed": false,
   "telegram_enabled": false,
   "august": {
@@ -380,7 +380,7 @@
     }
   },
   "september": {
-    "status": "COMPLETE_HOURLY_ARCHIVES_SCREEN_IN_PROGRESS",
+    "status": "COMPLETE_HOURLY_RAW_SCREEN_NOT_PLAN_PROFIT",
     "catalog_symbols": 900,
     "published_archives": 869,
     "not_published_archive_http_404": 31,
@@ -390,12 +390,74 @@
     "official_checksum_verified": true,
     "crypto_only": false,
     "minute_plan_replay": "NOT_YET_COMPLETE",
-    "performance_estimate": null
+    "performance_estimate": null,
+    "raw_screen": {
+      "rejections": {
+        "NO_SETUP": 231111,
+        "LONG_VOLUME_OR_BUY_PRESSURE_WEAK": 3904,
+        "INSUFFICIENT_KNOWN_ROOM": 382,
+        "FAILED_BOUNCE_SHORT": 297,
+        "LATE_CHASE": 630,
+        "BASE_BREAKOUT_LONG": 537,
+        "ALREADY_EXTENDED": 452,
+        "INVALID_RISK": 741,
+        "ILLIQUID": 226354,
+        "SHORT_VOLUME_OR_SELL_PRESSURE_WEAK": 1880,
+        "NO_CONFIRMED_LOWER_HIGH": 1438,
+        "EPISODE_SUPPRESSED": 219,
+        "VOLUME_BASELINE_UNAVAILABLE": 22
+      },
+      "evaluated_coin_hours": 467748,
+      "eligible_coin_hours": 241394,
+      "month": "2026-09",
+      "version": "SWING_STRUCTURE_RESEARCH_V1_2026_10_22",
+      "config_hash": "d899d56bf0dea0bc564c7907e4e79ad30b81e464de9021b6ecfd6d44e4577938",
+      "summary": {
+        "LONG": {
+          "episodes": 384,
+          "mature_raw": 319,
+          "immature_or_gap": 65,
+          "matched_mature": 319,
+          "raw_reach_30_pct": 11.912225705329154,
+          "paired_signal_raw_reach_30_pct": 11.912225705329154,
+          "paired_control_raw_reach_30_pct": 12.539184952978056,
+          "median_raw_mfe_pct": 10.055423594615998,
+          "median_raw_mae_pct": 6.3101276893475555
+        },
+        "SHORT": {
+          "episodes": 231,
+          "mature_raw": 175,
+          "immature_or_gap": 56,
+          "matched_mature": 175,
+          "raw_reach_30_pct": 1.7142857142857142,
+          "paired_signal_raw_reach_30_pct": 1.7142857142857142,
+          "paired_control_raw_reach_30_pct": 0.0,
+          "median_raw_mfe_pct": 5.1658926605065325,
+          "median_raw_mae_pct": 9.876434245366283
+        }
+      },
+      "universe_version": "UNCLASSIFIED_USDT_ARCHIVE_V1",
+      "crypto_only": false,
+      "classification": "FROZEN_RULES_SECOND_MONTH_RAW_DESIGN_CHECK_NOT_TRADE_PROFIT",
+      "archive_statuses": {
+        "OK": 869,
+        "NOT_PUBLISHED": 31
+      },
+      "catalogue_symbols": 900,
+      "network_used": false
+    }
   },
   "live_universe_version": "VERIFIED_COIN_USDT_PERP_V1_2026_10_22",
   "candidate_decisions": {
-    "LONG": "CONTINUE_RESEARCH_POSITIVE_AUGUST_FEE_ONLY_RESULT_NOT_VALIDATED_CRYPTO_EDGE",
+    "LONG": "RESEARCH_ONLY_AUGUST_FEE_ONLY_POSITIVE_SEPTEMBER_RAW_LIFT_NOT_REPLICATED",
     "SHORT": "NOT_SUPPORTED_NEGATIVE_AUGUST_FEE_ONLY_PLAN_RESULT"
   },
-  "network_archive_access": "RESTORED_NORMAL_PERMISSION_HTTP_200"
+  "network_archive_access": "RESTORED_NORMAL_PERMISSION_HTTP_200",
+  "remaining_data_or_evidence": [
+    "Historical COIN classification",
+    "Complete funding settlements with mark prices and certified coverage",
+    "September full minute plans including October tails",
+    "Same-plan control and momentum comparisons",
+    "Production feed capacity and forward paper test"
+  ]
 }

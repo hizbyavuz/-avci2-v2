@@ -78,6 +78,9 @@
     "previously_validated_source_hashes_unchanged": 12,
     "new_strategy_tests_added": 0,
     "full_funding_net_verified": false,
-    "live_runtime_started": false
+    "live_runtime_started": false,
+    "september_screen_evaluated_hours": 467748,
+    "september_candidates": 615,
+    "september_config_hash_unchanged": true
   }
 }

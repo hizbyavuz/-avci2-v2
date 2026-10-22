@@ -94,5 +94,17 @@
     "uncompressed_sha256": "45c44f8d33ce54e911f546f453be56cefe0dc546b0eaff91b18f35f51a32b6b4",
     "compressed_sha256": "dc8517f293638063fe47cfab886331ffc08b959599751412177f8c5d1babf037",
     "uncompressed_bytes": 257570
+  },
+  {
+    "path": "evidence/2026-09-download-request.json.gz",
+    "uncompressed_sha256": "557309e701e8baef6cc0ff9b1b0a74fb8621f22805163df858214092bd7411f8",
+    "compressed_sha256": "4be85f0051ac98ef9b886ced37776ec468e8b9c78bb63004db849830d0a25ea3",
+    "uncompressed_bytes": 208331
+  },
+  {
+    "path": "evidence/2026-09-screen-complete.json.gz",
+    "uncompressed_sha256": "8e04646cff8fc14dc3d5da8502a764908dd106d88e16f52489dfe2fa4e8f84f4",
+    "compressed_sha256": "b8f14bfc76dc394bf73803ad606c6843e1691259e6a92361ab878b331468703b",
+    "uncompressed_bytes": 1072939
   }
 ]
