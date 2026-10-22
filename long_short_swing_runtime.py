@@ -20,7 +20,7 @@ from long_short_major_move_store import db, root, SOURCES, quote, universe as ol
 from long_short_signal_policy import publication_decision, status as publication_status
 
 PROFILE='SWING_STRUCTURE_V1'
-RUNTIME_VERSION='SWING_RUNTIME_V2_2026_10_22'
+RUNTIME_VERSION='SWING_RUNTIME_V3_LONG_ONLY_2026_10_22'
 UNIVERSE_VERSION='VERIFIED_COIN_USDT_PERP_V1_2026_10_22'
 STOP=threading.Event()
 
@@ -208,6 +208,9 @@ def notify_updates(c,publisher=None):
     rows=c.execute("SELECT * FROM references_v1 WHERE kind='DELIVERED' AND progress!='{}' ORDER BY reference_ms DESC").fetchall()
     for r in rows:
         g=json.loads(r['progress']);p=json.loads(r['payload'])
+        # Recovered cards must obey the same reviewed-model policy as new
+        # notices. A historical delivery is not permission to publish SHORT.
+        if not publication_decision(p)['research_publish_allowed']:continue
         fingerprint=json.dumps([g['stop'],g['exit']],sort_keys=True)
         if g.get('notified_state')==fingerprint:continue
         if not g['exit'] and not g['trailing_armed']:continue

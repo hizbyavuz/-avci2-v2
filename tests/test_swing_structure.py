@@ -182,6 +182,37 @@ class RuntimeTests(unittest.TestCase):
             self.assertEqual([n for n,_ in profile.SWING_WORKERS if 'swing' in n],['swing_structure'])
             self.assertNotIn('major_move',[n for n,_ in profile.SWING_WORKERS])
 
+    def delivered_card(self,side):
+        p=plan(side);eid='card-'+side
+        runtime.reference(self.c,eid,p,'DELIVERED',START)
+        progress=dict(stop=p['stop'],exit=None,trailing_armed=True)
+        self.c.execute('UPDATE references_v1 SET progress=? WHERE episode_id=?',
+                       (json.dumps(progress),eid))
+        self.c.execute('INSERT INTO deliveries VALUES(?,?,?,?,?)',
+                       (eid,START,START+(2 if side=='LONG' else 1),'ACK',json.dumps(p)))
+        self.c.commit()
+        return eid
+
+    def test_recovered_short_card_cannot_publish_update(self):
+        self.delivered_card('SHORT');sender=Mock()
+        with patch.dict(os.environ,{'SWING_NOTIFICATIONS':'1','TELEGRAM_BOT_TOKEN':'test',
+                                    'TELEGRAM_CHAT_ID':'123'}):
+            runtime.notify_updates(self.c,sender)
+        sender.assert_not_called()
+        row=self.c.execute('SELECT progress FROM references_v1').fetchone()
+        self.assertNotIn('notified_state',json.loads(row['progress']))
+
+    def test_long_card_updates_once_while_short_card_stays_silent(self):
+        self.delivered_card('SHORT');self.delivered_card('LONG')
+        sender=Mock(return_value={'status':'ACK'})
+        with patch.dict(os.environ,{'SWING_NOTIFICATIONS':'1','TELEGRAM_BOT_TOKEN':'test',
+                                    'TELEGRAM_CHAT_ID':'123'}):
+            runtime.notify_updates(self.c,sender)
+            runtime.notify_updates(self.c,sender)
+        self.assertEqual(sender.call_count,1)
+        self.assertEqual(sender.call_args.args[5],'LONG')
+        self.assertIn('ARAŞTIRMA SİNYALİ',sender.call_args.args[4])
+
     def test_actual_collector_schema_drives_scan_entry_and_outcome(self):
         from long_short_futures_kline_shadow import initialize,SOURCE
         path=Path(self.tmp.name)/'binance_futures_kline_shadow.db'
