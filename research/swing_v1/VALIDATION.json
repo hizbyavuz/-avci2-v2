@@ -31,16 +31,23 @@
       "passed": 5,
       "failed": 0,
       "scope": "offline comparison tests added after c3b2796"
+    },
+    {
+      "pattern": "test_swing_minute_audit.py",
+      "passed": 6,
+      "failed": 0,
+      "scope": "offline full-denominator audit; no strategy or outcome changes"
     }
   ],
   "notes": [
     "The first old-test run missed requests while dependency installation was incomplete; rerun after installation passed.",
     "No live engine/worker was run. Tests used temporary SQLite fixtures and mocked Telegram transports.",
     "This does not verify production relay, full-universe capacity, historical alpha, funding collection or actual execution.",
-    "Baseline-only changes: five new tests run; previous 114 passing checks retained. Strategy thresholds and runtime files unchanged."
+    "Baseline-only changes: five new tests run; previous 114 passing checks retained. Strategy thresholds and runtime files unchanged.",
+    "Minute audit added six targeted tests; earlier 119 passing checks retained. Existing runtime, decision and outcome sources unchanged. No new live runs."
   ],
   "base_implementation_commit": "b4c9254cb387d0cab1160c5faa0895c27c80b2a4",
-  "total_tests": 119,
+  "total_tests": 125,
   "source_sha256": {
     "long_short_swing.py": "c757e6f34bcd3c5549bfb02f31466f9288721cc77fc8c8697d9ba0bb80f6b5fe",
     "long_short_swing_outcomes.py": "7798d1a2d6ffe66c367e517b4a7125a15e0d5faf7c2d868292fba136e3411feb",
@@ -51,6 +58,8 @@
     "long_short_major_move_store.py": "19c0b14764e9a2649e02d5a24d31a335042301962df0ffebb2bb8cd876e299a6",
     "research/swing_v1/replay.py": "9aa5ca62777f868c8e7481c2050cdfec3e7af35eab351f45ead6eaf045ace394",
     "research/swing_v1/baseline.py": "71f3b858fc010223daaab7a355e6668563752077263d42527b5a79de2bfed2ef",
-    "tests/test_swing_baseline.py": "db9124efee5782b89aabbffb2b726f037a24b9d42a78854657601b3dc32c4332"
+    "tests/test_swing_baseline.py": "db9124efee5782b89aabbffb2b726f037a24b9d42a78854657601b3dc32c4332",
+    "research/swing_v1/minute_audit.py": "585e5554f64b5df4adbf048b1105eb83bdafa0357433fa3d5d0cf8ab47964b49",
+    "tests/test_swing_minute_audit.py": "1e259299945b63db6ab82bf8913a1786e9478f5f71985676331db72d904cdbd2"
   }
 }

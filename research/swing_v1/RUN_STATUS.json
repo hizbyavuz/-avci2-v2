@@ -9,10 +9,22 @@
     "not_published_http_404": 67,
     "crypto_only": false,
     "universe_version": "UNCLASSIFIED_USDT_ARCHIVE_V1",
-    "full_plan_replay": "NOT_COMPLETE",
+    "full_plan_replay": "PARTIAL_12_COMPLETE_2_ENTRY_INVALID_611_MISSING",
     "funding_coverage": "UNKNOWN",
     "simple_momentum_baseline": "COMPLETE_RAW_DISCOVERY_COMPARISON_ONLY",
-    "major_v3_baseline": "BLOCKED_MISSING_FULL_UNIVERSE_15M_AND_REQUIRED_4H_HISTORY"
+    "major_v3_baseline": "BLOCKED_MISSING_FULL_UNIVERSE_15M_AND_REQUIRED_4H_HISTORY",
+    "minute_audit": {
+      "all_candidates": 625,
+      "complete_plans": 12,
+      "entry_invalid": 2,
+      "entry_data_missing": 611,
+      "required_symbol_month_archives": 479,
+      "cached": 8,
+      "missing": 471,
+      "funding": "UNKNOWN",
+      "overall_strategy_win_rate": null,
+      "sample_representative": false
+    }
   },
   "september": {
     "status": "BLOCKED_INCOMPLETE",

@@ -103,3 +103,10 @@ karar `BASELINE_FINDINGS.md`, sayısal kayıt `MOMENTUM_COMPARISON.json` içinde
 Bu ek çalışma beş yeni testi geçti; önceki 114 ile toplam 119 geçiş kaydı var.
 İlk tablolar olay ağırlıklı, yeni kıyas saat ağırlıklıdır; sonuçlar birbirinin
 yerine yazılmadı. Eylül, kripto üyeliği, tam dakika planları ve funding eksikleri sürüyor.
+
+## Dakika verisi kapsam denetimi
+
+625 olayın tamamı denetlendi: 12 tam kağıt plan, 2 geçersiz giriş, 611 eksik
+giriş verisi. Karar ve ölçüm kuralları değişmedi. Altı yeni test geçti; toplam
+125 geçiş kaydı var. Küçük örnek sonuçları `MINUTE_FINDINGS.md`, tam veri isteği
+`MINUTE_DATA_REQUESTS.json` içinde. Funding ve genel kârlılık hâlâ bilinmiyor.

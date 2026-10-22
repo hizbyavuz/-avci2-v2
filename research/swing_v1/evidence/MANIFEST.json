@@ -58,5 +58,17 @@
     "uncompressed_sha256": "ec48afd00c48e65763dd43c4ac0a4e748f9f3bbb32b390a0cebc6cf8a84f4814",
     "compressed_sha256": "a0b7fd480bb421978ae3d02dd73c999b05f6eb0e4af4727e1bd283ed576dd10d",
     "uncompressed_bytes": 2388236
+  },
+  {
+    "path": "evidence/2026-08-minute-audit.json.gz",
+    "uncompressed_sha256": "087c783a06ef4cd23108ecc70c906c25a9a83e9db90c67a7a27ea686c38317dc",
+    "compressed_sha256": "bc866a1871011fe0052655b459aa301d751b5b32dcd46ac4165eade3d09a9d0a",
+    "uncompressed_bytes": 551796
+  },
+  {
+    "path": "evidence/minute-data-requests.json.gz",
+    "uncompressed_sha256": "f16bfe86e976c5dff4198937c9c52f602d3c7bb471cde1c682d6ea662f7483ec",
+    "compressed_sha256": "1ed0bd07d4094862acdbb83b0888492cb3638d1dba83a075e115bbcd8a1430ba",
+    "uncompressed_bytes": 362791
   }
 ]

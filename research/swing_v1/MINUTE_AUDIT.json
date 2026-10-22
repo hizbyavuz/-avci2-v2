@@ -1,0 +1,1511 @@
+{
+  "manifest": {
+    "version": "MINUTE_COVERAGE_AUDIT_V1",
+    "outcome_version": "SWING_OUTCOME_V1_2026_10_22",
+    "config_hash": "d899d56bf0dea0bc564c7907e4e79ad30b81e464de9021b6ecfd6d44e4577938",
+    "classification": "CONVENIENCE_CACHE_SAMPLE_NOT_STRATEGY_VALIDATION",
+    "universe": "UNCLASSIFIED_USDT_ARCHIVE_V1",
+    "crypto_only": false,
+    "network_used": false,
+    "screen_sha256": "8a770d5e4dbd5be6203fdf77ffec9b254438d7120aa1198b5a2b687e68190b26",
+    "protocol_sha256": "d526fd7cc5da582025f5d2e904f2f9e2c0bbbed7e3fc6c4d3d1fa88ce5b88aba",
+    "code_sha256": "585e5554f64b5df4adbf048b1105eb83bdafa0357433fa3d5d0cf8ab47964b49",
+    "outcome_code_sha256": "7798d1a2d6ffe66c367e517b4a7125a15e0d5faf7c2d868292fba136e3411feb",
+    "total_candidates": 625,
+    "candidate_symbols": 393,
+    "prior_minute_inventory_sha256": "84fe436724e5f27d1136802a62c0a45f1a02e1de0666fb1afbc174a13527e3a7",
+    "previously_observed_archives_verified": 8,
+    "archive_status_counts": {
+      "NOT_CACHED": 471,
+      "OK": 8
+    },
+    "funding_status": "UNKNOWN",
+    "cost_scenarios_pct": [
+      0.3,
+      0.6,
+      1.0
+    ]
+  },
+  "summary": {
+    "ALL": {
+      "all_candidates": 625,
+      "status_counts": {
+        "ENTRY_DATA_MISSING": 611,
+        "MEASURED": 12,
+        "ENTRY_INVALID": 2
+      },
+      "outcome_status_counts": {
+        "COMPLETE": 12
+      },
+      "complete_path_conditional_technical_sample": {
+        "count": 12,
+        "profitable_fee_only": 8,
+        "losing_fee_only": 4,
+        "positive_fee_only_pct": 66.66666666666667,
+        "mean_fee_only_pct": 5.097197950158609,
+        "median_fee_only_pct": 4.3006889146155585,
+        "mean_fee_only_r": 0.6209799473895029,
+        "equal_notional_profit_factor_fee_only": 3.8287156475826913,
+        "profit_factor_status": "DEFINED",
+        "full_net_known_count": 0,
+        "full_net_mean_pct": null
+      },
+      "closed_but_raw_path_incomplete": {
+        "count": 0,
+        "profitable_fee_only": 0,
+        "losing_fee_only": 0,
+        "positive_fee_only_pct": null,
+        "mean_fee_only_pct": null,
+        "median_fee_only_pct": null,
+        "mean_fee_only_r": null,
+        "equal_notional_profit_factor_fee_only": null,
+        "profit_factor_status": "UNDEFINED_NO_LOSSES_OR_EMPTY",
+        "full_net_known_count": 0,
+        "full_net_mean_pct": null
+      },
+      "cost_sensitivity_complete_sample": {
+        "0.3": {
+          "count": 12,
+          "profitable_fee_only": 8,
+          "losing_fee_only": 4,
+          "positive_fee_only_pct": 66.66666666666667,
+          "mean_fee_only_pct": 5.097197950158609,
+          "median_fee_only_pct": 4.3006889146155585,
+          "mean_fee_only_r": 0.6209799473895029,
+          "equal_notional_profit_factor_fee_only": 3.8287156475826913,
+          "profit_factor_status": "DEFINED",
+          "full_net_known_count": 0,
+          "full_net_mean_pct": null
+        },
+        "0.6": {
+          "count": 12,
+          "profitable_fee_only": 8,
+          "losing_fee_only": 4,
+          "positive_fee_only_pct": 66.66666666666667,
+          "mean_fee_only_pct": 4.797197950158609,
+          "median_fee_only_pct": 4.000688914615559,
+          "mean_fee_only_r": 0.5640407607579635,
+          "equal_notional_profit_factor_fee_only": 3.522255310742936,
+          "profit_factor_status": "DEFINED",
+          "full_net_known_count": 0,
+          "full_net_mean_pct": null
+        },
+        "1.0": {
+          "count": 12,
+          "profitable_fee_only": 8,
+          "losing_fee_only": 4,
+          "positive_fee_only_pct": 66.66666666666667,
+          "mean_fee_only_pct": 4.397197950158609,
+          "median_fee_only_pct": 3.6006889146155583,
+          "mean_fee_only_r": 0.4881218452492443,
+          "equal_notional_profit_factor_fee_only": 3.1604867597140447,
+          "profit_factor_status": "DEFINED",
+          "full_net_known_count": 0,
+          "full_net_mean_pct": null
+        }
+      },
+      "reach_classifications_complete_sample": {
+        "10": {
+          "NOT_REACHED": 5,
+          "ONLY_AFTER_EXIT": 1,
+          "IN_PLAN_CONFIRMED": 6
+        },
+        "30": {
+          "NOT_REACHED": 11,
+          "IN_PLAN_CONFIRMED": 1
+        }
+      },
+      "horizons_with_open_and_closed_plans": {
+        "24": {
+          "measured_count": 12,
+          "missing_or_no_entry": 613,
+          "open_plans_included": 11,
+          "mean_fee_only_pct": 1.899209409113077,
+          "full_net_pct": null
+        },
+        "72": {
+          "measured_count": 12,
+          "missing_or_no_entry": 613,
+          "open_plans_included": 4,
+          "mean_fee_only_pct": 5.619856845848477,
+          "full_net_pct": null
+        },
+        "168": {
+          "measured_count": 12,
+          "missing_or_no_entry": 613,
+          "open_plans_included": 0,
+          "mean_fee_only_pct": 5.097197950158609,
+          "full_net_pct": null
+        }
+      },
+      "overall_strategy_win_rate": null,
+      "overall_strategy_expectancy": null
+    },
+    "LONG": {
+      "all_candidates": 436,
+      "status_counts": {
+        "ENTRY_DATA_MISSING": 424,
+        "MEASURED": 10,
+        "ENTRY_INVALID": 2
+      },
+      "outcome_status_counts": {
+        "COMPLETE": 10
+      },
+      "complete_path_conditional_technical_sample": {
+        "count": 10,
+        "profitable_fee_only": 8,
+        "losing_fee_only": 2,
+        "positive_fee_only_pct": 80.0,
+        "mean_fee_only_pct": 6.832399968585272,
+        "median_fee_only_pct": 5.425074001891506,
+        "mean_fee_only_r": 0.9635513145821138,
+        "equal_notional_profit_factor_fee_only": 5.723156605940185,
+        "profit_factor_status": "DEFINED",
+        "full_net_known_count": 0,
+        "full_net_mean_pct": null
+      },
+      "closed_but_raw_path_incomplete": {
+        "count": 0,
+        "profitable_fee_only": 0,
+        "losing_fee_only": 0,
+        "positive_fee_only_pct": null,
+        "mean_fee_only_pct": null,
+        "median_fee_only_pct": null,
+        "mean_fee_only_r": null,
+        "equal_notional_profit_factor_fee_only": null,
+        "profit_factor_status": "UNDEFINED_NO_LOSSES_OR_EMPTY",
+        "full_net_known_count": 0,
+        "full_net_mean_pct": null
+      },
+      "cost_sensitivity_complete_sample": {
+        "0.3": {
+          "count": 10,
+          "profitable_fee_only": 8,
+          "losing_fee_only": 2,
+          "positive_fee_only_pct": 80.0,
+          "mean_fee_only_pct": 6.832399968585272,
+          "median_fee_only_pct": 5.425074001891506,
+          "mean_fee_only_r": 0.9635513145821138,
+          "equal_notional_profit_factor_fee_only": 5.723156605940185,
+          "profit_factor_status": "DEFINED",
+          "full_net_known_count": 0,
+          "full_net_mean_pct": null
+        },
+        "0.6": {
+          "count": 10,
+          "profitable_fee_only": 8,
+          "losing_fee_only": 2,
+          "positive_fee_only_pct": 80.0,
+          "mean_fee_only_pct": 6.532399968585272,
+          "median_fee_only_pct": 5.125074001891506,
+          "mean_fee_only_r": 0.9135996683389772,
+          "equal_notional_profit_factor_fee_only": 5.335927678842956,
+          "profit_factor_status": "DEFINED",
+          "full_net_known_count": 0,
+          "full_net_mean_pct": null
+        },
+        "1.0": {
+          "count": 10,
+          "profitable_fee_only": 8,
+          "losing_fee_only": 2,
+          "positive_fee_only_pct": 80.0,
+          "mean_fee_only_pct": 6.132399968585273,
+          "median_fee_only_pct": 4.725074001891506,
+          "mean_fee_only_r": 0.8469974733481282,
+          "equal_notional_profit_factor_fee_only": 4.865181420977134,
+          "profit_factor_status": "DEFINED",
+          "full_net_known_count": 0,
+          "full_net_mean_pct": null
+        }
+      },
+      "reach_classifications_complete_sample": {
+        "10": {
+          "NOT_REACHED": 4,
+          "IN_PLAN_CONFIRMED": 6
+        },
+        "30": {
+          "NOT_REACHED": 9,
+          "IN_PLAN_CONFIRMED": 1
+        }
+      },
+      "horizons_with_open_and_closed_plans": {
+        "24": {
+          "measured_count": 10,
+          "missing_or_no_entry": 426,
+          "open_plans_included": 10,
+          "mean_fee_only_pct": 2.5008478305306827,
+          "full_net_pct": null
+        },
+        "72": {
+          "measured_count": 10,
+          "missing_or_no_entry": 426,
+          "open_plans_included": 3,
+          "mean_fee_only_pct": 7.126329144736924,
+          "full_net_pct": null
+        },
+        "168": {
+          "measured_count": 10,
+          "missing_or_no_entry": 426,
+          "open_plans_included": 0,
+          "mean_fee_only_pct": 6.832399968585272,
+          "full_net_pct": null
+        }
+      },
+      "overall_strategy_win_rate": null,
+      "overall_strategy_expectancy": null
+    },
+    "SHORT": {
+      "all_candidates": 189,
+      "status_counts": {
+        "ENTRY_DATA_MISSING": 187,
+        "MEASURED": 2
+      },
+      "outcome_status_counts": {
+        "COMPLETE": 2
+      },
+      "complete_path_conditional_technical_sample": {
+        "count": 2,
+        "profitable_fee_only": 0,
+        "losing_fee_only": 2,
+        "positive_fee_only_pct": 0.0,
+        "mean_fee_only_pct": -3.578812141974707,
+        "median_fee_only_pct": -3.578812141974707,
+        "mean_fee_only_r": -1.0918768885735517,
+        "equal_notional_profit_factor_fee_only": 0.0,
+        "profit_factor_status": "DEFINED",
+        "full_net_known_count": 0,
+        "full_net_mean_pct": null
+      },
+      "closed_but_raw_path_incomplete": {
+        "count": 0,
+        "profitable_fee_only": 0,
+        "losing_fee_only": 0,
+        "positive_fee_only_pct": null,
+        "mean_fee_only_pct": null,
+        "median_fee_only_pct": null,
+        "mean_fee_only_r": null,
+        "equal_notional_profit_factor_fee_only": null,
+        "profit_factor_status": "UNDEFINED_NO_LOSSES_OR_EMPTY",
+        "full_net_known_count": 0,
+        "full_net_mean_pct": null
+      },
+      "cost_sensitivity_complete_sample": {
+        "0.3": {
+          "count": 2,
+          "profitable_fee_only": 0,
+          "losing_fee_only": 2,
+          "positive_fee_only_pct": 0.0,
+          "mean_fee_only_pct": -3.578812141974707,
+          "median_fee_only_pct": -3.578812141974707,
+          "mean_fee_only_r": -1.0918768885735517,
+          "equal_notional_profit_factor_fee_only": 0.0,
+          "profit_factor_status": "DEFINED",
+          "full_net_known_count": 0,
+          "full_net_mean_pct": null
+        },
+        "0.6": {
+          "count": 2,
+          "profitable_fee_only": 0,
+          "losing_fee_only": 2,
+          "positive_fee_only_pct": 0.0,
+          "mean_fee_only_pct": -3.8788121419747075,
+          "median_fee_only_pct": -3.8788121419747075,
+          "mean_fee_only_r": -1.1837537771471047,
+          "equal_notional_profit_factor_fee_only": 0.0,
+          "profit_factor_status": "DEFINED",
+          "full_net_known_count": 0,
+          "full_net_mean_pct": null
+        },
+        "1.0": {
+          "count": 2,
+          "profitable_fee_only": 0,
+          "losing_fee_only": 2,
+          "positive_fee_only_pct": 0.0,
+          "mean_fee_only_pct": -4.278812141974708,
+          "median_fee_only_pct": -4.278812141974708,
+          "mean_fee_only_r": -1.3062562952451757,
+          "equal_notional_profit_factor_fee_only": 0.0,
+          "profit_factor_status": "DEFINED",
+          "full_net_known_count": 0,
+          "full_net_mean_pct": null
+        }
+      },
+      "reach_classifications_complete_sample": {
+        "10": {
+          "NOT_REACHED": 1,
+          "ONLY_AFTER_EXIT": 1
+        },
+        "30": {
+          "NOT_REACHED": 2
+        }
+      },
+      "horizons_with_open_and_closed_plans": {
+        "24": {
+          "measured_count": 2,
+          "missing_or_no_entry": 187,
+          "open_plans_included": 1,
+          "mean_fee_only_pct": -1.1089826979749526,
+          "full_net_pct": null
+        },
+        "72": {
+          "measured_count": 2,
+          "missing_or_no_entry": 187,
+          "open_plans_included": 1,
+          "mean_fee_only_pct": -1.9125046485937542,
+          "full_net_pct": null
+        },
+        "168": {
+          "measured_count": 2,
+          "missing_or_no_entry": 187,
+          "open_plans_included": 0,
+          "mean_fee_only_pct": -3.578812141974707,
+          "full_net_pct": null
+        }
+      },
+      "overall_strategy_win_rate": null,
+      "overall_strategy_expectancy": null
+    }
+  },
+  "records_with_entry_data": [
+    {
+      "symbol": "AIXBTUSDT",
+      "direction": "LONG",
+      "confirmation_ms": 1786305599999,
+      "observed_ms": 1786305600999,
+      "reference_ms": 1786305660000,
+      "end_exclusive_ms": 1786910460000,
+      "observed_price": 0.01966,
+      "initial_stop": 0.017785178571428573,
+      "entry_price": 0.01966,
+      "full_net_pct": null,
+      "funding_status": "UNKNOWN",
+      "outcome": {
+        "version": "SWING_OUTCOME_V1_2026_10_22",
+        "status": "COMPLETE",
+        "plan_closed": true,
+        "exit": {
+          "kind": "STOP",
+          "at_ms": 1786460160000,
+          "time_upper_ms": 1786460219999,
+          "price": 0.017785178571428573,
+          "gross_pct": -9.536222932713256
+        },
+        "fee_slippage_only_pct": -9.836222932713257,
+        "full_net_pct": null,
+        "funding_cost_pct": null,
+        "funding_status": "UNKNOWN",
+        "missing_assumed_stop_fee_only_pct": -9.836222932713257,
+        "raw_mfe_pct": 4.832146490335698,
+        "raw_reach": {},
+        "in_plan_mfe_lower_pct": 4.832146490335698,
+        "in_plan_mfe_upper_pct": 4.832146490335698,
+        "in_plan_reach": {},
+        "in_plan_mae_pct": 9.536222932713256,
+        "checkpoints": {
+          "24": {
+            "mark_to_horizon_gross_pct": -5.391658189216697,
+            "fee_slippage_only_pct": -5.691658189216697,
+            "open_plan": true,
+            "raw_mfe_pct": 4.832146490335698,
+            "in_plan_mfe_lower_pct": 4.832146490335698
+          },
+          "72": {
+            "mark_to_horizon_gross_pct": -9.536222932713256,
+            "fee_slippage_only_pct": -9.836222932713257,
+            "open_plan": false,
+            "raw_mfe_pct": 4.832146490335698,
+            "in_plan_mfe_lower_pct": 4.832146490335698
+          },
+          "168": {
+            "mark_to_horizon_gross_pct": -9.536222932713256,
+            "fee_slippage_only_pct": -9.836222932713257,
+            "open_plan": false,
+            "raw_mfe_pct": 4.832146490335698,
+            "in_plan_mfe_lower_pct": 4.832146490335698
+          }
+        }
+      },
+      "status": "MEASURED",
+      "initial_risk_pct": 9.53622293271326,
+      "minutes_measured": 10080,
+      "first_missing_ms": null,
+      "initial_risk_r": 1.0,
+      "fee_slippage_only_r": -1.031458996094866,
+      "holding_hours": 42.916666666666664,
+      "reach_classification": {
+        "10": "NOT_REACHED",
+        "30": "NOT_REACHED"
+      },
+      "cost_sensitivity": {
+        "0.3": {
+          "fee_slippage_only_pct": -9.836222932713257,
+          "fee_slippage_only_r": -1.031458996094866,
+          "full_net_pct": null
+        },
+        "0.6": {
+          "fee_slippage_only_pct": -10.136222932713256,
+          "fee_slippage_only_r": -1.062917992189732,
+          "full_net_pct": null
+        },
+        "1.0": {
+          "fee_slippage_only_pct": -10.536222932713256,
+          "fee_slippage_only_r": -1.1048633203162204,
+          "full_net_pct": null
+        }
+      }
+    },
+    {
+      "symbol": "WLDUSDT",
+      "direction": "LONG",
+      "confirmation_ms": 1786348799999,
+      "observed_ms": 1786348800999,
+      "reference_ms": 1786348860000,
+      "end_exclusive_ms": 1786953660000,
+      "observed_price": 0.3516,
+      "initial_stop": 0.3097607142857143,
+      "entry_price": 0.3508,
+      "full_net_pct": null,
+      "funding_status": "UNKNOWN",
+      "outcome": {
+        "version": "SWING_OUTCOME_V1_2026_10_22",
+        "status": "COMPLETE",
+        "plan_closed": true,
+        "exit": {
+          "kind": "TIMEOUT",
+          "at_ms": 1786953659999,
+          "time_upper_ms": 1786953659999,
+          "price": 0.363,
+          "gross_pct": 3.477765108323827
+        },
+        "fee_slippage_only_pct": 3.177765108323827,
+        "full_net_pct": null,
+        "funding_cost_pct": null,
+        "funding_status": "UNKNOWN",
+        "missing_assumed_stop_fee_only_pct": 3.177765108323827,
+        "raw_mfe_pct": 5.815279361459513,
+        "raw_reach": {
+          "5": 1786899240000
+        },
+        "in_plan_mfe_lower_pct": 5.815279361459513,
+        "in_plan_mfe_upper_pct": 5.815279361459513,
+        "in_plan_reach": {
+          "5": 1786899240000
+        },
+        "in_plan_mae_pct": 7.554161915621438,
+        "checkpoints": {
+          "24": {
+            "mark_to_horizon_gross_pct": -5.672748004561001,
+            "fee_slippage_only_pct": -5.972748004561001,
+            "open_plan": true,
+            "raw_mfe_pct": 0.9407069555302128,
+            "in_plan_mfe_lower_pct": 0.9407069555302128
+          },
+          "72": {
+            "mark_to_horizon_gross_pct": -3.9053591790193853,
+            "fee_slippage_only_pct": -4.205359179019386,
+            "open_plan": true,
+            "raw_mfe_pct": 0.9407069555302128,
+            "in_plan_mfe_lower_pct": 0.9407069555302128
+          },
+          "168": {
+            "mark_to_horizon_gross_pct": 3.477765108323827,
+            "fee_slippage_only_pct": 3.177765108323827,
+            "open_plan": false,
+            "raw_mfe_pct": 5.815279361459513,
+            "in_plan_mfe_lower_pct": 5.815279361459513
+          }
+        }
+      },
+      "status": "MEASURED",
+      "initial_risk_pct": 11.698770158006191,
+      "minutes_measured": 10080,
+      "first_missing_ms": null,
+      "initial_risk_r": 1.0,
+      "fee_slippage_only_r": 0.27163240797145555,
+      "holding_hours": 167.9999997222222,
+      "reach_classification": {
+        "10": "NOT_REACHED",
+        "30": "NOT_REACHED"
+      },
+      "cost_sensitivity": {
+        "0.3": {
+          "fee_slippage_only_pct": 3.177765108323827,
+          "fee_slippage_only_r": 0.27163240797145555,
+          "full_net_pct": null
+        },
+        "0.6": {
+          "fee_slippage_only_pct": 2.877765108323827,
+          "fee_slippage_only_r": 0.24598868679836355,
+          "full_net_pct": null
+        },
+        "1.0": {
+          "fee_slippage_only_pct": 2.477765108323827,
+          "fee_slippage_only_r": 0.21179705856757425,
+          "full_net_pct": null
+        }
+      }
+    },
+    {
+      "symbol": "ZECUSDT",
+      "direction": "SHORT",
+      "confirmation_ms": 1786435199999,
+      "observed_ms": 1786435200999,
+      "reference_ms": 1786435260000,
+      "end_exclusive_ms": 1787040060000,
+      "observed_price": 487.65,
+      "initial_stop": 502.1775,
+      "entry_price": 487.23,
+      "full_net_pct": null,
+      "funding_status": "UNKNOWN",
+      "outcome": {
+        "version": "SWING_OUTCOME_V1_2026_10_22",
+        "status": "COMPLETE",
+        "plan_closed": true,
+        "exit": {
+          "kind": "STOP",
+          "at_ms": 1786947240000,
+          "time_upper_ms": 1786947299999,
+          "price": 502.1775,
+          "gross_pct": -3.06785296471892
+        },
+        "fee_slippage_only_pct": -3.36785296471892,
+        "full_net_pct": null,
+        "funding_cost_pct": null,
+        "funding_status": "UNKNOWN",
+        "missing_assumed_stop_fee_only_pct": -3.36785296471892,
+        "raw_mfe_pct": 4.299817334728983,
+        "raw_reach": {},
+        "in_plan_mfe_lower_pct": 4.299817334728983,
+        "in_plan_mfe_upper_pct": 4.299817334728983,
+        "in_plan_reach": {},
+        "in_plan_mae_pct": 3.06785296471892,
+        "checkpoints": {
+          "24": {
+            "mark_to_horizon_gross_pct": 1.8718059232805895,
+            "fee_slippage_only_pct": 1.5718059232805894,
+            "open_plan": true,
+            "raw_mfe_pct": 4.299817334728983,
+            "in_plan_mfe_lower_pct": 4.299817334728983
+          },
+          "72": {
+            "mark_to_horizon_gross_pct": 0.2647620220429858,
+            "fee_slippage_only_pct": -0.035237977957014166,
+            "open_plan": true,
+            "raw_mfe_pct": 4.299817334728983,
+            "in_plan_mfe_lower_pct": 4.299817334728983
+          },
+          "168": {
+            "mark_to_horizon_gross_pct": -3.06785296471892,
+            "fee_slippage_only_pct": -3.36785296471892,
+            "open_plan": false,
+            "raw_mfe_pct": 4.299817334728983,
+            "in_plan_mfe_lower_pct": 4.299817334728983
+          }
+        }
+      },
+      "status": "MEASURED",
+      "initial_risk_pct": 3.067852964718919,
+      "minutes_measured": 10080,
+      "first_missing_ms": null,
+      "initial_risk_r": 1.0,
+      "fee_slippage_only_r": -1.0977882589061718,
+      "holding_hours": 142.21666666666667,
+      "reach_classification": {
+        "10": "NOT_REACHED",
+        "30": "NOT_REACHED"
+      },
+      "cost_sensitivity": {
+        "0.3": {
+          "fee_slippage_only_pct": -3.36785296471892,
+          "fee_slippage_only_r": -1.0977882589061718,
+          "full_net_pct": null
+        },
+        "0.6": {
+          "fee_slippage_only_pct": -3.66785296471892,
+          "fee_slippage_only_r": -1.1955765178123436,
+          "full_net_pct": null
+        },
+        "1.0": {
+          "fee_slippage_only_pct": -4.06785296471892,
+          "fee_slippage_only_r": -1.3259608630205726,
+          "full_net_pct": null
+        }
+      }
+    },
+    {
+      "symbol": "ATOMUSDT",
+      "direction": "LONG",
+      "confirmation_ms": 1786471199999,
+      "observed_ms": 1786471200999,
+      "reference_ms": 1786471260000,
+      "end_exclusive_ms": 1787076060000,
+      "observed_price": 1.437,
+      "initial_stop": 1.3840178571428572,
+      "entry_price": 1.437,
+      "full_net_pct": null,
+      "funding_status": "UNKNOWN",
+      "outcome": {
+        "version": "SWING_OUTCOME_V1_2026_10_22",
+        "status": "COMPLETE",
+        "plan_closed": true,
+        "exit": {
+          "kind": "STOP",
+          "at_ms": 1786696080000,
+          "time_upper_ms": 1786696139999,
+          "price": 1.522017857142857,
+          "gross_pct": 5.916343572919769
+        },
+        "fee_slippage_only_pct": 5.616343572919769,
+        "full_net_pct": null,
+        "funding_cost_pct": null,
+        "funding_status": "UNKNOWN",
+        "missing_assumed_stop_fee_only_pct": 5.616343572919769,
+        "raw_mfe_pct": 9.394572025052184,
+        "raw_reach": {
+          "5": 1786629840000
+        },
+        "in_plan_mfe_lower_pct": 9.046624913013224,
+        "in_plan_mfe_upper_pct": 9.046624913013224,
+        "in_plan_reach": {
+          "5": 1786629840000
+        },
+        "in_plan_mae_pct": 3.2011134307585287,
+        "checkpoints": {
+          "24": {
+            "mark_to_horizon_gross_pct": -2.6443980514961773,
+            "fee_slippage_only_pct": -2.944398051496177,
+            "open_plan": true,
+            "raw_mfe_pct": 0.6263048016701411,
+            "in_plan_mfe_lower_pct": 0.6263048016701411
+          },
+          "72": {
+            "mark_to_horizon_gross_pct": 5.916343572919769,
+            "fee_slippage_only_pct": 5.616343572919769,
+            "open_plan": false,
+            "raw_mfe_pct": 9.394572025052184,
+            "in_plan_mfe_lower_pct": 9.046624913013224
+          },
+          "168": {
+            "mark_to_horizon_gross_pct": 5.916343572919769,
+            "fee_slippage_only_pct": 5.616343572919769,
+            "open_plan": false,
+            "raw_mfe_pct": 9.394572025052184,
+            "in_plan_mfe_lower_pct": 9.046624913013224
+          }
+        }
+      },
+      "status": "MEASURED",
+      "initial_risk_pct": 3.6869967193558013,
+      "minutes_measured": 10080,
+      "first_missing_ms": null,
+      "initial_risk_r": 1.0,
+      "fee_slippage_only_r": 1.5232841253791696,
+      "holding_hours": 62.45,
+      "reach_classification": {
+        "10": "NOT_REACHED",
+        "30": "NOT_REACHED"
+      },
+      "cost_sensitivity": {
+        "0.3": {
+          "fee_slippage_only_pct": 5.616343572919769,
+          "fee_slippage_only_r": 1.5232841253791696,
+          "full_net_pct": null
+        },
+        "0.6": {
+          "fee_slippage_only_pct": 5.316343572919769,
+          "fee_slippage_only_r": 1.4419170879676428,
+          "full_net_pct": null
+        },
+        "1.0": {
+          "fee_slippage_only_pct": 4.916343572919769,
+          "fee_slippage_only_r": 1.3334277047522736,
+          "full_net_pct": null
+        }
+      }
+    },
+    {
+      "symbol": "SNDKUSDT",
+      "direction": "LONG",
+      "confirmation_ms": 1786539599999,
+      "observed_ms": 1786539600999,
+      "reference_ms": 1786539660000,
+      "end_exclusive_ms": 1787144460000,
+      "observed_price": 1345.63,
+      "initial_stop": 1292.7123214285714,
+      "entry_price": 1349.09,
+      "full_net_pct": null,
+      "funding_status": "UNKNOWN",
+      "outcome": null,
+      "status": "ENTRY_INVALID",
+      "reason": "LATE_CHASE"
+    },
+    {
+      "symbol": "SMCIUSDT",
+      "direction": "LONG",
+      "confirmation_ms": 1786543199999,
+      "observed_ms": 1786543200999,
+      "reference_ms": 1786543260000,
+      "end_exclusive_ms": 1787148060000,
+      "observed_price": 35.81,
+      "initial_stop": 33.89607142857143,
+      "entry_price": 36.13,
+      "full_net_pct": null,
+      "funding_status": "UNKNOWN",
+      "outcome": null,
+      "status": "ENTRY_INVALID",
+      "reason": "LATE_CHASE"
+    },
+    {
+      "symbol": "ATOMUSDT",
+      "direction": "LONG",
+      "confirmation_ms": 1786622399999,
+      "observed_ms": 1786622400999,
+      "reference_ms": 1786622460000,
+      "end_exclusive_ms": 1787227260000,
+      "observed_price": 1.454,
+      "initial_stop": 1.3881785714285715,
+      "entry_price": 1.451,
+      "full_net_pct": null,
+      "funding_status": "UNKNOWN",
+      "outcome": {
+        "version": "SWING_OUTCOME_V1_2026_10_22",
+        "status": "COMPLETE",
+        "plan_closed": true,
+        "exit": {
+          "kind": "STOP",
+          "at_ms": 1787040180000,
+          "time_upper_ms": 1787040239999,
+          "price": 1.3881785714285715,
+          "gross_pct": -4.329526434970954
+        },
+        "fee_slippage_only_pct": -4.629526434970954,
+        "full_net_pct": null,
+        "funding_cost_pct": null,
+        "funding_status": "UNKNOWN",
+        "missing_assumed_stop_fee_only_pct": -4.629526434970954,
+        "raw_mfe_pct": 8.339076498966236,
+        "raw_reach": {
+          "5": 1786633080000
+        },
+        "in_plan_mfe_lower_pct": 8.339076498966236,
+        "in_plan_mfe_upper_pct": 8.339076498966236,
+        "in_plan_reach": {
+          "5": 1786633080000
+        },
+        "in_plan_mae_pct": 4.329526434970954,
+        "checkpoints": {
+          "24": {
+            "mark_to_horizon_gross_pct": 7.443142660234314,
+            "fee_slippage_only_pct": 7.143142660234314,
+            "open_plan": true,
+            "raw_mfe_pct": 8.339076498966236,
+            "in_plan_mfe_lower_pct": 8.339076498966236
+          },
+          "72": {
+            "mark_to_horizon_gross_pct": 3.0323914541695363,
+            "fee_slippage_only_pct": 2.7323914541695364,
+            "open_plan": true,
+            "raw_mfe_pct": 8.339076498966236,
+            "in_plan_mfe_lower_pct": 8.339076498966236
+          },
+          "168": {
+            "mark_to_horizon_gross_pct": -4.329526434970954,
+            "fee_slippage_only_pct": -4.629526434970954,
+            "open_plan": false,
+            "raw_mfe_pct": 8.339076498966236,
+            "in_plan_mfe_lower_pct": 8.339076498966236
+          }
+        }
+      },
+      "status": "MEASURED",
+      "initial_risk_pct": 4.329526434970957,
+      "minutes_measured": 10080,
+      "first_missing_ms": null,
+      "initial_risk_r": 1.0,
+      "fee_slippage_only_r": -1.0692916429789647,
+      "holding_hours": 116.03333333333333,
+      "reach_classification": {
+        "10": "NOT_REACHED",
+        "30": "NOT_REACHED"
+      },
+      "cost_sensitivity": {
+        "0.3": {
+          "fee_slippage_only_pct": -4.629526434970954,
+          "fee_slippage_only_r": -1.0692916429789647,
+          "full_net_pct": null
+        },
+        "0.6": {
+          "fee_slippage_only_pct": -4.9295264349709536,
+          "fee_slippage_only_r": -1.13858328595793,
+          "full_net_pct": null
+        },
+        "1.0": {
+          "fee_slippage_only_pct": -5.329526434970954,
+          "fee_slippage_only_r": -1.230972143263217,
+          "full_net_pct": null
+        }
+      }
+    },
+    {
+      "symbol": "SNDKUSDT",
+      "direction": "SHORT",
+      "confirmation_ms": 1787093999999,
+      "observed_ms": 1787094000999,
+      "reference_ms": 1787094060000,
+      "end_exclusive_ms": 1787698860000,
+      "observed_price": 1591.09,
+      "initial_stop": 1644.1833928571427,
+      "entry_price": 1588.74,
+      "full_net_pct": null,
+      "funding_status": "UNKNOWN",
+      "outcome": {
+        "version": "SWING_OUTCOME_V1_2026_10_22",
+        "status": "COMPLETE",
+        "plan_closed": true,
+        "exit": {
+          "kind": "STOP",
+          "at_ms": 1787124180000,
+          "time_upper_ms": 1787124239999,
+          "price": 1644.1833928571427,
+          "gross_pct": -3.4897713192304947
+        },
+        "fee_slippage_only_pct": -3.7897713192304945,
+        "full_net_pct": null,
+        "funding_cost_pct": null,
+        "funding_status": "UNKNOWN",
+        "missing_assumed_stop_fee_only_pct": -3.7897713192304945,
+        "raw_mfe_pct": 10.642395860870879,
+        "raw_reach": {
+          "5": 1787569200000,
+          "10": 1787579040000
+        },
+        "in_plan_mfe_lower_pct": 1.4426526681521223,
+        "in_plan_mfe_upper_pct": 1.4426526681521223,
+        "in_plan_reach": {},
+        "in_plan_mae_pct": 3.4897713192304947,
+        "checkpoints": {
+          "24": {
+            "mark_to_horizon_gross_pct": -3.4897713192304947,
+            "fee_slippage_only_pct": -3.7897713192304945,
+            "open_plan": false,
+            "raw_mfe_pct": 2.7021413195362443,
+            "in_plan_mfe_lower_pct": 1.4426526681521223
+          },
+          "72": {
+            "mark_to_horizon_gross_pct": -3.4897713192304947,
+            "fee_slippage_only_pct": -3.7897713192304945,
+            "open_plan": false,
+            "raw_mfe_pct": 3.8004959905333813,
+            "in_plan_mfe_lower_pct": 1.4426526681521223
+          },
+          "168": {
+            "mark_to_horizon_gross_pct": -3.4897713192304947,
+            "fee_slippage_only_pct": -3.7897713192304945,
+            "open_plan": false,
+            "raw_mfe_pct": 10.642395860870879,
+            "in_plan_mfe_lower_pct": 1.4426526681521223
+          }
+        }
+      },
+      "status": "MEASURED",
+      "initial_risk_pct": 3.489771319230505,
+      "minutes_measured": 10080,
+      "first_missing_ms": null,
+      "initial_risk_r": 1.0,
+      "fee_slippage_only_r": -1.0859655182409316,
+      "holding_hours": 8.366666666666667,
+      "reach_classification": {
+        "10": "ONLY_AFTER_EXIT",
+        "30": "NOT_REACHED"
+      },
+      "cost_sensitivity": {
+        "0.3": {
+          "fee_slippage_only_pct": -3.7897713192304945,
+          "fee_slippage_only_r": -1.0859655182409316,
+          "full_net_pct": null
+        },
+        "0.6": {
+          "fee_slippage_only_pct": -4.089771319230494,
+          "fee_slippage_only_r": -1.171931036481866,
+          "full_net_pct": null
+        },
+        "1.0": {
+          "fee_slippage_only_pct": -4.489771319230495,
+          "fee_slippage_only_r": -1.2865517274697786,
+          "full_net_pct": null
+        }
+      }
+    },
+    {
+      "symbol": "ZECUSDT",
+      "direction": "LONG",
+      "confirmation_ms": 1787158799999,
+      "observed_ms": 1787158800999,
+      "reference_ms": 1787158860000,
+      "end_exclusive_ms": 1787763660000,
+      "observed_price": 555.61,
+      "initial_stop": 499.18410714285716,
+      "entry_price": 557.49,
+      "full_net_pct": null,
+      "funding_status": "UNKNOWN",
+      "outcome": {
+        "version": "SWING_OUTCOME_V1_2026_10_22",
+        "status": "COMPLETE",
+        "plan_closed": true,
+        "exit": {
+          "kind": "STOP",
+          "at_ms": 1787375400000,
+          "time_upper_ms": 1787375459999,
+          "price": 726.0941071428572,
+          "gross_pct": 30.243431656685704
+        },
+        "fee_slippage_only_pct": 29.943431656685704,
+        "full_net_pct": null,
+        "funding_cost_pct": null,
+        "funding_status": "UNKNOWN",
+        "missing_assumed_stop_fee_only_pct": 29.943431656685704,
+        "raw_mfe_pct": 59.642325422877526,
+        "raw_reach": {
+          "5": 1787243520000,
+          "10": 1787296980000,
+          "20": 1787329620000,
+          "30": 1787347980000,
+          "50": 1787364360000
+        },
+        "in_plan_mfe_lower_pct": 54.31308184900176,
+        "in_plan_mfe_upper_pct": 54.31308184900176,
+        "in_plan_reach": {
+          "5": 1787243520000,
+          "10": 1787296980000,
+          "20": 1787329620000,
+          "30": 1787347980000,
+          "50": 1787364360000
+        },
+        "in_plan_mae_pct": 2.3031803261045147,
+        "checkpoints": {
+          "24": {
+            "mark_to_horizon_gross_pct": 5.740013273780686,
+            "fee_slippage_only_pct": 5.4400132737806866,
+            "open_plan": true,
+            "raw_mfe_pct": 6.893397190980988,
+            "in_plan_mfe_lower_pct": 6.893397190980988
+          },
+          "72": {
+            "mark_to_horizon_gross_pct": 30.243431656685704,
+            "fee_slippage_only_pct": 29.943431656685704,
+            "open_plan": false,
+            "raw_mfe_pct": 54.31308184900176,
+            "in_plan_mfe_lower_pct": 54.31308184900176
+          },
+          "168": {
+            "mark_to_horizon_gross_pct": 30.243431656685704,
+            "fee_slippage_only_pct": 29.943431656685704,
+            "open_plan": false,
+            "raw_mfe_pct": 59.642325422877526,
+            "in_plan_mfe_lower_pct": 54.31308184900176
+          }
+        }
+      },
+      "status": "MEASURED",
+      "initial_risk_pct": 10.458643716863595,
+      "minutes_measured": 10080,
+      "first_missing_ms": null,
+      "initial_risk_r": 1.0,
+      "fee_slippage_only_r": 2.8630320017885964,
+      "holding_hours": 60.15,
+      "reach_classification": {
+        "10": "IN_PLAN_CONFIRMED",
+        "30": "IN_PLAN_CONFIRMED"
+      },
+      "cost_sensitivity": {
+        "0.3": {
+          "fee_slippage_only_pct": 29.943431656685704,
+          "fee_slippage_only_r": 2.8630320017885964,
+          "full_net_pct": null
+        },
+        "0.6": {
+          "fee_slippage_only_pct": 29.643431656685703,
+          "fee_slippage_only_r": 2.834347594123358,
+          "full_net_pct": null
+        },
+        "1.0": {
+          "fee_slippage_only_pct": 29.243431656685704,
+          "fee_slippage_only_r": 2.7961017172363736,
+          "full_net_pct": null
+        }
+      }
+    },
+    {
+      "symbol": "LDOUSDT",
+      "direction": "LONG",
+      "confirmation_ms": 1787173199999,
+      "observed_ms": 1787173200999,
+      "reference_ms": 1787173260000,
+      "end_exclusive_ms": 1787778060000,
+      "observed_price": 0.3331,
+      "initial_stop": 0.30071785714285715,
+      "entry_price": 0.3338,
+      "full_net_pct": null,
+      "funding_status": "UNKNOWN",
+      "outcome": {
+        "version": "SWING_OUTCOME_V1_2026_10_22",
+        "status": "COMPLETE",
+        "plan_closed": true,
+        "exit": {
+          "kind": "STOP",
+          "at_ms": 1787455860000,
+          "time_upper_ms": 1787455919999,
+          "price": 0.3547178571428572,
+          "gross_pct": 6.266583925361657
+        },
+        "fee_slippage_only_pct": 5.9665839253616575,
+        "full_net_pct": null,
+        "funding_cost_pct": null,
+        "funding_status": "UNKNOWN",
+        "missing_assumed_stop_fee_only_pct": 5.9665839253616575,
+        "raw_mfe_pct": 23.9065308568005,
+        "raw_reach": {
+          "5": 1787299560000,
+          "10": 1787311320000,
+          "20": 1787493840000
+        },
+        "in_plan_mfe_lower_pct": 19.832234871180354,
+        "in_plan_mfe_upper_pct": 19.832234871180354,
+        "in_plan_reach": {
+          "5": 1787299560000,
+          "10": 1787311320000
+        },
+        "in_plan_mae_pct": 2.3067705212702183,
+        "checkpoints": {
+          "24": {
+            "mark_to_horizon_gross_pct": -0.5092869982025072,
+            "fee_slippage_only_pct": -0.8092869982025073,
+            "open_plan": true,
+            "raw_mfe_pct": 4.194128220491322,
+            "in_plan_mfe_lower_pct": 4.194128220491322
+          },
+          "72": {
+            "mark_to_horizon_gross_pct": 9.227082085080895,
+            "fee_slippage_only_pct": 8.927082085080894,
+            "open_plan": true,
+            "raw_mfe_pct": 19.832234871180354,
+            "in_plan_mfe_lower_pct": 19.832234871180354
+          },
+          "168": {
+            "mark_to_horizon_gross_pct": 6.266583925361657,
+            "fee_slippage_only_pct": 5.9665839253616575,
+            "open_plan": false,
+            "raw_mfe_pct": 23.9065308568005,
+            "in_plan_mfe_lower_pct": 19.832234871180354
+          }
+        }
+      },
+      "status": "MEASURED",
+      "initial_risk_pct": 9.910767782247705,
+      "minutes_measured": 10080,
+      "first_missing_ms": null,
+      "initial_risk_r": 1.0,
+      "fee_slippage_only_r": 0.6020304437007473,
+      "holding_hours": 78.5,
+      "reach_classification": {
+        "10": "IN_PLAN_CONFIRMED",
+        "30": "NOT_REACHED"
+      },
+      "cost_sensitivity": {
+        "0.3": {
+          "fee_slippage_only_pct": 5.9665839253616575,
+          "fee_slippage_only_r": 0.6020304437007473,
+          "full_net_pct": null
+        },
+        "0.6": {
+          "fee_slippage_only_pct": 5.666583925361658,
+          "fee_slippage_only_r": 0.5717603368239256,
+          "full_net_pct": null
+        },
+        "1.0": {
+          "fee_slippage_only_pct": 5.266583925361657,
+          "fee_slippage_only_r": 0.5314001943214965,
+          "full_net_pct": null
+        }
+      }
+    },
+    {
+      "symbol": "NEOUSDT",
+      "direction": "LONG",
+      "confirmation_ms": 1787176799999,
+      "observed_ms": 1787176800999,
+      "reference_ms": 1787176860000,
+      "end_exclusive_ms": 1787781660000,
+      "observed_price": 1.818,
+      "initial_stop": 1.6755,
+      "entry_price": 1.816,
+      "full_net_pct": null,
+      "funding_status": "UNKNOWN",
+      "outcome": {
+        "version": "SWING_OUTCOME_V1_2026_10_22",
+        "status": "COMPLETE",
+        "plan_closed": true,
+        "exit": {
+          "kind": "STOP",
+          "at_ms": 1787375340000,
+          "time_upper_ms": 1787375399999,
+          "price": 2.1525,
+          "gross_pct": 18.52973568281937
+        },
+        "fee_slippage_only_pct": 18.22973568281937,
+        "full_net_pct": null,
+        "funding_cost_pct": null,
+        "funding_status": "UNKNOWN",
+        "missing_assumed_stop_fee_only_pct": 18.22973568281937,
+        "raw_mfe_pct": 26.10132158590308,
+        "raw_reach": {
+          "5": 1787247660000,
+          "10": 1787272380000,
+          "20": 1787357220000
+        },
+        "in_plan_mfe_lower_pct": 25.55066079295152,
+        "in_plan_mfe_upper_pct": 25.55066079295152,
+        "in_plan_reach": {
+          "5": 1787247660000,
+          "10": 1787272380000,
+          "20": 1787357220000
+        },
+        "in_plan_mae_pct": 1.156387665198244,
+        "checkpoints": {
+          "24": {
+            "mark_to_horizon_gross_pct": 7.488986784140961,
+            "fee_slippage_only_pct": 7.188986784140961,
+            "open_plan": true,
+            "raw_mfe_pct": 9.966960352422905,
+            "in_plan_mfe_lower_pct": 9.966960352422905
+          },
+          "72": {
+            "mark_to_horizon_gross_pct": 18.52973568281937,
+            "fee_slippage_only_pct": 18.22973568281937,
+            "open_plan": false,
+            "raw_mfe_pct": 25.55066079295152,
+            "in_plan_mfe_lower_pct": 25.55066079295152
+          },
+          "168": {
+            "mark_to_horizon_gross_pct": 18.52973568281937,
+            "fee_slippage_only_pct": 18.22973568281937,
+            "open_plan": false,
+            "raw_mfe_pct": 26.10132158590308,
+            "in_plan_mfe_lower_pct": 25.55066079295152
+          }
+        }
+      },
+      "status": "MEASURED",
+      "initial_risk_pct": 7.736784140969167,
+      "minutes_measured": 10080,
+      "first_missing_ms": null,
+      "initial_risk_r": 1.0,
+      "fee_slippage_only_r": 2.3562419928825595,
+      "holding_hours": 55.13333333333333,
+      "reach_classification": {
+        "10": "IN_PLAN_CONFIRMED",
+        "30": "NOT_REACHED"
+      },
+      "cost_sensitivity": {
+        "0.3": {
+          "fee_slippage_only_pct": 18.22973568281937,
+          "fee_slippage_only_r": 2.3562419928825595,
+          "full_net_pct": null
+        },
+        "0.6": {
+          "fee_slippage_only_pct": 17.92973568281937,
+          "fee_slippage_only_r": 2.3174661921708157,
+          "full_net_pct": null
+        },
+        "1.0": {
+          "fee_slippage_only_pct": 17.52973568281937,
+          "fee_slippage_only_r": 2.2657651245551573,
+          "full_net_pct": null
+        }
+      }
+    },
+    {
+      "symbol": "AIXBTUSDT",
+      "direction": "LONG",
+      "confirmation_ms": 1787216399999,
+      "observed_ms": 1787216400999,
+      "reference_ms": 1787216460000,
+      "end_exclusive_ms": 1787821260000,
+      "observed_price": 0.01902,
+      "initial_stop": 0.018065357142857143,
+      "entry_price": 0.019,
+      "full_net_pct": null,
+      "funding_status": "UNKNOWN",
+      "outcome": {
+        "version": "SWING_OUTCOME_V1_2026_10_22",
+        "status": "COMPLETE",
+        "plan_closed": true,
+        "exit": {
+          "kind": "STOP",
+          "at_ms": 1787375400000,
+          "time_upper_ms": 1787375459999,
+          "price": 0.021195357142857144,
+          "gross_pct": 11.55451127819549
+        },
+        "fee_slippage_only_pct": 11.254511278195489,
+        "full_net_pct": null,
+        "funding_cost_pct": null,
+        "funding_status": "UNKNOWN",
+        "missing_assumed_stop_fee_only_pct": 11.254511278195489,
+        "raw_mfe_pct": 23.578947368421055,
+        "raw_reach": {
+          "5": 1787271540000,
+          "10": 1787316240000,
+          "20": 1787367660000
+        },
+        "in_plan_mfe_lower_pct": 23.578947368421055,
+        "in_plan_mfe_upper_pct": 23.578947368421055,
+        "in_plan_reach": {
+          "5": 1787271540000,
+          "10": 1787316240000,
+          "20": 1787367660000
+        },
+        "in_plan_mae_pct": 0.47368421052631504,
+        "checkpoints": {
+          "24": {
+            "mark_to_horizon_gross_pct": 8.631578947368412,
+            "fee_slippage_only_pct": 8.331578947368412,
+            "open_plan": true,
+            "raw_mfe_pct": 9.894736842105267,
+            "in_plan_mfe_lower_pct": 9.894736842105267
+          },
+          "72": {
+            "mark_to_horizon_gross_pct": 11.55451127819549,
+            "fee_slippage_only_pct": 11.254511278195489,
+            "open_plan": false,
+            "raw_mfe_pct": 23.578947368421055,
+            "in_plan_mfe_lower_pct": 23.578947368421055
+          },
+          "168": {
+            "mark_to_horizon_gross_pct": 11.55451127819549,
+            "fee_slippage_only_pct": 11.254511278195489,
+            "open_plan": false,
+            "raw_mfe_pct": 23.578947368421055,
+            "in_plan_mfe_lower_pct": 23.578947368421055
+          }
+        }
+      },
+      "status": "MEASURED",
+      "initial_risk_pct": 4.919172932330822,
+      "minutes_measured": 10080,
+      "first_missing_ms": null,
+      "initial_risk_r": 1.0,
+      "fee_slippage_only_r": 2.2878868933893797,
+      "holding_hours": 44.15,
+      "reach_classification": {
+        "10": "IN_PLAN_CONFIRMED",
+        "30": "NOT_REACHED"
+      },
+      "cost_sensitivity": {
+        "0.3": {
+          "fee_slippage_only_pct": 11.254511278195489,
+          "fee_slippage_only_r": 2.2878868933893797,
+          "full_net_pct": null
+        },
+        "0.6": {
+          "fee_slippage_only_pct": 10.95451127819549,
+          "fee_slippage_only_r": 2.2269010317157076,
+          "full_net_pct": null
+        },
+        "1.0": {
+          "fee_slippage_only_pct": 10.55451127819549,
+          "fee_slippage_only_r": 2.1455865494841446,
+          "full_net_pct": null
+        }
+      }
+    },
+    {
+      "symbol": "WLDUSDT",
+      "direction": "LONG",
+      "confirmation_ms": 1787248799999,
+      "observed_ms": 1787248800999,
+      "reference_ms": 1787248860000,
+      "end_exclusive_ms": 1787853660000,
+      "observed_price": 0.374,
+      "initial_stop": 0.35339642857142856,
+      "entry_price": 0.374,
+      "full_net_pct": null,
+      "funding_status": "UNKNOWN",
+      "outcome": {
+        "version": "SWING_OUTCOME_V1_2026_10_22",
+        "status": "COMPLETE",
+        "plan_closed": true,
+        "exit": {
+          "kind": "STOP",
+          "at_ms": 1787375400000,
+          "time_upper_ms": 1787375459999,
+          "price": 0.39469642857142856,
+          "gross_pct": 5.533804430863243
+        },
+        "fee_slippage_only_pct": 5.233804430863243,
+        "full_net_pct": null,
+        "funding_cost_pct": null,
+        "funding_status": "UNKNOWN",
+        "missing_assumed_stop_fee_only_pct": 5.233804430863243,
+        "raw_mfe_pct": 24.0374331550802,
+        "raw_reach": {
+          "5": 1787302560000,
+          "10": 1787360220000,
+          "20": 1787372580000
+        },
+        "in_plan_mfe_lower_pct": 24.0374331550802,
+        "in_plan_mfe_upper_pct": 24.0374331550802,
+        "in_plan_reach": {
+          "5": 1787302560000,
+          "10": 1787360220000,
+          "20": 1787372580000
+        },
+        "in_plan_mae_pct": 3.0481283422459926,
+        "checkpoints": {
+          "24": {
+            "mark_to_horizon_gross_pct": 5.240641711229954,
+            "fee_slippage_only_pct": 4.940641711229954,
+            "open_plan": true,
+            "raw_mfe_pct": 8.288770053475947,
+            "in_plan_mfe_lower_pct": 8.288770053475947
+          },
+          "72": {
+            "mark_to_horizon_gross_pct": 5.533804430863243,
+            "fee_slippage_only_pct": 5.233804430863243,
+            "open_plan": false,
+            "raw_mfe_pct": 24.0374331550802,
+            "in_plan_mfe_lower_pct": 24.0374331550802
+          },
+          "168": {
+            "mark_to_horizon_gross_pct": 5.533804430863243,
+            "fee_slippage_only_pct": 5.233804430863243,
+            "open_plan": false,
+            "raw_mfe_pct": 24.0374331550802,
+            "in_plan_mfe_lower_pct": 24.0374331550802
+          }
+        }
+      },
+      "status": "MEASURED",
+      "initial_risk_pct": 5.508976317799852,
+      "minutes_measured": 10080,
+      "first_missing_ms": null,
+      "initial_risk_r": 1.0,
+      "fee_slippage_only_r": 0.9500502686774109,
+      "holding_hours": 35.15,
+      "reach_classification": {
+        "10": "IN_PLAN_CONFIRMED",
+        "30": "NOT_REACHED"
+      },
+      "cost_sensitivity": {
+        "0.3": {
+          "fee_slippage_only_pct": 5.233804430863243,
+          "fee_slippage_only_r": 0.9500502686774109,
+          "full_net_pct": null
+        },
+        "0.6": {
+          "fee_slippage_only_pct": 4.933804430863243,
+          "fee_slippage_only_r": 0.8955936904142805,
+          "full_net_pct": null
+        },
+        "1.0": {
+          "fee_slippage_only_pct": 4.533804430863243,
+          "fee_slippage_only_r": 0.8229849193967731,
+          "full_net_pct": null
+        }
+      }
+    },
+    {
+      "symbol": "ATOMUSDT",
+      "direction": "LONG",
+      "confirmation_ms": 1787281199999,
+      "observed_ms": 1787281200999,
+      "reference_ms": 1787281260000,
+      "end_exclusive_ms": 1787886060000,
+      "observed_price": 1.525,
+      "initial_stop": 1.4648571428571429,
+      "entry_price": 1.523,
+      "full_net_pct": null,
+      "funding_status": "UNKNOWN",
+      "outcome": {
+        "version": "SWING_OUTCOME_V1_2026_10_22",
+        "status": "COMPLETE",
+        "plan_closed": true,
+        "exit": {
+          "kind": "STOP",
+          "at_ms": 1787375400000,
+          "time_upper_ms": 1787375459999,
+          "price": 1.5788571428571427,
+          "gross_pct": 3.6675733983678738
+        },
+        "fee_slippage_only_pct": 3.367573398367874,
+        "full_net_pct": null,
+        "funding_cost_pct": null,
+        "funding_status": "UNKNOWN",
+        "missing_assumed_stop_fee_only_pct": 3.367573398367874,
+        "raw_mfe_pct": 13.000656598818129,
+        "raw_reach": {
+          "5": 1787349720000,
+          "10": 1787373720000
+        },
+        "in_plan_mfe_lower_pct": 13.000656598818129,
+        "in_plan_mfe_upper_pct": 13.000656598818129,
+        "in_plan_reach": {
+          "5": 1787349720000,
+          "10": 1787373720000
+        },
+        "in_plan_mae_pct": 0.1969796454366346,
+        "checkpoints": {
+          "24": {
+            "mark_to_horizon_gross_pct": 7.682206172028883,
+            "fee_slippage_only_pct": 7.382206172028883,
+            "open_plan": true,
+            "raw_mfe_pct": 8.20748522652659,
+            "in_plan_mfe_lower_pct": 8.20748522652659
+          },
+          "72": {
+            "mark_to_horizon_gross_pct": 3.6675733983678738,
+            "fee_slippage_only_pct": 3.367573398367874,
+            "open_plan": false,
+            "raw_mfe_pct": 13.000656598818129,
+            "in_plan_mfe_lower_pct": 13.000656598818129
+          },
+          "168": {
+            "mark_to_horizon_gross_pct": 3.6675733983678738,
+            "fee_slippage_only_pct": 3.367573398367874,
+            "open_plan": false,
+            "raw_mfe_pct": 13.000656598818129,
+            "in_plan_mfe_lower_pct": 13.000656598818129
+          }
+        }
+      },
+      "status": "MEASURED",
+      "initial_risk_pct": 3.8176531282243635,
+      "minutes_measured": 10080,
+      "first_missing_ms": null,
+      "initial_risk_r": 1.0,
+      "fee_slippage_only_r": 0.8821056511056501,
+      "holding_hours": 26.15,
+      "reach_classification": {
+        "10": "IN_PLAN_CONFIRMED",
+        "30": "NOT_REACHED"
+      },
+      "cost_sensitivity": {
+        "0.3": {
+          "fee_slippage_only_pct": 3.367573398367874,
+          "fee_slippage_only_r": 0.8821056511056501,
+          "full_net_pct": null
+        },
+        "0.6": {
+          "fee_slippage_only_pct": 3.0675733983678737,
+          "fee_slippage_only_r": 0.8035233415233403,
+          "full_net_pct": null
+        },
+        "1.0": {
+          "fee_slippage_only_pct": 2.6675733983678738,
+          "fee_slippage_only_r": 0.6987469287469273,
+          "full_net_pct": null
+        }
+      }
+    }
+  ]
+}
