@@ -1,0 +1,28 @@
+{
+  "protocol_commit": "1fe98504804a03d1386a0fc25e96cd4b176e1579",
+  "test_command": "python -m unittest discover -s tests -p test_entry_timeframe.py -v",
+  "tests_passed": 8,
+  "candidate_records": 1285,
+  "complete_measured": 1129,
+  "unique_records": true,
+  "strict_post_observation_reference": true,
+  "no_future_hour_context": true,
+  "fee_and_r_recomputed": true,
+  "summary_reproduced": true,
+  "pairs_reproduced": true,
+  "official_source_hashes_rechecked": 392,
+  "protected_sha256": {
+    "long_short_swing.py": "c757e6f34bcd3c5549bfb02f31466f9288721cc77fc8c8697d9ba0bb80f6b5fe",
+    "long_short_swing_outcomes.py": "7798d1a2d6ffe66c367e517b4a7125a15e0d5faf7c2d868292fba136e3411feb"
+  },
+  "protected_sources_unchanged": true,
+  "output_sha256": {
+    "FROZEN.json": "59bb9577884a9605ea4ee7d93524e79b948c64d909cf93d2816dd6b527af8eb5",
+    "PROTOCOL.md": "f6d23bf5cb5a80b03f9521de883e33d93e2465ed6db24b95a42cde5008583100",
+    "compare.py": "0e81ffa5f35be6b424e903cbec50e8edb3007a9410e6fca944ce9ce866f15a7a",
+    "SUMMARY.json": "eab8ef9a4103fc5818e98336fa7e1644fa345e66f71856daf6c88f8a6b0868ae",
+    "OUTCOMES.json.gz": "c9bc737c0fb3b4407caa10d88d17e86fe2ef2aabe10d253e70e387d569e12429"
+  },
+  "network_requests": 0,
+  "live_deployed": false
+}
