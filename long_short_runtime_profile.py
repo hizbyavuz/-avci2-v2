@@ -25,13 +25,20 @@ MAJOR_WORKERS = tuple((name,script) for name,script in WORKERS
     if name not in ('chart_first','chart_delivery_outcomes','binance_taker_shadow')) + (
     ('major_move','long_short_major_move_worker.py'),)
 
+SWING_WORKERS = tuple((name,script) for name,script in MAJOR_WORKERS if name!='major_move') + (
+    ('swing_structure','long_short_swing_runtime.py'),)
+
+
+def swing_enabled():
+    return os.getenv('LS_RUNTIME_PROFILE') == 'SWING_STRUCTURE_V1'
+
 
 def major_enabled():
-    return enabled() and os.getenv('LS_MAJOR_MOVE_V1','1')=='1'
+    return not swing_enabled() and enabled() and os.getenv('LS_MAJOR_MOVE_V1','1')=='1'
 
 
 def enabled():
-    return all(os.getenv(k, '0') == '1' for k in
+    return swing_enabled() or all(os.getenv(k, '0') == '1' for k in
                ('LS_LEAN_RUNTIME', 'LS_NATIVE_CHAIN_V2', 'LS_CHART_FIRST_V1'))
 
 
@@ -43,6 +50,9 @@ def demand(limit=90, full_chart=False):
     Candle/price consumers cover the full chart liquidity universe; bounded
     auxiliary consumers retain their existing rotating request list.
     """
+    if swing_enabled():
+        from long_short_swing_runtime import demand as swing_demand
+        return swing_demand(limit,full_chart)
     if major_enabled():
         from long_short_major_move_store import demand as major_demand
         return major_demand(limit,full_chart)
@@ -77,6 +87,9 @@ def demand(limit=90, full_chart=False):
 
 def health(root):
     """Report the current worker's records, never the retired analyst's clock."""
+    if swing_enabled():
+        from long_short_swing_runtime import health as swing_health
+        return swing_health(root)
     if major_enabled():
         from long_short_major_move_store import health as major_health
         return major_health(root)

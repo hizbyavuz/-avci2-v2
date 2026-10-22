@@ -57,7 +57,7 @@ def connect():
     return c
 
 
-def universe(now_ms=None):
+def universe(now_ms=None, min_quote_volume=None):
     now_ms=int(time.time()*1000) if now_ms is None else now_ms
     c=db(root()/'native_derivatives_v2.db',True)
     try:catalog=c.execute('SELECT observed_ms,payload FROM markets WHERE id=1').fetchone()
@@ -72,7 +72,7 @@ def universe(now_ms=None):
         if (s not in allowed or not s.endswith('USDT') or not base.isalnum() or base in EXCLUDED or
             any(base.endswith(x) for x in ['UP','DOWN','BULL','BEAR']) or
             source!='BINANCE_UM_FUTURES_WEBSOCKET' or not 0<=now_ms-stamp<=120000 or
-            not all(finite(x) for x in [q,p,change]) or q<CONFIG['min_quote_volume'] or p<=0):continue
+            not all(finite(x) for x in [q,p,change]) or q<(CONFIG['min_quote_volume'] if min_quote_volume is None else min_quote_volume) or p<=0):continue
         result.append((s,q,p,change))
     if not result:raise ValueError('UNIVERSE_UNAVAILABLE')
     return sorted(result,key=lambda r:r[1],reverse=True)
