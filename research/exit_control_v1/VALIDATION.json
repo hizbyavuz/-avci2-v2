@@ -1,0 +1,54 @@
+{
+  "status": "COMPARISON_COMPLETE_NO_PROMOTION",
+  "test_count": 8,
+  "tests": {
+    "test_exit_control.py": {
+      "passed": 8,
+      "failed": 0
+    }
+  },
+  "all_candidates": 2148,
+  "measured_signal_plans": 1080,
+  "original_entry_statuses_and_outcomes_reproduced": true,
+  "complete_signal_paths": 974,
+  "complete_pairs": 625,
+  "source_sha256": {
+    "research/exit_control_v1/compare.py": "08a3449e13e2a0bdd61038ce957eb137e527e5981ab75e0a63a4fa552c886b2a",
+    "tests/test_exit_control.py": "00668f580d11a72ac86ae591a44fea2376de6681d607448755dbbbd36ff093b1",
+    "research/exit_control_v1/PROTOCOL.md": "40fcdb3027016491217bf39d88161bc6b8c15c61f1278c62e68a847439158ad3"
+  },
+  "protected_source_sha256": {
+    "long_short_swing_runtime.py": "ebb891b51a786eba70d607e2ccf8cfa13a6afa65d007a00607a82a3515365455",
+    "long_short_signal_policy.py": "de7d217e6ecd67f5e2cfb03a3592e0fe1a56a2b0110a4aee9a1c49a3e62aa70c",
+    "long_short_daemon.py": "c65e71c959b04e5f7fee12143ea409f1bbffe3a69deb79f5060206990b2df222",
+    "research/short_v2/diagnose.py": "394d35c4e40e737112e7878c86082ef097f8878308eb8adebc1391bb84f6984f",
+    "tests/test_short_diagnosis_policy.py": "b9a8f95e387a6a9f35199cb2e08430aaccb657aa50867fea25029d5cf0aa5004",
+    "long_short_swing.py": "c757e6f34bcd3c5549bfb02f31466f9288721cc77fc8c8697d9ba0bb80f6b5fe",
+    "long_short_swing_outcomes.py": "7798d1a2d6ffe66c367e517b4a7125a15e0d5faf7c2d868292fba136e3411feb",
+    "long_short_short_retest.py": "31f095f3d8fbee69e1b8724768e79d6352524cce5360228e5c01eeb67dc29ef4",
+    "long_short_trader_context.py": "9b683451cd791afdcaad442718ce2c78361afd5974731630f76c84cc8c35f467",
+    "long_short_trade_plan.py": "118a98acb6b7114610de4d314509a55c054b99709262b020cdbb317e1d0ddf83"
+  },
+  "outputs_sha256": {
+    "MATCH_MANIFEST.json": "64647d9055e6f0ffdf5871a1b91445c32eb928e16d749e5c3e0a1467007e6e39",
+    "MATCHES.json.gz": "6910be1a2c2334054ac4ff049be916aa0bb887021c37bb1b27f46720842ec0f5",
+    "OUTCOMES.json.gz": "a73c528cd351cf8031419addc6862a79ff51d7aaed68ae5aa6cf239334affa93",
+    "SUMMARY.json": "db3cfdd99fdf9644102e98b031163836a168dd97d169ff90aa02091301d27a22",
+    "SUMMARY_BEFORE_DAY_COUNT_FIX.json.gz": "ec79fe7205fdf1b68b88718e9ac43374e5b1c2469cc8f81acbe6a4c229a81730",
+    "REPORT_CORRECTION.json": "1af8b91c712428ae9efe9ee6cea834afd1ea813990a747c9269f6dd156e0e5c5",
+    "FINDINGS.md": "d3e9f3713fedd5d19a4047a8e29d475dc893367e2a222ca13203e6592f9b361c"
+  },
+  "post_result_change": "Distinct signal-day count metadata only; numerical outcomes and interval draws invariant",
+  "selection_or_exit_thresholds_retuned": false,
+  "network_requests_for_research": 0,
+  "live_deployed": false,
+  "telegram_enabled": false,
+  "automatic_orders": false,
+  "independent_validation": false,
+  "complete_costs_known": false,
+  "activation_eligible": false,
+  "decision": {
+    "LONG": "KEEP_EXISTING_RESEARCH_EXIT",
+    "SHORT": "REMAIN_REJECTED_FOR_PUBLICATION"
+  }
+}

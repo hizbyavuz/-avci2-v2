@@ -228,7 +228,9 @@ def block_interval(rows, field):
         selected=[]
         while len(selected)<len(calendar):
             i=rng.randrange(len(calendar)-6);selected.extend(calendar[i:i+7])
-        values=[x for d in selected[:len(calendar)] for x in days[d]]
+        # Reading an absent day must not insert an empty key into defaultdict:
+        # that would overstate the number of days with actual observations.
+        values=[x for d in selected[:len(calendar)] for x in days.get(d,[])]
         if values: estimates.append(statistics.mean(values))
     estimates.sort()
     return dict(status='DESCRIPTIVE_DEPENDENT_DEVELOPMENT_SAMPLE',lower=estimates[int(.05*len(estimates))],
@@ -310,7 +312,32 @@ def measure(cache, workers):
     print(json.dumps(dict(candidates=len(records),summary=report['summary'])),flush=True)
 
 
+def report_correction():
+    """Repair report metadata from immutable outcomes; no replay or reselection."""
+    proof=json.loads((HERE/'REPORT_CORRECTION.json').read_text())
+    if sha(HERE/'OUTCOMES.json.gz')!=proof['outcomes_sha256'] or sha(HERE/'MATCHES.json.gz')!=proof['matches_sha256']:
+        raise ValueError('EVIDENCE_CHANGED')
+    raw=gzip.decompress((HERE/'SUMMARY_BEFORE_DAY_COUNT_FIX.json.gz').read_bytes())
+    if hashlib.sha256(raw).hexdigest()!=proof['original_summary_sha256']:raise ValueError('ORIGINAL_REPORT_CHANGED')
+    original=json.loads(raw);records=json.loads(gzip.decompress((HERE/'OUTCOMES.json.gz').read_bytes()))
+    revised=summary(records)
+    def strip_day_count(value):
+        if isinstance(value,dict):return {k:strip_day_count(v) for k,v in value.items() if k!='signal_days'}
+        if isinstance(value,list):return [strip_day_count(x) for x in value]
+        return value
+    if strip_day_count(revised)!=strip_day_count(original['summary']):
+        raise ValueError('UNEXPECTED_NUMERICAL_CHANGE')
+    report=dict(original,summary=revised,report_code_sha256=sha(__file__),
+        reporting_correction=proof,trade_results_unchanged=True)
+    (HERE/'SUMMARY.json').write_text(json.dumps(report,indent=2)+'\n')
+    print(json.dumps(dict(corrected='signal_days metadata',trade_results_unchanged=True)),flush=True)
+
+
 if __name__=='__main__':
-    parser=argparse.ArgumentParser();parser.add_argument('phase',choices=['select','measure'])
-    parser.add_argument('--cache',type=Path,required=True);parser.add_argument('--workers',type=int,default=4)
-    args=parser.parse_args();(select if args.phase=='select' else measure)(args.cache,args.workers)
+    parser=argparse.ArgumentParser();parser.add_argument('phase',choices=['select','measure','report-correction'])
+    parser.add_argument('--cache',type=Path);parser.add_argument('--workers',type=int,default=4)
+    args=parser.parse_args()
+    if args.phase=='report-correction':report_correction()
+    else:
+        if args.cache is None:parser.error('--cache is required for select/measure')
+        (select if args.phase=='select' else measure)(args.cache,args.workers)

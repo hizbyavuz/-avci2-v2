@@ -1,8 +1,7 @@
-import copy
 import unittest
 
 from long_short_swing import HOUR, MINUTE
-from research.exit_control_v1.compare import choose_peer, fixed_two_r, point_features, summary, full
+from research.exit_control_v1.compare import choose_peer, fixed_two_r, point_features, summary, block_interval
 
 
 def bar(t, o=100., h=101., l=99., c=100.):
@@ -45,6 +44,12 @@ class ExitTests(unittest.TestCase):
 
 
 class PeerTests(unittest.TestCase):
+    def test_sparse_signal_days_are_not_inflated_by_empty_calendar_days(self):
+        rows=[dict(confirmation_ms=d*24*HOUR-1,delta=float(d)) for d in (1,5,12)]
+        interval=block_interval(rows,'delta')
+        self.assertEqual(interval['signal_days'],3)
+        self.assertEqual(interval['calendar_days'],12)
+
     def test_peer_selection_does_not_consume_future_or_minute_availability(self):
         p=dict(symbol='A',model='M',confirmation_ms=1,quote_volume_24h=3e6,atr_1h=1.,price=100.)
         peers=[dict(p,symbol=s) for s in 'ABCDEFG']
