@@ -70,5 +70,29 @@
     "uncompressed_sha256": "f16bfe86e976c5dff4198937c9c52f602d3c7bb471cde1c682d6ea662f7483ec",
     "compressed_sha256": "1ed0bd07d4094862acdbb83b0888492cb3638d1dba83a075e115bbcd8a1430ba",
     "uncompressed_bytes": 362791
+  },
+  {
+    "path": "evidence/2026-08-full-minute-audit.json.gz",
+    "uncompressed_sha256": "be62d23545e1caae62a90a08a62953a04969a17f57ebffb627c50c9d6c43c13e",
+    "compressed_sha256": "4a85f0ff1f1428fb437d1d26f73e212443540bc00d5519c2062c523a6c375610",
+    "uncompressed_bytes": 1924503
+  },
+  {
+    "path": "evidence/2026-10-22-hourly-download-complete.json.gz",
+    "uncompressed_sha256": "5cc0349fe9ae35e11e234179edbeb95f3c5a4af71b5a7b73024bc4fccc849f5b",
+    "compressed_sha256": "e272ff1c221b668137beaee36a16f5a42391c1313868363e8b3ed20dab6f5ff0",
+    "uncompressed_bytes": 476478
+  },
+  {
+    "path": "evidence/2026-10-22-hourly-download-confirmed.json.gz",
+    "uncompressed_sha256": "e1826b07d0408c12d4afd16c053ac116f5b976b7bb38216a302d57e5ec37b480",
+    "compressed_sha256": "0f5cdb74b81ae1a6ddbf05ca96e534f3f6508cb560200bd997fb6dd47438dcf4",
+    "uncompressed_bytes": 479162
+  },
+  {
+    "path": "evidence/2026-10-22-minute-download-complete.json.gz",
+    "uncompressed_sha256": "45c44f8d33ce54e911f546f453be56cefe0dc546b0eaff91b18f35f51a32b6b4",
+    "compressed_sha256": "dc8517f293638063fe47cfab886331ffc08b959599751412177f8c5d1babf037",
+    "uncompressed_bytes": 257570
   }
 ]

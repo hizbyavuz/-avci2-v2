@@ -60,6 +60,24 @@
     "research/swing_v1/baseline.py": "71f3b858fc010223daaab7a355e6668563752077263d42527b5a79de2bfed2ef",
     "tests/test_swing_baseline.py": "db9124efee5782b89aabbffb2b726f037a24b9d42a78854657601b3dc32c4332",
     "research/swing_v1/minute_audit.py": "585e5554f64b5df4adbf048b1105eb83bdafa0357433fa3d5d0cf8ab47964b49",
-    "tests/test_swing_minute_audit.py": "1e259299945b63db6ab82bf8913a1786e9478f5f71985676331db72d904cdbd2"
+    "tests/test_swing_minute_audit.py": "1e259299945b63db6ab82bf8913a1786e9478f5f71985676331db72d904cdbd2",
+    "research/swing_v1/download_required.py": "537a281b7f16725032d1941026cbe26bd7e0a95567aac14c2ad67486a675a4ea",
+    "research/swing_v1/audit_complete_data.py": "81c30e5f277c26d4672b459207a79c4c639297949b15cb97b97b7b3e05629077",
+    "research/swing_v1/screen_downloaded.py": "9907965d6545cf1e23323e447640ef9fb3418f39a2218cba164bcd0da48e389c",
+    "research/swing_v1/verify_catalogue_absence.py": "513345e51ad61a44390c9fa6427d6706181fa8060a99139340285c4a71ddfc9a"
+  },
+  "data_refresh_checks": {
+    "date": "2026-10-22",
+    "official_checksum_verified_minute_archives": 479,
+    "official_checksum_verified_september_hourly_archives": 869,
+    "missing_archive_head_http_404": 31,
+    "august_candidates_retained": 625,
+    "august_complete_minute_paths": 556,
+    "august_invalid_entries": 69,
+    "previous_complete_or_invalid_results_identical": 14,
+    "previously_validated_source_hashes_unchanged": 12,
+    "new_strategy_tests_added": 0,
+    "full_funding_net_verified": false,
+    "live_runtime_started": false
   }
 }

@@ -1,0 +1,11 @@
+{
+  "date": "2026-10-22",
+  "source": "Binance USD-M REST",
+  "url": "https://fapi.binance.com/fapi/v1/fundingRate?symbol=BTCUSDT&startTime=1785542400000&endTime=1785628800000&limit=1000",
+  "http_status": 451,
+  "server_reason": "Service unavailable from a restricted location according to b. Eligibility",
+  "data_received": false,
+  "funding_coverage": "UNKNOWN",
+  "alternate_endpoint_used": false,
+  "effect": "full_net_pct remains unknown; funding is not zero"
+}
