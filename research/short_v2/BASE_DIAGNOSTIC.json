@@ -1,0 +1,22 @@
+{
+  "source_sha256": "be62d23545e1caae62a90a08a62953a04969a17f57ebffb627c50c9d6c43c13e",
+  "measured": 157,
+  "positive": 44,
+  "mean_fee_only_r": -0.4413131934116844,
+  "median_risk_pct": 3.951222618441154,
+  "median_cost_in_r": 0.07592586623690586,
+  "exit_kinds": {
+    "TIMEOUT": 26,
+    "STOP": 131
+  },
+  "reached_1r_before_stop": 64,
+  "reached_2r_before_stop": 27,
+  "stop_by_hours": {
+    "1": 0,
+    "4": 4,
+    "24": 39,
+    "72": 86
+  },
+  "post_exit_raw_10_only": 10,
+  "timeout_mean_r": 0.010462546890873213
+}
