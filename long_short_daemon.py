@@ -424,6 +424,10 @@ def run_chart_runtime(sd: Path) -> int:
 
 def main() -> int:
     global TELEGRAM_CHAT_SOURCE
+    # New research release: legacy flags are not consent to restart the old
+    # MAJOR selector. Validate before state changes or Telegram discovery.
+    from long_short_signal_policy import require_explicit_profile
+    require_explicit_profile(os.environ)
     signal.signal(signal.SIGTERM, handle_signal)
     signal.signal(signal.SIGINT, handle_signal)
 

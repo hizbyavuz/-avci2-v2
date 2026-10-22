@@ -1,0 +1,124 @@
+{
+  "status": "CODE_FIXES_VERIFIED_NO_PROFITABLE_TWO_SIDED_RELEASE",
+  "runtime_version": "SWING_RUNTIME_V2_2026_10_22",
+  "checks": [
+    {
+      "pattern": "test_swing*.py",
+      "run": 36,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "pattern": "test_short*.py",
+      "run": 17,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "pattern": "test_trader*.py",
+      "run": 10,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "pattern": "test_trade_plan.py",
+      "run": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "pattern": "test_funding*.py",
+      "run": 7,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "pattern": "test_major*.py",
+      "run": 68,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "pattern": "test_native_chain_v2.py",
+      "run": 15,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "pattern": "test_futures_history_worker.py",
+      "run": 6,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "pattern": "test_runtime_cleanup.RuntimeTests",
+      "run": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "pattern": "test_operations.py",
+      "run": 6,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    }
+  ],
+  "passing_selected_checks": 173,
+  "final_targeted_reruns": [
+    {
+      "pattern": "test_short_diagnosis_policy.py",
+      "passed": 7
+    },
+    {
+      "pattern": "test_swing_structure.py",
+      "passed": 23
+    }
+  ],
+  "additional_suite": {
+    "pattern": "test_runtime_cleanup.py",
+    "run": 17,
+    "passed": 16,
+    "errors": 1,
+    "reason": "ModuleNotFoundError: botocore in unrelated backup test",
+    "runtime_subset_passed": 4
+  },
+  "source_sha256": {
+    "long_short_swing_runtime.py": "ebb891b51a786eba70d607e2ccf8cfa13a6afa65d007a00607a82a3515365455",
+    "long_short_signal_policy.py": "de7d217e6ecd67f5e2cfb03a3592e0fe1a56a2b0110a4aee9a1c49a3e62aa70c",
+    "long_short_daemon.py": "c65e71c959b04e5f7fee12143ea409f1bbffe3a69deb79f5060206990b2df222",
+    "research/short_v2/diagnose.py": "394d35c4e40e737112e7878c86082ef097f8878308eb8adebc1391bb84f6984f",
+    "tests/test_short_diagnosis_policy.py": "b9a8f95e387a6a9f35199cb2e08430aaccb657aa50867fea25029d5cf0aa5004"
+  },
+  "frozen_selection_and_measurement_sha256": {
+    "long_short_swing.py": "c757e6f34bcd3c5549bfb02f31466f9288721cc77fc8c8697d9ba0bb80f6b5fe",
+    "long_short_swing_outcomes.py": "7798d1a2d6ffe66c367e517b4a7125a15e0d5faf7c2d868292fba136e3411feb",
+    "long_short_short_retest.py": "31f095f3d8fbee69e1b8724768e79d6352524cce5360228e5c01eeb67dc29ef4",
+    "long_short_trader_context.py": "9b683451cd791afdcaad442718ce2c78361afd5974731630f76c84cc8c35f467",
+    "long_short_trade_plan.py": "118a98acb6b7114610de4d314509a55c054b99709262b020cdbb317e1d0ddf83"
+  },
+  "changed_existing_sources": [
+    "long_short_swing_runtime.py",
+    "long_short_daemon.py"
+  ],
+  "changes": "Separate versioned publication policy, per-direction outcome reporting, explicit profile before startup; no entry/exit retuning.",
+  "evidence_sha256": {
+    "CAUSE_DIAGNOSTIC.json": "d341065e18540257551f77d3520ed0ed7bb258679f66bee411d835c86c33ad27",
+    "CAUSE_RECORDS.json.gz": "eb460470d0f65531925f011e2f4cfaf260317c08bf231613b5b0d3db8b5f6cf2",
+    "FINAL_STATUS.md": "715861d7dc7e17ade39fc2d039f2b18a9456dc21cce0dbdcfc141ce3f17c596b"
+  },
+  "network_requests_for_research": 0,
+  "live_deployed": false,
+  "telegram_enabled": false,
+  "automatic_orders": false,
+  "requested_two_sided_signal_goal_complete": false
+}

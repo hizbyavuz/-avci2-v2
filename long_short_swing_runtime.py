@@ -17,8 +17,10 @@ from pathlib import Path
 from long_short_swing import CONFIG, CONFIG_HASH, VERSION, HOUR, MINUTE, assess, geometry, message, rank
 from long_short_swing_outcomes import initial, advance, result
 from long_short_major_move_store import db, root, SOURCES, quote, universe as old_universe
+from long_short_signal_policy import publication_decision, status as publication_status
 
 PROFILE='SWING_STRUCTURE_V1'
+RUNTIME_VERSION='SWING_RUNTIME_V2_2026_10_22'
 UNIVERSE_VERSION='VERIFIED_COIN_USDT_PERP_V1_2026_10_22'
 STOP=threading.Event()
 
@@ -43,13 +45,18 @@ def connect():
           symbol TEXT,observer_id TEXT,payload TEXT);
     ''')
     code_hash=hashlib.sha256(b''.join(Path(__file__).with_name(name).read_bytes() for name in
-        ('long_short_swing.py','long_short_swing_outcomes.py','long_short_swing_runtime.py'))).hexdigest()
+        ('long_short_swing.py','long_short_swing_outcomes.py','long_short_swing_runtime.py',
+         'long_short_signal_policy.py','long_short_short_retest.py'))).hexdigest()
     body=json.dumps(dict(version=VERSION,config=CONFIG,config_hash=CONFIG_HASH,code_hash=code_hash,
-                         universe_version=UNIVERSE_VERSION,profile=PROFILE),sort_keys=True)
-    prior=c.execute('SELECT payload FROM manifest WHERE id=?',(VERSION,)).fetchone()
+                         universe_version=UNIVERSE_VERSION,profile=PROFILE,runtime_version=RUNTIME_VERSION,
+                         publication_policy=publication_status()),sort_keys=True)
+    # Preserve old manifests and observations. Selection/outcomes are still V1;
+    # publication policy and direction reports are a separately versioned runtime.
+    manifest_id=VERSION+':'+RUNTIME_VERSION
+    prior=c.execute('SELECT payload FROM manifest WHERE id=?',(manifest_id,)).fetchone()
     if prior and prior[0]!=body:
         raise ValueError('FROZEN_CODE_OR_CONFIG_CHANGED_WITHOUT_NEW_VERSION')
-    c.execute('INSERT OR IGNORE INTO manifest VALUES(?,?)',(VERSION,body));c.commit()
+    c.execute('INSERT OR IGNORE INTO manifest VALUES(?,?)',(manifest_id,body));c.commit()
     return c
 
 
@@ -130,6 +137,8 @@ def reference(c,eid,p,kind,after_ms):
 
 def publish(c,kdb,eid,p,now_ms,publisher=None):
     if os.getenv('SWING_NOTIFICATIONS','0')!='1':return 'PAPER_ONLY'
+    policy=publication_decision(p)
+    if not policy['research_publish_allowed']:return policy['reason']
     token=os.getenv('TELEGRAM_BOT_TOKEN','');chat=os.getenv('TELEGRAM_CHAT_ID','')
     if not token or not chat:return 'TELEGRAM_NOT_CONFIGURED'
     if c.execute('SELECT 1 FROM deliveries WHERE episode_id=?',(eid,)).fetchone():return 'ALREADY_ATTEMPTED'
@@ -223,13 +232,14 @@ def notify_updates(c,publisher=None):
 
 def report(c):
     """All records stay in denominators; conditional summaries name their subset."""
-    answer=dict(version=VERSION,config_hash=CONFIG_HASH,universe_version=UNIVERSE_VERSION,
+    answer=dict(version=VERSION,runtime_version=RUNTIME_VERSION,config_hash=CONFIG_HASH,universe_version=UNIVERSE_VERSION,
+                publication_policy=publication_status(),
                 deliveries=dict(c.execute('SELECT state,COUNT(*) FROM deliveries GROUP BY state')),
                 cohorts={},notes=['Not independent trades; cluster by market day and symbol.',
                                   'Raw favorable movement is not plan profit.',
                                   'Funding missing: full net is unknown.'])
     for kind in ('RESEARCH','DELIVERED'):
-        rows=c.execute('SELECT state,progress,result FROM references_v1 WHERE kind=?',(kind,)).fetchall()
+        rows=c.execute('SELECT state,payload,progress,result FROM references_v1 WHERE kind=?',(kind,)).fetchall()
         group=dict(total=len(rows),states={},checkpoints={},closed_plan_fee_only_conditional_mean_pct=None)
         closed=[];full=[]
         for r in rows:
@@ -246,6 +256,26 @@ def report(c):
             group['checkpoints'][h]=dict(available=len(available),unavailable=len(rows)-len(available),
                 mark_to_horizon_fee_only_mean_pct=sum(x['fee_slippage_only_pct'] for x in available)/len(available) if available else None)
         answer['cohorts'][kind]=group
+        # Aggregate LONG profit must never conceal a losing SHORT cohort.
+        group['by_direction']={}
+        for direction in ('LONG','SHORT','UNKNOWN'):
+            side=[r for r in rows if (json.loads(r['payload']).get('direction')
+                  if json.loads(r['payload']).get('direction') in ('LONG','SHORT') else 'UNKNOWN')==direction]
+            outcomes=[json.loads(r['result']) for r in side]
+            fees=[x['fee_slippage_only_pct'] for x in outcomes if x.get('fee_slippage_only_pct') is not None]
+            nets=[x['full_net_pct'] for x in outcomes if x.get('full_net_pct') is not None]
+            group['by_direction'][direction]=dict(total=len(side),closed_plan_count=len(fees),
+                unknown_or_open_count=len(side)-len(fees),
+                positive_closed_fee_only=sum(x>0 for x in fees),
+                closed_plan_fee_only_conditional_mean_pct=sum(fees)/len(fees) if fees else None,
+                full_net_known_count=len(nets),trading_validated=False,checkpoints={})
+            for h in ('24','72','168'):
+                points=[json.loads(r['progress']).get('checkpoints',{}).get(h) for r in side]
+                available=[x for x in points if x is not None]
+                group['by_direction'][direction]['checkpoints'][h]=dict(
+                    available=len(available),unavailable=len(side)-len(available),
+                    open_plans_included=sum(bool(x.get('open_plan')) for x in available),
+                    mark_to_horizon_fee_only_mean_pct=sum(x['fee_slippage_only_pct'] for x in available)/len(available) if available else None)
     return answer
 
 
@@ -274,6 +304,7 @@ def scan(c,kdb,now_ms):
             rows=read_bars(kdb,symbol,end=now_ms-250)
             p=assess(symbol,rows,now_ms,btc)
             p['universe_version']=UNIVERSE_VERSION
+            p['publication_policy']=publication_decision(p)
             c.execute('INSERT OR REPLACE INTO assessments VALUES(?,?,?,?,?)',
                       (symbol,mark,now_ms,p['stage'],json.dumps(p)))
             if p['stage']=='READY':
@@ -294,7 +325,8 @@ def scan(c,kdb,now_ms):
     for p in rank([dict(p,episode_id=eid) for eid,p in keyed.items()]):
         status=publish(c,kdb,p['episode_id'],p, int(time.time()*1000))
         counts['NOTICE_'+status]=counts.get('NOTICE_'+status,0)+1
-    coverage=dict(profile=PROFILE,observed_ms=now_ms,universe=len(values),counts=counts,
+    coverage=dict(profile=PROFILE,runtime_version=RUNTIME_VERSION,observed_ms=now_ms,universe=len(values),counts=counts,
+                  publication_policy=publication_status(),
                   full_universe_coverage_claim=False,notifications=os.getenv('SWING_NOTIFICATIONS','0')=='1')
     c.execute('INSERT OR REPLACE INTO coverage VALUES(?,?)',(now_ms//HOUR*HOUR,json.dumps(coverage)));c.commit()
     return coverage
@@ -302,11 +334,13 @@ def scan(c,kdb,now_ms):
 
 def health(state_root):
     path=state_root/'swing_structure_v1.db'
-    if not path.exists():return dict(profile=PROFILE,available=False)
+    if not path.exists():return dict(profile=PROFILE,runtime_version=RUNTIME_VERSION,
+                                    publication_policy=publication_status(),available=False)
     c=db(path,True)
     try:
         latest=c.execute('SELECT payload FROM coverage ORDER BY hour_ms DESC LIMIT 1').fetchone()
-        return dict(profile=PROFILE,available=True,coverage=json.loads(latest[0]) if latest else None,
+        return dict(profile=PROFILE,runtime_version=RUNTIME_VERSION,publication_policy=publication_status(),
+                    available=True,coverage=json.loads(latest[0]) if latest else None,
                     references=dict(c.execute('SELECT state,COUNT(*) FROM references_v1 GROUP BY state')),
                     deliveries=dict(c.execute('SELECT state,COUNT(*) FROM deliveries GROUP BY state')))
     finally:c.close()
