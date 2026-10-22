@@ -1,0 +1,41 @@
+{
+  "status": "TESTS_PASSED_HYPOTHESES_FAILED_DEVELOPMENT_REPLAY",
+  "test_count": 10,
+  "tests": [
+    {
+      "module": "tests.test_short_retest",
+      "passed": 8
+    },
+    {
+      "module": "tests.test_short_replay",
+      "passed": 2
+    }
+  ],
+  "source_sha256": {
+    "long_short_short_retest.py": "31f095f3d8fbee69e1b8724768e79d6352524cce5360228e5c01eeb67dc29ef4",
+    "research/short_v2/replay_short.py": "aea58fe6532cf475d04f5763dfd3d5675ad2bc57e67911728b648f4d9bc9f260",
+    "research/short_v2/PROTOCOL.md": "86e1ca3eeaf6cc8f85a6264563908e78db18dd380da483a12589ed270fada501",
+    "research/short_v2/EXECUTION_NOTES.md": "49cf986f73684474de598b20765bf6c159a9beb03b0971e2cda252fa544af41c",
+    "tests/test_short_retest.py": "3d99771af5d379d0e44461465ef30321e32455222af48030aba5dfa65e7abeb2",
+    "tests/test_short_replay.py": "22c40e153c59342ded159351aaef1eafce9c74bf005e99ced852f24fc3f3354d"
+  },
+  "protected_sources_unchanged": {
+    "long_short_swing.py": "c757e6f34bcd3c5549bfb02f31466f9288721cc77fc8c8697d9ba0bb80f6b5fe",
+    "long_short_swing_outcomes.py": "7798d1a2d6ffe66c367e517b4a7125a15e0d5faf7c2d868292fba136e3411feb",
+    "long_short_swing_runtime.py": "cfb0e1bf1b414a661d2838d3b36b2c8aec025b884884c9ce7bbea148bb68bf58",
+    "long_short_trader_context.py": "9b683451cd791afdcaad442718ce2c78361afd5974731630f76c84cc8c35f467",
+    "long_short_trade_plan.py": "118a98acb6b7114610de4d314509a55c054b99709262b020cdbb317e1d0ddf83"
+  },
+  "report_sha256": {
+    "2026-08-SUMMARY.json": "e7cf2ec20aa34103fc75c94c1944217c52ceaa334ed7538be871c3cab0961680",
+    "2026-09-EPISODES.json.gz": "51248a41f7b26df5a763c0bbbdd55e30eb1c125542a21a0d3995df441aea9af5",
+    "BASE_DIAGNOSTIC.json": "eeb070eae3f53f5a0a7a1996c9b85924fc9b9321fd539c3fa061cf3c8cf76b91",
+    "2026-08-EPISODES.json.gz": "b79869d2717d19c01d09daacc03d03c2741c57b82fe1fc750da9c7b02bec4c7b",
+    "2026-09-SUMMARY.json": "e8b6ed5483e6b2705f28e5f88976bf50bd272c1d533abf5e7d86af3fcd909a47"
+  },
+  "live_deployed": false,
+  "telegram_enabled": false,
+  "automatic_orders": false,
+  "thresholds_retuned_after_results": false,
+  "profitability_proven": false
+}

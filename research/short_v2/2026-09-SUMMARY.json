@@ -1,0 +1,115 @@
+{
+  "version": "SHORT_RETEST_RESEARCH_V2_2026_10_22",
+  "config_hash": "63efd9717b8082e909f2c5ded7c541d48804926f89dbe0d6137b854878fe3b57",
+  "month": "2026-09",
+  "code_sha256": "31f095f3d8fbee69e1b8724768e79d6352524cce5360228e5c01eeb67dc29ef4",
+  "runner_sha256": "aea58fe6532cf475d04f5763dfd3d5675ad2bc57e67911728b648f4d9bc9f260",
+  "protocol_sha256": "86e1ca3eeaf6cc8f85a6264563908e78db18dd380da483a12589ed270fada501",
+  "hour_source_symbols": 869,
+  "hour_official_checksums_verified": true,
+  "preserved_hour_hashes_verified": true,
+  "minute_official_checksums_verified": true,
+  "network_requests": 0,
+  "crypto_only": false,
+  "independent_validation": false,
+  "live_deployed": false,
+  "activation_eligible": false,
+  "summary": {
+    "FAILED_BREAKOUT_SHORT": {
+      "candidates": 291,
+      "symbols": 216,
+      "statuses": {
+        "ENTRY_DATA_MISSING": 246,
+        "ENTRY_INVALID": 7,
+        "MEASURED": 38
+      },
+      "path_states": {
+        "COMPLETE": 27,
+        "DATA_GAP": 11
+      },
+      "complete_path_conditional": {
+        "count": 27,
+        "positive": 10,
+        "positive_pct": 37.03703703703704,
+        "mean_fee_only_r": -0.13856767295587707,
+        "median_fee_only_r": -1.038521912350597,
+        "full_net_known": 0
+      },
+      "closed_incomplete_path_conditional": {
+        "count": 8,
+        "positive": 1,
+        "positive_pct": 12.5,
+        "mean_fee_only_r": -0.9131214013001049,
+        "median_fee_only_r": -1.1031561674008155,
+        "full_net_known": 0
+      },
+      "in_plan_2r_complete": 12,
+      "unknown_or_open_plan_count": 249,
+      "activation_eligible": false,
+      "crypto_only": false,
+      "independent_validation": false
+    },
+    "BEAR_RETEST_SHORT": {
+      "candidates": 555,
+      "symbols": 374,
+      "statuses": {
+        "ENTRY_DATA_MISSING": 480,
+        "MEASURED": 59,
+        "ENTRY_INVALID": 16
+      },
+      "path_states": {
+        "COMPLETE": 43,
+        "DATA_GAP": 16
+      },
+      "complete_path_conditional": {
+        "count": 43,
+        "positive": 12,
+        "positive_pct": 27.906976744186046,
+        "mean_fee_only_r": -0.33654048733510444,
+        "median_fee_only_r": -1.0863175913805283,
+        "full_net_known": 0
+      },
+      "closed_incomplete_path_conditional": {
+        "count": 11,
+        "positive": 1,
+        "positive_pct": 9.090909090909092,
+        "mean_fee_only_r": -0.7163309457284035,
+        "median_fee_only_r": -1.0960288808664245,
+        "full_net_known": 0
+      },
+      "in_plan_2r_complete": 15,
+      "unknown_or_open_plan_count": 485,
+      "activation_eligible": false,
+      "crypto_only": false,
+      "independent_validation": false
+    }
+  },
+  "counts": {
+    "FAILED_BREAKOUT_SHORT": {
+      "ILLIQUID": 226354,
+      "NO_BEARISH_CONFIRMATION": 123084,
+      "SELL_PRESSURE_NOT_CONFIRMED": 33591,
+      "NO_RETEST_SETUP": 82684,
+      "INSUFFICIENT_NET_KNOWN_ROOM": 1188,
+      "INVALID_RISK": 287,
+      "LATE_CHASE": 138,
+      "FAILED_BREAKOUT_SHORT": 422,
+      "EPISODE_SUPPRESSED": 131
+    },
+    "BEAR_RETEST_SHORT": {
+      "ILLIQUID": 226354,
+      "NO_BEARISH_CONFIRMATION": 123084,
+      "SELL_PRESSURE_NOT_CONFIRMED": 33591,
+      "NO_RETEST_SETUP": 82248,
+      "BEAR_RETEST_SHORT": 1193,
+      "EPISODE_SUPPRESSED": 638,
+      "INSUFFICIENT_NET_KNOWN_ROOM": 1001,
+      "LATE_CHASE": 247,
+      "INVALID_RISK": 30
+    }
+  },
+  "minute_source_states": {
+    "NO_VERIFIED_MINUTE_ARCHIVE": 572,
+    "OK": 64
+  }
+}
