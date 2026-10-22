@@ -10,7 +10,9 @@
     "crypto_only": false,
     "universe_version": "UNCLASSIFIED_USDT_ARCHIVE_V1",
     "full_plan_replay": "NOT_COMPLETE",
-    "funding_coverage": "UNKNOWN"
+    "funding_coverage": "UNKNOWN",
+    "simple_momentum_baseline": "COMPLETE_RAW_DISCOVERY_COMPARISON_ONLY",
+    "major_v3_baseline": "BLOCKED_MISSING_FULL_UNIVERSE_15M_AND_REQUIRED_4H_HISTORY"
   },
   "september": {
     "status": "BLOCKED_INCOMPLETE",
@@ -599,5 +601,9 @@
     ],
     "performance_estimate": null
   },
-  "live_universe_version": "VERIFIED_COIN_USDT_PERP_V1_2026_10_22"
+  "live_universe_version": "VERIFIED_COIN_USDT_PERP_V1_2026_10_22",
+  "candidate_decisions": {
+    "LONG": "RESEARCH_ONLY_TRADE_EDGE_NOT_ESTABLISHED",
+    "SHORT": "NOT_SUPPORTED_FOR_LARGE_MOVE_DISCOVERY_IN_AUGUST_RAW_TEST"
+  }
 }

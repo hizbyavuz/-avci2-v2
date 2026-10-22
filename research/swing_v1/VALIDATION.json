@@ -8,7 +8,8 @@
     {
       "pattern": "test_swing*.py",
       "passed": 25,
-      "failed": 0
+      "failed": 0,
+      "scope": "25 tests before baseline comparator; source revision c3b2796"
     },
     {
       "pattern": "test_major*.py",
@@ -24,15 +25,22 @@
       "pattern": "test_futures_history_worker.py",
       "passed": 6,
       "failed": 0
+    },
+    {
+      "pattern": "test_swing_baseline.py",
+      "passed": 5,
+      "failed": 0,
+      "scope": "offline comparison tests added after c3b2796"
     }
   ],
   "notes": [
     "The first old-test run missed requests while dependency installation was incomplete; rerun after installation passed.",
     "No live engine/worker was run. Tests used temporary SQLite fixtures and mocked Telegram transports.",
-    "This does not verify production relay, full-universe capacity, historical alpha, funding collection or actual execution."
+    "This does not verify production relay, full-universe capacity, historical alpha, funding collection or actual execution.",
+    "Baseline-only changes: five new tests run; previous 114 passing checks retained. Strategy thresholds and runtime files unchanged."
   ],
   "base_implementation_commit": "b4c9254cb387d0cab1160c5faa0895c27c80b2a4",
-  "total_tests": 114,
+  "total_tests": 119,
   "source_sha256": {
     "long_short_swing.py": "c757e6f34bcd3c5549bfb02f31466f9288721cc77fc8c8697d9ba0bb80f6b5fe",
     "long_short_swing_outcomes.py": "7798d1a2d6ffe66c367e517b4a7125a15e0d5faf7c2d868292fba136e3411feb",
@@ -41,6 +49,8 @@
     "long_short_runtime_profile.py": "69cb1dfaa3785753dfcd6ee92a07c9a63cc902ebdb0a4665f147f06466e025c9",
     "long_short_daemon.py": "f4b5b56cab89f0e0d3abe8f8c6e70b9141f21f982d07707f2e80410789c6b317",
     "long_short_major_move_store.py": "19c0b14764e9a2649e02d5a24d31a335042301962df0ffebb2bb8cd876e299a6",
-    "research/swing_v1/replay.py": "9aa5ca62777f868c8e7481c2050cdfec3e7af35eab351f45ead6eaf045ace394"
+    "research/swing_v1/replay.py": "9aa5ca62777f868c8e7481c2050cdfec3e7af35eab351f45ead6eaf045ace394",
+    "research/swing_v1/baseline.py": "71f3b858fc010223daaab7a355e6668563752077263d42527b5a79de2bfed2ef",
+    "tests/test_swing_baseline.py": "db9124efee5782b89aabbffb2b726f037a24b9d42a78854657601b3dc32c4332"
   }
 }

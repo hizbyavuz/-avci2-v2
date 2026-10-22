@@ -95,3 +95,11 @@ görüldüğü iddia edilmez. Bu sürüm kapasite sorunu çözülmüş sayılmı
 ikinci dönem, bütün adaylarda dakikalık plan sonuçları, gerçek funding tahakkuku,
 maliyet stresi ve basit kıyaslar gerekir. Bu eksikler yüzünden sürüm taslakta
 ve bildirimler kapalı kaldı. LONG ve SHORT ayrı değerlendirilmelidir.
+
+## Sonraki tamamlanan kıyas
+
+Basit 24 saat momentum kıyası tamamlandı; eşikler değişmedi. Ayrıntı ve güncel
+karar `BASELINE_FINDINGS.md`, sayısal kayıt `MOMENTUM_COMPARISON.json` içinde.
+Bu ek çalışma beş yeni testi geçti; önceki 114 ile toplam 119 geçiş kaydı var.
+İlk tablolar olay ağırlıklı, yeni kıyas saat ağırlıklıdır; sonuçlar birbirinin
+yerine yazılmadı. Eylül, kripto üyeliği, tam dakika planları ve funding eksikleri sürüyor.

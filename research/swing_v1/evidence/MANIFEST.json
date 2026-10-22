@@ -52,5 +52,11 @@
     "uncompressed_sha256": "e4616cbd3aa8e5ff9100c90fbb1460a078b95520cab126a937e78791cff938f7",
     "compressed_sha256": "90fff4e8702181dac2aec56d978deb4814df090fc1bfa3277d83a914d983cb21",
     "uncompressed_bytes": 3862
+  },
+  {
+    "path": "evidence/2026-08-momentum-comparison.json.gz",
+    "uncompressed_sha256": "ec48afd00c48e65763dd43c4ac0a4e748f9f3bbb32b390a0cebc6cf8a84f4814",
+    "compressed_sha256": "a0b7fd480bb421978ae3d02dd73c999b05f6eb0e4af4727e1bd283ed576dd10d",
+    "uncompressed_bytes": 2388236
   }
 ]
