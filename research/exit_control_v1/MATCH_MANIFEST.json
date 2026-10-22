@@ -1,0 +1,11 @@
+{
+  "version": "MATCHED_PEER_EXIT_DIAGNOSTIC_V1_2026_10_23",
+  "matches_sha256": "6910be1a2c2334054ac4ff049be916aa0bb887021c37bb1b27f46720842ec0f5",
+  "records": 2148,
+  "peer_missing": 0,
+  "protocol_sha256": "40fcdb3027016491217bf39d88161bc6b8c15c61f1278c62e68a847439158ad3",
+  "code_sha256": "2dbff75b59b99903f61a3f623ed583cd5fc2e7257e6c4698fbd3cacb3f4d4bb4",
+  "outcomes_computed": false,
+  "selected_before_minute_availability_lookup": true,
+  "source_symbols": 1702
+}
