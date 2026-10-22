@@ -1,0 +1,5 @@
+FROM python:3.12-slim
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+WORKDIR /app
+COPY long_short_launch_check.py ./
+CMD ["python", "-u", "long_short_launch_check.py"]
