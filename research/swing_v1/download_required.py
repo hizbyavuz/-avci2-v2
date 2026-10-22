@@ -60,7 +60,9 @@ def download(item, cache, stop):
         return dict(info,status='NOT_PUBLISHED' if exc.code==404 else 'HTTP_ERROR',http_status=exc.code)
     except Exception as exc:
         message=str(exc)
-        if 'blocked by policy' in message.lower() or isinstance(exc,ValueError):stop.set()
+        # urllib wraps proxy CONNECT denials in URLError, not HTTPError.
+        denied = re.search(r'Tunnel connection failed:\s*(401|403|451)\b',message,re.I)
+        if denied or 'blocked by policy' in message.lower() or isinstance(exc,ValueError):stop.set()
         return dict(info,status='ERROR',error=type(exc).__name__,detail=message)
     finally:
         if tmp.exists():tmp.unlink()

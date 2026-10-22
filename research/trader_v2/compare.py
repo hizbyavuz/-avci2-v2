@@ -86,7 +86,9 @@ def conditional_summary(records):
             fee_only_mean_pct=statistics.mean(fee) if fee else None,
             fee_only_mean_r=statistics.mean(ratios) if ratios else None,
             fee_only_median_r=statistics.median(ratios) if ratios else None,
-            fee_only_profit_factor=sum(x for x in ratios if x>0)/-sum(x for x in ratios if x<0) if any(x<0 for x in ratios) else None,
+            fee_only_r_profit_factor=sum(x for x in ratios if x>0)/-sum(x for x in ratios if x<0) if any(x<0 for x in ratios) else None,
+            in_plan_2r_reach_confirmed=sum(r['plan_outcome']['outcome']['in_plan_mfe_lower_pct']>=2*r['plan_outcome']['initial_risk_pct'] for r in measured),
+            in_plan_2r_reach_possible=sum(r['plan_outcome']['outcome']['in_plan_mfe_upper_pct']>=2*r['plan_outcome']['initial_risk_pct'] for r in measured),
             common_context_selected=len(common),common_context_measured=len(common_measured),
             common_context_fee_only_mean_r=statistics.mean(common_measured) if common_measured else None,
             raw_complete=len(raw),raw_30_count=sum(x['reached_30'] for x in raw),
@@ -112,7 +114,9 @@ def main():
     if any(r['status'] not in ('OK','NOT_PUBLISHED') for r in downloaded):raise ValueError('UNRESOLVED_DOWNLOAD_ERRORS')
     reader=ContextArchive(args.cache,downloaded)
     measured=json.loads((ROOT/'research/swing_v1/results/2026-08-full-minute-audit.json').read_text())
-    measured={(r['symbol'],r['confirmation_ms'],r['direction']):r for r in measured['records']}
+    measured_rows=measured['records']
+    measured={(r['symbol'],r['confirmation_ms'],r['direction']):r for r in measured_rows}
+    if len(measured)!=len(measured_rows):raise ValueError('DUPLICATE_OUTCOME_KEY')
     records=[];hourly={};source_hashes={}
     for filename in ('2026-08-screen.json','2026-09-screen-complete.json'):
         source=ROOT/'research/swing_v1/results'/filename;body=source.read_bytes();data=json.loads(body)
@@ -121,6 +125,8 @@ def main():
         _,btc=archive(args.hourly_cache,'BTCUSDT',month,offline=True)
         for r in data['records']:
             p=r['plan'];symbol=p['symbol'];key=(symbol,month)
+            if month=='2026-08' and (symbol,p['confirmation_ms'],p['direction']) not in measured:
+                raise ValueError('AUGUST_OUTCOME_JOIN_MISSING')
             if key not in hourly:
                 info,rows=archive(args.hourly_cache,symbol,month,offline=True)
                 if info['status']!='OK':raise ValueError('HOUR_ARCHIVE_UNAVAILABLE')
@@ -136,6 +142,8 @@ def main():
                 context_complete=all(engine.finite(x) for x in critical),raw=r['raw'],
                 plan_outcome=measured.get((symbol,p['confirmation_ms'],p['direction']),{})))
     payload=dict(version=engine.VERSION,config_hash=engine.CONFIG_HASH,
+        availability_assumption='ARCHIVE_METRICS_EVENT_PLUS_5M_FUNDING_SETTLEMENT_PLUS_1M',
+        live_latency_verified=False,live_deployed=False,telegram_enabled=False,
         protocol_sha256=hashlib.sha256((here/'PROTOCOL.md').read_bytes()).hexdigest(),
         source_hashes=source_hashes,records=records,summary={})
     for month in ('2026-08','2026-09'):

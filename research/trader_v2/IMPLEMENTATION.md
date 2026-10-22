@@ -25,19 +25,27 @@ not verified. Native REST's latest mark/funding estimate is not silently
 substituted for an already settled funding record.
 
 `prepare_data.py` fixed 3,176 archives for 1,240 episodes before the join.
-The downloader first verified 324 files with 12 workers. It was interrupted
-and resumed with 32 workers against the same manifest; every resumed local file
-is hash-checked. Access-policy errors abort. No alternate endpoint is attempted.
-An initial process-signal attempt could not address the process namespace;
-the tool session was stopped successfully with exit 130 before resumption.
+All 3,176 were officially SHA256-verified and all four fixed variants were
+replayed. See FINDINGS.md; they did not establish a stronger two-sided strategy.
 
-Known limits still matter: historical crypto classification, settlement mark
-prices and actual funding P&L, September minute exits, equal-plan controls,
-portfolio/execution constraints and an unchanged forward period. V1's SHORT
-results were poor; this experiment must not hide them or claim they are fixed.
-Requiring previous 4h strength may miss early reversals; STRUCTURE is an
-experiment, not automatically the production design. Squeeze/reversal entries
-are not covered by this continuation filter.
+The funding/mark request separately fixed 816 archives for all 556 measured
+August plans. The run verified 666, observed one CHECKSUM 404, and ended with
+149 proxy CONNECT 403 errors. The old downloader missed these wrapped denials;
+its stop handling is now fixed and tested, without another network attempt.
+59 already-verified funding files were recovered locally by matching URL and
+hash to the complete context download. All source reports remain preserved.
+The offline cost audit keeps every candidate: 495 bounded, 61 unknown funding,
+69 invalid entry. Missing costs do not become zero or disappear from counts.
+
+Funding bounds use actual settled rates and that minute's mark low/high, with
+uncertain entry/exit settlement order included. They are not exact execution
+P&L. No retuning, new exit rule or deployment followed these results.
+
+Known limits: historical crypto membership, 61 unknown cost outcomes, September
+minute exits, equal-plan controls, portfolio/execution constraints and an
+unchanged forward period. The archive universe includes non-crypto contracts.
+Requiring previous 4h strength may miss early reversals; STRUCTURE remains an
+experiment. Squeeze/reversal entries are not covered by this continuation filter.
 
 The official primary literature supports researching momentum, participation,
 costs and crowding, not a claimed 60–100% hit rate. Additional source read after
