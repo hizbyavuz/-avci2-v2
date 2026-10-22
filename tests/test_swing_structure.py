@@ -223,5 +223,27 @@ class RuntimeTests(unittest.TestCase):
         g=outcomes.advance(p,g,[minute(START+2*M)])
         self.assertEqual(outcomes.result(p,g)['missing_assumed_stop_fee_only_pct'],fee)
 
+    def test_live_universe_requires_verified_coin_type_and_keeps_legacy_membership(self):
+        import long_short_native_derivatives as native
+        c=native.database();now=START
+        common=dict(status='TRADING',contractType='PERPETUAL',quoteAsset='USDT',marginAsset='USDT')
+        markets=[dict(common,symbol='BTCUSDT',underlyingType='COIN'),
+                 dict(common,symbol='STOCKUSDT',underlyingType='EQUITY'),
+                 dict(common,symbol='UNKNOWNUSDT')]
+        allowed=native.store_market_catalogue(c,dict(source=native.SOURCE,markets=markets),now)
+        self.assertEqual(allowed,{'BTCUSDT','STOCKUSDT','UNKNOWNUSDT'})
+        c.close()
+        values=[(s,3e6,100.,1.) for s in sorted(allowed)]
+        with patch.object(runtime,'old_universe',return_value=values):
+            self.assertEqual([r[0] for r in runtime.universe(now)],['BTCUSDT'])
+            with self.assertRaisesRegex(ValueError,'STALE'):runtime.universe(now+H+1)
+
+    def test_unknown_asset_class_does_not_pass_as_coin(self):
+        import long_short_native_derivatives as native
+        c=native.database();native.store_market_catalogue(c,dict(source=native.SOURCE,
+            markets=[dict(symbol='UNKNOWNUSDT',status='TRADING',contractType='PERPETUAL',quoteAsset='USDT',marginAsset='USDT')]),START);c.close()
+        with patch.object(runtime,'old_universe',return_value=[('UNKNOWNUSDT',3e6,100.,1.)]):
+            with self.assertRaisesRegex(ValueError,'CRYPTO_UNIVERSE'):runtime.universe(START)
+
 
 if __name__=='__main__':unittest.main()

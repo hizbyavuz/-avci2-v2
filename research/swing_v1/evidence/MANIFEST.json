@@ -1,0 +1,56 @@
+[
+  {
+    "path": "evidence/2026-08-coverage-before-url-repair.json.gz",
+    "uncompressed_sha256": "aab5be7ee0492f46015d9cece0ca49823ae2ed2de6626ae523021e52da219714",
+    "compressed_sha256": "0ab5fcefc117aa9939a4718429af730afbd05b3872b858b1fee5b5b552a14011",
+    "uncompressed_bytes": 290574
+  },
+  {
+    "path": "evidence/2026-08-coverage.json.gz",
+    "uncompressed_sha256": "61b34888bd8b6ff5cbebff5bb4c314b5336cf84516b9f07bda7b5e62de9d36ff",
+    "compressed_sha256": "bb895822d4fe84206a9ef265b7a7a29e9116728f0723e74999b19e0a4198e17a",
+    "uncompressed_bytes": 290962
+  },
+  {
+    "path": "evidence/2026-08-minute-check-before-url-repair.json.gz",
+    "uncompressed_sha256": "84fe436724e5f27d1136802a62c0a45f1a02e1de0666fb1afbc174a13527e3a7",
+    "compressed_sha256": "5414cd5b899e6fca4670a649d14a949dfc1b310203ade1526d646b1234501a23",
+    "uncompressed_bytes": 15836
+  },
+  {
+    "path": "evidence/2026-08-minute-check.json.gz",
+    "uncompressed_sha256": "84fe436724e5f27d1136802a62c0a45f1a02e1de0666fb1afbc174a13527e3a7",
+    "compressed_sha256": "5414cd5b899e6fca4670a649d14a949dfc1b310203ade1526d646b1234501a23",
+    "uncompressed_bytes": 15836
+  },
+  {
+    "path": "evidence/2026-08-screen-before-url-repair.json.gz",
+    "uncompressed_sha256": "2ab72044194d04b070ebc77d32af607dc0cd0ae7d7f80a157cd5b03729aa575e",
+    "compressed_sha256": "5a2f1cf9cbbc915f620f8723f182b39dab0e2766bc523b24fd98df550ed95282",
+    "uncompressed_bytes": 1104324
+  },
+  {
+    "path": "evidence/2026-08-screen.json.gz",
+    "uncompressed_sha256": "8a770d5e4dbd5be6203fdf77ffec9b254438d7120aa1198b5a2b687e68190b26",
+    "compressed_sha256": "0fc5b18d4d5864c447e938999244cf94782fe9f83a1b95d7136816533f0ed491",
+    "uncompressed_bytes": 1106284
+  },
+  {
+    "path": "evidence/catalog.json.gz",
+    "uncompressed_sha256": "8e52151a3b8610f9c62fc6275ceb0fb081ad1fe08d7fb2d7aad9b984b9f8b7f4",
+    "compressed_sha256": "62584d9126d79b673534934734bf57cdc4ad37e3a6690502312ee07700abe0ee",
+    "uncompressed_bytes": 10875
+  },
+  {
+    "path": "evidence/manifest.json.gz",
+    "uncompressed_sha256": "bf105ffd306c5b907b1eb572ce627fa8d0092593ad2716c5d3bc1eabfc186b25",
+    "compressed_sha256": "03b802ecb15e5ffe3639038e6502c84a8603366eb12ef85901846dc4ed573f6f",
+    "uncompressed_bytes": 1131
+  },
+  {
+    "path": "evidence/unicode-archive-repair.json.gz",
+    "uncompressed_sha256": "e4616cbd3aa8e5ff9100c90fbb1460a078b95520cab126a937e78791cff938f7",
+    "compressed_sha256": "90fff4e8702181dac2aec56d978deb4814df090fc1bfa3277d83a914d983cb21",
+    "uncompressed_bytes": 3862
+  }
+]

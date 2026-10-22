@@ -19,6 +19,7 @@ from long_short_swing_outcomes import initial, advance, result
 from long_short_major_move_store import db, root, SOURCES, quote, universe as old_universe
 
 PROFILE='SWING_STRUCTURE_V1'
+UNIVERSE_VERSION='VERIFIED_COIN_USDT_PERP_V1_2026_10_22'
 STOP=threading.Event()
 
 
@@ -43,7 +44,8 @@ def connect():
     ''')
     code_hash=hashlib.sha256(b''.join(Path(__file__).with_name(name).read_bytes() for name in
         ('long_short_swing.py','long_short_swing_outcomes.py','long_short_swing_runtime.py'))).hexdigest()
-    body=json.dumps(dict(version=VERSION,config=CONFIG,config_hash=CONFIG_HASH,code_hash=code_hash,profile=PROFILE),sort_keys=True)
+    body=json.dumps(dict(version=VERSION,config=CONFIG,config_hash=CONFIG_HASH,code_hash=code_hash,
+                         universe_version=UNIVERSE_VERSION,profile=PROFILE),sort_keys=True)
     prior=c.execute('SELECT payload FROM manifest WHERE id=?',(VERSION,)).fetchone()
     if prior and prior[0]!=body:
         raise ValueError('FROZEN_CODE_OR_CONFIG_CHANGED_WITHOUT_NEW_VERSION')
@@ -52,7 +54,20 @@ def connect():
 
 
 def universe(now_ms=None):
-    return old_universe(now_ms,min_quote_volume=CONFIG['min_quote_volume_24h'])
+    now_ms=int(time.time()*1000) if now_ms is None else now_ms
+    c=db(root()/'native_derivatives_v2.db',True)
+    try:
+        if not c.execute("SELECT 1 FROM sqlite_master WHERE name='market_metadata'").fetchone():
+            raise ValueError('ASSET_CLASS_METADATA_MISSING')
+        row=c.execute('SELECT observed_ms,payload FROM market_metadata WHERE id=1').fetchone()
+    finally:c.close()
+    if not row or not 0<=now_ms-row[0]<=HOUR:raise ValueError('ASSET_CLASS_METADATA_STALE')
+    metadata=json.loads(row[1])
+    if metadata.get('source')!='BINANCE_UM_FUTURES_REST':raise ValueError('ASSET_CLASS_SOURCE_INVALID')
+    coins={m['symbol'] for m in metadata.get('markets',[]) if m.get('underlyingType')=='COIN'}
+    values=[r for r in old_universe(now_ms,min_quote_volume=CONFIG['min_quote_volume_24h']) if r[0] in coins]
+    if not values:raise ValueError('CRYPTO_UNIVERSE_UNAVAILABLE')
+    return values
 
 
 def demand(limit=90,full_chart=False):
@@ -208,7 +223,7 @@ def notify_updates(c,publisher=None):
 
 def report(c):
     """All records stay in denominators; conditional summaries name their subset."""
-    answer=dict(version=VERSION,config_hash=CONFIG_HASH,
+    answer=dict(version=VERSION,config_hash=CONFIG_HASH,universe_version=UNIVERSE_VERSION,
                 deliveries=dict(c.execute('SELECT state,COUNT(*) FROM deliveries GROUP BY state')),
                 cohorts={},notes=['Not independent trades; cluster by market day and symbol.',
                                   'Raw favorable movement is not plan profit.',
@@ -258,6 +273,7 @@ def scan(c,kdb,now_ms):
                     continue
             rows=read_bars(kdb,symbol,end=now_ms-250)
             p=assess(symbol,rows,now_ms,btc)
+            p['universe_version']=UNIVERSE_VERSION
             c.execute('INSERT OR REPLACE INTO assessments VALUES(?,?,?,?,?)',
                       (symbol,mark,now_ms,p['stage'],json.dumps(p)))
             if p['stage']=='READY':

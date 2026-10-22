@@ -53,13 +53,15 @@ def symbols():
     return sorted(set(s for s in out if s.endswith('USDT')))
 
 
-def archive(cache,symbol,month,interval='1h'):
+def archive(cache,symbol,month,interval='1h',offline=False):
     name=f'{symbol}-{interval}-{month}.zip'
     relative=f'data/futures/um/monthly/klines/{symbol}/{interval}/{name}'
     path=cache/name
-    info=dict(symbol=symbol,month=month,interval=interval,url=ARCHIVE+relative)
+    info=dict(symbol=symbol,month=month,interval=interval,url=ARCHIVE+urllib.parse.quote(relative,safe='/'))
     try:
         if path.exists():body=path.read_bytes()
+        elif offline:
+            info.update(status='NOT_CACHED');return info,[]
         else:
             body=fetch(info['url']);path.write_bytes(body)
         info.update(status='OK',sha256=hashlib.sha256(body).hexdigest(),bytes=len(body))
@@ -153,12 +155,12 @@ def summarize(records):
     return out
 
 
-def minute_check(records,cache,month,n):
+def minute_check(records,cache,month,n,offline=False):
     eligible=[r for r in records if r['raw']['status']=='COMPLETE']
     sample=sorted(eligible,key=lambda r:hashlib.sha256(f"{r['plan']['symbol']}:{r['plan']['confirmation_ms']}".encode()).hexdigest())[:n]
     checked=[]
     for record in sample:
-        p=record['plan'];info,rows=archive(cache,p['symbol'],month,'1m')
+        p=record['plan'];info,rows=archive(cache,p['symbol'],month,'1m',offline=offline)
         # assess at close+1000ms; next full minute begins one minute after the
         # new hour, never at the just-finished signal candle's close.
         start=(p['observed_ms']//MINUTE+1)*MINUTE
@@ -179,13 +181,18 @@ def main():
     parser=argparse.ArgumentParser();parser.add_argument('--cache',type=Path,required=True)
     parser.add_argument('--out',type=Path,required=True);parser.add_argument('--months',nargs='+',default=['2026-08','2026-09'])
     parser.add_argument('--workers',type=int,default=12);parser.add_argument('--minute-sample',type=int,default=8)
+    parser.add_argument('--offline',action='store_true',help='No network: use the saved catalogue and cached archives only')
+    parser.add_argument('--catalog',type=Path,help='Saved catalogue required in offline mode; defaults to OUT/catalog.json')
     args=parser.parse_args();args.cache.mkdir(parents=True,exist_ok=True);args.out.mkdir(parents=True,exist_ok=True)
-    syms=symbols();(args.out/'catalog.json').write_text(json.dumps(syms))
+    syms=json.loads((args.catalog or args.out/'catalog.json').read_text()) if args.offline else symbols()
+    (args.out/'catalog.json').write_text(json.dumps(syms))
     prereg=Path(__file__).with_name('PREREGISTRATION.md').read_bytes()
     manifest=dict(version=VERSION,config_hash=CONFIG_HASH,config=CONFIG,
                   prereg_sha256=hashlib.sha256(prereg).hexdigest(),catalog_symbols=len(syms),
                   source='official Binance USD-M monthly archives',months=args.months,
                   classification='TECHNICAL_REPLAY_NOT_PROFITABILITY_VALIDATION',
+                  universe_version='UNCLASSIFIED_USDT_ARCHIVE_V1',
+                  crypto_only=False,offline=args.offline,
                   simple_momentum_baseline='NOT_YET_RUN',major_v3_baseline='NOT_YET_RUN',
                   full_cost_net='UNKNOWN_FUNDING',minute_sample_per_month=args.minute_sample)
     (args.out/'manifest.json').write_text(json.dumps(manifest,indent=2))
@@ -193,7 +200,7 @@ def main():
     for month in args.months:
         data={};coverage=[]
         with concurrent.futures.ThreadPoolExecutor(max_workers=args.workers) as pool:
-            futures={pool.submit(archive,args.cache,s,month):s for s in syms}
+            futures={pool.submit(archive,args.cache,s,month,offline=args.offline):s for s in syms}
             for count,f in enumerate(concurrent.futures.as_completed(futures),1):
                 info,rows=f.result();coverage.append(info)
                 if rows:data[info['symbol']]=rows
@@ -202,10 +209,11 @@ def main():
         print(f'SCREEN {month} symbols={len(data)}',flush=True)
         report=screen(data)
         report.update(month=month,version=VERSION,config_hash=CONFIG_HASH,summary=summarize(report['records']),
-                      archive_statuses={state:sum(x['status']==state for x in coverage) for state in ('OK','NOT_PUBLISHED','DOWNLOAD_ERROR')})
+                      universe_version='UNCLASSIFIED_USDT_ARCHIVE_V1',crypto_only=False,
+                      archive_statuses={state:sum(x['status']==state for x in coverage) for state in ('OK','NOT_PUBLISHED','DOWNLOAD_ERROR','NOT_CACHED')})
         (args.out/f'{month}-screen.json').write_text(json.dumps(report,indent=2))
         print('SCREEN_RESULT '+json.dumps(dict(month=month,summary=report['summary'],archive_statuses=report['archive_statuses'])),flush=True)
-        checked=minute_check(report['records'],args.cache,month,args.minute_sample)
+        checked=minute_check(report['records'],args.cache,month,args.minute_sample,offline=args.offline)
         (args.out/f'{month}-minute-check.json').write_text(json.dumps(checked,indent=2))
         print(f'MINUTE_CHECK {month} n={len(checked)}',flush=True)
 

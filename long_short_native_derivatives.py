@@ -102,7 +102,26 @@ def database():
     c.execute('CREATE TABLE IF NOT EXISTS issues(time_ms INTEGER,symbol TEXT,error TEXT)')
     c.execute('CREATE TABLE IF NOT EXISTS refresh_leases(symbol TEXT PRIMARY KEY, until_ms INTEGER)')
     c.execute('CREATE TABLE IF NOT EXISTS markets(id INTEGER PRIMARY KEY,observed_ms INTEGER,payload TEXT)')
+    c.execute('CREATE TABLE IF NOT EXISTS market_metadata(id INTEGER PRIMARY KEY,observed_ms INTEGER,payload TEXT)')
     return c
+
+
+def store_market_catalogue(c,p,observed_ms):
+    """Keep original contract membership and preserve source asset metadata.
+
+    Older models still read markets. New coin-only consumers must verify
+    underlyingType, rather than infer that every USDT symbol is a crypto asset.
+    """
+    if (p.get('source')!=SOURCE or not isinstance(p.get('markets'),list)
+            or any(not isinstance(m,dict) or not isinstance(m.get('symbol'),str) for m in p['markets'])):
+        raise ValueError('invalid market catalogue')
+    allowed={m['symbol'] for m in p['markets'] if m.get('status')=='TRADING' and m.get('contractType')=='PERPETUAL'
+             and m.get('quoteAsset')=='USDT' and m.get('marginAsset')=='USDT'}
+    with c:
+        c.execute('INSERT OR REPLACE INTO markets VALUES(1,?,?)',(observed_ms,json.dumps(sorted(allowed))))
+        c.execute('INSERT OR REPLACE INTO market_metadata VALUES(1,?,?)',
+                  (observed_ms,json.dumps(dict(source=SOURCE,markets=p['markets']))))
+    return allowed
 
 def refresh(symbol):
     # Across analyst/live/collector processes, only one request per symbol.
@@ -202,12 +221,9 @@ def main():
         began=time.monotonic()
         try:
             p=relay_get('/markets',{})
-            if p.get('source')!=SOURCE or not isinstance(p.get('markets'),list):raise ValueError('invalid market catalogue')
-            allowed={m['symbol'] for m in p['markets'] if m.get('status')=='TRADING' and m.get('contractType')=='PERPETUAL'
-                and m.get('quoteAsset')=='USDT' and m.get('marginAsset')=='USDT'}
             c=database()
             try:
-                with c:c.execute('INSERT OR REPLACE INTO markets VALUES(1,?,?)',(int(time.time()*1000),json.dumps(sorted(allowed))))
+                allowed=store_market_catalogue(c,p,int(time.time()*1000))
                 # Provider timestamp, not the timestamp of a cached DB write.
                 observed=dict(c.execute("SELECT symbol,json_extract(payload,'$.observed_ms') FROM snapshots"))
             finally:c.close()
