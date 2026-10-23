@@ -1,0 +1,118 @@
+{
+  "config_hash": "38552b6aa3ebe9f03c265af7f067ff3825544cf803d2cdb27ff9d48a29c530e2",
+  "counts": {
+    "REJECTED": 253,
+    "evaluated_coin_hours": 4992
+  },
+  "directions": {
+    "LONG:REJECTED": 141,
+    "SHORT:REJECTED": 112
+  },
+  "historical_universe_bias": "Eight named current large-cap coins only; no all-market accuracy claim.",
+  "inputs": [
+    {
+      "bytes": 37864,
+      "interval": "1h",
+      "month": "2026-08",
+      "rows": 744,
+      "sha256": "b594301740cbb39818ba60f2835e4636aa06ad53308e25b1b312f1443fe0ccfe",
+      "status": "OK",
+      "symbol": "BTCUSDT",
+      "url": "https://data.binance.vision/data/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2026-08.zip"
+    },
+    {
+      "bytes": 38672,
+      "interval": "1h",
+      "month": "2026-08",
+      "rows": 744,
+      "sha256": "52ede96e424bdc696b4b7a30aa4f2f56cd32e58c6598400f25f7b3a8dc6cf50a",
+      "status": "OK",
+      "symbol": "ETHUSDT",
+      "url": "https://data.binance.vision/data/futures/um/monthly/klines/ETHUSDT/1h/ETHUSDT-1h-2026-08.zip"
+    },
+    {
+      "bytes": 35792,
+      "interval": "1h",
+      "month": "2026-08",
+      "rows": 744,
+      "sha256": "a25ab3dfcabcf739bd8bdd0aa9b1302865d5c571a5af1ffbb6e4a2b5c26ab833",
+      "status": "OK",
+      "symbol": "SOLUSDT",
+      "url": "https://data.binance.vision/data/futures/um/monthly/klines/SOLUSDT/1h/SOLUSDT-1h-2026-08.zip"
+    },
+    {
+      "bytes": 34390,
+      "interval": "1h",
+      "month": "2026-08",
+      "rows": 744,
+      "sha256": "20c98a1ccd5eb2f8d8d120d1d96e7d63dd5cacd79062813e2fa8097b92cff39c",
+      "status": "OK",
+      "symbol": "BNBUSDT",
+      "url": "https://data.binance.vision/data/futures/um/monthly/klines/BNBUSDT/1h/BNBUSDT-1h-2026-08.zip"
+    },
+    {
+      "bytes": 32837,
+      "interval": "1h",
+      "month": "2026-08",
+      "rows": 744,
+      "sha256": "fb9dda5a4c5e4f12d332222fb169490eb51f02bc96b724bdd96fcef009d8eff6",
+      "status": "OK",
+      "symbol": "ADAUSDT",
+      "url": "https://data.binance.vision/data/futures/um/monthly/klines/ADAUSDT/1h/ADAUSDT-1h-2026-08.zip"
+    },
+    {
+      "bytes": 34497,
+      "interval": "1h",
+      "month": "2026-08",
+      "rows": 744,
+      "sha256": "dbc869b6098dcd781b959a2fc36c56ef31ed718f5b2019765b886a0d434464f3",
+      "status": "OK",
+      "symbol": "LINKUSDT",
+      "url": "https://data.binance.vision/data/futures/um/monthly/klines/LINKUSDT/1h/LINKUSDT-1h-2026-08.zip"
+    },
+    {
+      "bytes": 35349,
+      "interval": "1h",
+      "month": "2026-08",
+      "rows": 744,
+      "sha256": "71247f5f7704590576a4cecef0606135f8601a46ae91d1368aab0dbb809e736a",
+      "status": "OK",
+      "symbol": "DOGEUSDT",
+      "url": "https://data.binance.vision/data/futures/um/monthly/klines/DOGEUSDT/1h/DOGEUSDT-1h-2026-08.zip"
+    },
+    {
+      "bytes": 35886,
+      "interval": "1h",
+      "month": "2026-08",
+      "rows": 744,
+      "sha256": "387e1aa225a3984ac4add2764a9b948c0a255fb38c24b8714690d1d5dce4d48c",
+      "status": "OK",
+      "symbol": "XRPUSDT",
+      "url": "https://data.binance.vision/data/futures/um/monthly/klines/XRPUSDT/1h/XRPUSDT-1h-2026-08.zip"
+    }
+  ],
+  "no_network": true,
+  "purpose": "OPERATIONAL_REPLAY_NOT_PERFORMANCE_VALIDATION",
+  "rejections": {
+    "INSUFFICIENT_ROOM_AFTER_ASSUMED_COST": 226,
+    "PRICE_EXTENDED": 57,
+    "RETEST_GEOMETRY_INVALID": 27,
+    "STOP_OR_TARGET_ALREADY_PASSED": 112
+  },
+  "samples": [],
+  "shapes": {
+    "ASCENDING_TRIANGLE": 18,
+    "DESCENDING_TRIANGLE": 14,
+    "DOUBLE_BOTTOM": 59,
+    "DOUBLE_TOP": 49,
+    "FALLING_WEDGE": 31,
+    "FLAG": 1,
+    "HEAD_SHOULDERS": 12,
+    "INVERSE_HEAD_SHOULDERS": 7,
+    "PENNANT": 2,
+    "RANGE_BREAK": 5,
+    "RISING_WEDGE": 31,
+    "SYMMETRIC_TRIANGLE": 24
+  },
+  "version": "PATTERN_STRUCTURE_RESEARCH_V1_2026_10_23"
+}

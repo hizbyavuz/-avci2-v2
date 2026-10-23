@@ -1,0 +1,57 @@
+{
+  "config": {
+    "atr_period": 14,
+    "break_buffer_atr": 0.05,
+    "hypothesis_status": "UNVALIDATED_RESEARCH_ONLY",
+    "max_active_plans": 10,
+    "max_bars": 220,
+    "max_chase_atr": 0.75,
+    "max_hold_hours": {
+      "15m": 72,
+      "1h": 168
+    },
+    "max_notices_24h": 10,
+    "max_risk_pct": 12.0,
+    "min_bars": 120,
+    "min_quote_volume_24h": 2000000,
+    "min_reward_risk": 1.5,
+    "pivot_right": 2,
+    "ready_minutes": 15,
+    "retest_lookback_bars": 6,
+    "retest_touch_atr": 0.35,
+    "round_trip_cost_pct": 0.3,
+    "stop_buffer_atr": 0.2
+  },
+  "config_hash": "38552b6aa3ebe9f03c265af7f067ff3825544cf803d2cdb27ff9d48a29c530e2",
+  "errors": 0,
+  "failures": 0,
+  "funding_full_coverage": false,
+  "live_deployed": false,
+  "network_requests_during_tests": 0,
+  "profitability_validated": false,
+  "protected_sources_unchanged": true,
+  "skipped": 0,
+  "source_sha256": {
+    "Dockerfile.pattern": "059c8d497f1037cc5de8bd09f64b77e43c87250eaefd8ec421647c8d68579d85",
+    "long_short_pattern_daemon.py": "f631c0086e65cfba7cb3f7534066aee3f08359c5d55ae8fe8379bed37ac2d4c6",
+    "long_short_pattern_outcomes.py": "8b9406cb4f85f50350a75f40342a087d2e2ba05c7a543486a35f531941055d09",
+    "long_short_pattern_runtime.py": "7876b78681c55123c585c5456e201143020c62820731f95e1ce46d8434041867",
+    "long_short_patterns.py": "4cbd6e4555838dbe32a8d3be182f0b1afd01866a983e97704715e71328bc6064",
+    "long_short_runtime_profile.py": "7aa449149c7418c361c46592ec386019204698f6923d7077e0930e8417ec3c10",
+    "research/pattern_v1/offline_smoke.py": "d2ee9af6e0ec58252dae76ff132e70b5454cb710faabd55b5dfbfda5fa3fecdd",
+    "tests/test_pattern_engine.py": "5c06bbdd60318871b91e3049c462541d4164939977a337c22602c2aa84147cef"
+  },
+  "telegram_ack_verified": false,
+  "test_files": [
+    "test_pattern_engine.py",
+    "test_swing_structure.py",
+    "test_major_context.py",
+    "test_native_chain_v2.py",
+    "test_futures_history_worker.py",
+    "test_long_short_futures_kline_shadow.py",
+    "test_long_launch_check.py",
+    "test_short_diagnosis_policy.py"
+  ],
+  "tests_run": 110,
+  "version": "PATTERN_STRUCTURE_RESEARCH_V1_2026_10_23"
+}
