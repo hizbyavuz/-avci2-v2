@@ -1,0 +1,326 @@
+[
+  {
+    "id": 364593467,
+    "name": "Avci candidate 24 hour follow-up",
+    "path": ".github/workflows/avci-daily-followup.yml",
+    "state": "disabled_manually"
+  },
+  {
+    "id": 367678789,
+    "name": "Avci Global Governance",
+    "path": ".github/workflows/avci-global-governance.yml",
+    "state": "disabled_manually"
+  },
+  {
+    "id": 364586041,
+    "name": "Avci monthly readable results",
+    "path": ".github/workflows/avci-monthly.yml",
+    "state": "disabled_manually"
+  },
+  {
+    "id": 370548458,
+    "name": "Avci 3 Day Plain Scorecard",
+    "path": ".github/workflows/avci-three-day-scorecard.yml",
+    "state": "disabled_manually"
+  },
+  {
+    "id": 362828252,
+    "name": "Avci 2 V2 Multi-Chain",
+    "path": ".github/workflows/avci-v2.yml",
+    "state": "disabled_manually"
+  },
+  {
+    "id": 364578738,
+    "name": "Avci scan and state watchdog",
+    "path": ".github/workflows/avci-watchdog.yml",
+    "state": "disabled_manually"
+  },
+  {
+    "id": 378021834,
+    "name": "Binance Futures Native Feed Diagnostic",
+    "path": ".github/workflows/binance-futures-native-feed-diagnostic.yml",
+    "state": "active"
+  },
+  {
+    "id": 366704240,
+    "name": "Binance Early Signal Engine",
+    "path": ".github/workflows/binance-money-flow.yml",
+    "state": "disabled_manually"
+  },
+  {
+    "id": 378023305,
+    "name": "Binance Native USD-M Futures Market Observer",
+    "path": ".github/workflows/binance-native-um-market-watch.yml",
+    "state": "disabled_manually"
+  },
+  {
+    "id": 363433939,
+    "name": "Binance Avci 2",
+    "path": ".github/workflows/binance_avci2.yml",
+    "state": "disabled_manually"
+  },
+  {
+    "id": 364148531,
+    "name": "Binance Winner Anatomy Daily",
+    "path": ".github/workflows/binance_winner_anatomy.yml",
+    "state": "disabled_manually"
+  },
+  {
+    "id": 382355445,
+    "name": "Coinalyze Binance probe tests",
+    "path": ".github/workflows/coinalyze-probe-tests.yml",
+    "state": "active"
+  },
+  {
+    "id": 367680453,
+    "name": "Import Real Fill Observations",
+    "path": ".github/workflows/execution-fill-import.yml",
+    "state": "active"
+  },
+  {
+    "id": 367805142,
+    "name": "External Shadow Universe Validation",
+    "path": ".github/workflows/external-shadow-universe.yml",
+    "state": "active"
+  },
+  {
+    "id": 367787904,
+    "name": "Gate Official Delist Registry Refresh",
+    "path": ".github/workflows/gate-delist-registry-refresh.yml",
+    "state": "active"
+  },
+  {
+    "id": 368410399,
+    "name": "Gate Fast Telegram",
+    "path": ".github/workflows/gate-fast-telegram.yml",
+    "state": "disabled_manually"
+  },
+  {
+    "id": 365130719,
+    "name": "Gate Spot independent paper watch",
+    "path": ".github/workflows/gate-spot-watch.yml",
+    "state": "disabled_manually"
+  },
+  {
+    "id": 381628694,
+    "name": "Gate Trader smoke tests",
+    "path": ".github/workflows/gate-trader-smoke.yml",
+    "state": "active"
+  },
+  {
+    "id": 366693687,
+    "name": "Gate History Delist Backfill",
+    "path": ".github/workflows/history-backfill.yml",
+    "state": "active"
+  },
+  {
+    "id": 365637820,
+    "name": "Gate History V5",
+    "path": ".github/workflows/history-miner.yml",
+    "state": "active"
+  },
+  {
+    "id": 368028514,
+    "name": "Gate History Quick OOS",
+    "path": ".github/workflows/history-oos-quick.yml",
+    "state": "disabled_manually"
+  },
+  {
+    "id": 366693697,
+    "name": "Gate History Twin Test",
+    "path": ".github/workflows/history-twin.yml",
+    "state": "active"
+  },
+  {
+    "id": 367803883,
+    "name": "Record Human Trading Decision",
+    "path": ".github/workflows/human-decision-ledger.yml",
+    "state": "disabled_manually"
+  },
+  {
+    "id": 373552813,
+    "name": "Long Short Analyst V3.1",
+    "path": ".github/workflows/long-short-analyst.yml",
+    "state": "disabled_manually"
+  },
+  {
+    "id": 376122454,
+    "name": "Long Short APPROACHING Alert CI",
+    "path": ".github/workflows/long-short-approaching-alert-ci.yml",
+    "state": "active"
+  },
+  {
+    "id": 374969324,
+    "name": "Long Short CI",
+    "path": ".github/workflows/long-short-ci.yml",
+    "state": "active"
+  },
+  {
+    "id": 374140736,
+    "name": "Long Short Live Pool V3.1",
+    "path": ".github/workflows/long-short-live-pool.yml",
+    "state": "disabled_manually"
+  },
+  {
+    "id": 377960402,
+    "name": "Long Short Locked Setup Real-DB Smoke",
+    "path": ".github/workflows/long-short-locked-setup-smoke.yml",
+    "state": "active"
+  },
+  {
+    "id": 378018868,
+    "name": "Long Short Motion Coverage Audit",
+    "path": ".github/workflows/long-short-motion-coverage-audit.yml",
+    "state": "disabled_manually"
+  },
+  {
+    "id": 382633490,
+    "name": "Long Short PR1 Regression",
+    "path": ".github/workflows/long-short-pr1-check.yml",
+    "state": "active"
+  },
+  {
+    "id": 375770816,
+    "name": "Long Short Legacy Research Validation (Manual)",
+    "path": ".github/workflows/long-short-research-validation.yml",
+    "state": "active"
+  },
+  {
+    "id": 374123417,
+    "name": "Long Short Telegram Smoke",
+    "path": ".github/workflows/long-short-smoke-telegram.yml",
+    "state": "disabled_manually"
+  },
+  {
+    "id": 376104404,
+    "name": "Long Short V2.1 Candidate CI",
+    "path": ".github/workflows/long-short-v21-candidate-ci.yml",
+    "state": "active"
+  },
+  {
+    "id": 376109516,
+    "name": "Long Short V2.1 Watch Tracking CI",
+    "path": ".github/workflows/long-short-v21-watch-tracking-ci.yml",
+    "state": "active"
+  },
+  {
+    "id": 377930480,
+    "name": "Long Short V3.1 Live Record Audit",
+    "path": ".github/workflows/long-short-v31-run-record-audit.yml",
+    "state": "active"
+  },
+  {
+    "id": 377491087,
+    "name": "Long Short V3.2 Shadow Observer",
+    "path": ".github/workflows/long-short-v32-shadow.yml",
+    "state": "disabled_manually"
+  },
+  {
+    "id": 378667810,
+    "name": "Long Short V4 Testnet Execution Safety",
+    "path": ".github/workflows/long-short-v4-execution-ci.yml",
+    "state": "active"
+  },
+  {
+    "id": 378640385,
+    "name": "Long Short V4 Native Research (NO TRADES)",
+    "path": ".github/workflows/long-short-v4-native-research.yml",
+    "state": "disabled_manually"
+  },
+  {
+    "id": 377927982,
+    "name": "Long Short V3.1 Validation Branch CI",
+    "path": ".github/workflows/long-short-validation-branch-ci.yml",
+    "state": "active"
+  },
+  {
+    "id": 374199996,
+    "name": "Long Short Watchdog",
+    "path": ".github/workflows/long-short-watchdog.yml",
+    "state": "disabled_manually"
+  },
+  {
+    "id": 380767527,
+    "name": "LONG SHORT read-only audit tests",
+    "path": ".github/workflows/ls-readonly-audit-tests.yml",
+    "state": "active"
+  },
+  {
+    "id": 368929630,
+    "name": "New Launch Avci",
+    "path": ".github/workflows/new-launch-avci.yml",
+    "state": "disabled_manually"
+  },
+  {
+    "id": 380132292,
+    "name": "Offline Long Short Audit Checks",
+    "path": ".github/workflows/offline-long-short-audit.yml",
+    "state": "disabled_manually"
+  },
+  {
+    "id": 367790827,
+    "name": "Read-Only Execution Evidence",
+    "path": ".github/workflows/read-only-execution-evidence.yml",
+    "state": "active"
+  },
+  {
+    "id": 367623816,
+    "name": "Research Validation CI",
+    "path": ".github/workflows/research-validation-ci.yml",
+    "state": "active"
+  },
+  {
+    "id": 367680435,
+    "name": "Import Security Adversarial Corpus",
+    "path": ".github/workflows/security-corpus-import.yml",
+    "state": "active"
+  },
+  {
+    "id": 367785203,
+    "name": "Refresh External Security Ground Truth",
+    "path": ".github/workflows/security-groundtruth-refresh.yml",
+    "state": "active"
+  },
+  {
+    "id": 375743108,
+    "name": "Telegram Route Diagnostic Once",
+    "path": ".github/workflows/telegram-route-diagnostic-once.yml",
+    "state": "disabled_manually"
+  },
+  {
+    "id": 375715256,
+    "name": "Telegram Smoke Test Once",
+    "path": ".github/workflows/telegram-smoke-test-once.yml",
+    "state": "disabled_manually"
+  },
+  {
+    "id": 394311216,
+    "name": "Trend Breakout isolated tests",
+    "path": ".github/workflows/trend-breakout-ci.yml",
+    "state": "active"
+  },
+  {
+    "id": 394273193,
+    "name": "Stop legacy motors (user request)",
+    "path": ".github/workflows/trend-breakout-stop-legacy.yml",
+    "state": "active"
+  },
+  {
+    "id": 368640797,
+    "name": "Turso Shadow Sync CI",
+    "path": ".github/workflows/turso-shadow-sync-ci.yml",
+    "state": "active"
+  },
+  {
+    "id": 380450887,
+    "name": "V3.1.1 Safety Checks",
+    "path": ".github/workflows/v311-safety.yml",
+    "state": "active"
+  },
+  {
+    "id": 393067483,
+    "name": "Wave Lab Offline Checks",
+    "path": ".github/workflows/wave-lab-ci.yml",
+    "state": "active"
+  }
+]

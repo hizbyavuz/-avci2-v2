@@ -1,0 +1,5730 @@
+{
+  "identity": {
+    "rules_hash": "8a510a8659d0dbfedf254e1fdc0d2d2eda05e648c31c19dcf1c64075db7c84ea",
+    "protocol": {
+      "name": "Trend Kirilim Motoru v1",
+      "start_utc": "2023-10-23T00:00:00Z",
+      "end_utc_exclusive": "2026-10-23T00:00:00Z",
+      "split_fraction": 0.7,
+      "development_variants": 0,
+      "locked_test_runs_allowed": 1,
+      "split": "chronological hours; exclude last 168 signal hours of development and final 168 signal hours of test, independent of outcome",
+      "ema_seed": "mean of first 50 closes; alpha=2/51",
+      "atr_seed": "mean of first 14 true ranges; Wilder recurrence thereafter",
+      "data_history": "backtest: first selected month minus 60 days per symbol; live: deployment month minus 60 days with persisted history_seed; identical signal function and indicator formulas, finite initialization origin may differ",
+      "entry": "next 1h open in backtest; fresh message-time reference quote in live; validate stop and obstacle against actual entry reference",
+      "volume": "base volume for trigger; USDT quote volume for universe and simultaneous-signal priority",
+      "universe": "exact preceding 30 UTC days at each month start, min 60 days observed age; original futures 1d quote volumes used only for universe ranking",
+      "boundary": "exclusive close_ms; 4h close at or before decision, no forming candle",
+      "obstacle": "strictly between entry and target; previous 480 1h bars exclude signal bar",
+      "outcome": "1h scan; both touched uses complete 1m hour, same 1m both touched is STOP; missing 1m is STOP; adverse stop gap fills at open, target gap at target",
+      "exit_time": "when resolved by 1m: terminal minute close minus 1ms; otherwise terminal hour close minus 1ms; gap: opening timestamp; slot released before next hourly entry",
+      "funding": "sum actual published rates times direction sign, as percentage on fixed entry notional; not mark-price-adjusted changing notional; missing coverage conservative 0.01 percent per 8h prorated for either direction",
+      "funding_boundary": "entry < funding timestamp <= exit; funding timestamps rounded down to whole seconds to remove archive calculation jitter",
+      "mfe_mae": "full following 24 complete hours irrespective of earlier exit; missing bars => unverified, never zero-filled",
+      "costs": "0.30 percent of entry notional round trip; stress 0.60 percent",
+      "drawdown": "closed-trade equity in R, positions all risk 1R; simultaneous exits grouped; no leverage/equity compounding; not intratrade mark-to-market drawdown",
+      "best_three": "remove three largest total-net-R symbols from the selected reported subset; repeat fixed-trade-list stress, do not refill skipped capacity",
+      "outage": "no fabricated bars; record errors; incomplete universe/symbol coverage prevents validated PASS",
+      "live": "OFF until report approval; no order endpoints; paper only"
+    },
+    "start": 1698019200000,
+    "split": 1764302400000,
+    "end": 1792713600000,
+    "variants_tried": 0,
+    "files": {
+      "trend_breakout_backtest.py": "f8bc961bf3b678d66d5b8ab022bd2b7d0e68d4291a8b7995cc8257797b9947ea",
+      "trend_breakout_data.py": "a3a0cbfc5094bfaac2fbfe4a824853d4f296c507c93a83e1f5751923bfe50675",
+      "trend_breakout_engine.py": "741b6915ee4889507cc2d86c8a14a23c66626c0d82ab3697a06c74b1e0a247f0",
+      "trend_breakout_live.py": "290a459b9f8d14aa330608f53f6e9af90059957f70d8ee33926866dc823532ba"
+    },
+    "prepared_sha256": {
+      "BLZUSDT": "b91e6dadf1e882bb80cd0584683441a36f917bd46e92641cd2ee8be58df50e9b",
+      "WLDUSDT": "d536c7d1f779844ce03b2f3d2620e3da52f3959cafa11623e0673e3f40571a8b",
+      "BCHUSDT": "992eea74eb168b954ffba11c19f29f17a99eda7f71f15fea4e0bdff2df87ee1f",
+      "1000PEPEUSDT": "c14bdfc15036dd527891701512767210b6cc9e74eaf6a89916bf266a32f34155",
+      "SOLUSDT": "0381c3fb1b7bdc3e24b4f5066f7bab9337dcd5a15aa79135ed70fda350f2cdea",
+      "FLMUSDT": "224cfdb3914e7686d6b11118faae3e3bf859bb5c7ca440019f29326e9c2cb0d4",
+      "LINKUSDT": "2960e3eb73ce4d39cc4368a227f0bef009f81b8679e8cf337371df47651c2006",
+      "TRBUSDT": "81ad462eabffe36839e85231dc8e607883e83ab5c7563b51139db9a8d0a915b5",
+      "PERPUSDT": "99d6dddb23c80908ad6e34e5ab1b61a8673cee7aa76f47f1861ade80290a9297",
+      "ETHUSDT": "d305fc67c2e4c66547ddb8fee17f7f4f13af5165a2292d38e63dc7f7024ae6bd",
+      "XRPUSDT": "00c174ef97652574a005041b27c43bccd3029ce5fcd2aeae23f6a7a425b2949a",
+      "BTCUSDT": "515833fcc50dfc2ac19e0d4fb7cde0087473c954ad153941e5ebd4758c8867ef",
+      "UNFIUSDT": "783b0ecbddbc052ec776fc9a2a0bbf2b658ec2b637418ff54be8668ffc4a3934",
+      "STORJUSDT": "eadb16f0a096de38395543aa7824fd2545523782a58041d8e02fd761a78fb1a9",
+      "OPUSDT": "70f0e5ce93867580e74c4234c8d284e078c3869808efee564425533e7bf26c17",
+      "MATICUSDT": "bfe96d05bd83b0e4145a4e54f697cc15d564fb6712d802fc31b5bb61c85b4dd2",
+      "STMXUSDT": "b8c0fd863e12e9327081b99d11066d1e4febb410815cb97247aed8c24fd63b1d",
+      "NMRUSDT": "2dfaeee2a7901bb34196d77b156cb9d6dae9327204749c29149d718b662e0c43",
+      "BNBUSDT": "2074fec3b1616b9d91c0d0851ad29e5eb275af13a4af3230dd55dafd4730b95e",
+      "DOGEUSDT": "c7e517a1e38658be2c9773804020713c494d0221042e1e8b51dae22cc335fc2c",
+      "APEUSDT": "c2e3674a938a52c51ca6ee6e698011bc80fede8adb10bda8b62aa4d244bc4f9e",
+      "SUIUSDT": "64219c16ae6e9285928052a735ac4ecb45b593d9e4cd17015a7082982a5af27b",
+      "CRVUSDT": "aa1e852e63559af0971048f98d9e072e9f99ca35d0b32de1b1e2b682e6eb59b9",
+      "GALAUSDT": "f326ab4ab4b62370a3d3c7cb105d499843b14453d3c8897518ae5c4bd131abdb",
+      "OGNUSDT": "f9d47a50786e780ce7a6164b9ef60acdfa40e2188ad80449b50e3c279f161cba",
+      "CFXUSDT": "b85c8b115a42b459d19e5872d0b3f8c59a8cc5ba4f8ca5e64964ccb10ac527dc",
+      "ARBUSDT": "2620a8077fbbcd509997a08f8e29bb59687899335f01ea10e30127ed4cb47727",
+      "MKRUSDT": "f45193b8afa045fb065427fa66d014bea931afad95d5e57e47422eed4f0c6832",
+      "LTCUSDT": "3c69f45c3411fdc0f9407768900565a3fc14bb30662325631f8270624b9b18f2",
+      "SPELLUSDT": "5f9e233bd84b049b3f11edc107f23cacb765a2e0f1196131554c561a7c54e0c5",
+      "ADAUSDT": "ea776698ee268c99bea18ea6e929ee4ce1c1d2643091f374ac66201c41818686",
+      "TOMOUSDT": "0f89c8e79324d2cdc4245e7639a0edd1a640a2322a689954ee278a53e06b8d7b",
+      "AXSUSDT": "d17ca4af964f0f432eebfc10743694e72181c1830f63b0b6b586bbb5b88918b9",
+      "KNCUSDT": "3dcac0f5c835f9ccc76f11026bc785ac74fd4f1f928fdbb0ab9c3076a1f82c09",
+      "IMXUSDT": "549a525b81dfd66ea1c9c2ad3bb74ff58e73558d64b11809def7f09ba76d3543",
+      "ETCUSDT": "9691241470bbabf0159f6a7141be5027ef05229407da54b4a3302bfbfe12310d",
+      "AVAXUSDT": "60afb1046284f581bfda0bdf36825f46b14a9bd9f8bb441e9b8d69a7818cd51e",
+      "XLMUSDT": "28b47470aacc18be5fc2de1b409d94b4249d61b4d370d2c48c1ebacc60bc9ef4",
+      "DOTUSDT": "8e8eb5585ca3e7bab8ce81531c34c261f624cb075281dec1b989a69b5b7e82ab",
+      "FILUSDT": "f0564941eb791c6021e5318142ee60f17927fb5323bcb5150a48b4a362ed9856",
+      "LPTUSDT": "ad538cddb4cf2fb73751aea8141f4340741dcb5cd857484386ac13643e9e609c",
+      "APTUSDT": "72f8b87bfb7841c6ea1e9b3b5e1ecbde57b9cff9707532158c877b0de7e793f9",
+      "LUNA2USDT": "a440fbecc1b152f6e3eb9a51f1bd4c08c695a3313ffaa6fb3e165e09df765d55",
+      "1000SHIBUSDT": "fa918f17f35788d2900656ccaa1faff576a5a987c70b34cecea285dd39deb532",
+      "LEVERUSDT": "34855b75f3331f614147805a460b73461ae5e9286a36a04b2f927a9da35c09c8",
+      "MTLUSDT": "1de4c8a852157b0ea363380bd572a160642cf2161c846c5b66e87a4a248200f0",
+      "DYDXUSDT": "cd07dd63fe492a0f15705b24f414f28bcc5cb64ba83d44a365181c50556c4f6e",
+      "BNTUSDT": "0a2e07e03d15f06b433d3e0676758fb5a51273860e77e5b2f49f70507a9bbe7d",
+      "AGLDUSDT": "3f8097447459a65796c12c2dd5214a53be1d3b076719a8382daf934d0e157d2c",
+      "BLURUSDT": "b1c1fe4c1b18bc0f63112e6539a3e14b14c801b1c2a5397c831cb5cdf6a31ec4",
+      "COMPUSDT": "eb8003379a206c1f0ea4b5f8adcb5add177beff30b7ab1086ce50e583f5787f2",
+      "INJUSDT": "b0bdbf1f8fd57a095f3b5a88eaa4bec811f6857c2675d8b632127e72153094f4",
+      "BAKEUSDT": "cbc89c7c20f5b16b584f3894845e0c9110d27d577c9d3e0c28a53ce30cdcc7a8",
+      "AAVEUSDT": "8528a50d2a1fb69af3eae7f511203da275916974f38e4dc19a6b14b1103ab144",
+      "1000FLOKIUSDT": "c966d1a52e0b8991edac05b67a2a55b6f9bf13a0e002cf671e9e1cdfdce48fe4",
+      "EOSUSDT": "6d84cef02c252dccb38bd37384299f3a68b1fc972e7715a28f007019a8e18754",
+      "ATOMUSDT": "70fe0b292f404aa1cd0c6eedb1da776a5e5f4b31f50736f6f972bdda5016b8a7",
+      "1000LUNCUSDT": "11ae898613b2f18faab9c46749fd9c8c3fbcfc01b526c141e044dcfe560669bf",
+      "RUNEUSDT": "243c0e15c92295b1e977cca33f768250ebd63b2de5655c2278c998c62e388543",
+      "SEIUSDT": "1ded2e4d2d92f691e36f9faca4930811f9d75921011fc4a340751e1873da94cc",
+      "MINAUSDT": "75b3013b686205d75d5cc6c0d1373baa6ad2324d54180ab6003ecb151e036643",
+      "FETUSDT": "d72bfa30eac9dba0249f310d3177e2964db15921f0525180f9b76a5e63a5ac7e",
+      "NEOUSDT": "8358f3f46c4e431ab0097dbfab7f7330a11efa315880654d5f9195c5545587f4",
+      "YFIUSDT": "d6e77f7d644e7cd80c5299641d77dd1bf1af2c4f7f52f5e7fac64647033f143f",
+      "GMTUSDT": "1bade7df5ec311044a8de56d268bf4b1474a7370efce7bd095b267776e20d6af",
+      "UNIUSDT": "81051f86e802ea70e68d77bc785e932b320498f14ef7e77eddd1ab5f9eafd4b3",
+      "TIAUSDT": "092ee3d3573e09c1ae4621d73f2a730e4edd47b2c0e244dc1b7ba2ab578d5525",
+      "STXUSDT": "675de798f78d74d45114a022917dd5c68ff2bc4ab0f9b648265c1ff7696f53e2",
+      "SANDUSDT": "9a516f2989126027a1660b92e53ecb4c3764ee7c21ff878b3922dad482a819f7",
+      "BIGTIMEUSDT": "cce6e961281db470cdd70c7f568bc8005d0acd6abe7abaea17dc75ccc0350ddb",
+      "FTMUSDT": "96243e4f637a6ccab3113369cf6deeca85516387255eead162b2a157a6107864",
+      "MASKUSDT": "85534e921c2107a1a405cd6b94c31a849f1771214c2fdcd9eb4b7d27533c1994",
+      "RNDRUSDT": "9f87233ca07c67a711ab44c25f861fbdd2ff890ac2651140299947a192e2f040",
+      "ZRXUSDT": "65c29b4b03b5549e346826d710cdbeef436c7f5152994f07274d9995de2ff164",
+      "ICPUSDT": "6dccddf7df51e3eb829352413d053db44a98ff8ca4f03e748e2d9f0377190d67",
+      "NEARUSDT": "da80f902f8e1c5910652bfa8bab47b614d17b58a5d08aa7e8f285d75a8eb87ae",
+      "PEOPLEUSDT": "e8aed5b76bb3ffbce2bda78098a4cabb1b11933f2328b99031f34248f1babc82",
+      "LQTYUSDT": "acdb29c25a594f8378dfa735f386ad30cfdf733724e20f6d065aaf3056957535",
+      "UMAUSDT": "a311bfde53ee68f1b188369950a30f5f6ea3729d58380d3e5cdd6a1c6f90ea63",
+      "POWRUSDT": "6797432bce84509208fbed250960874327f3cbd463cf40b6369db494a2b038f7",
+      "COTIUSDT": "283f9bf8d5cb747acb178a27d9dea9a9d5fffd6c9f3582d36f276b2b00cc5778",
+      "IOTAUSDT": "16a79f990c86213494b68c90a4f63fb3ae8e95a42f9c0397362ecd37360fb655",
+      "LDOUSDT": "f5fe0906578131cba993e72f98680a27e7e8f4383475374bdab519e112f24829",
+      "SUSHIUSDT": "76cd04e1ee9167ad36791f5acc3e48d4a05bc285e4dd18c7b37f7631e7e99c68",
+      "GASUSDT": "e9f54da461cb41e4cd852baa6c525cb2e5b7b613b59e13684fbe8afb784a2fac",
+      "API3USDT": "5f3c61df9e327a1335ec3539d3cefb82c3782d902322a60491748bcd135d09e0",
+      "ENSUSDT": "80bb48a5bfa162eb54fab2f845a57635516e522aa07d80c07d46580269359971",
+      "BSVUSDT": "7865e1ab242a03968c8254fd62e5c7e92bbe37beb4c0237e9247b08072318887",
+      "CKBUSDT": "f8c29ae3b82c3fd7f88bb4bb55e6a5f43258bc55ea8ddfe2c370d1165de6a00d",
+      "SKLUSDT": "be55ffb5191d7f38fc6b62d1956560705e0db0870b22d0a2a4827433fceb7ac7",
+      "ORDIUSDT": "499535998c8b3e908a319c5e58577a9128fbc1fdb9648cc96e83f9723b24954e",
+      "XMRUSDT": "9e4753fb8a3cd4a72b2967423929dd685c86204439a41e10135f8f7b67172aa3",
+      "PYTHUSDT": "74bc879b7e67b2afce5a603e5b9c14eded49f6f9891bb7cb2baed7abf3f1fdb9",
+      "JASMYUSDT": "ee04d8cfcadda15cce8d6ca03f22335a414be89cf04290867f661840f4b79d24",
+      "WIFUSDT": "5a8170b8d86362d58ba1f6d84554dd5d48ff6a269e535cde705b3ef52252b49f",
+      "ARKUSDT": "b67f3ab0ef7f2e1d03c9a5c8fda2f67c97a9d60fcf804dc364753e9a41e91f4a",
+      "ARKMUSDT": "511116233e331c90fb74b9caced3a60ac7ac91f49ca8ce21f697025a8cd03426",
+      "AGIXUSDT": "704849ac4f51b44b28435e25aca88d6172baab2dc32e9b31b82252256c11436e",
+      "BELUSDT": "51ae0832eb9c0652c39740daa1198064cf51d94602eba50f18cb631c2c87eb2c",
+      "IDUSDT": "028f6301bf308eeca3338333f5da66c11abd50572b30462da2dd92c5f2a8ebfc",
+      "HBARUSDT": "51519d54fe70e45c8543966fbe11be33d006e1302154d8c27fe769701212cd4f",
+      "JTOUSDT": "ce38d315d62d1fb2b6a3d4ea284b140d773e652051d576226c9cfc3ba14483e5",
+      "1000BONKUSDT": "f687e7ac993224fbdc5a4c723b88bb2b4785000503473763ecded44861c298b8",
+      "CHZUSDT": "976459bf21fc4f1e6c689be9621115439fc6441cc21f27d0997e973f4072e551",
+      "ONTUSDT": "38be3fbb3d5a515d4156827d283c6b465bef05a6915e4ba401881918576ff97c",
+      "POLYXUSDT": "f45310d91601c9e5c8f5ffdde6edcae85120f396721b9ccb07d6b5048e33dab3",
+      "AEVOUSDT": "01075d994c3d4e7713f433f03985bd76abbb7824a0062b5eab0be5f16ca44cfa",
+      "TONUSDT": "091defd969d3f88fbc2a811e4ef8aaecf5afa50747e1d8bdeeb14a92c532d443",
+      "1000SATSUSDT": "4ffc263e347d34ef8174fcbb941fa1633b7b60f62a398685702070f6ebfa8d89",
+      "ONGUSDT": "18e55d6486e9223787851e57f474105d68304dd6d9708d7aeba409d8caaf491b",
+      "JUPUSDT": "b2e492aad2ac488a04615893d2ae054a01bf3bb9db86b8673ec6909fae6cada1",
+      "MEMEUSDT": "7bd6fa065eeaace0d70c9e0dcd36d7e2f8deef4cfbb42e868924dc46d66146fa",
+      "ONDOUSDT": "7d10bebf29329dd5df6fe228dc419d2694cb9c440b7cc9b5a4e80a9bdecad91f",
+      "WUSDT": "419a14cfc5215d437c178200899b3790d177c1fa210975da8362a9baff292aa1",
+      "TURBOUSDT": "0d7fffef6e7677502267ef1b0664279280c9d23c5ca27edbc7e9a7be9a1011e5",
+      "OMUSDT": "3ad17141f8fb0731f272a710094a9fb2513b712a0f1d89f6905a8fd93c89b36e",
+      "FRONTUSDT": "09b8ce595a494e24bde6faf4bcb2202c0334a085207e6faedab5d7d94b1024f8",
+      "YGGUSDT": "db3218060201a712346f6398875836a22fa5de3b4f613aef362a4b3bf1be8091",
+      "BONDUSDT": "c7b9bdf83ba251e68314ae015e50bbc60d9e6c649133a5782eb41e5a62c1f17f",
+      "BOMEUSDT": "7c0357d36437c1b075baf4f3846e58be64a9c49723f89933b67705f2c746e92b",
+      "IOUSDT": "13a31d9a55951908c055735b6307b887910b55de49e4c71178533e2dec6a4e18",
+      "1000RATSUSDT": "f924dbda25b9e40c6fa82430ba6993ad01810803ef023e7d06751940ec271ac8",
+      "ZENUSDT": "73dce8a025520bbd3818936fcb1ac953642cac10242dac3b19e47642219f60b1",
+      "ARUSDT": "6f566cbcf77f0dd7a0d50d27d1bde95796bc1f859d32632cb69f70a4251eaaef",
+      "PENDLEUSDT": "db8f51fbc3b78f72667dbdaefa6c5699ae01e95e80c8350cae86df9ef1663d44",
+      "TRXUSDT": "929b5f804dfe0e0febdc0dabbe94af5571a3a64da91556bb55b2795d7afd375a",
+      "HIGHUSDT": "274f62c1ec127a76d8f1f5e8efc7732ea1b644c9dbaad29c17293143f033f503",
+      "ATAUSDT": "86dd3d18798128d5a4c768f901c02edba99f3d3ba5ff12eda5a96c7f7a7d018a",
+      "ZROUSDT": "c53acd631ef148a192db3ce4d99138fd697e7456c3ddd6770de7ebee7f0faf72",
+      "BNXUSDT": "c935bed99091b31ee717351b713d1414a881a622f8a1bd4ad92af52424159047",
+      "NOTUSDT": "6c6a9651e3f4db7751d2134413bdfcbf14372f253f722e4af5427e942fd42d28",
+      "MEWUSDT": "cdcb78cb6c707488b898d1269ca2cc2a97c41cf4587f632dd584c91c80cca047",
+      "HMSTRUSDT": "be5bba61fbae3e5347130bbfae369b4147b672f02185249a862eb2beae5822c9",
+      "ETHFIUSDT": "272cf4d186dbb149393060366a4059fc237c7196205a408631649424cfa386cf",
+      "NEIROETHUSDT": "76da3bae080a0ff9b616aefe44fef5a5d52058b0d7709a64046e30662579feef",
+      "ALPHAUSDT": "3407102ca2653e63491b2ef03d68b71c0818cffdb645d41d99def33392e8624c",
+      "STRKUSDT": "d5c9722397a88d5f970286784d4449cbc64808b1ba65aea0aa119eb63e574af5",
+      "1MBABYDOGEUSDT": "0e585e9b081e9a94c15f1bb57afcc8b1d5c6f2f28461e070f2be64cee9b294e3",
+      "ALGOUSDT": "490adefcb685644200590fdd99a27310e9b9aefb6569e6ae580dc0401407ef13",
+      "XVGUSDT": "2228a11181d487be28359047038339bdfa8d3a828adaa8750b741abf4f1758e4",
+      "SAGAUSDT": "1cd0aa66ba84620f0ecd2bf2e01d1094cf9f776a3fda0b7f0ffa2e9ba046242f",
+      "DOGSUSDT": "de9af6a61bd1efb8b1adbf14fdfc819a431b095e62479001d9fe6664ad7be181",
+      "TAOUSDT": "8eeaeae1f6cb49f9cdc4e023667f517e26358edd89ae911cb16614ede4beb81d",
+      "ACHUSDT": "78efeabc24965cdd45c6ca26ddf449ea1bfb015642150b00c138d127bf8e0d09",
+      "UXLINKUSDT": "b611ab0efd79785b4b646d7d5274f67962dc574c4da3e184d8a27477fe84500a",
+      "POPCATUSDT": "0a89b8488b4ca44a5f12b7bd9b2ea5b71a9df5fae5b2a5c3266c8c20efe12cfe",
+      "DARUSDT": "b18ba52e71896a2fb16f595e05b7464ddd7de5c5cd65197e3018523c3ea08e87",
+      "NEIROUSDT": "28f9d3350455cfee5e6f396c2282857851047a3c32f1012172bde93370a5a236",
+      "VIRTUALUSDT": "5e6ab96c962b0588a710964899f97ac1079cc1e940c5b7e6747391a4608a3e4c",
+      "MOODENGUSDT": "5f4ae4bfd6783b6ec12928696d02d6e547153a691402bff684be5a281a6de57c",
+      "FARTCOINUSDT": "df3378de1240e19d8f97cd66ccc77ff03f307bb7c0f97472a8c1732d02ecc226",
+      "PENGUUSDT": "50094eb4eb49c1d351324cb8f858d31e8551f09781be69ff5911679ec4962a3f",
+      "RSRUSDT": "ef60caf397a7c8f2a74ffff15b6cd791770c9cad2a79092f7a72662f6f4f2162",
+      "PNUTUSDT": "4283d11d56042da8f619e255960dabc163951c5ac838ade67e7fa20d5d712d72",
+      "ENAUSDT": "08b0c87e80e08ed39f949d52166d7f47f9cfcf69e9891be16a754200af4d06c7",
+      "AIXBTUSDT": "a7dec86d61ad8a2e5f71daff88e062b30963bb5d8b944bfba4d8d612e903ded6",
+      "ALCHUSDT": "fac9f37b3fbe7384803af183272d35d250cb227c23b085e9f5e1bdec38e8c71b",
+      "GOATUSDT": "a0636c2c65af38bc336a3807bbb1a296dd8ffc7e57c885ea7ca1fb1e99105b00",
+      "USUALUSDT": "831696d21cfb096631e63c536eaca14280c49d329db281c694bf686d8e9b8747",
+      "REEFUSDT": "2b431518e798c8a93b47a01b9b0a5c292b4a1e6191a8843d94b1705c22f2bcd8",
+      "BANUSDT": "0d552b46c04e4840d6cd81bb019a4b473a902e9c3e402c5c434ea6cc0eadc266",
+      "CAKEUSDT": "0e45fa15424857f25ce8afa8f7e956616d3ec1c6db278cedc3f94c66f9e2fadb",
+      "ARCUSDT": "b29510c8760f0af8e90923b87502fe28715c165a77f48d38312d89c3e8824fc1",
+      "BANANAUSDT": "0ad8f593bf535ecdd781f54914a347ffcb23514b4859018dfab8abcb939e7808",
+      "VINEUSDT": "671951360272f32bb9594e6ff62539c5119dfe758964490a38243a0d81c9a604",
+      "RAREUSDT": "010dcb65f9525ed2fa1f57e6eff922a616c7959d3c540dd934c85053a9a24517",
+      "SUSDT": "d6bb5e61b46376ac6fc5eb4ca8955efeed44f6507f5b1ab2f5bcf0d56faccf2a",
+      "TRUMPUSDT": "1a221895b32a0e947efa2e159aed4967ecd962b9716ff24fafcee4bf4ba3d39c",
+      "AUCTIONUSDT": "a70e271655ce72a45d99c4107003a1db9edbc30c2bf12bedab2bcba5eec5252a",
+      "MOVEUSDT": "006ab61a049247cd55433202d4d18b726c5f53a57bd9eb4351857a9f5bdf9a00",
+      "1000XUSDT": "f487fc725e385ec47ecf7cc4f57b7dbf8ef6be1c3085eb9222bba32285786afd",
+      "MAGICUSDT": "9e342d094ce70d81bf55734350d450b6e18b6d9e543aa046e78956e206fd4238",
+      "LAYERUSDT": "e17b2e06bc172f90847de9d68e87634fd1f28dcac0140f7d8e15a3095ffd07de",
+      "RVNUSDT": "04f342aa86662e1da482f052a03dd1d53e8ffe7b0a684f676cdb936d93995c11",
+      "VOXELUSDT": "a70e62b26ce6c2c9fe85d2134787c465346bd68cfc85a5d91f0e4e8dbfefff1b",
+      "ACTUSDT": "7b0414bc5e296b90eee23b98a9b27e637fdc6ea4ece38b7e002a3012222da049",
+      "ALPACAUSDT": "b2f0f751abb45680e5092f8c75c8b337a871a0b4dd98899abc209c5adc54961c",
+      "REZUSDT": "f5d440e2eeac6da92790e4e511e9aebe4410474f5f4721fe4dbf9b9d5087c21b",
+      "FUNUSDT": "e31d53178eee98bbce5d73d9815820003d4ffb71626a93d78b4032a21802bce8",
+      "BANANAS31USDT": "eaacff02328d70fb6c94e38daf8c84630e86737586b29661e97522be8d455697",
+      "ORCAUSDT": "ff5dc1b57096d189ddfe2812ad31c2aa5bd21f6dbeda0e454cacb05609faf4c8",
+      "PUMPUSDT": "2165c25759fbb1659a4b25e420e40798d4d8b88c36fad3ecdf7be97b6136da1f",
+      "WCTUSDT": "6e87fff57f93082cc28b3d3312ad786b242905de3f6d77bc1d07d109c2b08b4e",
+      "QTUMUSDT": "5db618edc9d2bab989e338fbe431b2698bd5eb9889546c22de20845994809466",
+      "EIGENUSDT": "b9a08b4068e6505ee96c388b05a83157aa4eef1f899bee2da9ab2a15fcbcd7c2",
+      "OMNIUSDT": "c93915f10e62cbe148326d01571093e3ede1f21f8a4089f8796eb719487aefce",
+      "ANIMEUSDT": "c6d6ca84301fec9b54efedda282f4ae561f6cfffa81979c072fb09805680e6a6",
+      "AERGOUSDT": "e799d3167517d7c9e2c96075b26ffd3f2eb32c0ae78f48f4280b6b5859ccb355",
+      "MUBARAKUSDT": "2bdfe1fa9d236520a3fc9803c0fbd13d62a85721d6c97e19ce7c66b3ec8b6e91",
+      "ZEREBROUSDT": "08d8a7248b3e7137b80c00774c733dbde9c6bec2af9270ded071d73eee427155",
+      "BERAUSDT": "21afd6643d72d58990ffb9392f153ef101843b950c981ce28218f3a127e48c22",
+      "KAITOUSDT": "80ba395d0cdb76fb0d69417a0b11b4910c6cdd35d54b514a7f036446eb87ebaa",
+      "COOKIEUSDT": "6ac0b939b140d20b818c8931847048ab46b1e9eccac8d424bba0d1c848f49655",
+      "SOONUSDT": "f5fd210eac3a242e5f54c00c6e7ee7ceb3c1538ea070325765711efb95d946e2",
+      "SPXUSDT": "c31895000e97b3ef13af878fd81134c72ad5f5f30ca0c0a85dc3797916ac3a1c",
+      "MYXUSDT": "cdd40cda42343e7e28ae50e21588a37cbe939cb9fef4cd7971e055da795420b0",
+      "HIFIUSDT": "3dd6145ed55d6f41cdb9706a23a0a9102ea6e0ce58167dc0502d938e714bb24b",
+      "XPLUSDT": "44620dd3dde492412b870c9a11262dd3fc22bf5a3825da6bcb4e0bb0e0fa39af",
+      "ALPINEUSDT": "ce3ae0c79746eaa5e51459e831cb791aa8279e0e4fe8285a7a994b6eec428582",
+      "TAUSDT": "4bebb5c8bbc3d35e701c365a7ae7bfa1cb0ea0845a0cab7c5ad18b970bcf26b2",
+      "HYPERUSDT": "daa2b2c97b0effbf3d7eeb2c7447caa16f5edec3779c273e6eb0b2cb8599e1f4",
+      "MUSDT": "5112610fcbf1590e518d26d2f903854b61eb030fef0accb1550c07002ff9e80e",
+      "BASUSDT": "928277c28a2f4bb7dee476b919a52e47c4ba333603c62705b3311160816c28fb",
+      "PUMPBTCUSDT": "adc1ecd6fe3e8032a1fe1d9e3a4fa188069de4e207e7102f2b3816f353a1cbd2",
+      "SPKUSDT": "9754f4c469cac5d86f7a3917a8017d32a999c2c67becde3bd0b4d3ebdc65a1c9",
+      "FORMUSDT": "955ebfc71384d999502ab3894b877ac2cbbe8bb33470f96d94f131cd6a65624c",
+      "HYPEUSDT": "e195665201abd511357968642e98c13517694e9fcbacb95afc6976df6177e49d",
+      "BIDUSDT": "3c73aa1657b63de507f1baf1443fa7c760d343c186915f632c2c8646205b05ef",
+      "PIPPINUSDT": "de8e40922f0221bc77a882110f7e1ddd5b46d6425b3d31dff363d548a42ccc12",
+      "ZECUSDT": "0610bfc8f8cfefe3a7464501deada2ba6ceec8710b38add904094db212acabb5",
+      "BIOUSDT": "3ce8455055686fbe078093247ccc8daed9ac907e3428fef1c42bd48057d55e25",
+      "ZORAUSDT": "ef3c228085c5d1e9af67fb481ecea43c721ce69364dd21b0bb50c9682e66440a",
+      "ASTERUSDT": "73c316bbd6a7e6ee1550f86dbd1b14baeadac25dfda5eb16ba773075310ec3d1",
+      "DASHUSDT": "e31a39960487cb8895353fcebe90cad0446141dea8b0ff5d01bd57b0f944b8da",
+      "PAXGUSDT": "5d736bed00d4974b0fab2f2100d5ff8b1623d5a70e1bc0a23fe07693bfec4d77",
+      "JELLYJELLYUSDT": "9ac455968e1c3c2c151855706a4eb4bc03301ca51095bcb829b9b081cc9ff6e4",
+      "0GUSDT": "870a4d1c4e94ae46b36537dd69ca0a67527e2e06a8e06dd17e0c50bcb133e6b0",
+      "TNSRUSDT": "69f426223b688d73f0de0bdb9df811ad31e161f64d293a7ae842fa1d9687fe93",
+      "WLFIUSDT": "fcc74f0ca01a0b5b978b8b28fbeadfac7aa668168b9ddf7d4a148b957100d408",
+      "ZKUSDT": "8dbfae4c035a4a99b400c4ca23c8476598aaae4b9094cbc17cea5619ab2115fc",
+      "AIAUSDT": "3f44dab46da63534cd84f6357a297ec05924b3716371877ac9ade9039fb0417e",
+      "ZBTUSDT": "d915becebea9e417c933bcbe9bfb8956461adb1b2e6717508dadaef99cdb8b21",
+      "LIGHTUSDT": "2db7869e78747cadfa7f02d6c4d8bc528dcec9e85fb57baba8838eff10cfe4bd",
+      "MERLUSDT": "bcea4a83ae4b7b5eedd44bff72f93dc3229d4c597475b25a5862c215e82459b1",
+      "SAPIENUSDT": "9e7e85c507caba6529c757fa01377d1b9532d2c3eac269907ecc08b7a5c9a604",
+      "IPUSDT": "06fdf3006f7cfa355b44c54f559a17ca14e1f82788cde3ec38069b3168781e10",
+      "FHEUSDT": "db3a540026e662ba4cbe9add6adcc172d600969b422e49166deaeec9796093b8",
+      "GIGGLEUSDT": "77cfe80ba6172f44f4b1de7e322ef95368365a94caac5bff352a5b03b06721e7",
+      "SNXUSDT": "964277b9d688f81eef2b0c30b91b7ad95c8055561e4619059e7b051e09768f70",
+      "ENSOUSDT": "605435c3f8c406b4e564f5ea82af510aa682adac9f2483ffa033f4190b77ec9b",
+      "HUSDT": "864f6a5051e2f128a8945ae9496689a6ba2d146533d15867434e6061f11cf658",
+      "RESOLVUSDT": "d5c9011a9ed6ef4b07ea0b0f2824d87165f1563f75bd056eb5341a51b559ba3b",
+      "MONUSDT": "cbe7d52797fc4e84ad8ea98d506bd8d43d6ac59afff2f2e99cba501861139966",
+      "币安人生USDT": "61148911a99aabc13de95a8680936d026a9a4183a03911308b4c5be3c0e73b48",
+      "BROCCOLI714USDT": "b7648894af39b9b91b6313235dd9d0baee3a021fae2eaaf22dd8b8b71510f29b",
+      "POWERUSDT": "e6b46a87f9b2e0b64784a4c67379dfaa4c5a96f6c06fa13b78afe2c3fa38f08a",
+      "RIVERUSDT": "003fc519e8b394c7808c9def4df00edbe179d46161d3e2dec8bf1382acf658bc",
+      "LITUSDT": "721e9d25b91a55992f579a964aff62d3bd5381237ff9c87d0db8402450ccfd99",
+      "ICNTUSDT": "4654a66831a28838c6c6a4fc8622727df4def3fdb6c907f93e60eb8162a25ec9",
+      "ATUSDT": "daa94b8a534418aab1a11a7dfffe9e589a384caa61750b556f8b642538f9e2d3",
+      "DUSKUSDT": "3720bb578de7b474a73dd5101559bb9d755ec5fb9ed6088ea71485f6f2c89fc0",
+      "TRUTHUSDT": "2647745f378260c8188414277997bb50ee8335451d2b9776e45bdafbfab05d65",
+      "BULLAUSDT": "59f0dcddf6de6d5ecc3284e03ebe8500aa2990dc0059fdb3b664f5a2e043d779",
+      "CLOUSDT": "696bfa60b9b59fc9685a22e4a6ba91af870d0a20114c6283569a3396d8d7648a",
+      "PTBUSDT": "370c5a90b5cbc98d74e89d65c9fdd6870d8250cbbd0a494bbb5043a2545835e9",
+      "ZILUSDT": "39cfabaca844bb1f7df1d78e2f5ed9dc9615b94704d04fde4f68661d5f6f51d3",
+      "XAUUSDT": "5dc0999ee65b3d656bdd69b701354b10bcf77eae6d12e4190341f888a18bc3bc",
+      "VVVUSDT": "0b84bd08277070c7e6f0e9e6963bfbd8b9b7dce6170f87a602e1489f763bf49f",
+      "SENTUSDT": "d8af04b0cf4a13d5b32fc58b9693bab2d660011d7d3fff685f322d45cf398584",
+      "KITEUSDT": "8fc4e5d3a0cf6e4e0e9bd93044cf986753b48a854ec1894e6f4efe8072a0865b",
+      "SIRENUSDT": "cb035595c596d3370ea24ae1e982f24325822cdd770485454a32e66383ddf6c0",
+      "LYNUSDT": "51ce6d5907f5243619abcaf4d3522ae8eb31e80bd20b92dc2ed0eb7536c2a40d",
+      "XAGUSDT": "5e6a1093a6ea226f680723bd7715559b29613cf45187b982e6470969e2ff503c",
+      "INITUSDT": "a5462cb919fb3e4aa3775ee499c554326c7da1d9a06a8414991dce04f5ae2043",
+      "BRUSDT": "b33763899a366316ee022703ed4df3e852bb035c6f03b78b15d3dbd69089569a",
+      "PIXELUSDT": "60fe1d1405e4a20d22f94f81da9b0017d78aede177b2170b82ed44115aa1521b",
+      "PIEVERSEUSDT": "0df5d4144690d70719bc49a4cc389dddf303a028291e9ae7b6807411f6a3eadb",
+      "SKYAIUSDT": "c302c61ff33c9bdc83cdf6d81010ff930db9e978ec22d78666457c850cd1ea91",
+      "STOUSDT": "99f44dd65caad4dd248d62f814266dd1195545fb5b8f40cf4eee95e07e1a5117",
+      "REDUSDT": "c8dbc007176344114502b18ca1f20fc844d4264186a7dd0b8774d9a20a9f4fcd",
+      "SAHARAUSDT": "712c3a777b4cdd48194414f277017db6711f6bc5a3542a03b4096e7b3ecf388d",
+      "BARDUSDT": "617978470b96707215d7a821e9fe6a86af07e9422b5bc9fdeab4a75516e75d62",
+      "ARIAUSDT": "1c64cb2d570834858c4ed801421211438dafe00969210d12f2d3f9270fb4cb49",
+      "NOMUSDT": "3d26fdb085cd49de739078ae1930ebed1bd46840cd71740c8c328ea7ed77eace",
+      "AIOTUSDT": "411b1546f0c0b7698ffb48078216c6021c3f9dbcfa38b56d2cef63cdbfdb162b",
+      "RAVEUSDT": "4374d5cb6905fc1e1382872e8bcb678fb8b9b465acdfcdc5539dc7dcdba49b8b",
+      "KATUSDT": "824a5b103bcd7d7491fd46c36908058e0dcbecfa41b8dffb4deac6fbed406594",
+      "UAIUSDT": "9ca4a4845bbc8c684de87b1eac7401d50773b84589d146bdbfe60ba691da52cf",
+      "ENJUSDT": "7ed36cb06b9cccb7f1b01d5d08044dc89404255f9aaf380aef8e927892ae3184",
+      "SIGNUSDT": "eb124633053a9544fd44a808cf138c2698499344da702d1b92252193285248a8",
+      "CRCLUSDT": "faff8a1532f422e66d09db6b2a0b8b3b7e9aa671ef3a5503baf4c0ec80173670",
+      "TSLAUSDT": "64f8df41c9d7b2846da99e1c1e81dce2ed43e5354d21efddce9b4cdd8cab2b44",
+      "BZUSDT": "4b2eea80a3b6014f68e9a5ee2e12f6f9bc26d254c2fc452156865dfa2e1433f5",
+      "DEGOUSDT": "7ccb45a1c907332e3906a9e1f0f00d1e4a86fa032afcccc174f476e3b3fe45e2",
+      "LABUSDT": "682faaafd86c968cc4832556d61592fc02392f9d4f8924969f050900aa9f8853",
+      "CLUSDT": "983207308fa7770b2fce85e94728f800282e15f526a377ec70163b645fef2fa7",
+      "EDENUSDT": "2741cb29055b911ce73d9baec5548c1bec8c2bf2e0c7aa83525a46ecb966110a",
+      "BUSDT": "4a248e656adcf023fafdbbdc4f5efb1136e977a2ef7f61cfcc0782b0e2e31a02",
+      "MUUSDT": "c8c6d01a4628de7612d4d523018d2dae94adbb6308f1baaa91181423c62210df",
+      "BSBUSDT": "4261dd4ae5edf4e27e64f70908d4bf33e552b52e93541b18190efcba7a018327",
+      "UBUSDT": "ae28933d91d79b38c0e7521b43fd95a62cafc5851db093cc668b48369e9707ae",
+      "ALLOUSDT": "181dfe747c4f0cbc35fae4b7ae1ec8bf8092164baaabf16f72918b5d4ed6fc0b",
+      "PLAYUSDT": "3f68f68d37e6b382f4d69ee0a677cbd59a9fa9e0bd1eca173913b80a9cfac26d",
+      "BEATUSDT": "0cca6c0c0a1c0688504533c6b1e99fa352e3922adf97bbdf9611dee60e333422",
+      "NILUSDT": "600fc199af894cce258a262c3355043e68a9583c32b1f9cb3b7a2f31de3f44ca",
+      "FIDAUSDT": "0fb6e8f68265cd32ad1ad838ae2c08578054e29dfa8a8e74ad2c13f82043b121",
+      "INTCUSDT": "2520e4385d382324cc2b276fdd77b42b75809bfc5cef77858d0c71e0726345eb",
+      "SNDKUSDT": "a3adff2c6cdd74939d8d3290a074e2d34711c1569ce86127c9156888f7f71d9d",
+      "VELVETUSDT": "5db0ef7532b9951ef845072b397d4b236243295a68e625581ef45a1729a1d5e1",
+      "SYNUSDT": "8e32026bec035ae373582237223884798cb3b323584ff6ec8819a4d9d98366f2",
+      "ESPORTSUSDT": "15d8c15edc381c759467430be4bb1b924295b6806e2b811c510d9c0c2e369c35",
+      "OPNUSDT": "e99e68a62444b6390c097df0fa1da6d9de71f092595903233a6aec1fc9a0f853",
+      "SPCXUSDT": "fafd9b48571962f6ae375de307b8f36371a2c98f35c937d75055bce49ed0d794",
+      "SKHYNIXUSDT": "439d07c50743c0e6dd3d8140b828537005359276f3d1aa90764fdadc8589a243",
+      "MSTRUSDT": "cdef1c26ef2eab794e3985f290ce520caa3d9ec4e5b558639f99c4ccfcc88d23",
+      "HOMEUSDT": "82aa3dd26461fa8680dd737a1be04c784e62b87e1f6c05c09ed272a26f437fdc",
+      "AKEUSDT": "e340909e6395c03eeaf45bce98de7cce5fdd8880f5a2b26340b56e516c0f7638",
+      "BANKUSDT": "acbcca040f7248059c1c986bd36d1214fd3bc578b7283712b5691e62464cfaeb",
+      "STGUSDT": "7df1be38bec0f4566d6ac50d31fe5657e7bdb72aaed83dd03f6f375d31c9defd",
+      "DEXEUSDT": "5e14dd43a52202e0700ae04a91b7616a72dc793d6270c1607f5c04447e603fcf",
+      "DRAMUSDT": "6f9500dc6d6213ed66407168621ed7b3b6b334e4af545619a7f91c7cb2b13b7b",
+      "MRVLUSDT": "7bd777996b9d1bed2cfccb6d0d99efd17f152be16fd1e337d777f9dc2712c85a",
+      "EVAAUSDT": "b9f255cca7b1dead3f1f97deb8a4aa11c2a22f7a56d632842047a67485188976",
+      "SAMSUNGUSDT": "c1600dfeb56e3c6d4218f50689b00997b4273a31963ed2c99880a1b072acff40",
+      "TLMUSDT": "7be2bc861f973ecef7d6c8c6650e7128336a558dfb6488c9ff7cc5fae8ab3ef3",
+      "VANRYUSDT": "00bebb51a5919520140726a9a8e7c80e8cf054112a3909b89450596233997046",
+      "TUTUSDT": "e0398878281dca47fdf64591c96832da5b3077f942ed2074a11b374ca06b65e5",
+      "NVDAUSDT": "9e049ac11ba09615875ba0386eb0b814ef70296a87d56c7e7253ed49fe1c3632",
+      "CYSUSDT": "ef927f9daee1f8f02d2ffccf6a98fbd73b3657a70e5e0773d279b3ee39e78f1d",
+      "PROMUSDT": "d732e4cca12f67b8282e03c64f8ba149708f81ccac6806db3adad839900af76c",
+      "BTWUSDT": "8459fc516947bec6b18e01a37e9c84a368cdfaf92b6d22b17c6ec7fd71a99b85",
+      "BTRUSDT": "1e794861160a5c2a74d7d4703fc4441cf2aa69310361af97c3b9a4bd758ad1ee",
+      "RIFUSDT": "0d6587ebf4a7ca7b6b801ab7364883c3608791df9faf41bc3698e8032a082afe",
+      "LSKUSDT": "9b2fe7371d3b948ceb1aa2b1a82d99dce96cd7ac52cc78a90abdb99a68185f2b",
+      "BLESSUSDT": "dc57ad5ef9ededdce78959a4f97a002a74fadbf7e2131e10c822b1c1cebfdc2c",
+      "ACEUSDT": "2a7c73d49fe0115d37849a60c3da3ed10c5d7c619dc0fb6983c6d711cd4edb89",
+      "SKHYUSDT": "b6b4a5bab1198cfa12a9879f15b10338252f41b924236b6a2f411b932141462d",
+      "HEIUSDT": "fcb024e3f66428db98032a72e3d07e05b3299cdf3c59b5c4cfe61197063f6de6",
+      "BICOUSDT": "1a73067790d46f2eae82aad47335809b72130e77c4f9b8bb5cca1ea066170e73",
+      "APRUSDT": "313b6b21a588fd84bfb886726476893e8eb9570db1c6a30a74f6e6c21c6f7775",
+      "QNTUSDT": "d0011c69015c81e3cb96e8f56b026a9743316285049f305eb60430fb1eccd4eb",
+      "SNXXUSDT": "f5c74b2c9ccee1d492317c284fff911dd2b8a572d74cea7049eddf91b33d8c11",
+      "ONEUSDT": "73c1cd2c729465e91af234987d7824014a5d5b96b6e51d1a938a3ce5cba3bb85",
+      "USELESSUSDT": "51ef73e03285d0d0ebb6c38a8376bc7fd053b7ff5839beee6677360da9e7115e",
+      "龙虾USDT": "81871d259593eac7a145f75621801182bbc161e6ee7e6a1d41cdb8006217e7cc"
+    },
+    "universe_sha256": "83263c312a07f3093a85e99f779a7e153ea11397b75ae8ec03580b982c75f9df"
+  },
+  "data_coverage_ok": true,
+  "manifest": {
+    "symbols": [
+      {
+        "symbol": "BLZUSDT",
+        "source": "futures",
+        "h": 28272,
+        "q": 7068,
+        "funding_months": 23,
+        "funding_errors": []
+      },
+      {
+        "symbol": "WLDUSDT",
+        "source": "futures",
+        "h": 28272,
+        "q": 7068,
+        "funding_months": 38,
+        "funding_errors": []
+      },
+      {
+        "symbol": "BCHUSDT",
+        "source": "futures",
+        "h": 28272,
+        "q": 7068,
+        "funding_months": 38,
+        "funding_errors": []
+      },
+      {
+        "symbol": "1000PEPEUSDT",
+        "source": "futures",
+        "h": 28272,
+        "q": 7068,
+        "funding_months": 38,
+        "funding_errors": []
+      },
+      {
+        "symbol": "SOLUSDT",
+        "source": "futures",
+        "h": 28272,
+        "q": 7068,
+        "funding_months": 38,
+        "funding_errors": []
+      },
+      {
+        "symbol": "FLMUSDT",
+        "source": "futures",
+        "h": 28272,
+        "q": 7068,
+        "funding_months": 28,
+        "funding_errors": []
+      },
+      {
+        "symbol": "LINKUSDT",
+        "source": "futures",
+        "h": 28272,
+        "q": 7068,
+        "funding_months": 38,
+        "funding_errors": []
+      },
+      {
+        "symbol": "TRBUSDT",
+        "source": "futures",
+        "h": 28272,
+        "q": 7068,
+        "funding_months": 38,
+        "funding_errors": []
+      },
+      {
+        "symbol": "PERPUSDT",
+        "source": "futures",
+        "h": 28272,
+        "q": 7068,
+        "funding_months": 28,
+        "funding_errors": []
+      },
+      {
+        "symbol": "ETHUSDT",
+        "source": "futures",
+        "h": 28272,
+        "q": 7068,
+        "funding_months": 38,
+        "funding_errors": []
+      },
+      {
+        "symbol": "XRPUSDT",
+        "source": "futures",
+        "h": 28272,
+        "q": 7068,
+        "funding_months": 38,
+        "funding_errors": []
+      },
+      {
+        "symbol": "BTCUSDT",
+        "source": "futures",
+        "h": 28272,
+        "q": 7068,
+        "funding_months": 38,
+        "funding_errors": []
+      },
+      {
+        "symbol": "UNFIUSDT",
+        "source": "futures",
+        "h": 28272,
+        "q": 7068,
+        "funding_months": 23,
+        "funding_errors": []
+      },
+      {
+        "symbol": "STORJUSDT",
+        "source": "futures",
+        "h": 28272,
+        "q": 7068,
+        "funding_months": 37,
+        "funding_errors": []
+      },
+      {
+        "symbol": "OPUSDT",
+        "source": "futures",
+        "h": 28272,
+        "q": 7068,
+        "funding_months": 38,
+        "funding_errors": []
+      },
+      {
+        "symbol": "MATICUSDT",
+        "source": "futures",
+        "h": 9754,
+        "q": 2439,
+        "funding_months": 38,
+        "funding_errors": []
+      },
+      {
+        "symbol": "STMXUSDT",
+        "source": "futures",
+        "h": 28272,
+        "q": 7068,
+        "funding_months": 23,
+        "funding_errors": []
+      },
+      {
+        "symbol": "NMRUSDT",
+        "source": "futures",
+        "h": 28272,
+        "q": 7068,
+        "funding_months": 38,
+        "funding_errors": []
+      },
+      {
+        "symbol": "BNBUSDT",
+        "source": "futures",
+        "h": 28272,
+        "q": 7068,
+        "funding_months": 38,
+        "funding_errors": []
+      },
+      {
+        "symbol": "DOGEUSDT",
+        "source": "futures",
+        "h": 28272,
+        "q": 7068,
+        "funding_months": 38,
+        "funding_errors": []
+      },
+      {
+        "symbol": "APEUSDT",
+        "source": "futures",
+        "h": 28272,
+        "q": 7068,
+        "funding_months": 38,
+        "funding_errors": []
+      },
+      {
+        "symbol": "SUIUSDT",
+        "source": "futures",
+        "h": 28272,
+        "q": 7068,
+        "funding_months": 38,
+        "funding_errors": []
+      },
+      {
+        "symbol": "CRVUSDT",
+        "source": "futures",
+        "h": 28272,
+        "q": 7068,
+        "funding_months": 38,
+        "funding_errors": []
+      },
+      {
+        "symbol": "GALAUSDT",
+        "source": "futures",
+        "h": 28272,
+        "q": 7068,
+        "funding_months": 38,
+        "funding_errors": []
+      },
+      {
+        "symbol": "OGNUSDT",
+        "source": "futures",
+        "h": 28272,
+        "q": 7068,
+        "funding_months": 38,
+        "funding_errors": []
+      },
+      {
+        "symbol": "CFXUSDT",
+        "source": "futures",
+        "h": 28272,
+        "q": 7068,
+        "funding_months": 38,
+        "funding_errors": []
+      },
+      {
+        "symbol": "ARBUSDT",
+        "source": "futures",
+        "h": 28272,
+        "q": 7068,
+        "funding_months": 38,
+        "funding_errors": []
+      },
+      {
+        "symbol": "MKRUSDT",
+        "source": "futures",
+        "h": 28272,
+        "q": 7068,
+        "funding_months": 26,
+        "funding_errors": []
+      },
+      {
+        "symbol": "LTCUSDT",
+        "source": "futures",
+        "h": 28272,
+        "q": 7068,
+        "funding_months": 38,
+        "funding_errors": []
+      },
+      {
+        "symbol": "SPELLUSDT",
+        "source": "futures",
+        "h": 28272,
+        "q": 7068,
+        "funding_months": 38,
+        "funding_errors": []
+      },
+      {
+        "symbol": "ADAUSDT",
+        "source": "futures",
+        "h": 28272,
+        "q": 7068,
+        "funding_months": 38,
+        "funding_errors": []
+      },
+      {
+        "symbol": "TOMOUSDT",
+        "source": "futures",
+        "h": 7208,
+        "q": 1802,
+        "funding_months": 13,
+        "funding_errors": []
+      },
+      {
+        "symbol": "AXSUSDT",
+        "source": "futures",
+        "h": 28272,
+        "q": 7068,
+        "funding_months": 38,
+        "funding_errors": []
+      },
+      {
+        "symbol": "KNCUSDT",
+        "source": "futures",
+        "h": 28272,
+        "q": 7068,
+        "funding_months": 38,
+        "funding_errors": []
+      },
+      {
+        "symbol": "IMXUSDT",
+        "source": "futures",
+        "h": 28272,
+        "q": 7068,
+        "funding_months": 38,
+        "funding_errors": []
+      },
+      {
+        "symbol": "ETCUSDT",
+        "source": "futures",
+        "h": 28272,
+        "q": 7068,
+        "funding_months": 38,
+        "funding_errors": []
+      },
+      {
+        "symbol": "AVAXUSDT",
+        "source": "futures",
+        "h": 28272,
+        "q": 7068,
+        "funding_months": 38,
+        "funding_errors": []
+      },
+      {
+        "symbol": "XLMUSDT",
+        "source": "futures",
+        "h": 28272,
+        "q": 7068,
+        "funding_months": 38,
+        "funding_errors": []
+      },
+      {
+        "symbol": "DOTUSDT",
+        "source": "futures",
+        "h": 28272,
+        "q": 7068,
+        "funding_months": 38,
+        "funding_errors": []
+      },
+      {
+        "symbol": "FILUSDT",
+        "source": "futures",
+        "h": 28272,
+        "q": 7068,
+        "funding_months": 38,
+        "funding_errors": []
+      },
+      {
+        "symbol": "LPTUSDT",
+        "source": "futures",
+        "h": 28272,
+        "q": 7068,
+        "funding_months": 38,
+        "funding_errors": []
+      },
+      {
+        "symbol": "APTUSDT",
+        "source": "futures",
+        "h": 28272,
+        "q": 7068,
+        "funding_months": 38,
+        "funding_errors": []
+      },
+      {
+        "symbol": "LUNA2USDT",
+        "source": "futures",
+        "h": 28272,
+        "q": 7068,
+        "funding_months": 38,
+        "funding_errors": []
+      },
+      {
+        "symbol": "1000SHIBUSDT",
+        "source": "futures",
+        "h": 28272,
+        "q": 7068,
+        "funding_months": 38,
+        "funding_errors": []
+      },
+      {
+        "symbol": "LEVERUSDT",
+        "source": "futures",
+        "h": 28272,
+        "q": 7068,
+        "funding_months": 26,
+        "funding_errors": []
+      },
+      {
+        "symbol": "MTLUSDT",
+        "source": "futures",
+        "h": 28272,
+        "q": 7068,
+        "funding_months": 38,
+        "funding_errors": []
+      },
+      {
+        "symbol": "DYDXUSDT",
+        "source": "futures",
+        "h": 28272,
+        "q": 7068,
+        "funding_months": 38,
+        "funding_errors": []
+      },
+      {
+        "symbol": "BNTUSDT",
+        "source": "futures",
+        "h": 27528,
+        "q": 6882,
+        "funding_months": 37,
+        "funding_errors": []
+      },
+      {
+        "symbol": "AGLDUSDT",
+        "source": "futures",
+        "h": 28272,
+        "q": 7068,
+        "funding_months": 38,
+        "funding_errors": []
+      },
+      {
+        "symbol": "BLURUSDT",
+        "source": "futures",
+        "h": 27528,
+        "q": 6882,
+        "funding_months": 37,
+        "funding_errors": []
+      },
+      {
+        "symbol": "COMPUSDT",
+        "source": "futures",
+        "h": 28272,
+        "q": 7068,
+        "funding_months": 38,
+        "funding_errors": []
+      },
+      {
+        "symbol": "INJUSDT",
+        "source": "futures",
+        "h": 27528,
+        "q": 6882,
+        "funding_months": 37,
+        "funding_errors": []
+      },
+      {
+        "symbol": "BAKEUSDT",
+        "source": "futures",
+        "h": 27528,
+        "q": 6882,
+        "funding_months": 26,
+        "funding_errors": []
+      },
+      {
+        "symbol": "AAVEUSDT",
+        "source": "futures",
+        "h": 27528,
+        "q": 6882,
+        "funding_months": 37,
+        "funding_errors": []
+      },
+      {
+        "symbol": "1000FLOKIUSDT",
+        "source": "futures",
+        "h": 27528,
+        "q": 6882,
+        "funding_months": 37,
+        "funding_errors": []
+      },
+      {
+        "symbol": "EOSUSDT",
+        "source": "futures",
+        "h": 15058,
+        "q": 3765,
+        "funding_months": 37,
+        "funding_errors": []
+      },
+      {
+        "symbol": "ATOMUSDT",
+        "source": "futures",
+        "h": 27528,
+        "q": 6882,
+        "funding_months": 37,
+        "funding_errors": []
+      },
+      {
+        "symbol": "1000LUNCUSDT",
+        "source": "futures",
+        "h": 26808,
+        "q": 6702,
+        "funding_months": 36,
+        "funding_errors": []
+      },
+      {
+        "symbol": "RUNEUSDT",
+        "source": "futures",
+        "h": 28272,
+        "q": 7068,
+        "funding_months": 38,
+        "funding_errors": []
+      },
+      {
+        "symbol": "SEIUSDT",
+        "source": "futures",
+        "h": 26808,
+        "q": 6702,
+        "funding_months": 36,
+        "funding_errors": []
+      },
+      {
+        "symbol": "MINAUSDT",
+        "source": "futures",
+        "h": 27528,
+        "q": 6882,
+        "funding_months": 37,
+        "funding_errors": []
+      },
+      {
+        "symbol": "FETUSDT",
+        "source": "futures",
+        "h": 26808,
+        "q": 6702,
+        "funding_months": 36,
+        "funding_errors": []
+      },
+      {
+        "symbol": "NEOUSDT",
+        "source": "futures",
+        "h": 26808,
+        "q": 6702,
+        "funding_months": 36,
+        "funding_errors": []
+      },
+      {
+        "symbol": "YFIUSDT",
+        "source": "futures",
+        "h": 26808,
+        "q": 6702,
+        "funding_months": 36,
+        "funding_errors": []
+      },
+      {
+        "symbol": "GMTUSDT",
+        "source": "futures",
+        "h": 26808,
+        "q": 6702,
+        "funding_months": 36,
+        "funding_errors": []
+      },
+      {
+        "symbol": "UNIUSDT",
+        "source": "futures",
+        "h": 26808,
+        "q": 6702,
+        "funding_months": 36,
+        "funding_errors": []
+      },
+      {
+        "symbol": "TIAUSDT",
+        "source": "futures",
+        "h": 26064,
+        "q": 6516,
+        "funding_months": 35,
+        "funding_errors": []
+      },
+      {
+        "symbol": "STXUSDT",
+        "source": "futures",
+        "h": 27528,
+        "q": 6882,
+        "funding_months": 37,
+        "funding_errors": []
+      },
+      {
+        "symbol": "SANDUSDT",
+        "source": "futures",
+        "h": 26064,
+        "q": 6516,
+        "funding_months": 35,
+        "funding_errors": []
+      },
+      {
+        "symbol": "BIGTIMEUSDT",
+        "source": "futures",
+        "h": 26064,
+        "q": 6516,
+        "funding_months": 35,
+        "funding_errors": []
+      },
+      {
+        "symbol": "FTMUSDT",
+        "source": "futures",
+        "h": 27528,
+        "q": 6882,
+        "funding_months": 22,
+        "funding_errors": []
+      },
+      {
+        "symbol": "MASKUSDT",
+        "source": "futures",
+        "h": 26808,
+        "q": 6702,
+        "funding_months": 36,
+        "funding_errors": []
+      },
+      {
+        "symbol": "RNDRUSDT",
+        "source": "futures",
+        "h": 7255,
+        "q": 1814,
+        "funding_months": 11,
+        "funding_errors": []
+      },
+      {
+        "symbol": "ZRXUSDT",
+        "source": "futures",
+        "h": 27528,
+        "q": 6882,
+        "funding_months": 37,
+        "funding_errors": []
+      },
+      {
+        "symbol": "ICPUSDT",
+        "source": "futures",
+        "h": 26064,
+        "q": 6516,
+        "funding_months": 35,
+        "funding_errors": []
+      },
+      {
+        "symbol": "NEARUSDT",
+        "source": "futures",
+        "h": 26808,
+        "q": 6702,
+        "funding_months": 36,
+        "funding_errors": []
+      },
+      {
+        "symbol": "PEOPLEUSDT",
+        "source": "futures",
+        "h": 25320,
+        "q": 6330,
+        "funding_months": 34,
+        "funding_errors": []
+      },
+      {
+        "symbol": "LQTYUSDT",
+        "source": "futures",
+        "h": 27528,
+        "q": 6882,
+        "funding_months": 37,
+        "funding_errors": []
+      },
+      {
+        "symbol": "UMAUSDT",
+        "source": "futures",
+        "h": 25320,
+        "q": 6330,
+        "funding_months": 34,
+        "funding_errors": []
+      },
+      {
+        "symbol": "POWRUSDT",
+        "source": "futures",
+        "h": 25320,
+        "q": 6330,
+        "funding_months": 34,
+        "funding_errors": []
+      },
+      {
+        "symbol": "COTIUSDT",
+        "source": "futures",
+        "h": 24624,
+        "q": 6156,
+        "funding_months": 33,
+        "funding_errors": []
+      },
+      {
+        "symbol": "IOTAUSDT",
+        "source": "futures",
+        "h": 26064,
+        "q": 6516,
+        "funding_months": 35,
+        "funding_errors": []
+      },
+      {
+        "symbol": "LDOUSDT",
+        "source": "futures",
+        "h": 26808,
+        "q": 6702,
+        "funding_months": 36,
+        "funding_errors": []
+      },
+      {
+        "symbol": "SUSHIUSDT",
+        "source": "futures",
+        "h": 26808,
+        "q": 6702,
+        "funding_months": 36,
+        "funding_errors": []
+      },
+      {
+        "symbol": "GASUSDT",
+        "source": "futures",
+        "h": 25320,
+        "q": 6330,
+        "funding_months": 34,
+        "funding_errors": []
+      },
+      {
+        "symbol": "API3USDT",
+        "source": "futures",
+        "h": 25320,
+        "q": 6330,
+        "funding_months": 34,
+        "funding_errors": []
+      },
+      {
+        "symbol": "ENSUSDT",
+        "source": "futures",
+        "h": 25320,
+        "q": 6330,
+        "funding_months": 34,
+        "funding_errors": []
+      },
+      {
+        "symbol": "BSVUSDT",
+        "source": "futures",
+        "h": 26064,
+        "q": 6516,
+        "funding_months": 35,
+        "funding_errors": []
+      },
+      {
+        "symbol": "CKBUSDT",
+        "source": "futures",
+        "h": 24624,
+        "q": 6156,
+        "funding_months": 33,
+        "funding_errors": []
+      },
+      {
+        "symbol": "SKLUSDT",
+        "source": "futures",
+        "h": 26808,
+        "q": 6702,
+        "funding_months": 36,
+        "funding_errors": []
+      },
+      {
+        "symbol": "ORDIUSDT",
+        "source": "futures",
+        "h": 25320,
+        "q": 6330,
+        "funding_months": 34,
+        "funding_errors": []
+      },
+      {
+        "symbol": "XMRUSDT",
+        "source": "futures",
+        "h": 24624,
+        "q": 6156,
+        "funding_months": 33,
+        "funding_errors": []
+      },
+      {
+        "symbol": "PYTHUSDT",
+        "source": "futures",
+        "h": 24624,
+        "q": 6156,
+        "funding_months": 33,
+        "funding_errors": []
+      },
+      {
+        "symbol": "JASMYUSDT",
+        "source": "futures",
+        "h": 24624,
+        "q": 6156,
+        "funding_months": 33,
+        "funding_errors": []
+      },
+      {
+        "symbol": "WIFUSDT",
+        "source": "futures",
+        "h": 23880,
+        "q": 5970,
+        "funding_months": 32,
+        "funding_errors": []
+      },
+      {
+        "symbol": "ARKUSDT",
+        "source": "futures",
+        "h": 26808,
+        "q": 6702,
+        "funding_months": 36,
+        "funding_errors": []
+      },
+      {
+        "symbol": "ARKMUSDT",
+        "source": "futures",
+        "h": 24624,
+        "q": 6156,
+        "funding_months": 33,
+        "funding_errors": []
+      },
+      {
+        "symbol": "AGIXUSDT",
+        "source": "futures",
+        "h": 24624,
+        "q": 6156,
+        "funding_months": 18,
+        "funding_errors": []
+      },
+      {
+        "symbol": "BELUSDT",
+        "source": "futures",
+        "h": 23160,
+        "q": 5790,
+        "funding_months": 31,
+        "funding_errors": []
+      },
+      {
+        "symbol": "IDUSDT",
+        "source": "futures",
+        "h": 24624,
+        "q": 6156,
+        "funding_months": 33,
+        "funding_errors": []
+      },
+      {
+        "symbol": "HBARUSDT",
+        "source": "futures",
+        "h": 23160,
+        "q": 5790,
+        "funding_months": 31,
+        "funding_errors": []
+      },
+      {
+        "symbol": "JTOUSDT",
+        "source": "futures",
+        "h": 23160,
+        "q": 5790,
+        "funding_months": 31,
+        "funding_errors": []
+      },
+      {
+        "symbol": "1000BONKUSDT",
+        "source": "futures",
+        "h": 25320,
+        "q": 6330,
+        "funding_months": 34,
+        "funding_errors": []
+      },
+      {
+        "symbol": "CHZUSDT",
+        "source": "futures",
+        "h": 25320,
+        "q": 6330,
+        "funding_months": 34,
+        "funding_errors": []
+      },
+      {
+        "symbol": "ONTUSDT",
+        "source": "futures",
+        "h": 23160,
+        "q": 5790,
+        "funding_months": 31,
+        "funding_errors": []
+      },
+      {
+        "symbol": "POLYXUSDT",
+        "source": "futures",
+        "h": 23880,
+        "q": 5970,
+        "funding_months": 32,
+        "funding_errors": []
+      },
+      {
+        "symbol": "AEVOUSDT",
+        "source": "futures",
+        "h": 22416,
+        "q": 5604,
+        "funding_months": 30,
+        "funding_errors": []
+      },
+      {
+        "symbol": "TONUSDT",
+        "source": "futures",
+        "h": 23160,
+        "q": 5790,
+        "funding_months": 28,
+        "funding_errors": []
+      },
+      {
+        "symbol": "1000SATSUSDT",
+        "source": "futures",
+        "h": 24624,
+        "q": 6156,
+        "funding_months": 33,
+        "funding_errors": []
+      },
+      {
+        "symbol": "ONGUSDT",
+        "source": "futures",
+        "h": 23160,
+        "q": 5790,
+        "funding_months": 31,
+        "funding_errors": []
+      },
+      {
+        "symbol": "JUPUSDT",
+        "source": "futures",
+        "h": 23880,
+        "q": 5970,
+        "funding_months": 32,
+        "funding_errors": []
+      },
+      {
+        "symbol": "MEMEUSDT",
+        "source": "futures",
+        "h": 23880,
+        "q": 5970,
+        "funding_months": 32,
+        "funding_errors": []
+      },
+      {
+        "symbol": "ONDOUSDT",
+        "source": "futures",
+        "h": 23880,
+        "q": 5970,
+        "funding_months": 32,
+        "funding_errors": []
+      },
+      {
+        "symbol": "WUSDT",
+        "source": "futures",
+        "h": 21696,
+        "q": 5424,
+        "funding_months": 29,
+        "funding_errors": []
+      },
+      {
+        "symbol": "TURBOUSDT",
+        "source": "futures",
+        "h": 20952,
+        "q": 5238,
+        "funding_months": 28,
+        "funding_errors": []
+      },
+      {
+        "symbol": "OMUSDT",
+        "source": "futures",
+        "h": 23160,
+        "q": 5790,
+        "funding_months": 24,
+        "funding_errors": []
+      },
+      {
+        "symbol": "FRONTUSDT",
+        "source": "futures",
+        "h": 5362,
+        "q": 1341,
+        "funding_months": 32,
+        "funding_errors": []
+      },
+      {
+        "symbol": "YGGUSDT",
+        "source": "futures",
+        "h": 23880,
+        "q": 5970,
+        "funding_months": 32,
+        "funding_errors": []
+      },
+      {
+        "symbol": "BONDUSDT",
+        "source": "futures",
+        "h": 20952,
+        "q": 5238,
+        "funding_months": 13,
+        "funding_errors": []
+      },
+      {
+        "symbol": "BOMEUSDT",
+        "source": "futures",
+        "h": 22416,
+        "q": 5604,
+        "funding_months": 30,
+        "funding_errors": []
+      },
+      {
+        "symbol": "IOUSDT",
+        "source": "futures",
+        "h": 20208,
+        "q": 5052,
+        "funding_months": 27,
+        "funding_errors": []
+      },
+      {
+        "symbol": "1000RATSUSDT",
+        "source": "futures",
+        "h": 21696,
+        "q": 5424,
+        "funding_months": 29,
+        "funding_errors": []
+      },
+      {
+        "symbol": "ZENUSDT",
+        "source": "futures",
+        "h": 20952,
+        "q": 5238,
+        "funding_months": 28,
+        "funding_errors": []
+      },
+      {
+        "symbol": "ARUSDT",
+        "source": "futures",
+        "h": 22416,
+        "q": 5604,
+        "funding_months": 30,
+        "funding_errors": []
+      },
+      {
+        "symbol": "PENDLEUSDT",
+        "source": "futures",
+        "h": 23160,
+        "q": 5790,
+        "funding_months": 31,
+        "funding_errors": []
+      },
+      {
+        "symbol": "TRXUSDT",
+        "source": "futures",
+        "h": 20208,
+        "q": 5052,
+        "funding_months": 27,
+        "funding_errors": []
+      },
+      {
+        "symbol": "HIGHUSDT",
+        "source": "futures",
+        "h": 21696,
+        "q": 5424,
+        "funding_months": 26,
+        "funding_errors": []
+      },
+      {
+        "symbol": "ATAUSDT",
+        "source": "futures",
+        "h": 23160,
+        "q": 5790,
+        "funding_months": 27,
+        "funding_errors": []
+      },
+      {
+        "symbol": "ZROUSDT",
+        "source": "futures",
+        "h": 20208,
+        "q": 5052,
+        "funding_months": 27,
+        "funding_errors": []
+      },
+      {
+        "symbol": "BNXUSDT",
+        "source": "futures",
+        "h": 20952,
+        "q": 5238,
+        "funding_months": 13,
+        "funding_errors": []
+      },
+      {
+        "symbol": "NOTUSDT",
+        "source": "futures",
+        "h": 20952,
+        "q": 5238,
+        "funding_months": 28,
+        "funding_errors": []
+      },
+      {
+        "symbol": "MEWUSDT",
+        "source": "futures",
+        "h": 20208,
+        "q": 5052,
+        "funding_months": 27,
+        "funding_errors": []
+      },
+      {
+        "symbol": "HMSTRUSDT",
+        "source": "futures",
+        "h": 18024,
+        "q": 4506,
+        "funding_months": 24,
+        "funding_errors": []
+      },
+      {
+        "symbol": "ETHFIUSDT",
+        "source": "futures",
+        "h": 22416,
+        "q": 5604,
+        "funding_months": 30,
+        "funding_errors": []
+      },
+      {
+        "symbol": "NEIROETHUSDT",
+        "source": "futures",
+        "h": 18024,
+        "q": 4506,
+        "funding_months": 12,
+        "funding_errors": []
+      },
+      {
+        "symbol": "ALPHAUSDT",
+        "source": "futures",
+        "h": 18744,
+        "q": 4686,
+        "funding_months": 13,
+        "funding_errors": []
+      },
+      {
+        "symbol": "STRKUSDT",
+        "source": "futures",
+        "h": 19488,
+        "q": 4872,
+        "funding_months": 26,
+        "funding_errors": []
+      },
+      {
+        "symbol": "1MBABYDOGEUSDT",
+        "source": "futures",
+        "h": 17280,
+        "q": 4320,
+        "funding_months": 23,
+        "funding_errors": []
+      },
+      {
+        "symbol": "ALGOUSDT",
+        "source": "futures",
+        "h": 17280,
+        "q": 4320,
+        "funding_months": 23,
+        "funding_errors": []
+      },
+      {
+        "symbol": "XVGUSDT",
+        "source": "futures",
+        "h": 17280,
+        "q": 4320,
+        "funding_months": 23,
+        "funding_errors": []
+      },
+      {
+        "symbol": "SAGAUSDT",
+        "source": "futures",
+        "h": 20952,
+        "q": 5238,
+        "funding_months": 28,
+        "funding_errors": []
+      },
+      {
+        "symbol": "DOGSUSDT",
+        "source": "futures",
+        "h": 18744,
+        "q": 4686,
+        "funding_months": 25,
+        "funding_errors": []
+      },
+      {
+        "symbol": "TAOUSDT",
+        "source": "futures",
+        "h": 19488,
+        "q": 4872,
+        "funding_months": 26,
+        "funding_errors": []
+      },
+      {
+        "symbol": "ACHUSDT",
+        "source": "futures",
+        "h": 15864,
+        "q": 3966,
+        "funding_months": 22,
+        "funding_errors": []
+      },
+      {
+        "symbol": "UXLINKUSDT",
+        "source": "futures",
+        "h": 17280,
+        "q": 4320,
+        "funding_months": 11,
+        "funding_errors": []
+      },
+      {
+        "symbol": "POPCATUSDT",
+        "source": "futures",
+        "h": 18744,
+        "q": 4686,
+        "funding_months": 25,
+        "funding_errors": []
+      },
+      {
+        "symbol": "DARUSDT",
+        "source": "futures",
+        "h": 20208,
+        "q": 5052,
+        "funding_months": 12,
+        "funding_errors": []
+      },
+      {
+        "symbol": "NEIROUSDT",
+        "source": "futures",
+        "h": 18024,
+        "q": 4506,
+        "funding_months": 24,
+        "funding_errors": []
+      },
+      {
+        "symbol": "VIRTUALUSDT",
+        "source": "futures",
+        "h": 15864,
+        "q": 3966,
+        "funding_months": 22,
+        "funding_errors": []
+      },
+      {
+        "symbol": "MOODENGUSDT",
+        "source": "futures",
+        "h": 17280,
+        "q": 4320,
+        "funding_months": 23,
+        "funding_errors": []
+      },
+      {
+        "symbol": "FARTCOINUSDT",
+        "source": "futures",
+        "h": 15864,
+        "q": 3966,
+        "funding_months": 22,
+        "funding_errors": []
+      },
+      {
+        "symbol": "PENGUUSDT",
+        "source": "futures",
+        "h": 15864,
+        "q": 3966,
+        "funding_months": 22,
+        "funding_errors": []
+      },
+      {
+        "symbol": "RSRUSDT",
+        "source": "futures",
+        "h": 17280,
+        "q": 4320,
+        "funding_months": 23,
+        "funding_errors": []
+      },
+      {
+        "symbol": "PNUTUSDT",
+        "source": "futures",
+        "h": 16536,
+        "q": 4134,
+        "funding_months": 22,
+        "funding_errors": []
+      },
+      {
+        "symbol": "ENAUSDT",
+        "source": "futures",
+        "h": 22404,
+        "q": 5601,
+        "funding_months": 30,
+        "funding_errors": []
+      },
+      {
+        "symbol": "AIXBTUSDT",
+        "source": "futures",
+        "h": 15864,
+        "q": 3966,
+        "funding_months": 22,
+        "funding_errors": []
+      },
+      {
+        "symbol": "ALCHUSDT",
+        "source": "futures",
+        "h": 15120,
+        "q": 3780,
+        "funding_months": 21,
+        "funding_errors": []
+      },
+      {
+        "symbol": "GOATUSDT",
+        "source": "futures",
+        "h": 17280,
+        "q": 4320,
+        "funding_months": 23,
+        "funding_errors": []
+      },
+      {
+        "symbol": "USUALUSDT",
+        "source": "futures",
+        "h": 15864,
+        "q": 3966,
+        "funding_months": 22,
+        "funding_errors": []
+      },
+      {
+        "symbol": "REEFUSDT",
+        "source": "futures",
+        "h": 19488,
+        "q": 4872,
+        "funding_months": 11,
+        "funding_errors": []
+      },
+      {
+        "symbol": "BANUSDT",
+        "source": "futures",
+        "h": 15864,
+        "q": 3966,
+        "funding_months": 22,
+        "funding_errors": []
+      },
+      {
+        "symbol": "CAKEUSDT",
+        "source": "futures",
+        "h": 15864,
+        "q": 3966,
+        "funding_months": 22,
+        "funding_errors": []
+      },
+      {
+        "symbol": "ARCUSDT",
+        "source": "futures",
+        "h": 15120,
+        "q": 3780,
+        "funding_months": 21,
+        "funding_errors": []
+      },
+      {
+        "symbol": "BANANAUSDT",
+        "source": "futures",
+        "h": 15120,
+        "q": 3780,
+        "funding_months": 21,
+        "funding_errors": []
+      },
+      {
+        "symbol": "VINEUSDT",
+        "source": "futures",
+        "h": 15120,
+        "q": 3780,
+        "funding_months": 16,
+        "funding_errors": []
+      },
+      {
+        "symbol": "RAREUSDT",
+        "source": "futures",
+        "h": 15120,
+        "q": 3780,
+        "funding_months": 21,
+        "funding_errors": []
+      },
+      {
+        "symbol": "SUSDT",
+        "source": "futures",
+        "h": 15120,
+        "q": 3780,
+        "funding_months": 21,
+        "funding_errors": []
+      },
+      {
+        "symbol": "TRUMPUSDT",
+        "source": "futures",
+        "h": 15120,
+        "q": 3780,
+        "funding_months": 21,
+        "funding_errors": []
+      },
+      {
+        "symbol": "AUCTIONUSDT",
+        "source": "futures",
+        "h": 15120,
+        "q": 3780,
+        "funding_months": 21,
+        "funding_errors": []
+      },
+      {
+        "symbol": "MOVEUSDT",
+        "source": "futures",
+        "h": 15120,
+        "q": 3780,
+        "funding_months": 21,
+        "funding_errors": []
+      },
+      {
+        "symbol": "1000XUSDT",
+        "source": "futures",
+        "h": 15120,
+        "q": 3780,
+        "funding_months": 11,
+        "funding_errors": []
+      },
+      {
+        "symbol": "MAGICUSDT",
+        "source": "futures",
+        "h": 14400,
+        "q": 3600,
+        "funding_months": 19,
+        "funding_errors": []
+      },
+      {
+        "symbol": "LAYERUSDT",
+        "source": "futures",
+        "h": 14400,
+        "q": 3600,
+        "funding_months": 19,
+        "funding_errors": []
+      },
+      {
+        "symbol": "RVNUSDT",
+        "source": "futures",
+        "h": 12936,
+        "q": 3234,
+        "funding_months": 17,
+        "funding_errors": []
+      },
+      {
+        "symbol": "VOXELUSDT",
+        "source": "futures",
+        "h": 14400,
+        "q": 3600,
+        "funding_months": 10,
+        "funding_errors": []
+      },
+      {
+        "symbol": "ACTUSDT",
+        "source": "futures",
+        "h": 16536,
+        "q": 4134,
+        "funding_months": 22,
+        "funding_errors": []
+      },
+      {
+        "symbol": "ALPACAUSDT",
+        "source": "futures",
+        "h": 14400,
+        "q": 3600,
+        "funding_months": 4,
+        "funding_errors": []
+      },
+      {
+        "symbol": "REZUSDT",
+        "source": "futures",
+        "h": 15120,
+        "q": 3780,
+        "funding_months": 21,
+        "funding_errors": []
+      },
+      {
+        "symbol": "FUNUSDT",
+        "source": "futures",
+        "h": 12936,
+        "q": 3234,
+        "funding_months": 12,
+        "funding_errors": []
+      },
+      {
+        "symbol": "BANANAS31USDT",
+        "source": "futures",
+        "h": 12936,
+        "q": 3234,
+        "funding_months": 17,
+        "funding_errors": []
+      },
+      {
+        "symbol": "ORCAUSDT",
+        "source": "futures",
+        "h": 15120,
+        "q": 3780,
+        "funding_months": 21,
+        "funding_errors": []
+      },
+      {
+        "symbol": "PUMPUSDT",
+        "source": "futures",
+        "h": 12185,
+        "q": 3047,
+        "funding_months": 16,
+        "funding_errors": []
+      },
+      {
+        "symbol": "WCTUSDT",
+        "source": "futures",
+        "h": 12936,
+        "q": 3234,
+        "funding_months": 17,
+        "funding_errors": []
+      },
+      {
+        "symbol": "QTUMUSDT",
+        "source": "futures",
+        "h": 15864,
+        "q": 3966,
+        "funding_months": 22,
+        "funding_errors": []
+      },
+      {
+        "symbol": "EIGENUSDT",
+        "source": "futures",
+        "h": 15864,
+        "q": 3966,
+        "funding_months": 22,
+        "funding_errors": []
+      },
+      {
+        "symbol": "OMNIUSDT",
+        "source": "futures",
+        "h": 12192,
+        "q": 3048,
+        "funding_months": 4,
+        "funding_errors": []
+      },
+      {
+        "symbol": "ANIMEUSDT",
+        "source": "futures",
+        "h": 12936,
+        "q": 3234,
+        "funding_months": 17,
+        "funding_errors": []
+      },
+      {
+        "symbol": "AERGOUSDT",
+        "source": "futures",
+        "h": 11653,
+        "q": 2914,
+        "funding_months": 16,
+        "funding_errors": []
+      },
+      {
+        "symbol": "MUBARAKUSDT",
+        "source": "futures",
+        "h": 13656,
+        "q": 3414,
+        "funding_months": 18,
+        "funding_errors": []
+      },
+      {
+        "symbol": "ZEREBROUSDT",
+        "source": "futures",
+        "h": 14400,
+        "q": 3600,
+        "funding_months": 19,
+        "funding_errors": []
+      },
+      {
+        "symbol": "BERAUSDT",
+        "source": "futures",
+        "h": 14400,
+        "q": 3600,
+        "funding_months": 19,
+        "funding_errors": []
+      },
+      {
+        "symbol": "KAITOUSDT",
+        "source": "futures",
+        "h": 13656,
+        "q": 3414,
+        "funding_months": 18,
+        "funding_errors": []
+      },
+      {
+        "symbol": "COOKIEUSDT",
+        "source": "futures",
+        "h": 13656,
+        "q": 3414,
+        "funding_months": 18,
+        "funding_errors": []
+      },
+      {
+        "symbol": "SOONUSDT",
+        "source": "futures",
+        "h": 11448,
+        "q": 2862,
+        "funding_months": 15,
+        "funding_errors": []
+      },
+      {
+        "symbol": "SPXUSDT",
+        "source": "futures",
+        "h": 12936,
+        "q": 3234,
+        "funding_months": 17,
+        "funding_errors": []
+      },
+      {
+        "symbol": "MYXUSDT",
+        "source": "futures",
+        "h": 11448,
+        "q": 2862,
+        "funding_months": 15,
+        "funding_errors": []
+      },
+      {
+        "symbol": "HIFIUSDT",
+        "source": "futures",
+        "h": 10728,
+        "q": 2682,
+        "funding_months": 3,
+        "funding_errors": []
+      },
+      {
+        "symbol": "XPLUSDT",
+        "source": "futures",
+        "h": 9984,
+        "q": 2496,
+        "funding_months": 13,
+        "funding_errors": []
+      },
+      {
+        "symbol": "ALPINEUSDT",
+        "source": "futures",
+        "h": 10728,
+        "q": 2682,
+        "funding_months": 14,
+        "funding_errors": []
+      },
+      {
+        "symbol": "TAUSDT",
+        "source": "futures",
+        "h": 10728,
+        "q": 2682,
+        "funding_months": 14,
+        "funding_errors": []
+      },
+      {
+        "symbol": "HYPERUSDT",
+        "source": "futures",
+        "h": 12192,
+        "q": 3048,
+        "funding_months": 16,
+        "funding_errors": []
+      },
+      {
+        "symbol": "MUSDT",
+        "source": "futures",
+        "h": 10728,
+        "q": 2682,
+        "funding_months": 14,
+        "funding_errors": []
+      },
+      {
+        "symbol": "BASUSDT",
+        "source": "futures",
+        "h": 9984,
+        "q": 2496,
+        "funding_months": 13,
+        "funding_errors": []
+      },
+      {
+        "symbol": "PUMPBTCUSDT",
+        "source": "futures",
+        "h": 10728,
+        "q": 2682,
+        "funding_months": 14,
+        "funding_errors": []
+      },
+      {
+        "symbol": "SPKUSDT",
+        "source": "futures",
+        "h": 11448,
+        "q": 2862,
+        "funding_months": 15,
+        "funding_errors": []
+      },
+      {
+        "symbol": "FORMUSDT",
+        "source": "futures",
+        "h": 9984,
+        "q": 2496,
+        "funding_months": 13,
+        "funding_errors": []
+      },
+      {
+        "symbol": "HYPEUSDT",
+        "source": "futures",
+        "h": 12192,
+        "q": 3048,
+        "funding_months": 16,
+        "funding_errors": []
+      },
+      {
+        "symbol": "BIDUSDT",
+        "source": "futures",
+        "h": 12936,
+        "q": 3234,
+        "funding_months": 9,
+        "funding_errors": []
+      },
+      {
+        "symbol": "PIPPINUSDT",
+        "source": "futures",
+        "h": 9264,
+        "q": 2316,
+        "funding_months": 12,
+        "funding_errors": []
+      },
+      {
+        "symbol": "ZECUSDT",
+        "source": "futures",
+        "h": 9984,
+        "q": 2496,
+        "funding_months": 13,
+        "funding_errors": []
+      },
+      {
+        "symbol": "BIOUSDT",
+        "source": "futures",
+        "h": 11448,
+        "q": 2862,
+        "funding_months": 15,
+        "funding_errors": []
+      },
+      {
+        "symbol": "ZORAUSDT",
+        "source": "futures",
+        "h": 9984,
+        "q": 2496,
+        "funding_months": 13,
+        "funding_errors": []
+      },
+      {
+        "symbol": "ASTERUSDT",
+        "source": "futures",
+        "h": 9264,
+        "q": 2316,
+        "funding_months": 12,
+        "funding_errors": []
+      },
+      {
+        "symbol": "DASHUSDT",
+        "source": "futures",
+        "h": 9264,
+        "q": 2316,
+        "funding_months": 12,
+        "funding_errors": []
+      },
+      {
+        "symbol": "PAXGUSDT",
+        "source": "futures",
+        "h": 9984,
+        "q": 2496,
+        "funding_months": 13,
+        "funding_errors": []
+      },
+      {
+        "symbol": "JELLYJELLYUSDT",
+        "source": "futures",
+        "h": 9264,
+        "q": 2316,
+        "funding_months": 12,
+        "funding_errors": []
+      },
+      {
+        "symbol": "0GUSDT",
+        "source": "futures",
+        "h": 9264,
+        "q": 2316,
+        "funding_months": 12,
+        "funding_errors": []
+      },
+      {
+        "symbol": "TNSRUSDT",
+        "source": "futures",
+        "h": 9264,
+        "q": 2316,
+        "funding_months": 12,
+        "funding_errors": []
+      },
+      {
+        "symbol": "WLFIUSDT",
+        "source": "futures",
+        "h": 9984,
+        "q": 2496,
+        "funding_months": 13,
+        "funding_errors": []
+      },
+      {
+        "symbol": "ZKUSDT",
+        "source": "futures",
+        "h": 9264,
+        "q": 2316,
+        "funding_months": 12,
+        "funding_errors": []
+      },
+      {
+        "symbol": "AIAUSDT",
+        "source": "futures",
+        "h": 9253,
+        "q": 2314,
+        "funding_months": 12,
+        "funding_errors": []
+      },
+      {
+        "symbol": "ZBTUSDT",
+        "source": "futures",
+        "h": 8520,
+        "q": 2130,
+        "funding_months": 11,
+        "funding_errors": []
+      },
+      {
+        "symbol": "LIGHTUSDT",
+        "source": "futures",
+        "h": 8520,
+        "q": 2130,
+        "funding_months": 11,
+        "funding_errors": []
+      },
+      {
+        "symbol": "MERLUSDT",
+        "source": "futures",
+        "h": 9264,
+        "q": 2316,
+        "funding_months": 12,
+        "funding_errors": []
+      },
+      {
+        "symbol": "SAPIENUSDT",
+        "source": "futures",
+        "h": 9264,
+        "q": 2316,
+        "funding_months": 12,
+        "funding_errors": []
+      },
+      {
+        "symbol": "IPUSDT",
+        "source": "futures",
+        "h": 10728,
+        "q": 2682,
+        "funding_months": 11,
+        "funding_errors": []
+      },
+      {
+        "symbol": "FHEUSDT",
+        "source": "futures",
+        "h": 8520,
+        "q": 2130,
+        "funding_months": 11,
+        "funding_errors": []
+      },
+      {
+        "symbol": "GIGGLEUSDT",
+        "source": "futures",
+        "h": 8520,
+        "q": 2130,
+        "funding_months": 11,
+        "funding_errors": []
+      },
+      {
+        "symbol": "SNXUSDT",
+        "source": "futures",
+        "h": 9984,
+        "q": 2496,
+        "funding_months": 13,
+        "funding_errors": []
+      },
+      {
+        "symbol": "ENSOUSDT",
+        "source": "futures",
+        "h": 7776,
+        "q": 1944,
+        "funding_months": 10,
+        "funding_errors": []
+      },
+      {
+        "symbol": "HUSDT",
+        "source": "futures",
+        "h": 9984,
+        "q": 2496,
+        "funding_months": 13,
+        "funding_errors": []
+      },
+      {
+        "symbol": "RESOLVUSDT",
+        "source": "futures",
+        "h": 9264,
+        "q": 2316,
+        "funding_months": 12,
+        "funding_errors": []
+      },
+      {
+        "symbol": "MONUSDT",
+        "source": "futures",
+        "h": 8520,
+        "q": 2130,
+        "funding_months": 11,
+        "funding_errors": []
+      },
+      {
+        "symbol": "币安人生USDT",
+        "source": "futures",
+        "h": 7776,
+        "q": 1944,
+        "funding_months": 10,
+        "funding_errors": []
+      },
+      {
+        "symbol": "BROCCOLI714USDT",
+        "source": "futures",
+        "h": 7776,
+        "q": 1944,
+        "funding_months": 10,
+        "funding_errors": []
+      },
+      {
+        "symbol": "POWERUSDT",
+        "source": "futures",
+        "h": 7104,
+        "q": 1776,
+        "funding_months": 10,
+        "funding_errors": []
+      },
+      {
+        "symbol": "RIVERUSDT",
+        "source": "futures",
+        "h": 8520,
+        "q": 2130,
+        "funding_months": 11,
+        "funding_errors": []
+      },
+      {
+        "symbol": "LITUSDT",
+        "source": "futures",
+        "h": 7759,
+        "q": 1940,
+        "funding_months": 10,
+        "funding_errors": []
+      },
+      {
+        "symbol": "ICNTUSDT",
+        "source": "futures",
+        "h": 8520,
+        "q": 2130,
+        "funding_months": 11,
+        "funding_errors": []
+      },
+      {
+        "symbol": "ATUSDT",
+        "source": "futures",
+        "h": 8520,
+        "q": 2130,
+        "funding_months": 11,
+        "funding_errors": []
+      },
+      {
+        "symbol": "DUSKUSDT",
+        "source": "futures",
+        "h": 7776,
+        "q": 1944,
+        "funding_months": 10,
+        "funding_errors": []
+      },
+      {
+        "symbol": "TRUTHUSDT",
+        "source": "futures",
+        "h": 8520,
+        "q": 2130,
+        "funding_months": 11,
+        "funding_errors": []
+      },
+      {
+        "symbol": "BULLAUSDT",
+        "source": "futures",
+        "h": 7104,
+        "q": 1776,
+        "funding_months": 10,
+        "funding_errors": []
+      },
+      {
+        "symbol": "CLOUSDT",
+        "source": "futures",
+        "h": 7776,
+        "q": 1944,
+        "funding_months": 10,
+        "funding_errors": []
+      },
+      {
+        "symbol": "PTBUSDT",
+        "source": "futures",
+        "h": 8520,
+        "q": 2130,
+        "funding_months": 11,
+        "funding_errors": []
+      },
+      {
+        "symbol": "ZILUSDT",
+        "source": "futures",
+        "h": 7104,
+        "q": 1776,
+        "funding_months": 10,
+        "funding_errors": []
+      },
+      {
+        "symbol": "XAUUSDT",
+        "source": "futures",
+        "h": 7104,
+        "q": 1776,
+        "funding_months": 10,
+        "funding_errors": []
+      },
+      {
+        "symbol": "VVVUSDT",
+        "source": "futures",
+        "h": 7104,
+        "q": 1776,
+        "funding_months": 10,
+        "funding_errors": []
+      },
+      {
+        "symbol": "SENTUSDT",
+        "source": "futures",
+        "h": 7776,
+        "q": 1944,
+        "funding_months": 10,
+        "funding_errors": []
+      },
+      {
+        "symbol": "KITEUSDT",
+        "source": "futures",
+        "h": 7104,
+        "q": 1776,
+        "funding_months": 10,
+        "funding_errors": []
+      },
+      {
+        "symbol": "SIRENUSDT",
+        "source": "futures",
+        "h": 7104,
+        "q": 1776,
+        "funding_months": 10,
+        "funding_errors": []
+      },
+      {
+        "symbol": "LYNUSDT",
+        "source": "futures",
+        "h": 6360,
+        "q": 1590,
+        "funding_months": 9,
+        "funding_errors": []
+      },
+      {
+        "symbol": "XAGUSDT",
+        "source": "futures",
+        "h": 6360,
+        "q": 1590,
+        "funding_months": 9,
+        "funding_errors": []
+      },
+      {
+        "symbol": "INITUSDT",
+        "source": "futures",
+        "h": 7104,
+        "q": 1776,
+        "funding_months": 10,
+        "funding_errors": []
+      },
+      {
+        "symbol": "BRUSDT",
+        "source": "futures",
+        "h": 6360,
+        "q": 1590,
+        "funding_months": 9,
+        "funding_errors": []
+      },
+      {
+        "symbol": "PIXELUSDT",
+        "source": "futures",
+        "h": 6360,
+        "q": 1590,
+        "funding_months": 9,
+        "funding_errors": []
+      },
+      {
+        "symbol": "PIEVERSEUSDT",
+        "source": "futures",
+        "h": 5640,
+        "q": 1410,
+        "funding_months": 7,
+        "funding_errors": []
+      },
+      {
+        "symbol": "SKYAIUSDT",
+        "source": "futures",
+        "h": 5640,
+        "q": 1410,
+        "funding_months": 7,
+        "funding_errors": []
+      },
+      {
+        "symbol": "STOUSDT",
+        "source": "futures",
+        "h": 5640,
+        "q": 1410,
+        "funding_months": 7,
+        "funding_errors": []
+      },
+      {
+        "symbol": "REDUSDT",
+        "source": "futures",
+        "h": 5640,
+        "q": 1410,
+        "funding_months": 7,
+        "funding_errors": []
+      },
+      {
+        "symbol": "SAHARAUSDT",
+        "source": "futures",
+        "h": 6360,
+        "q": 1590,
+        "funding_months": 9,
+        "funding_errors": []
+      },
+      {
+        "symbol": "BARDUSDT",
+        "source": "futures",
+        "h": 6360,
+        "q": 1590,
+        "funding_months": 9,
+        "funding_errors": []
+      },
+      {
+        "symbol": "ARIAUSDT",
+        "source": "futures",
+        "h": 5640,
+        "q": 1410,
+        "funding_months": 7,
+        "funding_errors": []
+      },
+      {
+        "symbol": "NOMUSDT",
+        "source": "futures",
+        "h": 5640,
+        "q": 1410,
+        "funding_months": 7,
+        "funding_errors": []
+      },
+      {
+        "symbol": "AIOTUSDT",
+        "source": "futures",
+        "h": 5640,
+        "q": 1410,
+        "funding_months": 7,
+        "funding_errors": []
+      },
+      {
+        "symbol": "RAVEUSDT",
+        "source": "futures",
+        "h": 5640,
+        "q": 1410,
+        "funding_months": 7,
+        "funding_errors": []
+      },
+      {
+        "symbol": "KATUSDT",
+        "source": "futures",
+        "h": 5635,
+        "q": 1409,
+        "funding_months": 7,
+        "funding_errors": []
+      },
+      {
+        "symbol": "UAIUSDT",
+        "source": "futures",
+        "h": 6360,
+        "q": 1590,
+        "funding_months": 9,
+        "funding_errors": []
+      },
+      {
+        "symbol": "ENJUSDT",
+        "source": "futures",
+        "h": 5640,
+        "q": 1410,
+        "funding_months": 7,
+        "funding_errors": []
+      },
+      {
+        "symbol": "SIGNUSDT",
+        "source": "futures",
+        "h": 6360,
+        "q": 1590,
+        "funding_months": 9,
+        "funding_errors": []
+      },
+      {
+        "symbol": "CRCLUSDT",
+        "source": "futures",
+        "h": 5640,
+        "q": 1410,
+        "funding_months": 7,
+        "funding_errors": []
+      },
+      {
+        "symbol": "TSLAUSDT",
+        "source": "futures",
+        "h": 6360,
+        "q": 1590,
+        "funding_months": 9,
+        "funding_errors": []
+      },
+      {
+        "symbol": "BZUSDT",
+        "source": "futures",
+        "h": 4896,
+        "q": 1224,
+        "funding_months": 6,
+        "funding_errors": []
+      },
+      {
+        "symbol": "DEGOUSDT",
+        "source": "futures",
+        "h": 6360,
+        "q": 1590,
+        "funding_months": 4,
+        "funding_errors": []
+      },
+      {
+        "symbol": "LABUSDT",
+        "source": "futures",
+        "h": 4896,
+        "q": 1224,
+        "funding_months": 6,
+        "funding_errors": []
+      },
+      {
+        "symbol": "CLUSDT",
+        "source": "futures",
+        "h": 4896,
+        "q": 1224,
+        "funding_months": 6,
+        "funding_errors": []
+      },
+      {
+        "symbol": "EDENUSDT",
+        "source": "futures",
+        "h": 4896,
+        "q": 1224,
+        "funding_months": 6,
+        "funding_errors": []
+      },
+      {
+        "symbol": "BUSDT",
+        "source": "futures",
+        "h": 4896,
+        "q": 1224,
+        "funding_months": 6,
+        "funding_errors": []
+      },
+      {
+        "symbol": "MUUSDT",
+        "source": "futures",
+        "h": 4176,
+        "q": 1044,
+        "funding_months": 5,
+        "funding_errors": []
+      },
+      {
+        "symbol": "BSBUSDT",
+        "source": "futures",
+        "h": 4896,
+        "q": 1224,
+        "funding_months": 6,
+        "funding_errors": []
+      },
+      {
+        "symbol": "UBUSDT",
+        "source": "futures",
+        "h": 4896,
+        "q": 1224,
+        "funding_months": 6,
+        "funding_errors": []
+      },
+      {
+        "symbol": "ALLOUSDT",
+        "source": "futures",
+        "h": 4896,
+        "q": 1224,
+        "funding_months": 6,
+        "funding_errors": []
+      },
+      {
+        "symbol": "PLAYUSDT",
+        "source": "futures",
+        "h": 4896,
+        "q": 1224,
+        "funding_months": 6,
+        "funding_errors": []
+      },
+      {
+        "symbol": "BEATUSDT",
+        "source": "futures",
+        "h": 4896,
+        "q": 1224,
+        "funding_months": 6,
+        "funding_errors": []
+      },
+      {
+        "symbol": "NILUSDT",
+        "source": "futures",
+        "h": 4896,
+        "q": 1224,
+        "funding_months": 6,
+        "funding_errors": []
+      },
+      {
+        "symbol": "FIDAUSDT",
+        "source": "futures",
+        "h": 4896,
+        "q": 1224,
+        "funding_months": 6,
+        "funding_errors": []
+      },
+      {
+        "symbol": "INTCUSDT",
+        "source": "futures",
+        "h": 4896,
+        "q": 1224,
+        "funding_months": 6,
+        "funding_errors": []
+      },
+      {
+        "symbol": "SNDKUSDT",
+        "source": "futures",
+        "h": 4176,
+        "q": 1044,
+        "funding_months": 5,
+        "funding_errors": []
+      },
+      {
+        "symbol": "VELVETUSDT",
+        "source": "futures",
+        "h": 4176,
+        "q": 1044,
+        "funding_months": 5,
+        "funding_errors": []
+      },
+      {
+        "symbol": "SYNUSDT",
+        "source": "futures",
+        "h": 4176,
+        "q": 1044,
+        "funding_months": 5,
+        "funding_errors": []
+      },
+      {
+        "symbol": "ESPORTSUSDT",
+        "source": "futures",
+        "h": 4176,
+        "q": 1044,
+        "funding_months": 5,
+        "funding_errors": []
+      },
+      {
+        "symbol": "OPNUSDT",
+        "source": "futures",
+        "h": 4176,
+        "q": 1044,
+        "funding_months": 5,
+        "funding_errors": []
+      },
+      {
+        "symbol": "SPCXUSDT",
+        "source": "futures",
+        "h": 3432,
+        "q": 858,
+        "funding_months": 4,
+        "funding_errors": []
+      },
+      {
+        "symbol": "SKHYNIXUSDT",
+        "source": "futures",
+        "h": 3429,
+        "q": 858,
+        "funding_months": 4,
+        "funding_errors": []
+      },
+      {
+        "symbol": "MSTRUSDT",
+        "source": "futures",
+        "h": 4176,
+        "q": 1044,
+        "funding_months": 5,
+        "funding_errors": []
+      },
+      {
+        "symbol": "HOMEUSDT",
+        "source": "futures",
+        "h": 4176,
+        "q": 1044,
+        "funding_months": 5,
+        "funding_errors": []
+      },
+      {
+        "symbol": "AKEUSDT",
+        "source": "futures",
+        "h": 3432,
+        "q": 858,
+        "funding_months": 4,
+        "funding_errors": []
+      },
+      {
+        "symbol": "BANKUSDT",
+        "source": "futures",
+        "h": 3432,
+        "q": 858,
+        "funding_months": 4,
+        "funding_errors": []
+      },
+      {
+        "symbol": "STGUSDT",
+        "source": "futures",
+        "h": 4176,
+        "q": 1044,
+        "funding_months": 5,
+        "funding_errors": []
+      },
+      {
+        "symbol": "DEXEUSDT",
+        "source": "futures",
+        "h": 3432,
+        "q": 858,
+        "funding_months": 4,
+        "funding_errors": []
+      },
+      {
+        "symbol": "DRAMUSDT",
+        "source": "futures",
+        "h": 3432,
+        "q": 858,
+        "funding_months": 4,
+        "funding_errors": []
+      },
+      {
+        "symbol": "MRVLUSDT",
+        "source": "futures",
+        "h": 3432,
+        "q": 858,
+        "funding_months": 4,
+        "funding_errors": []
+      },
+      {
+        "symbol": "EVAAUSDT",
+        "source": "futures",
+        "h": 3432,
+        "q": 858,
+        "funding_months": 4,
+        "funding_errors": []
+      },
+      {
+        "symbol": "SAMSUNGUSDT",
+        "source": "futures",
+        "h": 3429,
+        "q": 858,
+        "funding_months": 4,
+        "funding_errors": []
+      },
+      {
+        "symbol": "TLMUSDT",
+        "source": "futures",
+        "h": 3432,
+        "q": 858,
+        "funding_months": 4,
+        "funding_errors": []
+      },
+      {
+        "symbol": "VANRYUSDT",
+        "source": "futures",
+        "h": 3432,
+        "q": 858,
+        "funding_months": 3,
+        "funding_errors": []
+      },
+      {
+        "symbol": "TUTUSDT",
+        "source": "futures",
+        "h": 2688,
+        "q": 672,
+        "funding_months": 3,
+        "funding_errors": []
+      },
+      {
+        "symbol": "NVDAUSDT",
+        "source": "futures",
+        "h": 3432,
+        "q": 858,
+        "funding_months": 4,
+        "funding_errors": []
+      },
+      {
+        "symbol": "CYSUSDT",
+        "source": "futures",
+        "h": 2688,
+        "q": 672,
+        "funding_months": 3,
+        "funding_errors": []
+      },
+      {
+        "symbol": "PROMUSDT",
+        "source": "futures",
+        "h": 2688,
+        "q": 672,
+        "funding_months": 3,
+        "funding_errors": []
+      },
+      {
+        "symbol": "BTWUSDT",
+        "source": "futures",
+        "h": 2688,
+        "q": 672,
+        "funding_months": 3,
+        "funding_errors": []
+      },
+      {
+        "symbol": "BTRUSDT",
+        "source": "futures",
+        "h": 2688,
+        "q": 672,
+        "funding_months": 3,
+        "funding_errors": []
+      },
+      {
+        "symbol": "RIFUSDT",
+        "source": "futures",
+        "h": 3432,
+        "q": 858,
+        "funding_months": 4,
+        "funding_errors": []
+      },
+      {
+        "symbol": "LSKUSDT",
+        "source": "futures",
+        "h": 1968,
+        "q": 492,
+        "funding_months": 2,
+        "funding_errors": []
+      },
+      {
+        "symbol": "BLESSUSDT",
+        "source": "futures",
+        "h": 2688,
+        "q": 672,
+        "funding_months": 3,
+        "funding_errors": []
+      },
+      {
+        "symbol": "ACEUSDT",
+        "source": "futures",
+        "h": 2688,
+        "q": 672,
+        "funding_months": 3,
+        "funding_errors": []
+      },
+      {
+        "symbol": "SKHYUSDT",
+        "source": "futures",
+        "h": 1968,
+        "q": 492,
+        "funding_months": 2,
+        "funding_errors": []
+      },
+      {
+        "symbol": "HEIUSDT",
+        "source": "futures",
+        "h": 2688,
+        "q": 672,
+        "funding_months": 3,
+        "funding_errors": []
+      },
+      {
+        "symbol": "BICOUSDT",
+        "source": "futures",
+        "h": 2688,
+        "q": 672,
+        "funding_months": 3,
+        "funding_errors": []
+      },
+      {
+        "symbol": "APRUSDT",
+        "source": "futures",
+        "h": 2688,
+        "q": 672,
+        "funding_months": 3,
+        "funding_errors": []
+      },
+      {
+        "symbol": "QNTUSDT",
+        "source": "futures",
+        "h": 1968,
+        "q": 492,
+        "funding_months": 2,
+        "funding_errors": []
+      },
+      {
+        "symbol": "SNXXUSDT",
+        "source": "futures",
+        "h": 1968,
+        "q": 492,
+        "funding_months": 2,
+        "funding_errors": []
+      },
+      {
+        "symbol": "ONEUSDT",
+        "source": "futures",
+        "h": 1968,
+        "q": 492,
+        "funding_months": 2,
+        "funding_errors": []
+      },
+      {
+        "symbol": "USELESSUSDT",
+        "source": "futures",
+        "h": 1968,
+        "q": 492,
+        "funding_months": 2,
+        "funding_errors": []
+      },
+      {
+        "symbol": "龙虾USDT",
+        "source": "futures",
+        "h": 1968,
+        "q": 492,
+        "funding_months": 2,
+        "funding_errors": []
+      }
+    ],
+    "errors": [],
+    "universe_errors": []
+  },
+  "evaluation_counts": {
+    "NO_BREAKOUT": 1140446,
+    "TREND_CHANNEL_VOLUME": 24612,
+    "NO_TREND": 112412,
+    "LOW_VOLUME": 10184,
+    "BOUNDARY_PURGE_168H": 16800,
+    "DATA_GAP": 9984
+  },
+  "rejected_plan_counts": {
+    "OBSTACLE_BEFORE_TARGET": 3200,
+    "LATE_BREAKOUT": 2900,
+    "INVALID_TARGET": 10
+  },
+  "skipped_counts": {
+    "SAME_SYMBOL_OPEN": 8213,
+    "LİMİT NEDENİYLE ATLANDI": 11411
+  },
+  "results": {
+    "unlimited/development/ALL": {
+      "trades": 9051,
+      "unverified": 0,
+      "mean_net_r": -0.1367885099736803,
+      "total_net_r": -1238.0728037717806,
+      "max_drawdown_r": 1276.6444455737976,
+      "longest_loss_streak": 52,
+      "target_first_pct": 33.200751298199094,
+      "direction_accuracy_pct": 49.92818473096895,
+      "direction_samples": 9051,
+      "mean_net_r_cost_060": -0.2704457032236977,
+      "best_three": [
+        "WIFUSDT",
+        "ENAUSDT",
+        "MYXUSDT"
+      ],
+      "mean_net_r_without_best_three": -0.14690108564841975,
+      "trades_without_best_three": 8756,
+      "outcomes": {
+        "HEDEF": 3005,
+        "STOP": 6026,
+        "TIMEOUT": 20
+      },
+      "resolutions": {
+        "1H_SINGLE": 9022,
+        "168H": 20,
+        "1M_RESOLVED": 9
+      },
+      "fallback_funding_trades": 0
+    },
+    "unlimited/development/LONG": {
+      "trades": 4430,
+      "unverified": 0,
+      "mean_net_r": -0.18642201377202616,
+      "total_net_r": -825.8495210100759,
+      "max_drawdown_r": 842.504023516956,
+      "longest_loss_streak": 33,
+      "target_first_pct": 32.03160270880361,
+      "direction_accuracy_pct": 49.20993227990971,
+      "direction_samples": 4430,
+      "mean_net_r_cost_060": -0.33095948607166953,
+      "best_three": [
+        "RUNEUSDT",
+        "MYXUSDT",
+        "ENAUSDT"
+      ],
+      "mean_net_r_without_best_three": -0.20045650419390368,
+      "trades_without_best_three": 4329,
+      "outcomes": {
+        "HEDEF": 1419,
+        "STOP": 3007,
+        "TIMEOUT": 4
+      },
+      "resolutions": {
+        "1H_SINGLE": 4419,
+        "168H": 4,
+        "1M_RESOLVED": 7
+      },
+      "fallback_funding_trades": 0
+    },
+    "unlimited/development/SHORT": {
+      "trades": 4621,
+      "unverified": 0,
+      "mean_net_r": -0.08920651001118905,
+      "total_net_r": -412.22328276170464,
+      "max_drawdown_r": 498.7415425528628,
+      "longest_loss_streak": 53,
+      "target_first_pct": 34.3215754165765,
+      "direction_accuracy_pct": 50.61674962129409,
+      "direction_samples": 4621,
+      "mean_net_r_cost_060": -0.21243313927292615,
+      "best_three": [
+        "WIFUSDT",
+        "ORDIUSDT",
+        "MATICUSDT"
+      ],
+      "mean_net_r_without_best_three": -0.10346697927774406,
+      "trades_without_best_three": 4456,
+      "outcomes": {
+        "STOP": 3019,
+        "HEDEF": 1586,
+        "TIMEOUT": 16
+      },
+      "resolutions": {
+        "1H_SINGLE": 4603,
+        "1M_RESOLVED": 2,
+        "168H": 16
+      },
+      "fallback_funding_trades": 0
+    },
+    "unlimited/locked_test/ALL": {
+      "trades": 3561,
+      "unverified": 0,
+      "mean_net_r": -0.14061253095658313,
+      "total_net_r": -500.7212227363925,
+      "max_drawdown_r": 551.7227368208173,
+      "longest_loss_streak": 37,
+      "target_first_pct": 34.51277730974445,
+      "direction_accuracy_pct": 49.05925301881494,
+      "direction_samples": 3561,
+      "mean_net_r_cost_060": -0.31452654222077353,
+      "best_three": [
+        "FARTCOINUSDT",
+        "PENGUUSDT",
+        "1000PEPEUSDT"
+      ],
+      "mean_net_r_without_best_three": -0.1582235162561132,
+      "trades_without_best_three": 3402,
+      "outcomes": {
+        "STOP": 2317,
+        "HEDEF": 1229,
+        "TIMEOUT": 15
+      },
+      "resolutions": {
+        "1H_SINGLE": 3538,
+        "168H": 15,
+        "1M_RESOLVED": 8
+      },
+      "fallback_funding_trades": 182
+    },
+    "unlimited/locked_test/LONG": {
+      "trades": 1501,
+      "unverified": 0,
+      "mean_net_r": -0.166572159764675,
+      "total_net_r": -250.02481180677714,
+      "max_drawdown_r": 260.3915519354632,
+      "longest_loss_streak": 25,
+      "target_first_pct": 33.77748167888075,
+      "direction_accuracy_pct": 50.49966688874084,
+      "direction_samples": 1501,
+      "mean_net_r_cost_060": -0.35022012081181075,
+      "best_three": [
+        "1000PEPEUSDT",
+        "ENAUSDT",
+        "FARTCOINUSDT"
+      ],
+      "mean_net_r_without_best_three": -0.20227213773386546,
+      "trades_without_best_three": 1399,
+      "outcomes": {
+        "STOP": 991,
+        "HEDEF": 507,
+        "TIMEOUT": 3
+      },
+      "resolutions": {
+        "1H_SINGLE": 1494,
+        "168H": 3,
+        "1M_RESOLVED": 4
+      },
+      "fallback_funding_trades": 26
+    },
+    "unlimited/locked_test/SHORT": {
+      "trades": 2060,
+      "unverified": 0,
+      "mean_net_r": -0.12169728685903658,
+      "total_net_r": -250.69641092961535,
+      "max_drawdown_r": 330.0236684114514,
+      "longest_loss_streak": 34,
+      "target_first_pct": 35.04854368932039,
+      "direction_accuracy_pct": 48.00970873786408,
+      "direction_samples": 2060,
+      "mean_net_r_cost_060": -0.2885187453930323,
+      "best_three": [
+        "ESPORTSUSDT",
+        "WLFIUSDT",
+        "CRVUSDT"
+      ],
+      "mean_net_r_without_best_three": -0.13360596248838208,
+      "trades_without_best_three": 2033,
+      "outcomes": {
+        "HEDEF": 722,
+        "STOP": 1326,
+        "TIMEOUT": 12
+      },
+      "resolutions": {
+        "1H_SINGLE": 2044,
+        "168H": 12,
+        "1M_RESOLVED": 4
+      },
+      "fallback_funding_trades": 156
+    },
+    "limited/development/ALL": {
+      "trades": 3065,
+      "unverified": 0,
+      "mean_net_r": -0.1297514637563003,
+      "total_net_r": -397.68823641306045,
+      "max_drawdown_r": 406.1327122081082,
+      "longest_loss_streak": 21,
+      "target_first_pct": 33.539967373572594,
+      "direction_accuracy_pct": 50.63621533442088,
+      "direction_samples": 3065,
+      "mean_net_r_cost_060": -0.2666628087799705,
+      "best_three": [
+        "MATICUSDT",
+        "ETHUSDT",
+        "RUNEUSDT"
+      ],
+      "mean_net_r_without_best_three": -0.15363504954389884,
+      "trades_without_best_three": 2902,
+      "outcomes": {
+        "HEDEF": 1028,
+        "STOP": 2030,
+        "TIMEOUT": 7
+      },
+      "resolutions": {
+        "1H_SINGLE": 3053,
+        "168H": 7,
+        "1M_RESOLVED": 5
+      },
+      "fallback_funding_trades": 0
+    },
+    "limited/development/LONG": {
+      "trades": 1823,
+      "unverified": 0,
+      "mean_net_r": -0.14757721809714608,
+      "total_net_r": -269.0332685910973,
+      "max_drawdown_r": 278.26284268644434,
+      "longest_loss_streak": 21,
+      "target_first_pct": 32.912781130005484,
+      "direction_accuracy_pct": 49.533735600658254,
+      "direction_samples": 1823,
+      "mean_net_r_cost_060": -0.2818095922599269,
+      "best_three": [
+        "TRBUSDT",
+        "ETHUSDT",
+        "MYXUSDT"
+      ],
+      "mean_net_r_without_best_three": -0.1771842458180159,
+      "trades_without_best_three": 1730,
+      "outcomes": {
+        "HEDEF": 600,
+        "STOP": 1220,
+        "TIMEOUT": 3
+      },
+      "resolutions": {
+        "1H_SINGLE": 1817,
+        "168H": 3,
+        "1M_RESOLVED": 3
+      },
+      "fallback_funding_trades": 0
+    },
+    "limited/development/SHORT": {
+      "trades": 1242,
+      "unverified": 0,
+      "mean_net_r": -0.1035869306134969,
+      "total_net_r": -128.65496782196317,
+      "max_drawdown_r": 131.7681091163626,
+      "longest_loss_streak": 19,
+      "target_first_pct": 34.46054750402576,
+      "direction_accuracy_pct": 52.254428341384866,
+      "direction_samples": 1242,
+      "mean_net_r_cost_060": -0.24443045267372204,
+      "best_three": [
+        "MATICUSDT",
+        "WIFUSDT",
+        "JTOUSDT"
+      ],
+      "mean_net_r_without_best_three": -0.12800281302382605,
+      "trades_without_best_three": 1202,
+      "outcomes": {
+        "STOP": 810,
+        "HEDEF": 428,
+        "TIMEOUT": 4
+      },
+      "resolutions": {
+        "1H_SINGLE": 1236,
+        "1M_RESOLVED": 2,
+        "168H": 4
+      },
+      "fallback_funding_trades": 0
+    },
+    "limited/locked_test/ALL": {
+      "trades": 1703,
+      "unverified": 0,
+      "mean_net_r": -0.13495774023617915,
+      "total_net_r": -229.83303162221313,
+      "max_drawdown_r": 249.42786719493304,
+      "longest_loss_streak": 16,
+      "target_first_pct": 35.11450381679389,
+      "direction_accuracy_pct": 50.38167938931298,
+      "direction_samples": 1703,
+      "mean_net_r_cost_060": -0.31698587341190093,
+      "best_three": [
+        "PENGUUSDT",
+        "SNDKUSDT",
+        "BEATUSDT"
+      ],
+      "mean_net_r_without_best_three": -0.1546317188534982,
+      "trades_without_best_three": 1656,
+      "outcomes": {
+        "STOP": 1100,
+        "HEDEF": 598,
+        "TIMEOUT": 5
+      },
+      "resolutions": {
+        "1H_SINGLE": 1691,
+        "168H": 5,
+        "1M_RESOLVED": 7
+      },
+      "fallback_funding_trades": 74
+    },
+    "limited/locked_test/LONG": {
+      "trades": 842,
+      "unverified": 0,
+      "mean_net_r": -0.14036421549722983,
+      "total_net_r": -118.18666944866752,
+      "max_drawdown_r": 134.45036403538734,
+      "longest_loss_streak": 13,
+      "target_first_pct": 34.679334916864605,
+      "direction_accuracy_pct": 52.96912114014252,
+      "direction_samples": 842,
+      "mean_net_r_cost_060": -0.32567734012567384,
+      "best_three": [
+        "PENGUUSDT",
+        "SIRENUSDT",
+        "CLUSDT"
+      ],
+      "mean_net_r_without_best_three": -0.16931259505654309,
+      "trades_without_best_three": 809,
+      "outcomes": {
+        "STOP": 549,
+        "HEDEF": 292,
+        "TIMEOUT": 1
+      },
+      "resolutions": {
+        "1H_SINGLE": 836,
+        "1M_RESOLVED": 5,
+        "168H": 1
+      },
+      "fallback_funding_trades": 22
+    },
+    "limited/locked_test/SHORT": {
+      "trades": 861,
+      "unverified": 0,
+      "mean_net_r": -0.12967057163013426,
+      "total_net_r": -111.6463621735456,
+      "max_drawdown_r": 147.54269191968936,
+      "longest_loss_streak": 19,
+      "target_first_pct": 35.54006968641115,
+      "direction_accuracy_pct": 47.851335656213706,
+      "direction_samples": 861,
+      "mean_net_r_cost_060": -0.30848620445371644,
+      "best_three": [
+        "SUIUSDT",
+        "WIFUSDT",
+        "SKYAIUSDT"
+      ],
+      "mean_net_r_without_best_three": -0.16063873451718078,
+      "trades_without_best_three": 826,
+      "outcomes": {
+        "HEDEF": 306,
+        "STOP": 551,
+        "TIMEOUT": 4
+      },
+      "resolutions": {
+        "1H_SINGLE": 855,
+        "168H": 4,
+        "1M_RESOLVED": 2
+      },
+      "fallback_funding_trades": 52
+    }
+  },
+  "verdicts": {
+    "limited": "BAŞARISIZ",
+    "unlimited": "BAŞARISIZ"
+  },
+  "monthly": [
+    {
+      "portfolio": "limited",
+      "phase": "development",
+      "month": "2023-10",
+      "trades": 36,
+      "unverified": 0,
+      "mean_net_r": 0.028520822228176288,
+      "total_net_r": 1.0267496002143464,
+      "max_drawdown_r": 12.814894525898968,
+      "longest_loss_streak": 7,
+      "target_first_pct": 36.111111111111114,
+      "direction_accuracy_pct": 55.55555555555556,
+      "direction_samples": 36,
+      "mean_net_r_cost_060": -0.08082598273792455,
+      "best_three": [
+        "RUNEUSDT",
+        "TRBUSDT",
+        "MATICUSDT"
+      ],
+      "mean_net_r_without_best_three": -0.4513960301265741,
+      "trades_without_best_three": 28,
+      "outcomes": {
+        "HEDEF": 13,
+        "STOP": 22,
+        "TIMEOUT": 1
+      },
+      "resolutions": {
+        "1H_SINGLE": 35,
+        "168H": 1
+      },
+      "fallback_funding_trades": 0
+    },
+    {
+      "portfolio": "limited",
+      "phase": "development",
+      "month": "2023-11",
+      "trades": 138,
+      "unverified": 0,
+      "mean_net_r": -0.374988948579887,
+      "total_net_r": -51.748474904024405,
+      "max_drawdown_r": 54.04352117685946,
+      "longest_loss_streak": 16,
+      "target_first_pct": 25.36231884057971,
+      "direction_accuracy_pct": 38.405797101449274,
+      "direction_samples": 138,
+      "mean_net_r_cost_060": -0.5054448168821372,
+      "best_three": [
+        "RUNEUSDT",
+        "SOLUSDT",
+        "SUIUSDT"
+      ],
+      "mean_net_r_without_best_three": -0.5581455146914457,
+      "trades_without_best_three": 124,
+      "outcomes": {
+        "HEDEF": 35,
+        "STOP": 103
+      },
+      "resolutions": {
+        "1H_SINGLE": 137,
+        "1M_RESOLVED": 1
+      },
+      "fallback_funding_trades": 0
+    },
+    {
+      "portfolio": "limited",
+      "phase": "development",
+      "month": "2023-12",
+      "trades": 150,
+      "unverified": 0,
+      "mean_net_r": 0.0009398381440137108,
+      "total_net_r": 0.14097572160205663,
+      "max_drawdown_r": 16.664644399603414,
+      "longest_loss_streak": 9,
+      "target_first_pct": 36.666666666666664,
+      "direction_accuracy_pct": 49.333333333333336,
+      "direction_samples": 150,
+      "mean_net_r_cost_060": -0.10838844193774293,
+      "best_three": [
+        "TRBUSDT",
+        "SOLUSDT",
+        "MATICUSDT"
+      ],
+      "mean_net_r_without_best_three": -0.14715546447453262,
+      "trades_without_best_three": 133,
+      "outcomes": {
+        "STOP": 94,
+        "HEDEF": 55,
+        "TIMEOUT": 1
+      },
+      "resolutions": {
+        "1H_SINGLE": 149,
+        "168H": 1
+      },
+      "fallback_funding_trades": 0
+    },
+    {
+      "portfolio": "limited",
+      "phase": "development",
+      "month": "2024-01",
+      "trades": 102,
+      "unverified": 0,
+      "mean_net_r": -0.04781254759446252,
+      "total_net_r": -4.8768798546351775,
+      "max_drawdown_r": 19.30041194140596,
+      "longest_loss_streak": 10,
+      "target_first_pct": 35.294117647058826,
+      "direction_accuracy_pct": 50.0,
+      "direction_samples": 102,
+      "mean_net_r_cost_060": -0.17393734434086544,
+      "best_three": [
+        "MATICUSDT",
+        "1000PEPEUSDT",
+        "NEARUSDT"
+      ],
+      "mean_net_r_without_best_three": -0.16835815166725737,
+      "trades_without_best_three": 93,
+      "outcomes": {
+        "STOP": 65,
+        "HEDEF": 36,
+        "TIMEOUT": 1
+      },
+      "resolutions": {
+        "1H_SINGLE": 101,
+        "168H": 1
+      },
+      "fallback_funding_trades": 0
+    },
+    {
+      "portfolio": "limited",
+      "phase": "development",
+      "month": "2024-02",
+      "trades": 142,
+      "unverified": 0,
+      "mean_net_r": -0.1597924279886211,
+      "total_net_r": -22.690524774384194,
+      "max_drawdown_r": 29.52064819116627,
+      "longest_loss_streak": 14,
+      "target_first_pct": 33.098591549295776,
+      "direction_accuracy_pct": 51.40845070422535,
+      "direction_samples": 142,
+      "mean_net_r_cost_060": -0.3097571245742812,
+      "best_three": [
+        "API3USDT",
+        "BNBUSDT",
+        "FTMUSDT"
+      ],
+      "mean_net_r_without_best_three": -0.27466916922344614,
+      "trades_without_best_three": 133,
+      "outcomes": {
+        "STOP": 95,
+        "HEDEF": 47
+      },
+      "resolutions": {
+        "1H_SINGLE": 142
+      },
+      "fallback_funding_trades": 0
+    },
+    {
+      "portfolio": "limited",
+      "phase": "development",
+      "month": "2024-03",
+      "trades": 138,
+      "unverified": 0,
+      "mean_net_r": -0.17011551235615255,
+      "total_net_r": -23.475940705149053,
+      "max_drawdown_r": 28.028029133700638,
+      "longest_loss_streak": 12,
+      "target_first_pct": 31.159420289855074,
+      "direction_accuracy_pct": 51.44927536231884,
+      "direction_samples": 138,
+      "mean_net_r_cost_060": -0.2642285356826939,
+      "best_three": [
+        "NEARUSDT",
+        "1000PEPEUSDT",
+        "CKBUSDT"
+      ],
+      "mean_net_r_without_best_three": -0.2816584612321495,
+      "trades_without_best_three": 123,
+      "outcomes": {
+        "HEDEF": 43,
+        "STOP": 95
+      },
+      "resolutions": {
+        "1H_SINGLE": 138
+      },
+      "fallback_funding_trades": 0
+    },
+    {
+      "portfolio": "limited",
+      "phase": "development",
+      "month": "2024-04",
+      "trades": 96,
+      "unverified": 0,
+      "mean_net_r": 0.057642668099362575,
+      "total_net_r": 5.533696137538807,
+      "max_drawdown_r": 16.77008474613475,
+      "longest_loss_streak": 9,
+      "target_first_pct": 39.583333333333336,
+      "direction_accuracy_pct": 59.375,
+      "direction_samples": 96,
+      "mean_net_r_cost_060": -0.0749299542983444,
+      "best_three": [
+        "APTUSDT",
+        "UNIUSDT",
+        "WIFUSDT"
+      ],
+      "mean_net_r_without_best_three": -0.07899399941641612,
+      "trades_without_best_three": 88,
+      "outcomes": {
+        "STOP": 58,
+        "HEDEF": 38
+      },
+      "resolutions": {
+        "1H_SINGLE": 96
+      },
+      "fallback_funding_trades": 0
+    },
+    {
+      "portfolio": "limited",
+      "phase": "development",
+      "month": "2024-05",
+      "trades": 117,
+      "unverified": 0,
+      "mean_net_r": -0.05639517882000648,
+      "total_net_r": -6.598235921940758,
+      "max_drawdown_r": 16.97560292249659,
+      "longest_loss_streak": 11,
+      "target_first_pct": 35.8974358974359,
+      "direction_accuracy_pct": 52.136752136752136,
+      "direction_samples": 117,
+      "mean_net_r_cost_060": -0.18834226536261683,
+      "best_three": [
+        "PENDLEUSDT",
+        "ONDOUSDT",
+        "ETCUSDT"
+      ],
+      "mean_net_r_without_best_three": -0.14314636795400007,
+      "trades_without_best_three": 106,
+      "outcomes": {
+        "HEDEF": 42,
+        "STOP": 75
+      },
+      "resolutions": {
+        "1H_SINGLE": 116,
+        "1M_RESOLVED": 1
+      },
+      "fallback_funding_trades": 0
+    },
+    {
+      "portfolio": "limited",
+      "phase": "development",
+      "month": "2024-06",
+      "trades": 127,
+      "unverified": 0,
+      "mean_net_r": -0.06287674934844856,
+      "total_net_r": -7.985347167252967,
+      "max_drawdown_r": 16.535891919422752,
+      "longest_loss_streak": 7,
+      "target_first_pct": 36.22047244094488,
+      "direction_accuracy_pct": 43.30708661417323,
+      "direction_samples": 127,
+      "mean_net_r_cost_060": -0.21248311879935797,
+      "best_three": [
+        "PEOPLEUSDT",
+        "TIAUSDT",
+        "ORDIUSDT"
+      ],
+      "mean_net_r_without_best_three": -0.1824275338300176,
+      "trades_without_best_three": 114,
+      "outcomes": {
+        "STOP": 81,
+        "HEDEF": 46
+      },
+      "resolutions": {
+        "1H_SINGLE": 127
+      },
+      "fallback_funding_trades": 0
+    },
+    {
+      "portfolio": "limited",
+      "phase": "development",
+      "month": "2024-07",
+      "trades": 133,
+      "unverified": 0,
+      "mean_net_r": -0.018967193827661797,
+      "total_net_r": -2.522636779079019,
+      "max_drawdown_r": 25.211067562175387,
+      "longest_loss_streak": 9,
+      "target_first_pct": 37.59398496240601,
+      "direction_accuracy_pct": 54.88721804511278,
+      "direction_samples": 133,
+      "mean_net_r_cost_060": -0.16326656238478365,
+      "best_three": [
+        "ETHUSDT",
+        "XRPUSDT",
+        "1000BONKUSDT"
+      ],
+      "mean_net_r_without_best_three": -0.1772307690606917,
+      "trades_without_best_three": 118,
+      "outcomes": {
+        "HEDEF": 50,
+        "STOP": 83
+      },
+      "resolutions": {
+        "1H_SINGLE": 133
+      },
+      "fallback_funding_trades": 0
+    },
+    {
+      "portfolio": "limited",
+      "phase": "development",
+      "month": "2024-08",
+      "trades": 117,
+      "unverified": 0,
+      "mean_net_r": -0.18277110181320871,
+      "total_net_r": -21.384218912145418,
+      "max_drawdown_r": 35.80158801155791,
+      "longest_loss_streak": 11,
+      "target_first_pct": 31.623931623931625,
+      "direction_accuracy_pct": 55.55555555555556,
+      "direction_samples": 117,
+      "mean_net_r_cost_060": -0.31393235404468456,
+      "best_three": [
+        "1000RATSUSDT",
+        "WLDUSDT",
+        "MATICUSDT"
+      ],
+      "mean_net_r_without_best_three": -0.29644641382763554,
+      "trades_without_best_three": 108,
+      "outcomes": {
+        "STOP": 80,
+        "HEDEF": 37
+      },
+      "resolutions": {
+        "1H_SINGLE": 117
+      },
+      "fallback_funding_trades": 0
+    },
+    {
+      "portfolio": "limited",
+      "phase": "development",
+      "month": "2024-09",
+      "trades": 134,
+      "unverified": 0,
+      "mean_net_r": -0.005323181527649503,
+      "total_net_r": -0.7133063247050334,
+      "max_drawdown_r": 14.274080171705396,
+      "longest_loss_streak": 12,
+      "target_first_pct": 38.80597014925373,
+      "direction_accuracy_pct": 57.46268656716418,
+      "direction_samples": 134,
+      "mean_net_r_cost_060": -0.17259093224005895,
+      "best_three": [
+        "FTMUSDT",
+        "1000RATSUSDT",
+        "XRPUSDT"
+      ],
+      "mean_net_r_without_best_three": -0.1659275120550215,
+      "trades_without_best_three": 122,
+      "outcomes": {
+        "STOP": 82,
+        "HEDEF": 52
+      },
+      "resolutions": {
+        "1H_SINGLE": 134
+      },
+      "fallback_funding_trades": 0
+    },
+    {
+      "portfolio": "limited",
+      "phase": "development",
+      "month": "2024-10",
+      "trades": 136,
+      "unverified": 0,
+      "mean_net_r": -0.279588899177091,
+      "total_net_r": -38.02409028808437,
+      "max_drawdown_r": 45.89140963577899,
+      "longest_loss_streak": 10,
+      "target_first_pct": 28.676470588235293,
+      "direction_accuracy_pct": 43.38235294117647,
+      "direction_samples": 136,
+      "mean_net_r_cost_060": -0.43617874700014386,
+      "best_three": [
+        "DOGEUSDT",
+        "REEFUSDT",
+        "BIGTIMEUSDT"
+      ],
+      "mean_net_r_without_best_three": -0.40766479840145164,
+      "trades_without_best_three": 119,
+      "outcomes": {
+        "STOP": 96,
+        "HEDEF": 39,
+        "TIMEOUT": 1
+      },
+      "resolutions": {
+        "1H_SINGLE": 135,
+        "168H": 1
+      },
+      "fallback_funding_trades": 0
+    },
+    {
+      "portfolio": "limited",
+      "phase": "development",
+      "month": "2024-11",
+      "trades": 139,
+      "unverified": 0,
+      "mean_net_r": -0.25692541310610145,
+      "total_net_r": -35.712632421748104,
+      "max_drawdown_r": 47.56454940191678,
+      "longest_loss_streak": 21,
+      "target_first_pct": 28.057553956834532,
+      "direction_accuracy_pct": 44.60431654676259,
+      "direction_samples": 139,
+      "mean_net_r_cost_060": -0.3515573920655881,
+      "best_three": [
+        "XRPUSDT",
+        "ETHUSDT",
+        "LINKUSDT"
+      ],
+      "mean_net_r_without_best_three": -0.4253318645979203,
+      "trades_without_best_three": 125,
+      "outcomes": {
+        "HEDEF": 39,
+        "STOP": 100
+      },
+      "resolutions": {
+        "1H_SINGLE": 139
+      },
+      "fallback_funding_trades": 0
+    },
+    {
+      "portfolio": "limited",
+      "phase": "development",
+      "month": "2024-12",
+      "trades": 111,
+      "unverified": 0,
+      "mean_net_r": -0.22422043577262382,
+      "total_net_r": -24.888468370761245,
+      "max_drawdown_r": 31.47290915893225,
+      "longest_loss_streak": 15,
+      "target_first_pct": 29.72972972972973,
+      "direction_accuracy_pct": 45.04504504504504,
+      "direction_samples": 111,
+      "mean_net_r_cost_060": -0.33742731701753387,
+      "best_three": [
+        "ENAUSDT",
+        "FETUSDT",
+        "APTUSDT"
+      ],
+      "mean_net_r_without_best_three": -0.3485372208695067,
+      "trades_without_best_three": 101,
+      "outcomes": {
+        "HEDEF": 33,
+        "STOP": 78
+      },
+      "resolutions": {
+        "1H_SINGLE": 111
+      },
+      "fallback_funding_trades": 0
+    },
+    {
+      "portfolio": "limited",
+      "phase": "development",
+      "month": "2025-01",
+      "trades": 131,
+      "unverified": 0,
+      "mean_net_r": 0.11016827222931029,
+      "total_net_r": 14.432043662039648,
+      "max_drawdown_r": 18.772384609318088,
+      "longest_loss_streak": 17,
+      "target_first_pct": 41.221374045801525,
+      "direction_accuracy_pct": 54.961832061068705,
+      "direction_samples": 131,
+      "mean_net_r_cost_060": -0.012582863026972903,
+      "best_three": [
+        "ETHUSDT",
+        "ENAUSDT",
+        "WIFUSDT"
+      ],
+      "mean_net_r_without_best_three": 0.013219587930894837,
+      "trades_without_best_three": 116,
+      "outcomes": {
+        "STOP": 77,
+        "HEDEF": 54
+      },
+      "resolutions": {
+        "1H_SINGLE": 131
+      },
+      "fallback_funding_trades": 0
+    },
+    {
+      "portfolio": "limited",
+      "phase": "development",
+      "month": "2025-02",
+      "trades": 108,
+      "unverified": 0,
+      "mean_net_r": -0.030225359239862908,
+      "total_net_r": -3.264338797905194,
+      "max_drawdown_r": 24.249688131625376,
+      "longest_loss_streak": 13,
+      "target_first_pct": 36.111111111111114,
+      "direction_accuracy_pct": 52.77777777777778,
+      "direction_samples": 108,
+      "mean_net_r_cost_060": -0.14457151752406414,
+      "best_three": [
+        "SOLUSDT",
+        "ONDOUSDT",
+        "SANDUSDT"
+      ],
+      "mean_net_r_without_best_three": -0.24890313758348528,
+      "trades_without_best_three": 94,
+      "outcomes": {
+        "HEDEF": 39,
+        "STOP": 69
+      },
+      "resolutions": {
+        "1H_SINGLE": 108
+      },
+      "fallback_funding_trades": 0
+    },
+    {
+      "portfolio": "limited",
+      "phase": "development",
+      "month": "2025-03",
+      "trades": 130,
+      "unverified": 0,
+      "mean_net_r": -0.25324817487230694,
+      "total_net_r": -32.922262733399904,
+      "max_drawdown_r": 40.37943532699623,
+      "longest_loss_streak": 10,
+      "target_first_pct": 28.46153846153846,
+      "direction_accuracy_pct": 53.07692307692308,
+      "direction_samples": 130,
+      "mean_net_r_cost_060": -0.37397240262588993,
+      "best_three": [
+        "LTCUSDT",
+        "WIFUSDT",
+        "USUALUSDT"
+      ],
+      "mean_net_r_without_best_three": -0.39325656010993126,
+      "trades_without_best_three": 118,
+      "outcomes": {
+        "HEDEF": 37,
+        "STOP": 92,
+        "TIMEOUT": 1
+      },
+      "resolutions": {
+        "1H_SINGLE": 129,
+        "168H": 1
+      },
+      "fallback_funding_trades": 0
+    },
+    {
+      "portfolio": "limited",
+      "phase": "development",
+      "month": "2025-04",
+      "trades": 127,
+      "unverified": 0,
+      "mean_net_r": -0.17986337104465439,
+      "total_net_r": -22.842648122671108,
+      "max_drawdown_r": 34.43270366333592,
+      "longest_loss_streak": 15,
+      "target_first_pct": 32.28346456692913,
+      "direction_accuracy_pct": 47.24409448818898,
+      "direction_samples": 127,
+      "mean_net_r_cost_060": -0.3235725923902432,
+      "best_three": [
+        "AVAXUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "mean_net_r_without_best_three": -0.33981361177046054,
+      "trades_without_best_three": 115,
+      "outcomes": {
+        "STOP": 86,
+        "HEDEF": 41
+      },
+      "resolutions": {
+        "1H_SINGLE": 127
+      },
+      "fallback_funding_trades": 0
+    },
+    {
+      "portfolio": "limited",
+      "phase": "development",
+      "month": "2025-05",
+      "trades": 123,
+      "unverified": 0,
+      "mean_net_r": -0.25211979799320694,
+      "total_net_r": -31.01073515316445,
+      "max_drawdown_r": 49.86633628001016,
+      "longest_loss_streak": 15,
+      "target_first_pct": 30.08130081300813,
+      "direction_accuracy_pct": 47.15447154471545,
+      "direction_samples": 123,
+      "mean_net_r_cost_060": -0.38986308296170613,
+      "best_three": [
+        "PNUTUSDT",
+        "BERAUSDT",
+        "VIRTUALUSDT"
+      ],
+      "mean_net_r_without_best_three": -0.3927493805488416,
+      "trades_without_best_three": 109,
+      "outcomes": {
+        "HEDEF": 37,
+        "STOP": 86
+      },
+      "resolutions": {
+        "1H_SINGLE": 123
+      },
+      "fallback_funding_trades": 0
+    },
+    {
+      "portfolio": "limited",
+      "phase": "development",
+      "month": "2025-06",
+      "trades": 83,
+      "unverified": 0,
+      "mean_net_r": -0.10852128756801226,
+      "total_net_r": -9.007266868145017,
+      "max_drawdown_r": 20.662131518232705,
+      "longest_loss_streak": 15,
+      "target_first_pct": 36.144578313253014,
+      "direction_accuracy_pct": 60.24096385542169,
+      "direction_samples": 83,
+      "mean_net_r_cost_060": -0.2949718814664397,
+      "best_three": [
+        "PENGUUSDT",
+        "KAITOUSDT",
+        "OMUSDT"
+      ],
+      "mean_net_r_without_best_three": -0.31365263456194503,
+      "trades_without_best_three": 74,
+      "outcomes": {
+        "STOP": 53,
+        "HEDEF": 30
+      },
+      "resolutions": {
+        "1H_SINGLE": 83
+      },
+      "fallback_funding_trades": 0
+    },
+    {
+      "portfolio": "limited",
+      "phase": "development",
+      "month": "2025-07",
+      "trades": 130,
+      "unverified": 0,
+      "mean_net_r": -0.12302444402305394,
+      "total_net_r": -15.993177722997013,
+      "max_drawdown_r": 24.49571190340348,
+      "longest_loss_streak": 11,
+      "target_first_pct": 33.84615384615385,
+      "direction_accuracy_pct": 51.53846153846154,
+      "direction_samples": 130,
+      "mean_net_r_cost_060": -0.25830716156953915,
+      "best_three": [
+        "XRPUSDT",
+        "NEIROUSDT",
+        "AAVEUSDT"
+      ],
+      "mean_net_r_without_best_three": -0.2473317435056891,
+      "trades_without_best_three": 121,
+      "outcomes": {
+        "STOP": 86,
+        "HEDEF": 44
+      },
+      "resolutions": {
+        "1H_SINGLE": 130
+      },
+      "fallback_funding_trades": 0
+    },
+    {
+      "portfolio": "limited",
+      "phase": "development",
+      "month": "2025-08",
+      "trades": 94,
+      "unverified": 0,
+      "mean_net_r": -0.3635910098729413,
+      "total_net_r": -34.17755492805648,
+      "max_drawdown_r": 39.75378712939097,
+      "longest_loss_streak": 14,
+      "target_first_pct": 27.659574468085108,
+      "direction_accuracy_pct": 47.87234042553192,
+      "direction_samples": 94,
+      "mean_net_r_cost_060": -0.5493280606153417,
+      "best_three": [
+        "HYPERUSDT",
+        "DOGEUSDT",
+        "VINEUSDT"
+      ],
+      "mean_net_r_without_best_three": -0.5357567280199254,
+      "trades_without_best_three": 86,
+      "outcomes": {
+        "HEDEF": 26,
+        "STOP": 68
+      },
+      "resolutions": {
+        "1H_SINGLE": 92,
+        "1M_RESOLVED": 2
+      },
+      "fallback_funding_trades": 0
+    },
+    {
+      "portfolio": "limited",
+      "phase": "development",
+      "month": "2025-09",
+      "trades": 130,
+      "unverified": 0,
+      "mean_net_r": 0.011944294505451378,
+      "total_net_r": 1.5527582857086792,
+      "max_drawdown_r": 14.824511255986408,
+      "longest_loss_streak": 11,
+      "target_first_pct": 40.0,
+      "direction_accuracy_pct": 59.23076923076923,
+      "direction_samples": 130,
+      "mean_net_r_cost_060": -0.1711541935770063,
+      "best_three": [
+        "MYXUSDT",
+        "DOGEUSDT",
+        "BNBUSDT"
+      ],
+      "mean_net_r_without_best_three": -0.24308225245089413,
+      "trades_without_best_three": 107,
+      "outcomes": {
+        "HEDEF": 52,
+        "STOP": 78
+      },
+      "resolutions": {
+        "1H_SINGLE": 130
+      },
+      "fallback_funding_trades": 0
+    },
+    {
+      "portfolio": "limited",
+      "phase": "development",
+      "month": "2025-10",
+      "trades": 113,
+      "unverified": 0,
+      "mean_net_r": -0.07798144525351651,
+      "total_net_r": -8.811903313647367,
+      "max_drawdown_r": 21.486279112438336,
+      "longest_loss_streak": 10,
+      "target_first_pct": 35.39823008849557,
+      "direction_accuracy_pct": 50.442477876106196,
+      "direction_samples": 113,
+      "mean_net_r_cost_060": -0.242281214717193,
+      "best_three": [
+        "SOLUSDT",
+        "PUMPBTCUSDT",
+        "NMRUSDT"
+      ],
+      "mean_net_r_without_best_three": -0.1917582317903007,
+      "trades_without_best_three": 105,
+      "outcomes": {
+        "HEDEF": 40,
+        "STOP": 71,
+        "TIMEOUT": 2
+      },
+      "resolutions": {
+        "1H_SINGLE": 111,
+        "168H": 2
+      },
+      "fallback_funding_trades": 0
+    },
+    {
+      "portfolio": "limited",
+      "phase": "development",
+      "month": "2025-11",
+      "trades": 80,
+      "unverified": 0,
+      "mean_net_r": -0.27154769695334635,
+      "total_net_r": -21.72381575626771,
+      "max_drawdown_r": 24.159327051555174,
+      "longest_loss_streak": 13,
+      "target_first_pct": 28.75,
+      "direction_accuracy_pct": 48.75,
+      "direction_samples": 80,
+      "mean_net_r_cost_060": -0.4066402198610037,
+      "best_three": [
+        "ETHUSDT",
+        "FILUSDT",
+        "DOGEUSDT"
+      ],
+      "mean_net_r_without_best_three": -0.48047918297399433,
+      "trades_without_best_three": 68,
+      "outcomes": {
+        "STOP": 57,
+        "HEDEF": 23
+      },
+      "resolutions": {
+        "1M_RESOLVED": 1,
+        "1H_SINGLE": 79
+      },
+      "fallback_funding_trades": 0
+    },
+    {
+      "portfolio": "limited",
+      "phase": "locked_test",
+      "month": "2025-11",
+      "trades": 16,
+      "unverified": 0,
+      "mean_net_r": -0.34541123710259414,
+      "total_net_r": -5.526579793641506,
+      "max_drawdown_r": 8.15204078000334,
+      "longest_loss_streak": 6,
+      "target_first_pct": 31.25,
+      "direction_accuracy_pct": 50.0,
+      "direction_samples": 16,
+      "mean_net_r_cost_060": -0.6130562670821641,
+      "best_three": [
+        "APTUSDT",
+        "ZENUSDT",
+        "ZORAUSDT"
+      ],
+      "mean_net_r_without_best_three": -1.0722731841971704,
+      "trades_without_best_three": 12,
+      "outcomes": {
+        "STOP": 11,
+        "HEDEF": 5
+      },
+      "resolutions": {
+        "1H_SINGLE": 16
+      },
+      "fallback_funding_trades": 0
+    },
+    {
+      "portfolio": "limited",
+      "phase": "locked_test",
+      "month": "2025-12",
+      "trades": 157,
+      "unverified": 0,
+      "mean_net_r": -0.16282250367546436,
+      "total_net_r": -25.563133077047905,
+      "max_drawdown_r": 44.487129552422495,
+      "longest_loss_streak": 13,
+      "target_first_pct": 34.394904458598724,
+      "direction_accuracy_pct": 44.5859872611465,
+      "direction_samples": 157,
+      "mean_net_r_cost_060": -0.34390285891854705,
+      "best_three": [
+        "JELLYJELLYUSDT",
+        "WIFUSDT",
+        "MERLUSDT"
+      ],
+      "mean_net_r_without_best_three": -0.3042639635713353,
+      "trades_without_best_three": 136,
+      "outcomes": {
+        "HEDEF": 54,
+        "STOP": 103
+      },
+      "resolutions": {
+        "1H_SINGLE": 157
+      },
+      "fallback_funding_trades": 0
+    },
+    {
+      "portfolio": "limited",
+      "phase": "locked_test",
+      "month": "2026-01",
+      "trades": 160,
+      "unverified": 0,
+      "mean_net_r": 0.15278246376516774,
+      "total_net_r": 24.445194202426837,
+      "max_drawdown_r": 34.93689136903785,
+      "longest_loss_streak": 11,
+      "target_first_pct": 44.375,
+      "direction_accuracy_pct": 63.125,
+      "direction_samples": 160,
+      "mean_net_r_cost_060": -0.03089805947333481,
+      "best_three": [
+        "RIVERUSDT",
+        "PENGUUSDT",
+        "SUIUSDT"
+      ],
+      "mean_net_r_without_best_three": 0.026779017330973445,
+      "trades_without_best_three": 141,
+      "outcomes": {
+        "STOP": 89,
+        "HEDEF": 71
+      },
+      "resolutions": {
+        "1H_SINGLE": 160
+      },
+      "fallback_funding_trades": 0
+    },
+    {
+      "portfolio": "limited",
+      "phase": "locked_test",
+      "month": "2026-02",
+      "trades": 127,
+      "unverified": 0,
+      "mean_net_r": -0.15883350274404898,
+      "total_net_r": -20.17185484849422,
+      "max_drawdown_r": 35.98986678945694,
+      "longest_loss_streak": 13,
+      "target_first_pct": 33.85826771653543,
+      "direction_accuracy_pct": 48.818897637795274,
+      "direction_samples": 127,
+      "mean_net_r_cost_060": -0.316529967934382,
+      "best_three": [
+        "PIPPINUSDT",
+        "BNBUSDT",
+        "BERAUSDT"
+      ],
+      "mean_net_r_without_best_three": -0.31044462295081166,
+      "trades_without_best_three": 113,
+      "outcomes": {
+        "STOP": 83,
+        "HEDEF": 43,
+        "TIMEOUT": 1
+      },
+      "resolutions": {
+        "1H_SINGLE": 125,
+        "168H": 1,
+        "1M_RESOLVED": 1
+      },
+      "fallback_funding_trades": 0
+    },
+    {
+      "portfolio": "limited",
+      "phase": "locked_test",
+      "month": "2026-03",
+      "trades": 160,
+      "unverified": 0,
+      "mean_net_r": -0.13599602300847513,
+      "total_net_r": -21.75936368135602,
+      "max_drawdown_r": 24.01102249735201,
+      "longest_loss_streak": 10,
+      "target_first_pct": 35.625,
+      "direction_accuracy_pct": 45.625,
+      "direction_samples": 160,
+      "mean_net_r_cost_060": -0.3089384827920762,
+      "best_three": [
+        "SIRENUSDT",
+        "TAOUSDT",
+        "DOTUSDT"
+      ],
+      "mean_net_r_without_best_three": -0.26085781035217964,
+      "trades_without_best_three": 144,
+      "outcomes": {
+        "STOP": 102,
+        "HEDEF": 57,
+        "TIMEOUT": 1
+      },
+      "resolutions": {
+        "1H_SINGLE": 158,
+        "168H": 1,
+        "1M_RESOLVED": 1
+      },
+      "fallback_funding_trades": 0
+    },
+    {
+      "portfolio": "limited",
+      "phase": "locked_test",
+      "month": "2026-04",
+      "trades": 155,
+      "unverified": 0,
+      "mean_net_r": -0.4381404700191747,
+      "total_net_r": -67.91177285297208,
+      "max_drawdown_r": 68.52729088398668,
+      "longest_loss_streak": 13,
+      "target_first_pct": 25.161290322580644,
+      "direction_accuracy_pct": 42.58064516129032,
+      "direction_samples": 155,
+      "mean_net_r_cost_060": -0.6315889496629998,
+      "best_three": [
+        "FARTCOINUSDT",
+        "ONTUSDT",
+        "BANANAS31USDT"
+      ],
+      "mean_net_r_without_best_three": -0.5560225000253012,
+      "trades_without_best_three": 145,
+      "outcomes": {
+        "STOP": 115,
+        "HEDEF": 39,
+        "TIMEOUT": 1
+      },
+      "resolutions": {
+        "1H_SINGLE": 153,
+        "1M_RESOLVED": 1,
+        "168H": 1
+      },
+      "fallback_funding_trades": 0
+    },
+    {
+      "portfolio": "limited",
+      "phase": "locked_test",
+      "month": "2026-05",
+      "trades": 172,
+      "unverified": 0,
+      "mean_net_r": -0.2740328540063923,
+      "total_net_r": -47.13365088909948,
+      "max_drawdown_r": 49.01539308927248,
+      "longest_loss_streak": 16,
+      "target_first_pct": 30.232558139534884,
+      "direction_accuracy_pct": 48.25581395348837,
+      "direction_samples": 172,
+      "mean_net_r_cost_060": -0.4472639915052569,
+      "best_three": [
+        "PENGUUSDT",
+        "WLDUSDT",
+        "NEARUSDT"
+      ],
+      "mean_net_r_without_best_three": -0.40153305135817274,
+      "trades_without_best_three": 152,
+      "outcomes": {
+        "STOP": 120,
+        "HEDEF": 52
+      },
+      "resolutions": {
+        "1H_SINGLE": 172
+      },
+      "fallback_funding_trades": 0
+    },
+    {
+      "portfolio": "limited",
+      "phase": "locked_test",
+      "month": "2026-06",
+      "trades": 181,
+      "unverified": 0,
+      "mean_net_r": -0.017314150189371907,
+      "total_net_r": -3.1338611842763155,
+      "max_drawdown_r": 22.576657787409307,
+      "longest_loss_streak": 11,
+      "target_first_pct": 37.569060773480665,
+      "direction_accuracy_pct": 54.69613259668508,
+      "direction_samples": 181,
+      "mean_net_r_cost_060": -0.15812907416252525,
+      "best_three": [
+        "BEATUSDT",
+        "ADAUSDT",
+        "BTCUSDT"
+      ],
+      "mean_net_r_without_best_three": -0.12049126945240812,
+      "trades_without_best_three": 149,
+      "outcomes": {
+        "STOP": 113,
+        "HEDEF": 68
+      },
+      "resolutions": {
+        "1H_SINGLE": 181
+      },
+      "fallback_funding_trades": 0
+    },
+    {
+      "portfolio": "limited",
+      "phase": "locked_test",
+      "month": "2026-07",
+      "trades": 151,
+      "unverified": 0,
+      "mean_net_r": -0.08838024356718523,
+      "total_net_r": -13.34541677864497,
+      "max_drawdown_r": 21.090554837934935,
+      "longest_loss_streak": 11,
+      "target_first_pct": 35.76158940397351,
+      "direction_accuracy_pct": 49.00662251655629,
+      "direction_samples": 151,
+      "mean_net_r_cost_060": -0.2540877018962107,
+      "best_three": [
+        "SYNUSDT",
+        "SUIUSDT",
+        "SNDKUSDT"
+      ],
+      "mean_net_r_without_best_three": -0.16340513465511405,
+      "trades_without_best_three": 144,
+      "outcomes": {
+        "HEDEF": 54,
+        "STOP": 96,
+        "TIMEOUT": 1
+      },
+      "resolutions": {
+        "1H_SINGLE": 150,
+        "168H": 1
+      },
+      "fallback_funding_trades": 0
+    },
+    {
+      "portfolio": "limited",
+      "phase": "locked_test",
+      "month": "2026-08",
+      "trades": 166,
+      "unverified": 0,
+      "mean_net_r": -0.08661494754818265,
+      "total_net_r": -14.37808129299832,
+      "max_drawdown_r": 21.483572123463418,
+      "longest_loss_streak": 12,
+      "target_first_pct": 37.95180722891566,
+      "direction_accuracy_pct": 54.21686746987952,
+      "direction_samples": 166,
+      "mean_net_r_cost_060": -0.30460003888631754,
+      "best_three": [
+        "XRPUSDT",
+        "UNIUSDT",
+        "ONDOUSDT"
+      ],
+      "mean_net_r_without_best_three": -0.1787071896895718,
+      "trades_without_best_three": 157,
+      "outcomes": {
+        "STOP": 102,
+        "HEDEF": 63,
+        "TIMEOUT": 1
+      },
+      "resolutions": {
+        "1H_SINGLE": 162,
+        "1M_RESOLVED": 3,
+        "168H": 1
+      },
+      "fallback_funding_trades": 0
+    },
+    {
+      "portfolio": "limited",
+      "phase": "locked_test",
+      "month": "2026-09",
+      "trades": 186,
+      "unverified": 0,
+      "mean_net_r": -0.1739499141955192,
+      "total_net_r": -32.35468404036657,
+      "max_drawdown_r": 38.217344859513034,
+      "longest_loss_streak": 8,
+      "target_first_pct": 33.87096774193548,
+      "direction_accuracy_pct": 49.46236559139785,
+      "direction_samples": 186,
+      "mean_net_r_cost_060": -0.3705931828049304,
+      "best_three": [
+        "AKEUSDT",
+        "INTCUSDT",
+        "CLUSDT"
+      ],
+      "mean_net_r_without_best_three": -0.2737525549944856,
+      "trades_without_best_three": 166,
+      "outcomes": {
+        "STOP": 123,
+        "HEDEF": 63
+      },
+      "resolutions": {
+        "1H_SINGLE": 185,
+        "1M_RESOLVED": 1
+      },
+      "fallback_funding_trades": 2
+    },
+    {
+      "portfolio": "limited",
+      "phase": "locked_test",
+      "month": "2026-10",
+      "trades": 72,
+      "unverified": 0,
+      "mean_net_r": -0.04166426924642438,
+      "total_net_r": -2.999827385742555,
+      "max_drawdown_r": 17.44706362420303,
+      "longest_loss_streak": 12,
+      "target_first_pct": 40.27777777777778,
+      "direction_accuracy_pct": 55.55555555555556,
+      "direction_samples": 72,
+      "mean_net_r_cost_060": -0.27977643060484236,
+      "best_three": [
+        "SKHYNIXUSDT",
+        "NVDAUSDT",
+        "SPCXUSDT"
+      ],
+      "mean_net_r_without_best_three": -0.1920680797422342,
+      "trades_without_best_three": 63,
+      "outcomes": {
+        "STOP": 43,
+        "HEDEF": 29
+      },
+      "resolutions": {
+        "1H_SINGLE": 72
+      },
+      "fallback_funding_trades": 72
+    },
+    {
+      "portfolio": "unlimited",
+      "phase": "development",
+      "month": "2023-10",
+      "trades": 149,
+      "unverified": 0,
+      "mean_net_r": -0.27785402629247224,
+      "total_net_r": -41.400249917578364,
+      "max_drawdown_r": 60.64402435560617,
+      "longest_loss_streak": 22,
+      "target_first_pct": 27.516778523489933,
+      "direction_accuracy_pct": 48.993288590604024,
+      "direction_samples": 149,
+      "mean_net_r_cost_060": -0.41066981802074126,
+      "best_three": [
+        "RUNEUSDT",
+        "TRBUSDT",
+        "GALAUSDT"
+      ],
+      "mean_net_r_without_best_three": -0.43459036130230316,
+      "trades_without_best_three": 132,
+      "outcomes": {
+        "HEDEF": 41,
+        "STOP": 106,
+        "TIMEOUT": 2
+      },
+      "resolutions": {
+        "1H_SINGLE": 147,
+        "168H": 2
+      },
+      "fallback_funding_trades": 0
+    },
+    {
+      "portfolio": "unlimited",
+      "phase": "development",
+      "month": "2023-11",
+      "trades": 313,
+      "unverified": 0,
+      "mean_net_r": -0.3643564934603909,
+      "total_net_r": -114.04358245310235,
+      "max_drawdown_r": 120.51624547696503,
+      "longest_loss_streak": 23,
+      "target_first_pct": 25.559105431309906,
+      "direction_accuracy_pct": 33.86581469648562,
+      "direction_samples": 313,
+      "mean_net_r_cost_060": -0.49322380646623587,
+      "best_three": [
+        "RUNEUSDT",
+        "MINAUSDT",
+        "STORJUSDT"
+      ],
+      "mean_net_r_without_best_three": -0.46587055780407766,
+      "trades_without_best_three": 292,
+      "outcomes": {
+        "STOP": 233,
+        "HEDEF": 80
+      },
+      "resolutions": {
+        "1H_SINGLE": 312,
+        "1M_RESOLVED": 1
+      },
+      "fallback_funding_trades": 0
+    },
+    {
+      "portfolio": "unlimited",
+      "phase": "development",
+      "month": "2023-12",
+      "trades": 357,
+      "unverified": 0,
+      "mean_net_r": -0.1278059748139802,
+      "total_net_r": -45.62673300859093,
+      "max_drawdown_r": 58.820576357845724,
+      "longest_loss_streak": 27,
+      "target_first_pct": 33.61344537815126,
+      "direction_accuracy_pct": 49.01960784313726,
+      "direction_samples": 357,
+      "mean_net_r_cost_060": -0.2636588009426824,
+      "best_three": [
+        "TRBUSDT",
+        "SOLUSDT",
+        "DOTUSDT"
+      ],
+      "mean_net_r_without_best_three": -0.2156722592780421,
+      "trades_without_best_three": 326,
+      "outcomes": {
+        "STOP": 236,
+        "HEDEF": 120,
+        "TIMEOUT": 1
+      },
+      "resolutions": {
+        "1H_SINGLE": 356,
+        "168H": 1
+      },
+      "fallback_funding_trades": 0
+    },
+    {
+      "portfolio": "unlimited",
+      "phase": "development",
+      "month": "2024-01",
+      "trades": 299,
+      "unverified": 0,
+      "mean_net_r": -0.07276992220529771,
+      "total_net_r": -21.758206739384015,
+      "max_drawdown_r": 78.15810296239081,
+      "longest_loss_streak": 34,
+      "target_first_pct": 35.11705685618729,
+      "direction_accuracy_pct": 49.163879598662206,
+      "direction_samples": 299,
+      "mean_net_r_cost_060": -0.20638546040464958,
+      "best_three": [
+        "1000PEPEUSDT",
+        "ETHUSDT",
+        "ETCUSDT"
+      ],
+      "mean_net_r_without_best_three": -0.12890306006909708,
+      "trades_without_best_three": 280,
+      "outcomes": {
+        "STOP": 193,
+        "HEDEF": 105,
+        "TIMEOUT": 1
+      },
+      "resolutions": {
+        "1H_SINGLE": 298,
+        "168H": 1
+      },
+      "fallback_funding_trades": 0
+    },
+    {
+      "portfolio": "unlimited",
+      "phase": "development",
+      "month": "2024-02",
+      "trades": 348,
+      "unverified": 0,
+      "mean_net_r": -0.24858474161363314,
+      "total_net_r": -86.50749008154433,
+      "max_drawdown_r": 88.9251156159071,
+      "longest_loss_streak": 16,
+      "target_first_pct": 30.74712643678161,
+      "direction_accuracy_pct": 51.4367816091954,
+      "direction_samples": 348,
+      "mean_net_r_cost_060": -0.41334815653633633,
+      "best_three": [
+        "STXUSDT",
+        "BNBUSDT",
+        "API3USDT"
+      ],
+      "mean_net_r_without_best_three": -0.3425115458481491,
+      "trades_without_best_three": 322,
+      "outcomes": {
+        "STOP": 241,
+        "HEDEF": 107
+      },
+      "resolutions": {
+        "1H_SINGLE": 348
+      },
+      "fallback_funding_trades": 0
+    },
+    {
+      "portfolio": "unlimited",
+      "phase": "development",
+      "month": "2024-03",
+      "trades": 305,
+      "unverified": 0,
+      "mean_net_r": -0.20800005149847536,
+      "total_net_r": -63.44001570703499,
+      "max_drawdown_r": 74.40255234144901,
+      "longest_loss_streak": 20,
+      "target_first_pct": 30.16393442622951,
+      "direction_accuracy_pct": 47.540983606557376,
+      "direction_samples": 305,
+      "mean_net_r_cost_060": -0.30912125286940273,
+      "best_three": [
+        "NEARUSDT",
+        "FETUSDT",
+        "1000SHIBUSDT"
+      ],
+      "mean_net_r_without_best_three": -0.26474070645612624,
+      "trades_without_best_three": 282,
+      "outcomes": {
+        "HEDEF": 92,
+        "STOP": 213
+      },
+      "resolutions": {
+        "1H_SINGLE": 304,
+        "1M_RESOLVED": 1
+      },
+      "fallback_funding_trades": 0
+    },
+    {
+      "portfolio": "unlimited",
+      "phase": "development",
+      "month": "2024-04",
+      "trades": 371,
+      "unverified": 0,
+      "mean_net_r": 0.09763907052347505,
+      "total_net_r": 36.224095164209245,
+      "max_drawdown_r": 106.92185560694287,
+      "longest_loss_streak": 42,
+      "target_first_pct": 40.16172506738545,
+      "direction_accuracy_pct": 51.482479784366575,
+      "direction_samples": 371,
+      "mean_net_r_cost_060": -0.012154723684900228,
+      "best_three": [
+        "TIAUSDT",
+        "1000BONKUSDT",
+        "ORDIUSDT"
+      ],
+      "mean_net_r_without_best_three": 0.05100051682991184,
+      "trades_without_best_three": 344,
+      "outcomes": {
+        "STOP": 221,
+        "HEDEF": 149,
+        "TIMEOUT": 1
+      },
+      "resolutions": {
+        "1H_SINGLE": 370,
+        "168H": 1
+      },
+      "fallback_funding_trades": 0
+    },
+    {
+      "portfolio": "unlimited",
+      "phase": "development",
+      "month": "2024-05",
+      "trades": 307,
+      "unverified": 0,
+      "mean_net_r": -0.4811115693536085,
+      "total_net_r": -147.7012517915578,
+      "max_drawdown_r": 147.70125179155787,
+      "longest_loss_streak": 33,
+      "target_first_pct": 22.149837133550488,
+      "direction_accuracy_pct": 35.504885993485345,
+      "direction_samples": 307,
+      "mean_net_r_cost_060": -0.6258037889398854,
+      "best_three": [
+        "TIAUSDT",
+        "PENDLEUSDT",
+        "ONTUSDT"
+      ],
+      "mean_net_r_without_best_three": -0.5446551762805597,
+      "trades_without_best_three": 284,
+      "outcomes": {
+        "HEDEF": 68,
+        "STOP": 239
+      },
+      "resolutions": {
+        "1H_SINGLE": 306,
+        "1M_RESOLVED": 1
+      },
+      "fallback_funding_trades": 0
+    },
+    {
+      "portfolio": "unlimited",
+      "phase": "development",
+      "month": "2024-06",
+      "trades": 260,
+      "unverified": 0,
+      "mean_net_r": -0.12238210448920542,
+      "total_net_r": -31.81934716719341,
+      "max_drawdown_r": 38.40142007668133,
+      "longest_loss_streak": 21,
+      "target_first_pct": 34.23076923076923,
+      "direction_accuracy_pct": 37.69230769230769,
+      "direction_samples": 260,
+      "mean_net_r_cost_060": -0.27245332601243827,
+      "best_three": [
+        "BNBUSDT",
+        "PEOPLEUSDT",
+        "GALAUSDT"
+      ],
+      "mean_net_r_without_best_three": -0.20080613223376223,
+      "trades_without_best_three": 247,
+      "outcomes": {
+        "STOP": 171,
+        "HEDEF": 89
+      },
+      "resolutions": {
+        "1H_SINGLE": 260
+      },
+      "fallback_funding_trades": 0
+    },
+    {
+      "portfolio": "unlimited",
+      "phase": "development",
+      "month": "2024-07",
+      "trades": 407,
+      "unverified": 0,
+      "mean_net_r": 0.18978964437039827,
+      "total_net_r": 77.2443852587521,
+      "max_drawdown_r": 91.3876921872461,
+      "longest_loss_streak": 28,
+      "target_first_pct": 43.98034398034398,
+      "direction_accuracy_pct": 65.84766584766585,
+      "direction_samples": 407,
+      "mean_net_r_cost_060": 0.056857042383165406,
+      "best_three": [
+        "ETHUSDT",
+        "1000PEPEUSDT",
+        "XRPUSDT"
+      ],
+      "mean_net_r_without_best_three": 0.12771708574138416,
+      "trades_without_best_three": 385,
+      "outcomes": {
+        "HEDEF": 179,
+        "STOP": 227,
+        "TIMEOUT": 1
+      },
+      "resolutions": {
+        "1H_SINGLE": 406,
+        "168H": 1
+      },
+      "fallback_funding_trades": 0
+    },
+    {
+      "portfolio": "unlimited",
+      "phase": "development",
+      "month": "2024-08",
+      "trades": 477,
+      "unverified": 0,
+      "mean_net_r": 0.1185937508660905,
+      "total_net_r": 56.569219163125176,
+      "max_drawdown_r": 81.19440923561027,
+      "longest_loss_streak": 31,
+      "target_first_pct": 41.299790356394126,
+      "direction_accuracy_pct": 62.683438155136265,
+      "direction_samples": 477,
+      "mean_net_r_cost_060": -0.0002701213763067923,
+      "best_three": [
+        "TIAUSDT",
+        "FILUSDT",
+        "WIFUSDT"
+      ],
+      "mean_net_r_without_best_three": 0.07313747093611334,
+      "trades_without_best_three": 447,
+      "outcomes": {
+        "STOP": 280,
+        "HEDEF": 197
+      },
+      "resolutions": {
+        "1H_SINGLE": 477
+      },
+      "fallback_funding_trades": 0
+    },
+    {
+      "portfolio": "unlimited",
+      "phase": "development",
+      "month": "2024-09",
+      "trades": 390,
+      "unverified": 0,
+      "mean_net_r": -0.26033135369847665,
+      "total_net_r": -101.5292279424059,
+      "max_drawdown_r": 117.31797554712155,
+      "longest_loss_streak": 20,
+      "target_first_pct": 29.743589743589745,
+      "direction_accuracy_pct": 44.61538461538461,
+      "direction_samples": 390,
+      "mean_net_r_cost_060": -0.4158598883576228,
+      "best_three": [
+        "FTMUSDT",
+        "1000PEPEUSDT",
+        "BNBUSDT"
+      ],
+      "mean_net_r_without_best_three": -0.3237985639384012,
+      "trades_without_best_three": 359,
+      "outcomes": {
+        "STOP": 273,
+        "HEDEF": 116,
+        "TIMEOUT": 1
+      },
+      "resolutions": {
+        "1H_SINGLE": 389,
+        "168H": 1
+      },
+      "fallback_funding_trades": 0
+    },
+    {
+      "portfolio": "unlimited",
+      "phase": "development",
+      "month": "2024-10",
+      "trades": 360,
+      "unverified": 0,
+      "mean_net_r": -0.213671562489082,
+      "total_net_r": -76.92176249606952,
+      "max_drawdown_r": 112.7386240611479,
+      "longest_loss_streak": 20,
+      "target_first_pct": 30.833333333333332,
+      "direction_accuracy_pct": 50.0,
+      "direction_samples": 360,
+      "mean_net_r_cost_060": -0.366612541755527,
+      "best_three": [
+        "TURBOUSDT",
+        "BIGTIMEUSDT",
+        "DOTUSDT"
+      ],
+      "mean_net_r_without_best_three": -0.27081838835369065,
+      "trades_without_best_three": 338,
+      "outcomes": {
+        "STOP": 247,
+        "HEDEF": 111,
+        "TIMEOUT": 2
+      },
+      "resolutions": {
+        "1H_SINGLE": 358,
+        "168H": 2
+      },
+      "fallback_funding_trades": 0
+    },
+    {
+      "portfolio": "unlimited",
+      "phase": "development",
+      "month": "2024-11",
+      "trades": 413,
+      "unverified": 0,
+      "mean_net_r": -0.22406237265739085,
+      "total_net_r": -92.53775990750242,
+      "max_drawdown_r": 110.05345137720337,
+      "longest_loss_streak": 33,
+      "target_first_pct": 29.53995157384988,
+      "direction_accuracy_pct": 45.76271186440678,
+      "direction_samples": 413,
+      "mean_net_r_cost_060": -0.331389839821904,
+      "best_three": [
+        "ADAUSDT",
+        "XRPUSDT",
+        "DOGEUSDT"
+      ],
+      "mean_net_r_without_best_three": -0.3296412281769767,
+      "trades_without_best_three": 380,
+      "outcomes": {
+        "HEDEF": 122,
+        "STOP": 291
+      },
+      "resolutions": {
+        "1H_SINGLE": 412,
+        "1M_RESOLVED": 1
+      },
+      "fallback_funding_trades": 0
+    },
+    {
+      "portfolio": "unlimited",
+      "phase": "development",
+      "month": "2024-12",
+      "trades": 338,
+      "unverified": 0,
+      "mean_net_r": -0.12627996562698424,
+      "total_net_r": -42.682628381920665,
+      "max_drawdown_r": 87.78208728410279,
+      "longest_loss_streak": 52,
+      "target_first_pct": 32.248520710059175,
+      "direction_accuracy_pct": 49.70414201183432,
+      "direction_samples": 338,
+      "mean_net_r_cost_060": -0.2213721299546594,
+      "best_three": [
+        "FTMUSDT",
+        "FETUSDT",
+        "ENAUSDT"
+      ],
+      "mean_net_r_without_best_three": -0.1905498366031885,
+      "trades_without_best_three": 315,
+      "outcomes": {
+        "HEDEF": 109,
+        "STOP": 228,
+        "TIMEOUT": 1
+      },
+      "resolutions": {
+        "1H_SINGLE": 337,
+        "168H": 1
+      },
+      "fallback_funding_trades": 0
+    },
+    {
+      "portfolio": "unlimited",
+      "phase": "development",
+      "month": "2025-01",
+      "trades": 461,
+      "unverified": 0,
+      "mean_net_r": 0.07165322820460743,
+      "total_net_r": 33.03213820232403,
+      "max_drawdown_r": 58.79946310534801,
+      "longest_loss_streak": 27,
+      "target_first_pct": 39.91323210412148,
+      "direction_accuracy_pct": 50.54229934924078,
+      "direction_samples": 461,
+      "mean_net_r_cost_060": -0.057313162066078054,
+      "best_three": [
+        "CRVUSDT",
+        "WIFUSDT",
+        "TURBOUSDT"
+      ],
+      "mean_net_r_without_best_three": 0.026394148939828773,
+      "trades_without_best_three": 432,
+      "outcomes": {
+        "STOP": 276,
+        "HEDEF": 184,
+        "TIMEOUT": 1
+      },
+      "resolutions": {
+        "1H_SINGLE": 460,
+        "168H": 1
+      },
+      "fallback_funding_trades": 0
+    },
+    {
+      "portfolio": "unlimited",
+      "phase": "development",
+      "month": "2025-02",
+      "trades": 344,
+      "unverified": 0,
+      "mean_net_r": 0.13938749981076196,
+      "total_net_r": 47.949299934902115,
+      "max_drawdown_r": 103.59911686509236,
+      "longest_loss_streak": 31,
+      "target_first_pct": 41.27906976744186,
+      "direction_accuracy_pct": 56.68604651162791,
+      "direction_samples": 344,
+      "mean_net_r_cost_060": 0.03485229753004458,
+      "best_three": [
+        "SOLUSDT",
+        "ALGOUSDT",
+        "SANDUSDT"
+      ],
+      "mean_net_r_without_best_three": 0.09052373359374742,
+      "trades_without_best_three": 318,
+      "outcomes": {
+        "HEDEF": 142,
+        "STOP": 201,
+        "TIMEOUT": 1
+      },
+      "resolutions": {
+        "1H_SINGLE": 343,
+        "168H": 1
+      },
+      "fallback_funding_trades": 0
+    },
+    {
+      "portfolio": "unlimited",
+      "phase": "development",
+      "month": "2025-03",
+      "trades": 366,
+      "unverified": 0,
+      "mean_net_r": -0.1328098334475194,
+      "total_net_r": -48.608399041792104,
+      "max_drawdown_r": 74.44321637351412,
+      "longest_loss_streak": 43,
+      "target_first_pct": 32.78688524590164,
+      "direction_accuracy_pct": 50.54644808743169,
+      "direction_samples": 366,
+      "mean_net_r_cost_060": -0.25098174484906316,
+      "best_three": [
+        "WIFUSDT",
+        "VIRTUALUSDT",
+        "LTCUSDT"
+      ],
+      "mean_net_r_without_best_three": -0.19506471526926886,
+      "trades_without_best_three": 338,
+      "outcomes": {
+        "HEDEF": 120,
+        "STOP": 245,
+        "TIMEOUT": 1
+      },
+      "resolutions": {
+        "1H_SINGLE": 364,
+        "168H": 1,
+        "1M_RESOLVED": 1
+      },
+      "fallback_funding_trades": 0
+    },
+    {
+      "portfolio": "unlimited",
+      "phase": "development",
+      "month": "2025-04",
+      "trades": 400,
+      "unverified": 0,
+      "mean_net_r": -0.06423711823028777,
+      "total_net_r": -25.69484729211511,
+      "max_drawdown_r": 88.33357931703662,
+      "longest_loss_streak": 38,
+      "target_first_pct": 35.5,
+      "direction_accuracy_pct": 49.5,
+      "direction_samples": 400,
+      "mean_net_r_cost_060": -0.19141089036732534,
+      "best_three": [
+        "TIAUSDT",
+        "SUIUSDT",
+        "SOLUSDT"
+      ],
+      "mean_net_r_without_best_three": -0.12740926186273327,
+      "trades_without_best_three": 374,
+      "outcomes": {
+        "STOP": 258,
+        "HEDEF": 142
+      },
+      "resolutions": {
+        "1H_SINGLE": 400
+      },
+      "fallback_funding_trades": 0
+    },
+    {
+      "portfolio": "unlimited",
+      "phase": "development",
+      "month": "2025-05",
+      "trades": 380,
+      "unverified": 0,
+      "mean_net_r": -0.21462901683593413,
+      "total_net_r": -81.55902639765497,
+      "max_drawdown_r": 123.77497617053899,
+      "longest_loss_streak": 35,
+      "target_first_pct": 30.789473684210527,
+      "direction_accuracy_pct": 50.78947368421053,
+      "direction_samples": 380,
+      "mean_net_r_cost_060": -0.3445935800925042,
+      "best_three": [
+        "NEARUSDT",
+        "WLDUSDT",
+        "PNUTUSDT"
+      ],
+      "mean_net_r_without_best_three": -0.2846465635176607,
+      "trades_without_best_three": 350,
+      "outcomes": {
+        "HEDEF": 117,
+        "STOP": 263
+      },
+      "resolutions": {
+        "1H_SINGLE": 379,
+        "1M_RESOLVED": 1
+      },
+      "fallback_funding_trades": 0
+    },
+    {
+      "portfolio": "unlimited",
+      "phase": "development",
+      "month": "2025-06",
+      "trades": 333,
+      "unverified": 0,
+      "mean_net_r": -0.2940025217978511,
+      "total_net_r": -97.90283975868441,
+      "max_drawdown_r": 104.81313506705754,
+      "longest_loss_streak": 46,
+      "target_first_pct": 28.52852852852853,
+      "direction_accuracy_pct": 48.648648648648646,
+      "direction_samples": 333,
+      "mean_net_r_cost_060": -0.43994640570551574,
+      "best_three": [
+        "KAITOUSDT",
+        "UNIUSDT",
+        "PENGUUSDT"
+      ],
+      "mean_net_r_without_best_three": -0.3606133668359519,
+      "trades_without_best_three": 314,
+      "outcomes": {
+        "STOP": 238,
+        "HEDEF": 95
+      },
+      "resolutions": {
+        "1H_SINGLE": 333
+      },
+      "fallback_funding_trades": 0
+    },
+    {
+      "portfolio": "unlimited",
+      "phase": "development",
+      "month": "2025-07",
+      "trades": 409,
+      "unverified": 0,
+      "mean_net_r": -0.0553269489343137,
+      "total_net_r": -22.628722114134302,
+      "max_drawdown_r": 114.10707669891613,
+      "longest_loss_streak": 21,
+      "target_first_pct": 36.43031784841076,
+      "direction_accuracy_pct": 53.30073349633252,
+      "direction_samples": 409,
+      "mean_net_r_cost_060": -0.20006555016429228,
+      "best_three": [
+        "SOLUSDT",
+        "TAOUSDT",
+        "ENAUSDT"
+      ],
+      "mean_net_r_without_best_three": -0.11835995179147313,
+      "trades_without_best_three": 387,
+      "outcomes": {
+        "STOP": 260,
+        "HEDEF": 149
+      },
+      "resolutions": {
+        "1H_SINGLE": 409
+      },
+      "fallback_funding_trades": 0
+    },
+    {
+      "portfolio": "unlimited",
+      "phase": "development",
+      "month": "2025-08",
+      "trades": 329,
+      "unverified": 0,
+      "mean_net_r": -0.5796777384273707,
+      "total_net_r": -190.71397594260497,
+      "max_drawdown_r": 196.22026338398314,
+      "longest_loss_streak": 38,
+      "target_first_pct": 19.45288753799392,
+      "direction_accuracy_pct": 42.5531914893617,
+      "direction_samples": 329,
+      "mean_net_r_cost_060": -0.7387112840399788,
+      "best_three": [
+        "VINEUSDT",
+        "ENAUSDT",
+        "HYPERUSDT"
+      ],
+      "mean_net_r_without_best_three": -0.640751046563417,
+      "trades_without_best_three": 314,
+      "outcomes": {
+        "HEDEF": 64,
+        "STOP": 265
+      },
+      "resolutions": {
+        "1H_SINGLE": 327,
+        "1M_RESOLVED": 2
+      },
+      "fallback_funding_trades": 0
+    },
+    {
+      "portfolio": "unlimited",
+      "phase": "development",
+      "month": "2025-09",
+      "trades": 343,
+      "unverified": 0,
+      "mean_net_r": -0.07419831231264845,
+      "total_net_r": -25.450021123238418,
+      "max_drawdown_r": 73.04568542498738,
+      "longest_loss_streak": 22,
+      "target_first_pct": 36.734693877551024,
+      "direction_accuracy_pct": 56.559766763848394,
+      "direction_samples": 343,
+      "mean_net_r_cost_060": -0.2557318296772166,
+      "best_three": [
+        "MYXUSDT",
+        "DOGEUSDT",
+        "CFXUSDT"
+      ],
+      "mean_net_r_without_best_three": -0.16055825048522698,
+      "trades_without_best_three": 318,
+      "outcomes": {
+        "HEDEF": 126,
+        "STOP": 214,
+        "TIMEOUT": 3
+      },
+      "resolutions": {
+        "1H_SINGLE": 340,
+        "168H": 3
+      },
+      "fallback_funding_trades": 0
+    },
+    {
+      "portfolio": "unlimited",
+      "phase": "development",
+      "month": "2025-10",
+      "trades": 332,
+      "unverified": 0,
+      "mean_net_r": -0.23894298871646963,
+      "total_net_r": -79.32907225386792,
+      "max_drawdown_r": 93.62455717415914,
+      "longest_loss_streak": 23,
+      "target_first_pct": 30.120481927710845,
+      "direction_accuracy_pct": 49.096385542168676,
+      "direction_samples": 332,
+      "mean_net_r_cost_060": -0.391722501467838,
+      "best_three": [
+        "ENAUSDT",
+        "SOLUSDT",
+        "BIOUSDT"
+      ],
+      "mean_net_r_without_best_three": -0.30833105552521184,
+      "trades_without_best_three": 309,
+      "outcomes": {
+        "HEDEF": 100,
+        "STOP": 228,
+        "TIMEOUT": 4
+      },
+      "resolutions": {
+        "1H_SINGLE": 328,
+        "168H": 4
+      },
+      "fallback_funding_trades": 0
+    },
+    {
+      "portfolio": "unlimited",
+      "phase": "development",
+      "month": "2025-11",
+      "trades": 260,
+      "unverified": 0,
+      "mean_net_r": -0.197064546065832,
+      "total_net_r": -51.23678197711632,
+      "max_drawdown_r": 87.24279695658328,
+      "longest_loss_streak": 22,
+      "target_first_pct": 31.153846153846153,
+      "direction_accuracy_pct": 52.69230769230769,
+      "direction_samples": 260,
+      "mean_net_r_cost_060": -0.3270293339055997,
+      "best_three": [
+        "DOGEUSDT",
+        "NEARUSDT",
+        "BNBUSDT"
+      ],
+      "mean_net_r_without_best_three": -0.2684239446332866,
+      "trades_without_best_three": 243,
+      "outcomes": {
+        "STOP": 179,
+        "HEDEF": 81
+      },
+      "resolutions": {
+        "1M_RESOLVED": 1,
+        "1H_SINGLE": 259
+      },
+      "fallback_funding_trades": 0
+    },
+    {
+      "portfolio": "unlimited",
+      "phase": "locked_test",
+      "month": "2025-11",
+      "trades": 17,
+      "unverified": 0,
+      "mean_net_r": -0.39142909896561656,
+      "total_net_r": -6.654294682415481,
+      "max_drawdown_r": 9.279755668777314,
+      "longest_loss_streak": 7,
+      "target_first_pct": 29.41176470588235,
+      "direction_accuracy_pct": 47.05882352941177,
+      "direction_samples": 17,
+      "mean_net_r_cost_060": -0.6508429441683868,
+      "best_three": [
+        "APTUSDT",
+        "ZENUSDT",
+        "ZORAUSDT"
+      ],
+      "mean_net_r_without_best_three": -1.0765379307030785,
+      "trades_without_best_three": 13,
+      "outcomes": {
+        "STOP": 12,
+        "HEDEF": 5
+      },
+      "resolutions": {
+        "1H_SINGLE": 17
+      },
+      "fallback_funding_trades": 0
+    },
+    {
+      "portfolio": "unlimited",
+      "phase": "locked_test",
+      "month": "2025-12",
+      "trades": 335,
+      "unverified": 0,
+      "mean_net_r": -0.2650533286367926,
+      "total_net_r": -88.79286509332552,
+      "max_drawdown_r": 113.63420363298616,
+      "longest_loss_streak": 30,
+      "target_first_pct": 30.149253731343283,
+      "direction_accuracy_pct": 41.791044776119406,
+      "direction_samples": 335,
+      "mean_net_r_cost_060": -0.42451487670551996,
+      "best_three": [
+        "JELLYJELLYUSDT",
+        "XPLUSDT",
+        "MERLUSDT"
+      ],
+      "mean_net_r_without_best_three": -0.3385855100554264,
+      "trades_without_best_three": 308,
+      "outcomes": {
+        "HEDEF": 101,
+        "STOP": 234
+      },
+      "resolutions": {
+        "1H_SINGLE": 335
+      },
+      "fallback_funding_trades": 0
+    },
+    {
+      "portfolio": "unlimited",
+      "phase": "locked_test",
+      "month": "2026-01",
+      "trades": 405,
+      "unverified": 0,
+      "mean_net_r": 0.1607157120382562,
+      "total_net_r": 65.08986337549376,
+      "max_drawdown_r": 70.94148636939642,
+      "longest_loss_streak": 23,
+      "target_first_pct": 43.95061728395062,
+      "direction_accuracy_pct": 60.98765432098765,
+      "direction_samples": 405,
+      "mean_net_r_cost_060": -0.002082710825284755,
+      "best_three": [
+        "PENGUUSDT",
+        "1000PEPEUSDT",
+        "ADAUSDT"
+      ],
+      "mean_net_r_without_best_three": 0.10261954438769091,
+      "trades_without_best_three": 373,
+      "outcomes": {
+        "STOP": 226,
+        "HEDEF": 178,
+        "TIMEOUT": 1
+      },
+      "resolutions": {
+        "1H_SINGLE": 404,
+        "168H": 1
+      },
+      "fallback_funding_trades": 0
+    },
+    {
+      "portfolio": "unlimited",
+      "phase": "locked_test",
+      "month": "2026-02",
+      "trades": 333,
+      "unverified": 0,
+      "mean_net_r": -0.027045738961329228,
+      "total_net_r": -9.006231074122633,
+      "max_drawdown_r": 89.34698227357164,
+      "longest_loss_streak": 20,
+      "target_first_pct": 36.93693693693694,
+      "direction_accuracy_pct": 47.747747747747745,
+      "direction_samples": 333,
+      "mean_net_r_cost_060": -0.15914161653326753,
+      "best_three": [
+        "1000PEPEUSDT",
+        "BERAUSDT",
+        "FARTCOINUSDT"
+      ],
+      "mean_net_r_without_best_three": -0.08828074920581347,
+      "trades_without_best_three": 303,
+      "outcomes": {
+        "STOP": 207,
+        "HEDEF": 123,
+        "TIMEOUT": 3
+      },
+      "resolutions": {
+        "1H_SINGLE": 329,
+        "168H": 3,
+        "1M_RESOLVED": 1
+      },
+      "fallback_funding_trades": 0
+    },
+    {
+      "portfolio": "unlimited",
+      "phase": "locked_test",
+      "month": "2026-03",
+      "trades": 331,
+      "unverified": 0,
+      "mean_net_r": -0.25171349674545146,
+      "total_net_r": -83.31716742274445,
+      "max_drawdown_r": 87.79471534275321,
+      "longest_loss_streak": 26,
+      "target_first_pct": 31.72205438066465,
+      "direction_accuracy_pct": 44.10876132930514,
+      "direction_samples": 331,
+      "mean_net_r_cost_060": -0.4327616747999417,
+      "best_three": [
+        "SIRENUSDT",
+        "PAXGUSDT",
+        "DOTUSDT"
+      ],
+      "mean_net_r_without_best_three": -0.31431079507363735,
+      "trades_without_best_three": 315,
+      "outcomes": {
+        "STOP": 225,
+        "HEDEF": 105,
+        "TIMEOUT": 1
+      },
+      "resolutions": {
+        "1H_SINGLE": 329,
+        "168H": 1,
+        "1M_RESOLVED": 1
+      },
+      "fallback_funding_trades": 0
+    },
+    {
+      "portfolio": "unlimited",
+      "phase": "locked_test",
+      "month": "2026-04",
+      "trades": 256,
+      "unverified": 0,
+      "mean_net_r": -0.5176854843913814,
+      "total_net_r": -132.52748400419364,
+      "max_drawdown_r": 132.5274840041936,
+      "longest_loss_streak": 19,
+      "target_first_pct": 22.65625,
+      "direction_accuracy_pct": 39.453125,
+      "direction_samples": 256,
+      "mean_net_r_cost_060": -0.7123572958728066,
+      "best_three": [
+        "SAHARAUSDT",
+        "ONTUSDT",
+        "FARTCOINUSDT"
+      ],
+      "mean_net_r_without_best_three": -0.59519802747874,
+      "trades_without_best_three": 243,
+      "outcomes": {
+        "STOP": 197,
+        "HEDEF": 58,
+        "TIMEOUT": 1
+      },
+      "resolutions": {
+        "1H_SINGLE": 254,
+        "1M_RESOLVED": 1,
+        "168H": 1
+      },
+      "fallback_funding_trades": 0
+    },
+    {
+      "portfolio": "unlimited",
+      "phase": "locked_test",
+      "month": "2026-05",
+      "trades": 348,
+      "unverified": 0,
+      "mean_net_r": -0.2036740239622706,
+      "total_net_r": -70.87856033887017,
+      "max_drawdown_r": 79.84478476279197,
+      "longest_loss_streak": 21,
+      "target_first_pct": 32.47126436781609,
+      "direction_accuracy_pct": 46.839080459770116,
+      "direction_samples": 348,
+      "mean_net_r_cost_060": -0.3764904890496609,
+      "best_three": [
+        "PENGUUSDT",
+        "WLDUSDT",
+        "FARTCOINUSDT"
+      ],
+      "mean_net_r_without_best_three": -0.28375673549613195,
+      "trades_without_best_three": 317,
+      "outcomes": {
+        "STOP": 235,
+        "HEDEF": 113
+      },
+      "resolutions": {
+        "1H_SINGLE": 347,
+        "1M_RESOLVED": 1
+      },
+      "fallback_funding_trades": 0
+    },
+    {
+      "portfolio": "unlimited",
+      "phase": "locked_test",
+      "month": "2026-06",
+      "trades": 387,
+      "unverified": 0,
+      "mean_net_r": 0.007990230345209756,
+      "total_net_r": 3.0922191435961754,
+      "max_drawdown_r": 41.45233792951732,
+      "longest_loss_streak": 22,
+      "target_first_pct": 38.24289405684755,
+      "direction_accuracy_pct": 54.263565891472865,
+      "direction_samples": 387,
+      "mean_net_r_cost_060": -0.1365351842586079,
+      "best_three": [
+        "NEARUSDT",
+        "BEATUSDT",
+        "ETHUSDT"
+      ],
+      "mean_net_r_without_best_three": -0.04134618348885012,
+      "trades_without_best_three": 351,
+      "outcomes": {
+        "STOP": 236,
+        "HEDEF": 148,
+        "TIMEOUT": 3
+      },
+      "resolutions": {
+        "1H_SINGLE": 384,
+        "168H": 3
+      },
+      "fallback_funding_trades": 0
+    },
+    {
+      "portfolio": "unlimited",
+      "phase": "locked_test",
+      "month": "2026-07",
+      "trades": 315,
+      "unverified": 0,
+      "mean_net_r": -0.2561793872263322,
+      "total_net_r": -80.69650697629464,
+      "max_drawdown_r": 86.96576287589248,
+      "longest_loss_streak": 22,
+      "target_first_pct": 30.476190476190474,
+      "direction_accuracy_pct": 48.25396825396825,
+      "direction_samples": 315,
+      "mean_net_r_cost_060": -0.4285561707381653,
+      "best_three": [
+        "SNDKUSDT",
+        "SYNUSDT",
+        "BSBUSDT"
+      ],
+      "mean_net_r_without_best_three": -0.3179361786502313,
+      "trades_without_best_three": 297,
+      "outcomes": {
+        "HEDEF": 96,
+        "STOP": 217,
+        "TIMEOUT": 2
+      },
+      "resolutions": {
+        "1H_SINGLE": 313,
+        "168H": 2
+      },
+      "fallback_funding_trades": 0
+    },
+    {
+      "portfolio": "unlimited",
+      "phase": "locked_test",
+      "month": "2026-08",
+      "trades": 297,
+      "unverified": 0,
+      "mean_net_r": -0.01683061175017649,
+      "total_net_r": -4.998691689802417,
+      "max_drawdown_r": 35.975815931129034,
+      "longest_loss_streak": 10,
+      "target_first_pct": 39.73063973063973,
+      "direction_accuracy_pct": 54.20875420875421,
+      "direction_samples": 297,
+      "mean_net_r_cost_060": -0.22272364293615707,
+      "best_three": [
+        "XRPUSDT",
+        "UNIUSDT",
+        "ENAUSDT"
+      ],
+      "mean_net_r_without_best_three": -0.09678524310162745,
+      "trades_without_best_three": 268,
+      "outcomes": {
+        "STOP": 177,
+        "HEDEF": 118,
+        "TIMEOUT": 2
+      },
+      "resolutions": {
+        "1H_SINGLE": 293,
+        "1M_RESOLVED": 2,
+        "168H": 2
+      },
+      "fallback_funding_trades": 0
+    },
+    {
+      "portfolio": "unlimited",
+      "phase": "locked_test",
+      "month": "2026-09",
+      "trades": 357,
+      "unverified": 0,
+      "mean_net_r": -0.17286308409984633,
+      "total_net_r": -61.71212102364514,
+      "max_drawdown_r": 66.3798461227447,
+      "longest_loss_streak": 10,
+      "target_first_pct": 34.173669467787114,
+      "direction_accuracy_pct": 51.260504201680675,
+      "direction_samples": 357,
+      "mean_net_r_cost_060": -0.38448068907176514,
+      "best_three": [
+        "ENAUSDT",
+        "MUUSDT",
+        "AKEUSDT"
+      ],
+      "mean_net_r_without_best_three": -0.25449402185902403,
+      "trades_without_best_three": 327,
+      "outcomes": {
+        "STOP": 233,
+        "HEDEF": 122,
+        "TIMEOUT": 2
+      },
+      "resolutions": {
+        "1H_SINGLE": 354,
+        "168H": 2,
+        "1M_RESOLVED": 1
+      },
+      "fallback_funding_trades": 2
+    },
+    {
+      "portfolio": "unlimited",
+      "phase": "locked_test",
+      "month": "2026-10",
+      "trades": 180,
+      "unverified": 0,
+      "mean_net_r": -0.16844101638926856,
+      "total_net_r": -30.31938295006834,
+      "max_drawdown_r": 45.917953835748186,
+      "longest_loss_streak": 37,
+      "target_first_pct": 34.44444444444444,
+      "direction_accuracy_pct": 42.77777777777778,
+      "direction_samples": 180,
+      "mean_net_r_cost_060": -0.36136353654656106,
+      "best_three": [
+        "SKHYUSDT",
+        "SKHYNIXUSDT",
+        "SNXXUSDT"
+      ],
+      "mean_net_r_without_best_three": -0.2512184083145551,
+      "trades_without_best_three": 160,
+      "outcomes": {
+        "STOP": 118,
+        "HEDEF": 62
+      },
+      "resolutions": {
+        "1H_SINGLE": 179,
+        "1M_RESOLVED": 1
+      },
+      "fallback_funding_trades": 180
+    }
+  ]
+}

@@ -1,0 +1,214 @@
+{
+  "checked_at": "2026-10-23",
+  "environment": {
+    "environment": {
+      "id": "5fc78d8b-4f54-4b50-867d-c544cbd74aaa",
+      "name": "production"
+    },
+    "services": [
+      {
+        "serviceId": "03cdcaaf-03d2-4206-a5b2-34449b0c5268",
+        "serviceName": "temporary-futures-history-readonly-20261013",
+        "state": "online",
+        "statusText": "Online",
+        "activeDeployments": [
+          {
+            "id": "e21c681b-2628-4be4-82bf-08ad012ed91a",
+            "status": "SUCCESS",
+            "createdAt": "2026-10-23T16:21:46.033Z",
+            "statusUpdatedAt": "2026-10-23T16:21:52.027Z"
+          }
+        ],
+        "replicaStatus": {
+          "running": 1,
+          "crashed": 0,
+          "total": 1
+        },
+        "cronJob": null,
+        "issues": {
+          "warningCount": 0,
+          "criticalCount": 0
+        },
+        "recentFailures": 0,
+        "recentFailedDeployments": [],
+        "hasIssues": false,
+        "isCronJob": false,
+        "hasVolume": false
+      },
+      {
+        "serviceId": "caad3157-e67b-4d20-80d9-67aa5fe8778c",
+        "serviceName": "long-short-motor",
+        "state": "online",
+        "statusText": "Online",
+        "activeDeployments": [
+          {
+            "id": "059bd424-5f95-4638-9dde-f7ca2d384d13",
+            "status": "SUCCESS",
+            "createdAt": "2026-10-23T16:20:44.816Z",
+            "statusUpdatedAt": "2026-10-23T16:22:28.078Z"
+          }
+        ],
+        "replicaStatus": {
+          "running": 1,
+          "crashed": 0,
+          "total": 1
+        },
+        "cronJob": null,
+        "issues": {
+          "warningCount": 0,
+          "criticalCount": 0
+        },
+        "recentFailures": 0,
+        "recentFailedDeployments": [],
+        "hasIssues": false,
+        "isCronJob": false,
+        "hasVolume": true
+      },
+      {
+        "serviceId": "50a9119d-fd85-4c2e-b23c-5c7a5e13ad47",
+        "serviceName": "binance-451-readonly-probe",
+        "state": "offline",
+        "statusText": "Offline",
+        "activeDeployments": [],
+        "replicaStatus": null,
+        "cronJob": null,
+        "issues": {
+          "warningCount": 0,
+          "criticalCount": 0
+        },
+        "recentFailures": 0,
+        "recentFailedDeployments": [],
+        "hasIssues": false,
+        "isCronJob": false,
+        "hasVolume": false
+      },
+      {
+        "serviceId": "6a6d2e5b-918b-4440-bfab-3032a38e26a2",
+        "serviceName": "binance-451-temporary-probe",
+        "state": "offline",
+        "statusText": "Offline",
+        "activeDeployments": [],
+        "replicaStatus": null,
+        "cronJob": null,
+        "issues": {
+          "warningCount": 0,
+          "criticalCount": 0
+        },
+        "recentFailures": 0,
+        "recentFailedDeployments": [],
+        "hasIssues": false,
+        "isCronJob": false,
+        "hasVolume": false
+      },
+      {
+        "serviceId": "2f21f5a4-47e2-44e4-9392-4e09d3252c27",
+        "serviceName": "gate-trader",
+        "state": "offline",
+        "statusText": "Offline",
+        "activeDeployments": [],
+        "replicaStatus": null,
+        "cronJob": null,
+        "issues": {
+          "warningCount": 0,
+          "criticalCount": 0
+        },
+        "recentFailures": 0,
+        "recentFailedDeployments": [],
+        "hasIssues": false,
+        "isCronJob": false,
+        "hasVolume": true
+      }
+    ],
+    "pendingWork": [
+      {
+        "id": "patch:b5be37f3-7222-4214-9d42-21e9395832d7",
+        "kind": "EnvironmentPatch",
+        "status": "staged",
+        "changes": [
+          {
+            "kind": "resource.update",
+            "address": "service.03cdcaaf-03d2-4206-a5b2-34449b0c5268",
+            "serviceId": "03cdcaaf-03d2-4206-a5b2-34449b0c5268"
+          },
+          {
+            "kind": "resource.update",
+            "address": "service.caad3157-e67b-4d20-80d9-67aa5fe8778c",
+            "serviceId": "caad3157-e67b-4d20-80d9-67aa5fe8778c"
+          }
+        ],
+        "startedAt": "2026-10-23T16:27:01.939Z",
+        "workflowId": "commitChanges/5fc78d8b-4f54-4b50-867d-c544cbd74aaa/b5be37f3-7222-4214-9d42-21e9395832d7"
+      }
+    ],
+    "summary": {
+      "totalServices": 5,
+      "servicesWithIssues": 0,
+      "totalFailures": 0
+    }
+  },
+  "staged": {
+    "project": {
+      "id": "ba2b84a7-22c6-4703-aefc-c6f95393c1b6",
+      "name": "long-short-analyst"
+    },
+    "environment": {
+      "id": "5fc78d8b-4f54-4b50-867d-c544cbd74aaa",
+      "name": "production"
+    },
+    "staged": {
+      "patchId": "b5be37f3-7222-4214-9d42-21e9395832d7",
+      "status": "STAGED",
+      "changeCount": 3,
+      "message": null,
+      "createdAt": "2026-10-23T16:27:01.939Z",
+      "updatedAt": "2026-10-23T16:27:08.357Z"
+    },
+    "destructive": false,
+    "resources": [
+      {
+        "kind": "service",
+        "id": "03cdcaaf-03d2-4206-a5b2-34449b0c5268",
+        "name": "temporary-futures-history-readonly-20261013",
+        "action": "update",
+        "changes": [
+          {
+            "path": "services.03cdcaaf-03d2-4206-a5b2-34449b0c5268.deploy.restartPolicyType",
+            "displayName": "Restart Policy Type",
+            "type": "updated",
+            "from": "NEVER",
+            "to": "NEVER",
+            "destructive": false
+          },
+          {
+            "path": "services.03cdcaaf-03d2-4206-a5b2-34449b0c5268.deploy.startCommand",
+            "displayName": "Source Code",
+            "type": "updated",
+            "from": "",
+            "to": "",
+            "destructive": false
+          }
+        ]
+      },
+      {
+        "kind": "service",
+        "id": "caad3157-e67b-4d20-80d9-67aa5fe8778c",
+        "name": "long-short-motor",
+        "action": "update",
+        "changes": [
+          {
+            "path": "services.caad3157-e67b-4d20-80d9-67aa5fe8778c.deploy.startCommand",
+            "displayName": "Start Command",
+            "type": "updated",
+            "from": "python -c \"print('STOPPED_BY_USER_20261023')\"",
+            "to": "python -c \"print('LEGACY_MOTOR_STOPPED_20261023')\"",
+            "destructive": false
+          }
+        ]
+      }
+    ],
+    "sharedVariables": [],
+    "privateNetworkDisabled": null
+  },
+  "apply_result": "Cancelled — the user did not approve this action. No changes were made.",
+  "legacy_shutdown_complete": false
+}

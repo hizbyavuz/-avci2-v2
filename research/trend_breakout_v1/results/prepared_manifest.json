@@ -1,0 +1,2606 @@
+{
+  "symbols": [
+    {
+      "symbol": "BLZUSDT",
+      "source": "futures",
+      "h": 28272,
+      "q": 7068,
+      "funding_months": 23,
+      "funding_errors": []
+    },
+    {
+      "symbol": "WLDUSDT",
+      "source": "futures",
+      "h": 28272,
+      "q": 7068,
+      "funding_months": 38,
+      "funding_errors": []
+    },
+    {
+      "symbol": "BCHUSDT",
+      "source": "futures",
+      "h": 28272,
+      "q": 7068,
+      "funding_months": 38,
+      "funding_errors": []
+    },
+    {
+      "symbol": "1000PEPEUSDT",
+      "source": "futures",
+      "h": 28272,
+      "q": 7068,
+      "funding_months": 38,
+      "funding_errors": []
+    },
+    {
+      "symbol": "SOLUSDT",
+      "source": "futures",
+      "h": 28272,
+      "q": 7068,
+      "funding_months": 38,
+      "funding_errors": []
+    },
+    {
+      "symbol": "FLMUSDT",
+      "source": "futures",
+      "h": 28272,
+      "q": 7068,
+      "funding_months": 28,
+      "funding_errors": []
+    },
+    {
+      "symbol": "LINKUSDT",
+      "source": "futures",
+      "h": 28272,
+      "q": 7068,
+      "funding_months": 38,
+      "funding_errors": []
+    },
+    {
+      "symbol": "TRBUSDT",
+      "source": "futures",
+      "h": 28272,
+      "q": 7068,
+      "funding_months": 38,
+      "funding_errors": []
+    },
+    {
+      "symbol": "PERPUSDT",
+      "source": "futures",
+      "h": 28272,
+      "q": 7068,
+      "funding_months": 28,
+      "funding_errors": []
+    },
+    {
+      "symbol": "ETHUSDT",
+      "source": "futures",
+      "h": 28272,
+      "q": 7068,
+      "funding_months": 38,
+      "funding_errors": []
+    },
+    {
+      "symbol": "XRPUSDT",
+      "source": "futures",
+      "h": 28272,
+      "q": 7068,
+      "funding_months": 38,
+      "funding_errors": []
+    },
+    {
+      "symbol": "BTCUSDT",
+      "source": "futures",
+      "h": 28272,
+      "q": 7068,
+      "funding_months": 38,
+      "funding_errors": []
+    },
+    {
+      "symbol": "UNFIUSDT",
+      "source": "futures",
+      "h": 28272,
+      "q": 7068,
+      "funding_months": 23,
+      "funding_errors": []
+    },
+    {
+      "symbol": "STORJUSDT",
+      "source": "futures",
+      "h": 28272,
+      "q": 7068,
+      "funding_months": 37,
+      "funding_errors": []
+    },
+    {
+      "symbol": "OPUSDT",
+      "source": "futures",
+      "h": 28272,
+      "q": 7068,
+      "funding_months": 38,
+      "funding_errors": []
+    },
+    {
+      "symbol": "MATICUSDT",
+      "source": "futures",
+      "h": 9754,
+      "q": 2439,
+      "funding_months": 38,
+      "funding_errors": []
+    },
+    {
+      "symbol": "STMXUSDT",
+      "source": "futures",
+      "h": 28272,
+      "q": 7068,
+      "funding_months": 23,
+      "funding_errors": []
+    },
+    {
+      "symbol": "NMRUSDT",
+      "source": "futures",
+      "h": 28272,
+      "q": 7068,
+      "funding_months": 38,
+      "funding_errors": []
+    },
+    {
+      "symbol": "BNBUSDT",
+      "source": "futures",
+      "h": 28272,
+      "q": 7068,
+      "funding_months": 38,
+      "funding_errors": []
+    },
+    {
+      "symbol": "DOGEUSDT",
+      "source": "futures",
+      "h": 28272,
+      "q": 7068,
+      "funding_months": 38,
+      "funding_errors": []
+    },
+    {
+      "symbol": "APEUSDT",
+      "source": "futures",
+      "h": 28272,
+      "q": 7068,
+      "funding_months": 38,
+      "funding_errors": []
+    },
+    {
+      "symbol": "SUIUSDT",
+      "source": "futures",
+      "h": 28272,
+      "q": 7068,
+      "funding_months": 38,
+      "funding_errors": []
+    },
+    {
+      "symbol": "CRVUSDT",
+      "source": "futures",
+      "h": 28272,
+      "q": 7068,
+      "funding_months": 38,
+      "funding_errors": []
+    },
+    {
+      "symbol": "GALAUSDT",
+      "source": "futures",
+      "h": 28272,
+      "q": 7068,
+      "funding_months": 38,
+      "funding_errors": []
+    },
+    {
+      "symbol": "OGNUSDT",
+      "source": "futures",
+      "h": 28272,
+      "q": 7068,
+      "funding_months": 38,
+      "funding_errors": []
+    },
+    {
+      "symbol": "CFXUSDT",
+      "source": "futures",
+      "h": 28272,
+      "q": 7068,
+      "funding_months": 38,
+      "funding_errors": []
+    },
+    {
+      "symbol": "ARBUSDT",
+      "source": "futures",
+      "h": 28272,
+      "q": 7068,
+      "funding_months": 38,
+      "funding_errors": []
+    },
+    {
+      "symbol": "MKRUSDT",
+      "source": "futures",
+      "h": 28272,
+      "q": 7068,
+      "funding_months": 26,
+      "funding_errors": []
+    },
+    {
+      "symbol": "LTCUSDT",
+      "source": "futures",
+      "h": 28272,
+      "q": 7068,
+      "funding_months": 38,
+      "funding_errors": []
+    },
+    {
+      "symbol": "SPELLUSDT",
+      "source": "futures",
+      "h": 28272,
+      "q": 7068,
+      "funding_months": 38,
+      "funding_errors": []
+    },
+    {
+      "symbol": "ADAUSDT",
+      "source": "futures",
+      "h": 28272,
+      "q": 7068,
+      "funding_months": 38,
+      "funding_errors": []
+    },
+    {
+      "symbol": "TOMOUSDT",
+      "source": "futures",
+      "h": 7208,
+      "q": 1802,
+      "funding_months": 13,
+      "funding_errors": []
+    },
+    {
+      "symbol": "AXSUSDT",
+      "source": "futures",
+      "h": 28272,
+      "q": 7068,
+      "funding_months": 38,
+      "funding_errors": []
+    },
+    {
+      "symbol": "KNCUSDT",
+      "source": "futures",
+      "h": 28272,
+      "q": 7068,
+      "funding_months": 38,
+      "funding_errors": []
+    },
+    {
+      "symbol": "IMXUSDT",
+      "source": "futures",
+      "h": 28272,
+      "q": 7068,
+      "funding_months": 38,
+      "funding_errors": []
+    },
+    {
+      "symbol": "ETCUSDT",
+      "source": "futures",
+      "h": 28272,
+      "q": 7068,
+      "funding_months": 38,
+      "funding_errors": []
+    },
+    {
+      "symbol": "AVAXUSDT",
+      "source": "futures",
+      "h": 28272,
+      "q": 7068,
+      "funding_months": 38,
+      "funding_errors": []
+    },
+    {
+      "symbol": "XLMUSDT",
+      "source": "futures",
+      "h": 28272,
+      "q": 7068,
+      "funding_months": 38,
+      "funding_errors": []
+    },
+    {
+      "symbol": "DOTUSDT",
+      "source": "futures",
+      "h": 28272,
+      "q": 7068,
+      "funding_months": 38,
+      "funding_errors": []
+    },
+    {
+      "symbol": "FILUSDT",
+      "source": "futures",
+      "h": 28272,
+      "q": 7068,
+      "funding_months": 38,
+      "funding_errors": []
+    },
+    {
+      "symbol": "LPTUSDT",
+      "source": "futures",
+      "h": 28272,
+      "q": 7068,
+      "funding_months": 38,
+      "funding_errors": []
+    },
+    {
+      "symbol": "APTUSDT",
+      "source": "futures",
+      "h": 28272,
+      "q": 7068,
+      "funding_months": 38,
+      "funding_errors": []
+    },
+    {
+      "symbol": "LUNA2USDT",
+      "source": "futures",
+      "h": 28272,
+      "q": 7068,
+      "funding_months": 38,
+      "funding_errors": []
+    },
+    {
+      "symbol": "1000SHIBUSDT",
+      "source": "futures",
+      "h": 28272,
+      "q": 7068,
+      "funding_months": 38,
+      "funding_errors": []
+    },
+    {
+      "symbol": "LEVERUSDT",
+      "source": "futures",
+      "h": 28272,
+      "q": 7068,
+      "funding_months": 26,
+      "funding_errors": []
+    },
+    {
+      "symbol": "MTLUSDT",
+      "source": "futures",
+      "h": 28272,
+      "q": 7068,
+      "funding_months": 38,
+      "funding_errors": []
+    },
+    {
+      "symbol": "DYDXUSDT",
+      "source": "futures",
+      "h": 28272,
+      "q": 7068,
+      "funding_months": 38,
+      "funding_errors": []
+    },
+    {
+      "symbol": "BNTUSDT",
+      "source": "futures",
+      "h": 27528,
+      "q": 6882,
+      "funding_months": 37,
+      "funding_errors": []
+    },
+    {
+      "symbol": "AGLDUSDT",
+      "source": "futures",
+      "h": 28272,
+      "q": 7068,
+      "funding_months": 38,
+      "funding_errors": []
+    },
+    {
+      "symbol": "BLURUSDT",
+      "source": "futures",
+      "h": 27528,
+      "q": 6882,
+      "funding_months": 37,
+      "funding_errors": []
+    },
+    {
+      "symbol": "COMPUSDT",
+      "source": "futures",
+      "h": 28272,
+      "q": 7068,
+      "funding_months": 38,
+      "funding_errors": []
+    },
+    {
+      "symbol": "INJUSDT",
+      "source": "futures",
+      "h": 27528,
+      "q": 6882,
+      "funding_months": 37,
+      "funding_errors": []
+    },
+    {
+      "symbol": "BAKEUSDT",
+      "source": "futures",
+      "h": 27528,
+      "q": 6882,
+      "funding_months": 26,
+      "funding_errors": []
+    },
+    {
+      "symbol": "AAVEUSDT",
+      "source": "futures",
+      "h": 27528,
+      "q": 6882,
+      "funding_months": 37,
+      "funding_errors": []
+    },
+    {
+      "symbol": "1000FLOKIUSDT",
+      "source": "futures",
+      "h": 27528,
+      "q": 6882,
+      "funding_months": 37,
+      "funding_errors": []
+    },
+    {
+      "symbol": "EOSUSDT",
+      "source": "futures",
+      "h": 15058,
+      "q": 3765,
+      "funding_months": 37,
+      "funding_errors": []
+    },
+    {
+      "symbol": "ATOMUSDT",
+      "source": "futures",
+      "h": 27528,
+      "q": 6882,
+      "funding_months": 37,
+      "funding_errors": []
+    },
+    {
+      "symbol": "1000LUNCUSDT",
+      "source": "futures",
+      "h": 26808,
+      "q": 6702,
+      "funding_months": 36,
+      "funding_errors": []
+    },
+    {
+      "symbol": "RUNEUSDT",
+      "source": "futures",
+      "h": 28272,
+      "q": 7068,
+      "funding_months": 38,
+      "funding_errors": []
+    },
+    {
+      "symbol": "SEIUSDT",
+      "source": "futures",
+      "h": 26808,
+      "q": 6702,
+      "funding_months": 36,
+      "funding_errors": []
+    },
+    {
+      "symbol": "MINAUSDT",
+      "source": "futures",
+      "h": 27528,
+      "q": 6882,
+      "funding_months": 37,
+      "funding_errors": []
+    },
+    {
+      "symbol": "FETUSDT",
+      "source": "futures",
+      "h": 26808,
+      "q": 6702,
+      "funding_months": 36,
+      "funding_errors": []
+    },
+    {
+      "symbol": "NEOUSDT",
+      "source": "futures",
+      "h": 26808,
+      "q": 6702,
+      "funding_months": 36,
+      "funding_errors": []
+    },
+    {
+      "symbol": "YFIUSDT",
+      "source": "futures",
+      "h": 26808,
+      "q": 6702,
+      "funding_months": 36,
+      "funding_errors": []
+    },
+    {
+      "symbol": "GMTUSDT",
+      "source": "futures",
+      "h": 26808,
+      "q": 6702,
+      "funding_months": 36,
+      "funding_errors": []
+    },
+    {
+      "symbol": "UNIUSDT",
+      "source": "futures",
+      "h": 26808,
+      "q": 6702,
+      "funding_months": 36,
+      "funding_errors": []
+    },
+    {
+      "symbol": "TIAUSDT",
+      "source": "futures",
+      "h": 26064,
+      "q": 6516,
+      "funding_months": 35,
+      "funding_errors": []
+    },
+    {
+      "symbol": "STXUSDT",
+      "source": "futures",
+      "h": 27528,
+      "q": 6882,
+      "funding_months": 37,
+      "funding_errors": []
+    },
+    {
+      "symbol": "SANDUSDT",
+      "source": "futures",
+      "h": 26064,
+      "q": 6516,
+      "funding_months": 35,
+      "funding_errors": []
+    },
+    {
+      "symbol": "BIGTIMEUSDT",
+      "source": "futures",
+      "h": 26064,
+      "q": 6516,
+      "funding_months": 35,
+      "funding_errors": []
+    },
+    {
+      "symbol": "FTMUSDT",
+      "source": "futures",
+      "h": 27528,
+      "q": 6882,
+      "funding_months": 22,
+      "funding_errors": []
+    },
+    {
+      "symbol": "MASKUSDT",
+      "source": "futures",
+      "h": 26808,
+      "q": 6702,
+      "funding_months": 36,
+      "funding_errors": []
+    },
+    {
+      "symbol": "RNDRUSDT",
+      "source": "futures",
+      "h": 7255,
+      "q": 1814,
+      "funding_months": 11,
+      "funding_errors": []
+    },
+    {
+      "symbol": "ZRXUSDT",
+      "source": "futures",
+      "h": 27528,
+      "q": 6882,
+      "funding_months": 37,
+      "funding_errors": []
+    },
+    {
+      "symbol": "ICPUSDT",
+      "source": "futures",
+      "h": 26064,
+      "q": 6516,
+      "funding_months": 35,
+      "funding_errors": []
+    },
+    {
+      "symbol": "NEARUSDT",
+      "source": "futures",
+      "h": 26808,
+      "q": 6702,
+      "funding_months": 36,
+      "funding_errors": []
+    },
+    {
+      "symbol": "PEOPLEUSDT",
+      "source": "futures",
+      "h": 25320,
+      "q": 6330,
+      "funding_months": 34,
+      "funding_errors": []
+    },
+    {
+      "symbol": "LQTYUSDT",
+      "source": "futures",
+      "h": 27528,
+      "q": 6882,
+      "funding_months": 37,
+      "funding_errors": []
+    },
+    {
+      "symbol": "UMAUSDT",
+      "source": "futures",
+      "h": 25320,
+      "q": 6330,
+      "funding_months": 34,
+      "funding_errors": []
+    },
+    {
+      "symbol": "POWRUSDT",
+      "source": "futures",
+      "h": 25320,
+      "q": 6330,
+      "funding_months": 34,
+      "funding_errors": []
+    },
+    {
+      "symbol": "COTIUSDT",
+      "source": "futures",
+      "h": 24624,
+      "q": 6156,
+      "funding_months": 33,
+      "funding_errors": []
+    },
+    {
+      "symbol": "IOTAUSDT",
+      "source": "futures",
+      "h": 26064,
+      "q": 6516,
+      "funding_months": 35,
+      "funding_errors": []
+    },
+    {
+      "symbol": "LDOUSDT",
+      "source": "futures",
+      "h": 26808,
+      "q": 6702,
+      "funding_months": 36,
+      "funding_errors": []
+    },
+    {
+      "symbol": "SUSHIUSDT",
+      "source": "futures",
+      "h": 26808,
+      "q": 6702,
+      "funding_months": 36,
+      "funding_errors": []
+    },
+    {
+      "symbol": "GASUSDT",
+      "source": "futures",
+      "h": 25320,
+      "q": 6330,
+      "funding_months": 34,
+      "funding_errors": []
+    },
+    {
+      "symbol": "API3USDT",
+      "source": "futures",
+      "h": 25320,
+      "q": 6330,
+      "funding_months": 34,
+      "funding_errors": []
+    },
+    {
+      "symbol": "ENSUSDT",
+      "source": "futures",
+      "h": 25320,
+      "q": 6330,
+      "funding_months": 34,
+      "funding_errors": []
+    },
+    {
+      "symbol": "BSVUSDT",
+      "source": "futures",
+      "h": 26064,
+      "q": 6516,
+      "funding_months": 35,
+      "funding_errors": []
+    },
+    {
+      "symbol": "CKBUSDT",
+      "source": "futures",
+      "h": 24624,
+      "q": 6156,
+      "funding_months": 33,
+      "funding_errors": []
+    },
+    {
+      "symbol": "SKLUSDT",
+      "source": "futures",
+      "h": 26808,
+      "q": 6702,
+      "funding_months": 36,
+      "funding_errors": []
+    },
+    {
+      "symbol": "ORDIUSDT",
+      "source": "futures",
+      "h": 25320,
+      "q": 6330,
+      "funding_months": 34,
+      "funding_errors": []
+    },
+    {
+      "symbol": "XMRUSDT",
+      "source": "futures",
+      "h": 24624,
+      "q": 6156,
+      "funding_months": 33,
+      "funding_errors": []
+    },
+    {
+      "symbol": "PYTHUSDT",
+      "source": "futures",
+      "h": 24624,
+      "q": 6156,
+      "funding_months": 33,
+      "funding_errors": []
+    },
+    {
+      "symbol": "JASMYUSDT",
+      "source": "futures",
+      "h": 24624,
+      "q": 6156,
+      "funding_months": 33,
+      "funding_errors": []
+    },
+    {
+      "symbol": "WIFUSDT",
+      "source": "futures",
+      "h": 23880,
+      "q": 5970,
+      "funding_months": 32,
+      "funding_errors": []
+    },
+    {
+      "symbol": "ARKUSDT",
+      "source": "futures",
+      "h": 26808,
+      "q": 6702,
+      "funding_months": 36,
+      "funding_errors": []
+    },
+    {
+      "symbol": "ARKMUSDT",
+      "source": "futures",
+      "h": 24624,
+      "q": 6156,
+      "funding_months": 33,
+      "funding_errors": []
+    },
+    {
+      "symbol": "AGIXUSDT",
+      "source": "futures",
+      "h": 24624,
+      "q": 6156,
+      "funding_months": 18,
+      "funding_errors": []
+    },
+    {
+      "symbol": "BELUSDT",
+      "source": "futures",
+      "h": 23160,
+      "q": 5790,
+      "funding_months": 31,
+      "funding_errors": []
+    },
+    {
+      "symbol": "IDUSDT",
+      "source": "futures",
+      "h": 24624,
+      "q": 6156,
+      "funding_months": 33,
+      "funding_errors": []
+    },
+    {
+      "symbol": "HBARUSDT",
+      "source": "futures",
+      "h": 23160,
+      "q": 5790,
+      "funding_months": 31,
+      "funding_errors": []
+    },
+    {
+      "symbol": "JTOUSDT",
+      "source": "futures",
+      "h": 23160,
+      "q": 5790,
+      "funding_months": 31,
+      "funding_errors": []
+    },
+    {
+      "symbol": "1000BONKUSDT",
+      "source": "futures",
+      "h": 25320,
+      "q": 6330,
+      "funding_months": 34,
+      "funding_errors": []
+    },
+    {
+      "symbol": "CHZUSDT",
+      "source": "futures",
+      "h": 25320,
+      "q": 6330,
+      "funding_months": 34,
+      "funding_errors": []
+    },
+    {
+      "symbol": "ONTUSDT",
+      "source": "futures",
+      "h": 23160,
+      "q": 5790,
+      "funding_months": 31,
+      "funding_errors": []
+    },
+    {
+      "symbol": "POLYXUSDT",
+      "source": "futures",
+      "h": 23880,
+      "q": 5970,
+      "funding_months": 32,
+      "funding_errors": []
+    },
+    {
+      "symbol": "AEVOUSDT",
+      "source": "futures",
+      "h": 22416,
+      "q": 5604,
+      "funding_months": 30,
+      "funding_errors": []
+    },
+    {
+      "symbol": "TONUSDT",
+      "source": "futures",
+      "h": 23160,
+      "q": 5790,
+      "funding_months": 28,
+      "funding_errors": []
+    },
+    {
+      "symbol": "1000SATSUSDT",
+      "source": "futures",
+      "h": 24624,
+      "q": 6156,
+      "funding_months": 33,
+      "funding_errors": []
+    },
+    {
+      "symbol": "ONGUSDT",
+      "source": "futures",
+      "h": 23160,
+      "q": 5790,
+      "funding_months": 31,
+      "funding_errors": []
+    },
+    {
+      "symbol": "JUPUSDT",
+      "source": "futures",
+      "h": 23880,
+      "q": 5970,
+      "funding_months": 32,
+      "funding_errors": []
+    },
+    {
+      "symbol": "MEMEUSDT",
+      "source": "futures",
+      "h": 23880,
+      "q": 5970,
+      "funding_months": 32,
+      "funding_errors": []
+    },
+    {
+      "symbol": "ONDOUSDT",
+      "source": "futures",
+      "h": 23880,
+      "q": 5970,
+      "funding_months": 32,
+      "funding_errors": []
+    },
+    {
+      "symbol": "WUSDT",
+      "source": "futures",
+      "h": 21696,
+      "q": 5424,
+      "funding_months": 29,
+      "funding_errors": []
+    },
+    {
+      "symbol": "TURBOUSDT",
+      "source": "futures",
+      "h": 20952,
+      "q": 5238,
+      "funding_months": 28,
+      "funding_errors": []
+    },
+    {
+      "symbol": "OMUSDT",
+      "source": "futures",
+      "h": 23160,
+      "q": 5790,
+      "funding_months": 24,
+      "funding_errors": []
+    },
+    {
+      "symbol": "FRONTUSDT",
+      "source": "futures",
+      "h": 5362,
+      "q": 1341,
+      "funding_months": 32,
+      "funding_errors": []
+    },
+    {
+      "symbol": "YGGUSDT",
+      "source": "futures",
+      "h": 23880,
+      "q": 5970,
+      "funding_months": 32,
+      "funding_errors": []
+    },
+    {
+      "symbol": "BONDUSDT",
+      "source": "futures",
+      "h": 20952,
+      "q": 5238,
+      "funding_months": 13,
+      "funding_errors": []
+    },
+    {
+      "symbol": "BOMEUSDT",
+      "source": "futures",
+      "h": 22416,
+      "q": 5604,
+      "funding_months": 30,
+      "funding_errors": []
+    },
+    {
+      "symbol": "IOUSDT",
+      "source": "futures",
+      "h": 20208,
+      "q": 5052,
+      "funding_months": 27,
+      "funding_errors": []
+    },
+    {
+      "symbol": "1000RATSUSDT",
+      "source": "futures",
+      "h": 21696,
+      "q": 5424,
+      "funding_months": 29,
+      "funding_errors": []
+    },
+    {
+      "symbol": "ZENUSDT",
+      "source": "futures",
+      "h": 20952,
+      "q": 5238,
+      "funding_months": 28,
+      "funding_errors": []
+    },
+    {
+      "symbol": "ARUSDT",
+      "source": "futures",
+      "h": 22416,
+      "q": 5604,
+      "funding_months": 30,
+      "funding_errors": []
+    },
+    {
+      "symbol": "PENDLEUSDT",
+      "source": "futures",
+      "h": 23160,
+      "q": 5790,
+      "funding_months": 31,
+      "funding_errors": []
+    },
+    {
+      "symbol": "TRXUSDT",
+      "source": "futures",
+      "h": 20208,
+      "q": 5052,
+      "funding_months": 27,
+      "funding_errors": []
+    },
+    {
+      "symbol": "HIGHUSDT",
+      "source": "futures",
+      "h": 21696,
+      "q": 5424,
+      "funding_months": 26,
+      "funding_errors": []
+    },
+    {
+      "symbol": "ATAUSDT",
+      "source": "futures",
+      "h": 23160,
+      "q": 5790,
+      "funding_months": 27,
+      "funding_errors": []
+    },
+    {
+      "symbol": "ZROUSDT",
+      "source": "futures",
+      "h": 20208,
+      "q": 5052,
+      "funding_months": 27,
+      "funding_errors": []
+    },
+    {
+      "symbol": "BNXUSDT",
+      "source": "futures",
+      "h": 20952,
+      "q": 5238,
+      "funding_months": 13,
+      "funding_errors": []
+    },
+    {
+      "symbol": "NOTUSDT",
+      "source": "futures",
+      "h": 20952,
+      "q": 5238,
+      "funding_months": 28,
+      "funding_errors": []
+    },
+    {
+      "symbol": "MEWUSDT",
+      "source": "futures",
+      "h": 20208,
+      "q": 5052,
+      "funding_months": 27,
+      "funding_errors": []
+    },
+    {
+      "symbol": "HMSTRUSDT",
+      "source": "futures",
+      "h": 18024,
+      "q": 4506,
+      "funding_months": 24,
+      "funding_errors": []
+    },
+    {
+      "symbol": "ETHFIUSDT",
+      "source": "futures",
+      "h": 22416,
+      "q": 5604,
+      "funding_months": 30,
+      "funding_errors": []
+    },
+    {
+      "symbol": "NEIROETHUSDT",
+      "source": "futures",
+      "h": 18024,
+      "q": 4506,
+      "funding_months": 12,
+      "funding_errors": []
+    },
+    {
+      "symbol": "ALPHAUSDT",
+      "source": "futures",
+      "h": 18744,
+      "q": 4686,
+      "funding_months": 13,
+      "funding_errors": []
+    },
+    {
+      "symbol": "STRKUSDT",
+      "source": "futures",
+      "h": 19488,
+      "q": 4872,
+      "funding_months": 26,
+      "funding_errors": []
+    },
+    {
+      "symbol": "1MBABYDOGEUSDT",
+      "source": "futures",
+      "h": 17280,
+      "q": 4320,
+      "funding_months": 23,
+      "funding_errors": []
+    },
+    {
+      "symbol": "ALGOUSDT",
+      "source": "futures",
+      "h": 17280,
+      "q": 4320,
+      "funding_months": 23,
+      "funding_errors": []
+    },
+    {
+      "symbol": "XVGUSDT",
+      "source": "futures",
+      "h": 17280,
+      "q": 4320,
+      "funding_months": 23,
+      "funding_errors": []
+    },
+    {
+      "symbol": "SAGAUSDT",
+      "source": "futures",
+      "h": 20952,
+      "q": 5238,
+      "funding_months": 28,
+      "funding_errors": []
+    },
+    {
+      "symbol": "DOGSUSDT",
+      "source": "futures",
+      "h": 18744,
+      "q": 4686,
+      "funding_months": 25,
+      "funding_errors": []
+    },
+    {
+      "symbol": "TAOUSDT",
+      "source": "futures",
+      "h": 19488,
+      "q": 4872,
+      "funding_months": 26,
+      "funding_errors": []
+    },
+    {
+      "symbol": "ACHUSDT",
+      "source": "futures",
+      "h": 15864,
+      "q": 3966,
+      "funding_months": 22,
+      "funding_errors": []
+    },
+    {
+      "symbol": "UXLINKUSDT",
+      "source": "futures",
+      "h": 17280,
+      "q": 4320,
+      "funding_months": 11,
+      "funding_errors": []
+    },
+    {
+      "symbol": "POPCATUSDT",
+      "source": "futures",
+      "h": 18744,
+      "q": 4686,
+      "funding_months": 25,
+      "funding_errors": []
+    },
+    {
+      "symbol": "DARUSDT",
+      "source": "futures",
+      "h": 20208,
+      "q": 5052,
+      "funding_months": 12,
+      "funding_errors": []
+    },
+    {
+      "symbol": "NEIROUSDT",
+      "source": "futures",
+      "h": 18024,
+      "q": 4506,
+      "funding_months": 24,
+      "funding_errors": []
+    },
+    {
+      "symbol": "VIRTUALUSDT",
+      "source": "futures",
+      "h": 15864,
+      "q": 3966,
+      "funding_months": 22,
+      "funding_errors": []
+    },
+    {
+      "symbol": "MOODENGUSDT",
+      "source": "futures",
+      "h": 17280,
+      "q": 4320,
+      "funding_months": 23,
+      "funding_errors": []
+    },
+    {
+      "symbol": "FARTCOINUSDT",
+      "source": "futures",
+      "h": 15864,
+      "q": 3966,
+      "funding_months": 22,
+      "funding_errors": []
+    },
+    {
+      "symbol": "PENGUUSDT",
+      "source": "futures",
+      "h": 15864,
+      "q": 3966,
+      "funding_months": 22,
+      "funding_errors": []
+    },
+    {
+      "symbol": "RSRUSDT",
+      "source": "futures",
+      "h": 17280,
+      "q": 4320,
+      "funding_months": 23,
+      "funding_errors": []
+    },
+    {
+      "symbol": "PNUTUSDT",
+      "source": "futures",
+      "h": 16536,
+      "q": 4134,
+      "funding_months": 22,
+      "funding_errors": []
+    },
+    {
+      "symbol": "ENAUSDT",
+      "source": "futures",
+      "h": 22404,
+      "q": 5601,
+      "funding_months": 30,
+      "funding_errors": []
+    },
+    {
+      "symbol": "AIXBTUSDT",
+      "source": "futures",
+      "h": 15864,
+      "q": 3966,
+      "funding_months": 22,
+      "funding_errors": []
+    },
+    {
+      "symbol": "ALCHUSDT",
+      "source": "futures",
+      "h": 15120,
+      "q": 3780,
+      "funding_months": 21,
+      "funding_errors": []
+    },
+    {
+      "symbol": "GOATUSDT",
+      "source": "futures",
+      "h": 17280,
+      "q": 4320,
+      "funding_months": 23,
+      "funding_errors": []
+    },
+    {
+      "symbol": "USUALUSDT",
+      "source": "futures",
+      "h": 15864,
+      "q": 3966,
+      "funding_months": 22,
+      "funding_errors": []
+    },
+    {
+      "symbol": "REEFUSDT",
+      "source": "futures",
+      "h": 19488,
+      "q": 4872,
+      "funding_months": 11,
+      "funding_errors": []
+    },
+    {
+      "symbol": "BANUSDT",
+      "source": "futures",
+      "h": 15864,
+      "q": 3966,
+      "funding_months": 22,
+      "funding_errors": []
+    },
+    {
+      "symbol": "CAKEUSDT",
+      "source": "futures",
+      "h": 15864,
+      "q": 3966,
+      "funding_months": 22,
+      "funding_errors": []
+    },
+    {
+      "symbol": "ARCUSDT",
+      "source": "futures",
+      "h": 15120,
+      "q": 3780,
+      "funding_months": 21,
+      "funding_errors": []
+    },
+    {
+      "symbol": "BANANAUSDT",
+      "source": "futures",
+      "h": 15120,
+      "q": 3780,
+      "funding_months": 21,
+      "funding_errors": []
+    },
+    {
+      "symbol": "VINEUSDT",
+      "source": "futures",
+      "h": 15120,
+      "q": 3780,
+      "funding_months": 16,
+      "funding_errors": []
+    },
+    {
+      "symbol": "RAREUSDT",
+      "source": "futures",
+      "h": 15120,
+      "q": 3780,
+      "funding_months": 21,
+      "funding_errors": []
+    },
+    {
+      "symbol": "SUSDT",
+      "source": "futures",
+      "h": 15120,
+      "q": 3780,
+      "funding_months": 21,
+      "funding_errors": []
+    },
+    {
+      "symbol": "TRUMPUSDT",
+      "source": "futures",
+      "h": 15120,
+      "q": 3780,
+      "funding_months": 21,
+      "funding_errors": []
+    },
+    {
+      "symbol": "AUCTIONUSDT",
+      "source": "futures",
+      "h": 15120,
+      "q": 3780,
+      "funding_months": 21,
+      "funding_errors": []
+    },
+    {
+      "symbol": "MOVEUSDT",
+      "source": "futures",
+      "h": 15120,
+      "q": 3780,
+      "funding_months": 21,
+      "funding_errors": []
+    },
+    {
+      "symbol": "1000XUSDT",
+      "source": "futures",
+      "h": 15120,
+      "q": 3780,
+      "funding_months": 11,
+      "funding_errors": []
+    },
+    {
+      "symbol": "MAGICUSDT",
+      "source": "futures",
+      "h": 14400,
+      "q": 3600,
+      "funding_months": 19,
+      "funding_errors": []
+    },
+    {
+      "symbol": "LAYERUSDT",
+      "source": "futures",
+      "h": 14400,
+      "q": 3600,
+      "funding_months": 19,
+      "funding_errors": []
+    },
+    {
+      "symbol": "RVNUSDT",
+      "source": "futures",
+      "h": 12936,
+      "q": 3234,
+      "funding_months": 17,
+      "funding_errors": []
+    },
+    {
+      "symbol": "VOXELUSDT",
+      "source": "futures",
+      "h": 14400,
+      "q": 3600,
+      "funding_months": 10,
+      "funding_errors": []
+    },
+    {
+      "symbol": "ACTUSDT",
+      "source": "futures",
+      "h": 16536,
+      "q": 4134,
+      "funding_months": 22,
+      "funding_errors": []
+    },
+    {
+      "symbol": "ALPACAUSDT",
+      "source": "futures",
+      "h": 14400,
+      "q": 3600,
+      "funding_months": 4,
+      "funding_errors": []
+    },
+    {
+      "symbol": "REZUSDT",
+      "source": "futures",
+      "h": 15120,
+      "q": 3780,
+      "funding_months": 21,
+      "funding_errors": []
+    },
+    {
+      "symbol": "FUNUSDT",
+      "source": "futures",
+      "h": 12936,
+      "q": 3234,
+      "funding_months": 12,
+      "funding_errors": []
+    },
+    {
+      "symbol": "BANANAS31USDT",
+      "source": "futures",
+      "h": 12936,
+      "q": 3234,
+      "funding_months": 17,
+      "funding_errors": []
+    },
+    {
+      "symbol": "ORCAUSDT",
+      "source": "futures",
+      "h": 15120,
+      "q": 3780,
+      "funding_months": 21,
+      "funding_errors": []
+    },
+    {
+      "symbol": "PUMPUSDT",
+      "source": "futures",
+      "h": 12185,
+      "q": 3047,
+      "funding_months": 16,
+      "funding_errors": []
+    },
+    {
+      "symbol": "WCTUSDT",
+      "source": "futures",
+      "h": 12936,
+      "q": 3234,
+      "funding_months": 17,
+      "funding_errors": []
+    },
+    {
+      "symbol": "QTUMUSDT",
+      "source": "futures",
+      "h": 15864,
+      "q": 3966,
+      "funding_months": 22,
+      "funding_errors": []
+    },
+    {
+      "symbol": "EIGENUSDT",
+      "source": "futures",
+      "h": 15864,
+      "q": 3966,
+      "funding_months": 22,
+      "funding_errors": []
+    },
+    {
+      "symbol": "OMNIUSDT",
+      "source": "futures",
+      "h": 12192,
+      "q": 3048,
+      "funding_months": 4,
+      "funding_errors": []
+    },
+    {
+      "symbol": "ANIMEUSDT",
+      "source": "futures",
+      "h": 12936,
+      "q": 3234,
+      "funding_months": 17,
+      "funding_errors": []
+    },
+    {
+      "symbol": "AERGOUSDT",
+      "source": "futures",
+      "h": 11653,
+      "q": 2914,
+      "funding_months": 16,
+      "funding_errors": []
+    },
+    {
+      "symbol": "MUBARAKUSDT",
+      "source": "futures",
+      "h": 13656,
+      "q": 3414,
+      "funding_months": 18,
+      "funding_errors": []
+    },
+    {
+      "symbol": "ZEREBROUSDT",
+      "source": "futures",
+      "h": 14400,
+      "q": 3600,
+      "funding_months": 19,
+      "funding_errors": []
+    },
+    {
+      "symbol": "BERAUSDT",
+      "source": "futures",
+      "h": 14400,
+      "q": 3600,
+      "funding_months": 19,
+      "funding_errors": []
+    },
+    {
+      "symbol": "KAITOUSDT",
+      "source": "futures",
+      "h": 13656,
+      "q": 3414,
+      "funding_months": 18,
+      "funding_errors": []
+    },
+    {
+      "symbol": "COOKIEUSDT",
+      "source": "futures",
+      "h": 13656,
+      "q": 3414,
+      "funding_months": 18,
+      "funding_errors": []
+    },
+    {
+      "symbol": "SOONUSDT",
+      "source": "futures",
+      "h": 11448,
+      "q": 2862,
+      "funding_months": 15,
+      "funding_errors": []
+    },
+    {
+      "symbol": "SPXUSDT",
+      "source": "futures",
+      "h": 12936,
+      "q": 3234,
+      "funding_months": 17,
+      "funding_errors": []
+    },
+    {
+      "symbol": "MYXUSDT",
+      "source": "futures",
+      "h": 11448,
+      "q": 2862,
+      "funding_months": 15,
+      "funding_errors": []
+    },
+    {
+      "symbol": "HIFIUSDT",
+      "source": "futures",
+      "h": 10728,
+      "q": 2682,
+      "funding_months": 3,
+      "funding_errors": []
+    },
+    {
+      "symbol": "XPLUSDT",
+      "source": "futures",
+      "h": 9984,
+      "q": 2496,
+      "funding_months": 13,
+      "funding_errors": []
+    },
+    {
+      "symbol": "ALPINEUSDT",
+      "source": "futures",
+      "h": 10728,
+      "q": 2682,
+      "funding_months": 14,
+      "funding_errors": []
+    },
+    {
+      "symbol": "TAUSDT",
+      "source": "futures",
+      "h": 10728,
+      "q": 2682,
+      "funding_months": 14,
+      "funding_errors": []
+    },
+    {
+      "symbol": "HYPERUSDT",
+      "source": "futures",
+      "h": 12192,
+      "q": 3048,
+      "funding_months": 16,
+      "funding_errors": []
+    },
+    {
+      "symbol": "MUSDT",
+      "source": "futures",
+      "h": 10728,
+      "q": 2682,
+      "funding_months": 14,
+      "funding_errors": []
+    },
+    {
+      "symbol": "BASUSDT",
+      "source": "futures",
+      "h": 9984,
+      "q": 2496,
+      "funding_months": 13,
+      "funding_errors": []
+    },
+    {
+      "symbol": "PUMPBTCUSDT",
+      "source": "futures",
+      "h": 10728,
+      "q": 2682,
+      "funding_months": 14,
+      "funding_errors": []
+    },
+    {
+      "symbol": "SPKUSDT",
+      "source": "futures",
+      "h": 11448,
+      "q": 2862,
+      "funding_months": 15,
+      "funding_errors": []
+    },
+    {
+      "symbol": "FORMUSDT",
+      "source": "futures",
+      "h": 9984,
+      "q": 2496,
+      "funding_months": 13,
+      "funding_errors": []
+    },
+    {
+      "symbol": "HYPEUSDT",
+      "source": "futures",
+      "h": 12192,
+      "q": 3048,
+      "funding_months": 16,
+      "funding_errors": []
+    },
+    {
+      "symbol": "BIDUSDT",
+      "source": "futures",
+      "h": 12936,
+      "q": 3234,
+      "funding_months": 9,
+      "funding_errors": []
+    },
+    {
+      "symbol": "PIPPINUSDT",
+      "source": "futures",
+      "h": 9264,
+      "q": 2316,
+      "funding_months": 12,
+      "funding_errors": []
+    },
+    {
+      "symbol": "ZECUSDT",
+      "source": "futures",
+      "h": 9984,
+      "q": 2496,
+      "funding_months": 13,
+      "funding_errors": []
+    },
+    {
+      "symbol": "BIOUSDT",
+      "source": "futures",
+      "h": 11448,
+      "q": 2862,
+      "funding_months": 15,
+      "funding_errors": []
+    },
+    {
+      "symbol": "ZORAUSDT",
+      "source": "futures",
+      "h": 9984,
+      "q": 2496,
+      "funding_months": 13,
+      "funding_errors": []
+    },
+    {
+      "symbol": "ASTERUSDT",
+      "source": "futures",
+      "h": 9264,
+      "q": 2316,
+      "funding_months": 12,
+      "funding_errors": []
+    },
+    {
+      "symbol": "DASHUSDT",
+      "source": "futures",
+      "h": 9264,
+      "q": 2316,
+      "funding_months": 12,
+      "funding_errors": []
+    },
+    {
+      "symbol": "PAXGUSDT",
+      "source": "futures",
+      "h": 9984,
+      "q": 2496,
+      "funding_months": 13,
+      "funding_errors": []
+    },
+    {
+      "symbol": "JELLYJELLYUSDT",
+      "source": "futures",
+      "h": 9264,
+      "q": 2316,
+      "funding_months": 12,
+      "funding_errors": []
+    },
+    {
+      "symbol": "0GUSDT",
+      "source": "futures",
+      "h": 9264,
+      "q": 2316,
+      "funding_months": 12,
+      "funding_errors": []
+    },
+    {
+      "symbol": "TNSRUSDT",
+      "source": "futures",
+      "h": 9264,
+      "q": 2316,
+      "funding_months": 12,
+      "funding_errors": []
+    },
+    {
+      "symbol": "WLFIUSDT",
+      "source": "futures",
+      "h": 9984,
+      "q": 2496,
+      "funding_months": 13,
+      "funding_errors": []
+    },
+    {
+      "symbol": "ZKUSDT",
+      "source": "futures",
+      "h": 9264,
+      "q": 2316,
+      "funding_months": 12,
+      "funding_errors": []
+    },
+    {
+      "symbol": "AIAUSDT",
+      "source": "futures",
+      "h": 9253,
+      "q": 2314,
+      "funding_months": 12,
+      "funding_errors": []
+    },
+    {
+      "symbol": "ZBTUSDT",
+      "source": "futures",
+      "h": 8520,
+      "q": 2130,
+      "funding_months": 11,
+      "funding_errors": []
+    },
+    {
+      "symbol": "LIGHTUSDT",
+      "source": "futures",
+      "h": 8520,
+      "q": 2130,
+      "funding_months": 11,
+      "funding_errors": []
+    },
+    {
+      "symbol": "MERLUSDT",
+      "source": "futures",
+      "h": 9264,
+      "q": 2316,
+      "funding_months": 12,
+      "funding_errors": []
+    },
+    {
+      "symbol": "SAPIENUSDT",
+      "source": "futures",
+      "h": 9264,
+      "q": 2316,
+      "funding_months": 12,
+      "funding_errors": []
+    },
+    {
+      "symbol": "IPUSDT",
+      "source": "futures",
+      "h": 10728,
+      "q": 2682,
+      "funding_months": 11,
+      "funding_errors": []
+    },
+    {
+      "symbol": "FHEUSDT",
+      "source": "futures",
+      "h": 8520,
+      "q": 2130,
+      "funding_months": 11,
+      "funding_errors": []
+    },
+    {
+      "symbol": "GIGGLEUSDT",
+      "source": "futures",
+      "h": 8520,
+      "q": 2130,
+      "funding_months": 11,
+      "funding_errors": []
+    },
+    {
+      "symbol": "SNXUSDT",
+      "source": "futures",
+      "h": 9984,
+      "q": 2496,
+      "funding_months": 13,
+      "funding_errors": []
+    },
+    {
+      "symbol": "ENSOUSDT",
+      "source": "futures",
+      "h": 7776,
+      "q": 1944,
+      "funding_months": 10,
+      "funding_errors": []
+    },
+    {
+      "symbol": "HUSDT",
+      "source": "futures",
+      "h": 9984,
+      "q": 2496,
+      "funding_months": 13,
+      "funding_errors": []
+    },
+    {
+      "symbol": "RESOLVUSDT",
+      "source": "futures",
+      "h": 9264,
+      "q": 2316,
+      "funding_months": 12,
+      "funding_errors": []
+    },
+    {
+      "symbol": "MONUSDT",
+      "source": "futures",
+      "h": 8520,
+      "q": 2130,
+      "funding_months": 11,
+      "funding_errors": []
+    },
+    {
+      "symbol": "\u5e01\u5b89\u4eba\u751fUSDT",
+      "source": "futures",
+      "h": 7776,
+      "q": 1944,
+      "funding_months": 10,
+      "funding_errors": []
+    },
+    {
+      "symbol": "BROCCOLI714USDT",
+      "source": "futures",
+      "h": 7776,
+      "q": 1944,
+      "funding_months": 10,
+      "funding_errors": []
+    },
+    {
+      "symbol": "POWERUSDT",
+      "source": "futures",
+      "h": 7104,
+      "q": 1776,
+      "funding_months": 10,
+      "funding_errors": []
+    },
+    {
+      "symbol": "RIVERUSDT",
+      "source": "futures",
+      "h": 8520,
+      "q": 2130,
+      "funding_months": 11,
+      "funding_errors": []
+    },
+    {
+      "symbol": "LITUSDT",
+      "source": "futures",
+      "h": 7759,
+      "q": 1940,
+      "funding_months": 10,
+      "funding_errors": []
+    },
+    {
+      "symbol": "ICNTUSDT",
+      "source": "futures",
+      "h": 8520,
+      "q": 2130,
+      "funding_months": 11,
+      "funding_errors": []
+    },
+    {
+      "symbol": "ATUSDT",
+      "source": "futures",
+      "h": 8520,
+      "q": 2130,
+      "funding_months": 11,
+      "funding_errors": []
+    },
+    {
+      "symbol": "DUSKUSDT",
+      "source": "futures",
+      "h": 7776,
+      "q": 1944,
+      "funding_months": 10,
+      "funding_errors": []
+    },
+    {
+      "symbol": "TRUTHUSDT",
+      "source": "futures",
+      "h": 8520,
+      "q": 2130,
+      "funding_months": 11,
+      "funding_errors": []
+    },
+    {
+      "symbol": "BULLAUSDT",
+      "source": "futures",
+      "h": 7104,
+      "q": 1776,
+      "funding_months": 10,
+      "funding_errors": []
+    },
+    {
+      "symbol": "CLOUSDT",
+      "source": "futures",
+      "h": 7776,
+      "q": 1944,
+      "funding_months": 10,
+      "funding_errors": []
+    },
+    {
+      "symbol": "PTBUSDT",
+      "source": "futures",
+      "h": 8520,
+      "q": 2130,
+      "funding_months": 11,
+      "funding_errors": []
+    },
+    {
+      "symbol": "ZILUSDT",
+      "source": "futures",
+      "h": 7104,
+      "q": 1776,
+      "funding_months": 10,
+      "funding_errors": []
+    },
+    {
+      "symbol": "XAUUSDT",
+      "source": "futures",
+      "h": 7104,
+      "q": 1776,
+      "funding_months": 10,
+      "funding_errors": []
+    },
+    {
+      "symbol": "VVVUSDT",
+      "source": "futures",
+      "h": 7104,
+      "q": 1776,
+      "funding_months": 10,
+      "funding_errors": []
+    },
+    {
+      "symbol": "SENTUSDT",
+      "source": "futures",
+      "h": 7776,
+      "q": 1944,
+      "funding_months": 10,
+      "funding_errors": []
+    },
+    {
+      "symbol": "KITEUSDT",
+      "source": "futures",
+      "h": 7104,
+      "q": 1776,
+      "funding_months": 10,
+      "funding_errors": []
+    },
+    {
+      "symbol": "SIRENUSDT",
+      "source": "futures",
+      "h": 7104,
+      "q": 1776,
+      "funding_months": 10,
+      "funding_errors": []
+    },
+    {
+      "symbol": "LYNUSDT",
+      "source": "futures",
+      "h": 6360,
+      "q": 1590,
+      "funding_months": 9,
+      "funding_errors": []
+    },
+    {
+      "symbol": "XAGUSDT",
+      "source": "futures",
+      "h": 6360,
+      "q": 1590,
+      "funding_months": 9,
+      "funding_errors": []
+    },
+    {
+      "symbol": "INITUSDT",
+      "source": "futures",
+      "h": 7104,
+      "q": 1776,
+      "funding_months": 10,
+      "funding_errors": []
+    },
+    {
+      "symbol": "BRUSDT",
+      "source": "futures",
+      "h": 6360,
+      "q": 1590,
+      "funding_months": 9,
+      "funding_errors": []
+    },
+    {
+      "symbol": "PIXELUSDT",
+      "source": "futures",
+      "h": 6360,
+      "q": 1590,
+      "funding_months": 9,
+      "funding_errors": []
+    },
+    {
+      "symbol": "PIEVERSEUSDT",
+      "source": "futures",
+      "h": 5640,
+      "q": 1410,
+      "funding_months": 7,
+      "funding_errors": []
+    },
+    {
+      "symbol": "SKYAIUSDT",
+      "source": "futures",
+      "h": 5640,
+      "q": 1410,
+      "funding_months": 7,
+      "funding_errors": []
+    },
+    {
+      "symbol": "STOUSDT",
+      "source": "futures",
+      "h": 5640,
+      "q": 1410,
+      "funding_months": 7,
+      "funding_errors": []
+    },
+    {
+      "symbol": "REDUSDT",
+      "source": "futures",
+      "h": 5640,
+      "q": 1410,
+      "funding_months": 7,
+      "funding_errors": []
+    },
+    {
+      "symbol": "SAHARAUSDT",
+      "source": "futures",
+      "h": 6360,
+      "q": 1590,
+      "funding_months": 9,
+      "funding_errors": []
+    },
+    {
+      "symbol": "BARDUSDT",
+      "source": "futures",
+      "h": 6360,
+      "q": 1590,
+      "funding_months": 9,
+      "funding_errors": []
+    },
+    {
+      "symbol": "ARIAUSDT",
+      "source": "futures",
+      "h": 5640,
+      "q": 1410,
+      "funding_months": 7,
+      "funding_errors": []
+    },
+    {
+      "symbol": "NOMUSDT",
+      "source": "futures",
+      "h": 5640,
+      "q": 1410,
+      "funding_months": 7,
+      "funding_errors": []
+    },
+    {
+      "symbol": "AIOTUSDT",
+      "source": "futures",
+      "h": 5640,
+      "q": 1410,
+      "funding_months": 7,
+      "funding_errors": []
+    },
+    {
+      "symbol": "RAVEUSDT",
+      "source": "futures",
+      "h": 5640,
+      "q": 1410,
+      "funding_months": 7,
+      "funding_errors": []
+    },
+    {
+      "symbol": "KATUSDT",
+      "source": "futures",
+      "h": 5635,
+      "q": 1409,
+      "funding_months": 7,
+      "funding_errors": []
+    },
+    {
+      "symbol": "UAIUSDT",
+      "source": "futures",
+      "h": 6360,
+      "q": 1590,
+      "funding_months": 9,
+      "funding_errors": []
+    },
+    {
+      "symbol": "ENJUSDT",
+      "source": "futures",
+      "h": 5640,
+      "q": 1410,
+      "funding_months": 7,
+      "funding_errors": []
+    },
+    {
+      "symbol": "SIGNUSDT",
+      "source": "futures",
+      "h": 6360,
+      "q": 1590,
+      "funding_months": 9,
+      "funding_errors": []
+    },
+    {
+      "symbol": "CRCLUSDT",
+      "source": "futures",
+      "h": 5640,
+      "q": 1410,
+      "funding_months": 7,
+      "funding_errors": []
+    },
+    {
+      "symbol": "TSLAUSDT",
+      "source": "futures",
+      "h": 6360,
+      "q": 1590,
+      "funding_months": 9,
+      "funding_errors": []
+    },
+    {
+      "symbol": "BZUSDT",
+      "source": "futures",
+      "h": 4896,
+      "q": 1224,
+      "funding_months": 6,
+      "funding_errors": []
+    },
+    {
+      "symbol": "DEGOUSDT",
+      "source": "futures",
+      "h": 6360,
+      "q": 1590,
+      "funding_months": 4,
+      "funding_errors": []
+    },
+    {
+      "symbol": "LABUSDT",
+      "source": "futures",
+      "h": 4896,
+      "q": 1224,
+      "funding_months": 6,
+      "funding_errors": []
+    },
+    {
+      "symbol": "CLUSDT",
+      "source": "futures",
+      "h": 4896,
+      "q": 1224,
+      "funding_months": 6,
+      "funding_errors": []
+    },
+    {
+      "symbol": "EDENUSDT",
+      "source": "futures",
+      "h": 4896,
+      "q": 1224,
+      "funding_months": 6,
+      "funding_errors": []
+    },
+    {
+      "symbol": "BUSDT",
+      "source": "futures",
+      "h": 4896,
+      "q": 1224,
+      "funding_months": 6,
+      "funding_errors": []
+    },
+    {
+      "symbol": "MUUSDT",
+      "source": "futures",
+      "h": 4176,
+      "q": 1044,
+      "funding_months": 5,
+      "funding_errors": []
+    },
+    {
+      "symbol": "BSBUSDT",
+      "source": "futures",
+      "h": 4896,
+      "q": 1224,
+      "funding_months": 6,
+      "funding_errors": []
+    },
+    {
+      "symbol": "UBUSDT",
+      "source": "futures",
+      "h": 4896,
+      "q": 1224,
+      "funding_months": 6,
+      "funding_errors": []
+    },
+    {
+      "symbol": "ALLOUSDT",
+      "source": "futures",
+      "h": 4896,
+      "q": 1224,
+      "funding_months": 6,
+      "funding_errors": []
+    },
+    {
+      "symbol": "PLAYUSDT",
+      "source": "futures",
+      "h": 4896,
+      "q": 1224,
+      "funding_months": 6,
+      "funding_errors": []
+    },
+    {
+      "symbol": "BEATUSDT",
+      "source": "futures",
+      "h": 4896,
+      "q": 1224,
+      "funding_months": 6,
+      "funding_errors": []
+    },
+    {
+      "symbol": "NILUSDT",
+      "source": "futures",
+      "h": 4896,
+      "q": 1224,
+      "funding_months": 6,
+      "funding_errors": []
+    },
+    {
+      "symbol": "FIDAUSDT",
+      "source": "futures",
+      "h": 4896,
+      "q": 1224,
+      "funding_months": 6,
+      "funding_errors": []
+    },
+    {
+      "symbol": "INTCUSDT",
+      "source": "futures",
+      "h": 4896,
+      "q": 1224,
+      "funding_months": 6,
+      "funding_errors": []
+    },
+    {
+      "symbol": "SNDKUSDT",
+      "source": "futures",
+      "h": 4176,
+      "q": 1044,
+      "funding_months": 5,
+      "funding_errors": []
+    },
+    {
+      "symbol": "VELVETUSDT",
+      "source": "futures",
+      "h": 4176,
+      "q": 1044,
+      "funding_months": 5,
+      "funding_errors": []
+    },
+    {
+      "symbol": "SYNUSDT",
+      "source": "futures",
+      "h": 4176,
+      "q": 1044,
+      "funding_months": 5,
+      "funding_errors": []
+    },
+    {
+      "symbol": "ESPORTSUSDT",
+      "source": "futures",
+      "h": 4176,
+      "q": 1044,
+      "funding_months": 5,
+      "funding_errors": []
+    },
+    {
+      "symbol": "OPNUSDT",
+      "source": "futures",
+      "h": 4176,
+      "q": 1044,
+      "funding_months": 5,
+      "funding_errors": []
+    },
+    {
+      "symbol": "SPCXUSDT",
+      "source": "futures",
+      "h": 3432,
+      "q": 858,
+      "funding_months": 4,
+      "funding_errors": []
+    },
+    {
+      "symbol": "SKHYNIXUSDT",
+      "source": "futures",
+      "h": 3429,
+      "q": 858,
+      "funding_months": 4,
+      "funding_errors": []
+    },
+    {
+      "symbol": "MSTRUSDT",
+      "source": "futures",
+      "h": 4176,
+      "q": 1044,
+      "funding_months": 5,
+      "funding_errors": []
+    },
+    {
+      "symbol": "HOMEUSDT",
+      "source": "futures",
+      "h": 4176,
+      "q": 1044,
+      "funding_months": 5,
+      "funding_errors": []
+    },
+    {
+      "symbol": "AKEUSDT",
+      "source": "futures",
+      "h": 3432,
+      "q": 858,
+      "funding_months": 4,
+      "funding_errors": []
+    },
+    {
+      "symbol": "BANKUSDT",
+      "source": "futures",
+      "h": 3432,
+      "q": 858,
+      "funding_months": 4,
+      "funding_errors": []
+    },
+    {
+      "symbol": "STGUSDT",
+      "source": "futures",
+      "h": 4176,
+      "q": 1044,
+      "funding_months": 5,
+      "funding_errors": []
+    },
+    {
+      "symbol": "DEXEUSDT",
+      "source": "futures",
+      "h": 3432,
+      "q": 858,
+      "funding_months": 4,
+      "funding_errors": []
+    },
+    {
+      "symbol": "DRAMUSDT",
+      "source": "futures",
+      "h": 3432,
+      "q": 858,
+      "funding_months": 4,
+      "funding_errors": []
+    },
+    {
+      "symbol": "MRVLUSDT",
+      "source": "futures",
+      "h": 3432,
+      "q": 858,
+      "funding_months": 4,
+      "funding_errors": []
+    },
+    {
+      "symbol": "EVAAUSDT",
+      "source": "futures",
+      "h": 3432,
+      "q": 858,
+      "funding_months": 4,
+      "funding_errors": []
+    },
+    {
+      "symbol": "SAMSUNGUSDT",
+      "source": "futures",
+      "h": 3429,
+      "q": 858,
+      "funding_months": 4,
+      "funding_errors": []
+    },
+    {
+      "symbol": "TLMUSDT",
+      "source": "futures",
+      "h": 3432,
+      "q": 858,
+      "funding_months": 4,
+      "funding_errors": []
+    },
+    {
+      "symbol": "VANRYUSDT",
+      "source": "futures",
+      "h": 3432,
+      "q": 858,
+      "funding_months": 3,
+      "funding_errors": []
+    },
+    {
+      "symbol": "TUTUSDT",
+      "source": "futures",
+      "h": 2688,
+      "q": 672,
+      "funding_months": 3,
+      "funding_errors": []
+    },
+    {
+      "symbol": "NVDAUSDT",
+      "source": "futures",
+      "h": 3432,
+      "q": 858,
+      "funding_months": 4,
+      "funding_errors": []
+    },
+    {
+      "symbol": "CYSUSDT",
+      "source": "futures",
+      "h": 2688,
+      "q": 672,
+      "funding_months": 3,
+      "funding_errors": []
+    },
+    {
+      "symbol": "PROMUSDT",
+      "source": "futures",
+      "h": 2688,
+      "q": 672,
+      "funding_months": 3,
+      "funding_errors": []
+    },
+    {
+      "symbol": "BTWUSDT",
+      "source": "futures",
+      "h": 2688,
+      "q": 672,
+      "funding_months": 3,
+      "funding_errors": []
+    },
+    {
+      "symbol": "BTRUSDT",
+      "source": "futures",
+      "h": 2688,
+      "q": 672,
+      "funding_months": 3,
+      "funding_errors": []
+    },
+    {
+      "symbol": "RIFUSDT",
+      "source": "futures",
+      "h": 3432,
+      "q": 858,
+      "funding_months": 4,
+      "funding_errors": []
+    },
+    {
+      "symbol": "LSKUSDT",
+      "source": "futures",
+      "h": 1968,
+      "q": 492,
+      "funding_months": 2,
+      "funding_errors": []
+    },
+    {
+      "symbol": "BLESSUSDT",
+      "source": "futures",
+      "h": 2688,
+      "q": 672,
+      "funding_months": 3,
+      "funding_errors": []
+    },
+    {
+      "symbol": "ACEUSDT",
+      "source": "futures",
+      "h": 2688,
+      "q": 672,
+      "funding_months": 3,
+      "funding_errors": []
+    },
+    {
+      "symbol": "SKHYUSDT",
+      "source": "futures",
+      "h": 1968,
+      "q": 492,
+      "funding_months": 2,
+      "funding_errors": []
+    },
+    {
+      "symbol": "HEIUSDT",
+      "source": "futures",
+      "h": 2688,
+      "q": 672,
+      "funding_months": 3,
+      "funding_errors": []
+    },
+    {
+      "symbol": "BICOUSDT",
+      "source": "futures",
+      "h": 2688,
+      "q": 672,
+      "funding_months": 3,
+      "funding_errors": []
+    },
+    {
+      "symbol": "APRUSDT",
+      "source": "futures",
+      "h": 2688,
+      "q": 672,
+      "funding_months": 3,
+      "funding_errors": []
+    },
+    {
+      "symbol": "QNTUSDT",
+      "source": "futures",
+      "h": 1968,
+      "q": 492,
+      "funding_months": 2,
+      "funding_errors": []
+    },
+    {
+      "symbol": "SNXXUSDT",
+      "source": "futures",
+      "h": 1968,
+      "q": 492,
+      "funding_months": 2,
+      "funding_errors": []
+    },
+    {
+      "symbol": "ONEUSDT",
+      "source": "futures",
+      "h": 1968,
+      "q": 492,
+      "funding_months": 2,
+      "funding_errors": []
+    },
+    {
+      "symbol": "USELESSUSDT",
+      "source": "futures",
+      "h": 1968,
+      "q": 492,
+      "funding_months": 2,
+      "funding_errors": []
+    },
+    {
+      "symbol": "\u9f99\u867eUSDT",
+      "source": "futures",
+      "h": 1968,
+      "q": 492,
+      "funding_months": 2,
+      "funding_errors": []
+    }
+  ],
+  "errors": [],
+  "universe_errors": []
+}
