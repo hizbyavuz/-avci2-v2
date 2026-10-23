@@ -138,14 +138,17 @@ def report(root,out,rows,seal,records):
           '|---|---:|---:|---:|---:|---:|---:|']
     for g in groups:
         m=groups[g]['all'];text.append(f"| {g} | {m['n']} | {fmt(m.get('target_pct'))} | {fmt(m.get('stop_pct'))} | {fmt(m.get('timeout_pct'))} | {fmt(m['mean_net_pct'])} | {fmt(m['stress_mean_pct'])} |")
+    if all(groups[g]['all']['n'] for g in groups):
+        main_mean=groups['MAIN']['all']['mean_net_pct']
+        text+=['',f"Ana strateji − kontrol A: {main_mean-groups['CONTROL_A']['all']['mean_net_pct']:+.5f} yüzde puan; ana strateji − kontrol B: {main_mean-groups['CONTROL_B']['all']['mean_net_pct']:+.5f} yüzde puan."]
     text+=['','## Önceden sabit başarı koşulları','']+[f"- {k}: {'sağlandı' if v else 'sağlanmadı'}" for k,v in checks.items()]
     text+=['','## LONG / SHORT ve son 12 ay','','| Grup | Kesit | İşlem | Ortalama net % | Hedef % | Stop % | Süre % |','|---|---|---:|---:|---:|---:|---:|']
     for g,v in groups.items():
         for key in ('long','short','last12'):
             m=v[key];text.append(f"| {g} | {key} | {m['n']} | {fmt(m['mean_net_pct'])} | {fmt(m.get('target_pct'))} | {fmt(m.get('stop_pct'))} | {fmt(m.get('timeout_pct'))} |")
-    text+=['','Son 12 ay: 23 Ekim 2025 – 23 Ekim 2026 UTC.','', '## Yıl yıl','','| Grup | Yıl | İşlem | Ortalama net % | Toplam net R |','|---|---|---:|---:|---:|']
+    text+=['','Son 12 ay: 23 Ekim 2025 – 23 Ekim 2026 UTC.','', '## Yıl yıl','','| Grup | Yıl | İşlem | Hedef % | Stop % | Süre % | Ortalama net % | Toplam net R |','|---|---|---:|---:|---:|---:|---:|---:|']
     for g,v in groups.items():
-        for y,m in v['years'].items():text.append(f"| {g} | {y} | {m['n']} | {fmt(m['mean_net_pct'])} | {fmt(m.get('total_net_r'))} |")
+        for y,m in v['years'].items():text.append(f"| {g} | {y} | {m['n']} | {fmt(m.get('target_pct'))} | {fmt(m.get('stop_pct'))} | {fmt(m.get('timeout_pct'))} | {fmt(m['mean_net_pct'])} | {fmt(m.get('total_net_r'))} |")
     text+=['','## Veri ve yöntem','',
       '- Kontrol A: yön listesindeki coinlerin ters yönlü 24 saat kırılımları. Kontrol B: aynı aylık ilk30 evreninde iki yön listesinde de olmayan coinlerin LONG/SHORT kırılımları. Her iki grupta aynı hacim, plan, günlük kota, masraf ve funding kuralları; gelecek getiriyle eşleştirme yok.',
       '- Kırılım önceki24 saatten, hacim önceki20 saatten gelir; sinyal mumu ikisinden de çıkarılır. Hacim ≥1,5 kat. Günlük liste UTC00:00 kapanışıyla güncellenir; tam00:00 saatlik sinyali o anda kapanmış günlük mumu kullanır.',

@@ -11,6 +11,12 @@ from hourly_motor_engine import Candle,DAY,HOUR,Series,STABLECOINS,universe_at
 from trend_breakout_data import Archive,ms,iso,month,months
 
 
+def save_prepared(path,payload):
+    temporary=path.with_suffix('.partial')
+    with gzip.open(temporary,'wt') as f:json.dump(payload,f,separators=(',',':'))
+    temporary.replace(path)
+
+
 def boundary_hour(symbol,end):
     r=requests.get('https://www.binance.com/fapi/v1/klines',params=dict(symbol=symbol,interval='1h',startTime=end,endTime=end+HOUR-1,limit=1),timeout=30)
     r.raise_for_status();raw=r.json()
@@ -80,10 +86,15 @@ def prepare(root,archive_root,sources,start,end,workers=12):
     def finish(s):
         p=target/(s+'.json.gz')
         if p.exists():
+            try:
+                with gzip.open(p,'rt') as f:json.load(f)
+            except (EOFError,OSError,json.JSONDecodeError):
+                p.rename(p.with_suffix('.incomplete'))
+        if p.exists():
             with gzip.open(p,'rt') as f:x=json.load(f)
             if x['daily'] and x['daily'][-1]['close_ms']==end and x['daily'][-1]['volume']>0 and not any(b[0]==end for b in x['hourly']):
                 x['hourly'].extend(astuple(b) for b in boundary_hour(s,end))
-                with gzip.open(p,'wt') as f:json.dump(x,f,separators=(',',':'))
+                save_prepared(p,x)
             return dict(symbol=s,sha256=hashlib.sha256(p.read_bytes()).hexdigest(),daily=len(x['daily']),hourly=len(x['hourly']),hourly_gaps=x['hourly_gaps'],daily_gaps=[dict(before=a['close_ms'],after=b['open_ms']) for a,b in zip(x['daily'],x['daily'][1:]) if a['close_ms']!=b['open_ms']])
         bars=all_bars[s];funding=[];coverage=set();ferrors=[]
         for source in sources:
@@ -131,7 +142,7 @@ def prepare(root,archive_root,sources,start,end,workers=12):
         gaps=[dict(before=a.close_ms,after=b.open_ms) for a,b in zip(hours,hours[1:]) if a.close_ms!=b.open_ms]
         payload=dict(symbol=s,source='futures',daily=[asdict(b) for b in bars],hourly=[astuple(b) for b in hours],
                      funding=funding,funding_coverage=sorted(coverage),funding_errors=ferrors,hourly_gaps=gaps)
-        with gzip.open(p,'wt') as f:json.dump(payload,f,separators=(',',':'))
+        save_prepared(p,payload)
         return dict(symbol=s,sha256=hashlib.sha256(p.read_bytes()).hexdigest(),daily=len(bars),hourly=len(hours),hourly_gaps=gaps,
                     daily_gaps=[dict(before=a.close_ms,after=b.open_ms) for a,b in zip(bars,bars[1:]) if a.close_ms!=b.open_ms])
     records=[]
