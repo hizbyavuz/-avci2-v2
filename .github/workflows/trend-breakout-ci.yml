@@ -1,0 +1,20 @@
+name: Trend Breakout isolated tests
+on:
+  push:
+    paths: ['trend_breakout_*.py', 'test_trend_breakout.py', '.github/workflows/trend-breakout-ci.yml']
+  pull_request:
+    paths: ['trend_breakout_*.py', 'test_trend_breakout.py', '.github/workflows/trend-breakout-ci.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r requirements.trend-breakout.txt
+      - run: python -m unittest test_trend_breakout -v
