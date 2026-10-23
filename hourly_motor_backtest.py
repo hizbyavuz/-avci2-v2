@@ -78,7 +78,9 @@ def candidates(root,out):
                 sig['id']=f'{group}:{s}:{at}'
                 if (group,day) in quota:records.append(dict(sig,status='SKIPPED',reason='DAILY_QUOTA'));continue
                 if i+1>=len(h.bars) or h.bars[i+1].open_ms!=at or h.bars[i+1].volume<=0:
-                    records.append(dict(sig,status='UNVERIFIED',reason='ENTRY_PRICE_MISSING'));continue
+                    # Unknown execution cannot be treated as an unused quota
+                    # and replaced with a later, better-observed signal.
+                    quota.add((group,day));records.append(dict(sig,status='UNVERIFIED',reason='ENTRY_PRICE_MISSING'));continue
                 plan=make_plan(sig,h.bars[i+1].open,at)
                 records.append(plan)
                 if plan['status']=='PLAN':quota.add((group,day))

@@ -170,6 +170,11 @@ class EngineTests(unittest.TestCase):
             rows=candidates(root,root/'out')
             self.assertEqual(sum(r['status']=='PLAN' for r in rows),1)
             self.assertGreater(sum(r['reason']=='DAILY_QUOTA' for r in rows),0)
+            h[80]=replace(h[80],volume=0)
+            with gzip.open(root/'prepared/TESTUSDT.json.gz','wt') as f:json.dump(dict(daily=[asdict(b) for b in d],hourly=[astuple(b) for b in h]),f)
+            rows=candidates(root,root/'out-unknown')
+            self.assertEqual(sum(r['status']=='PLAN' for r in rows),0)
+            self.assertEqual(sum(r['status']=='UNVERIFIED' for r in rows),1)
 
 
 if __name__=='__main__':unittest.main()
