@@ -1,0 +1,20 @@
+BTCUSDT | SHORT | 15m
+R/R YETERSİZ
+Karar zamanı: 15.08.2026 11:45 Türkiye
+Yapı: bölge kenarı kırılımı; isimli formasyon yok.
+GİRİŞ REFERANSI: ≈62995.100 (bölge kenarı; otomatik giriş değil)
+STOP (SL) REFERANSI: ≈63121.679
+HEDEF (TP) REFERANSI: ≈62942.364
+Kırılan bölge (15m): ≈62995.100 – ≈63014.0
+Son kapanış: ≈62991.9
+Hedef %0.08 | Risk %0.20 | Masraf sonrası -0.43 R
+15m: DÜŞÜŞ · 1h: YATAY · 4h: DÜŞÜŞ
+SL dayanağı: kırılımdan önce onaylanan en yakın 15m tepe ve 0,3 ATR tampon.
+TP dayanağı: kırılan bandın tamamen ötesindeki ilk uygun karşı bölgenin yakın kenarı.
+Kırılsa da R/R yetersiz: masraf sonrası -0.43 R, mevcut 1.50 R sınırının altında.
+Zayıf kırılım: hacim yetersiz.
+1 yakın/çakışan karşı bölge kayıtta var; hedefe kadar yol boş sayılmaz.
+Tick size doğrulanmadı; ≈ fiyatlar ham analiz referansıdır.
+Gözlem kaydı; gerçek emir/giriş yok. Canlı işlem uygunluğu doğrulanmadı.
+%0,30 toplam komisyon/kayma varsayımı; funding hariç.
+Kayıt: 342e57748bfd

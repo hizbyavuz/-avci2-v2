@@ -1,0 +1,27 @@
+{
+  "kind": "HISTORICAL_PRESENTATION_PREVIEW_NOT_BACKTEST",
+  "examples": [
+    {
+      "record": "records/903404029de2ce776908849d9b681629550d66c3d73b68ce176f20a8e467a31f.json",
+      "chart": "BTCUSDT-CONDITION_MET-LONG-0.png",
+      "message": "BTCUSDT-CONDITION_MET-LONG-0.txt",
+      "record_hash": "903404029de2ce776908849d9b681629550d66c3d73b68ce176f20a8e467a31f",
+      "state": "R/R YETERSİZ"
+    },
+    {
+      "record": "records/342e57748bfdaef07bdac31d704fa29d49032e2371f0cb680102c0eb25c00de3.json",
+      "chart": "BTCUSDT-CONDITION_MET-SHORT-0.png",
+      "message": "BTCUSDT-CONDITION_MET-SHORT-0.txt",
+      "record_hash": "342e57748bfdaef07bdac31d704fa29d49032e2371f0cb680102c0eb25c00de3",
+      "state": "R/R YETERSİZ"
+    }
+  ],
+  "source": {
+    "url": "https://data.binance.vision/data/futures/um/monthly/klines/BTCUSDT/1m/BTCUSDT-1m-2026-08.zip",
+    "sha256": "adfd0846ea580681aeb18a6bdf06660dcfcc1a7b6819ea2eecfc3c53240ec67a",
+    "checksum_verified": true,
+    "rows": 44640,
+    "bytes": 1817920
+  },
+  "future_prices_used": false
+}
