@@ -9,7 +9,7 @@ import json
 import math
 from statistics import median
 
-VERSION = 'PATTERN_STRUCTURE_RESEARCH_V2_2026_10_23'
+VERSION = 'PATTERN_STRUCTURE_RESEARCH_V2_1_2026_10_23'
 MINUTE = 60_000
 HOUR = 60 * MINUTE
 INTERVALS = {'15m': 15 * MINUTE, '30m': 30 * MINUTE, '1h': HOUR, '4h': 4 * HOUR}
@@ -368,46 +368,54 @@ def executable(p, price):
 
 
 def message(p, price, context=None):
+    """Compact card; show observed confirmation separately from entry conditions."""
+    from datetime import datetime, timezone
     g = geometry(p['direction'], price, p['stop'], p['target'])
     f = lambda x: f'{x:.8g}'
-    dot = '🟢' if p['direction'] == 'LONG' else '🔴'
-    rows = [f'{dot} {p["direction"]} | {p["symbol"]} | DENEME',
-            f'{LABELS[p["model"]]} · {p["interval"]} kapanış · 4s yapı: {p["context_4h"]}',
-            'Giriş türü: '+('geri test sonrası teyit' if p.get('entry_style') == 'RETEST' else 'ilk kırılım'),
-            f'Kırılan seviye: {f(p["trigger"])} | Güncel fiyat: {f(price)}',
-            f'SL: {f(p["stop"])} | TP: {f(p["target"])}',
-            'TP türü: '+('geçmiş fiyat engeli' if p['target_source'] == 'HISTORICAL_PIVOT' else 'formasyon boyu projeksiyonu; doğrulanmış direnç/destek değil'),
-            f'Stop mesafesi %{g["risk_pct"]:.2f} · hedef mesafesi %{g["gain_pct"]:.2f}',
-            f'Masraf varsayımı sonrası ödül/risk: {g["rr_after_assumed_cost"]:.2f}R (funding hariç)',
-            f'Varsayılan toplam komisyon/kayma: %{CONFIG["round_trip_cost_pct"]:.2f}; gerçek kayma farklı olabilir.',
-            f'Azami takip: {p["max_hold_hours"]} saat; süre dolmadan SL veya TP planı kapatır.']
-    fib = p.get('fibonacci')
+    long = p['direction'] == 'LONG'
+    sign = 1 if long else -1
+    side = 'üstünde' if long else 'altında'
+    dot = '🟢' if long else '🔴'
+    interval = {'15m': '15 dk', '30m': '30 dk'}[p['interval']]
+    trend_name = {'UP': 'yükseliş ↑', 'DOWN': 'düşüş ↓', 'RANGE': 'yatay ↔'}.get(p['context_4h'], 'belirsiz')
+    retest = p.get('entry_style') == 'RETEST'
+    limit = p['trigger']+sign*CONFIG['max_chase_atr']*p['atr']
+    expiry = datetime.fromtimestamp(p['expires_ms']/1000, timezone.utc).strftime('%H:%M UTC')
+    rows = [f'{dot} {p["symbol"]} · {p["direction"]} ADAYI | DENEME',
+            f'📊 {interval} · {LABELS[p["model"]]}',
+            '✅ '+('Geri test sonrası kapanış teyidi geldi.' if retest else 'İlk kırılım kapanışla teyit edildi.'),
+            '',
+            f'💰 Giriş referansı / şu an: {f(price)}',
+            f'🔔 Beklenen: fiyat {f(p["trigger"])} {side} kalsın; giriş şartları korunsun.',
+            f'🚫 Kovalama sınırı: {f(limit)}; '+('üstünden' if long else 'altından')+' takip etme.',
+            f'🛑 SL: {f(p["stop"])} · mesafe %{g["risk_pct"]:.2f}',
+            f'🎯 TP: {f(p["target"])} · alan %{g["gain_pct"]:.2f}',
+            f'⚖️ Masraf sonrası ödül/risk: {g["rr_after_assumed_cost"]:.2f}R',
+            f'⌛ Plan geçerliliği: {expiry} · fiyat değişirse R yeniden hesaplanır.',
+            '',
+            '📐 Hesap: '+('geri test ucu' if retest else 'formasyonun geçersizlik noktası')+' + 0,20 ATR tamponu (mum oynaklığı).',
+            '🎯 Hedef dayanağı: '+('henüz aşılmamış fiyat engeli.' if p['target_source'] == 'HISTORICAL_PIVOT' else 'formasyon boyu tahmini; doğrulanmış destek/direnç değil.'),
+            f'🧭 4 saatlik yapı: {trend_name} · ATR(14): {f(p["atr"])}']
     supporting = p.get('supporting', {})
-    if finite(supporting.get('volume_multiple')):
-        rows.append(f'Mum hacmi: önceki 24 mum medyanının {supporting["volume_multiple"]:.2f} katı')
-    if finite(supporting.get('taker_buy_share')):
-        rows.append(f'Agresif alış payı: %{100*supporting["taker_buy_share"]:.1f}')
+    volume, buy = supporting.get('volume_multiple'), supporting.get('taker_buy_share')
+    parts = []
+    if finite(volume): parts.append(f'Hacim {volume:.2f}× (önceki 24 mum medyanına göre)')
+    if finite(buy): parts.append(f'Alış %{100*buy:.0f} / satış %{100*(1-buy):.0f}')
+    if parts: rows.append('📦 '+' · '.join(parts))
+    fib = p.get('fibonacci')
     if fib:
-        rows.append(f'Fib çıpası: {f(fib["start"]["price"])} → {f(fib["end"]["price"])}')
-        rows.append('Geri çekilme: '+ ' / '.join(f'%{100*float(k):g}: {f(v)}' for k, v in fib['retracements'].items()))
-        rows.append('Fib projeksiyonu: '+ ' / '.join(f'{k}: {f(v)}' for k, v in fib['projections'].items()))
+        rows.append(f'📏 Fib dayanağı: {f(fib["start"]["price"])} → {f(fib["end"]["price"])}')
+        rows.append('Fib: '+' · '.join(f'%{100*float(k):g} {f(v)}' for k,v in fib['retracements'].items() if k != '0.5'))
     else:
-        rows.append('Fibonacci: teyitli uygun fiyat bacağı yok; seviye uydurulmadı.')
-    if context:
-        flow = context.get('groups', {}).get('flow', 'MISSING')
-        rows.append(f'Destekleyici akış: {flow} · veri sorunları: {len(context.get("issues", []))}')
-        native = context.get('native') or {}
-        values = []
-        for key, label, freshness in [('oi_change_1h', 'OI 1s', 'oi_fresh'), ('funding_pct', 'funding', 'funding_fresh')]:
-            value = native.get(key)
-            values.append(f'{label}: %{value:.3g}' if finite(value) and native.get(freshness) else f'{label}: veri yok/eski')
-        rows.append(' · '.join(values))
-        if native.get('ls_fresh') and finite(native.get('long_short_ratio')):
-            rows.append(f'Long/short hesap oranı: {native["long_short_ratio"]:.3g}; pozisyon büyüklüğü oranı değildir.')
-    else:
-        rows.append('OI / funding / akış: doğrulanmış veri yok.')
-    rows += ['Fibonacci ve türev verileri yön kararı vermez.',
-             'Başarı oranı henüz ölçülmedi. Otomatik emir yok; bu bir araştırma planıdır.',
-             'Ölçüm mesaj kabulünden sonraki ilk tam 1dk mumunda başlar; fiyat şartları bozulursa giriş iptal edilir.',
-             f'Plan: {p["id"][:10]}']
+        rows.append('📏 Fib: uygun teyitli fiyat hareketi yok.')
+    native = (context or {}).get('native') or {}
+    values = []
+    for key, label, fresh in [('oi_change_1h','OI (açık pozisyon) 1 sa','oi_fresh'),
+                              ('funding_pct','Funding (taşıma oranı)','funding_fresh')]:
+        value = native.get(key)
+        values.append(f'{label}: %{value:.3g}' if finite(value) and native.get(fresh) else f'{label}: veri yok/eski')
+    rows.append('ℹ️ '+' · '.join(values))
+    rows += ['', f'📝 Deneme: ücret/kayma varsayımı %{CONFIG["round_trip_cost_pct"]:.2f}; funding hariç. Fib ve türevler destek bilgisidir.',
+             f'Kağıt giriş: mesajdan sonraki ilk tam 1 dk açılışı; şartlar bozulursa iptal. SL/TP veya en çok {p["max_hold_hours"]} saatte kapanır.',
+             f'Otomatik emir yok · başarı oranı ölçülmedi · #{p["id"][:10]}']
     return '\n'.join(rows)
