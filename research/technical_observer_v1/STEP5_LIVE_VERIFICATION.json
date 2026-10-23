@@ -1,0 +1,140 @@
+{
+  "status": "LIVE_SHADOW_VERIFIED",
+  "deployment_id": "a7734d23-0443-40ac-b0f1-e79bf84bbae0",
+  "deployed_commit": "6f7c94ab9b79820adbfcd50d650a79f33b90f6bd",
+  "service": "long-short-motor",
+  "deployment_status": "SUCCESS",
+  "start_command": "python -u structure_shadow_start.py",
+  "checked_at_utc": "2026-10-23T15:56:43.672433404Z",
+  "pending_changes": 0,
+  "shadow_health": {
+    "timestamp": "2026-10-23T15:56:43.672433404Z",
+    "automatic_promotion": false,
+    "completed_forward_groups": 0,
+    "deduplicated_groups": 94,
+    "finished_ms": 1792771003552,
+    "issues": {
+      "PREFIX_WARMUP:4h": 1
+    },
+    "measurement": {
+      "checked": 0,
+      "complete": 0,
+      "unresolved": 0,
+      "waiting_data": 0
+    },
+    "new_setups": 84,
+    "observed_ms": 1792770928201,
+    "ops_hash": "b9c651af76e70c7fd0bfc733b8b25995b1a914d6906cea771ef81c3a2b349328",
+    "requested": 287,
+    "required_completed_groups": 100,
+    "resources": {
+      "ok": true,
+      "reasons": [],
+      "shadow_mb": 71.498,
+      "shadow_peak_rss_mb": 32.734
+    },
+    "review_ready": false,
+    "scans": 287,
+    "states": {
+      "PAIRED": 285,
+      "RECORDED_WITH_DATA_ISSUE": 2
+    },
+    "unresolved": 0,
+    "version": "TA_SHADOW_V1_2026_10_23"
+  },
+  "primary_health": {
+    "timestamp": "2026-10-23T15:56:22.555172555Z",
+    "already_scanned": 287,
+    "config_hash": "5e26e8e052e873de50b09398f190245bd8d21f2dcc0a97b395330dbb7f3f8a45",
+    "interval": "15m",
+    "issues": {},
+    "notices": {},
+    "observed_ms": 1792770979075,
+    "outcomes": {
+      "DELIVERED:INCOMPLETE_HORIZON": 6,
+      "RESEARCH:INCOMPLETE_HORIZON": 100
+    },
+    "policies": {},
+    "requested": 287,
+    "scanned": 0,
+    "stages": {},
+    "terminal_notices": {},
+    "version": "STRUCTURE_CONTEXT_V1_3_2026_10_23"
+  },
+  "combined_resources": {
+    "timestamp": "2026-10-23T15:56:27.885853625Z",
+    "cgroup_anon_mb": 142.76,
+    "cgroup_current_mb": 502.5,
+    "cgroup_file_cache_mb": 351.02,
+    "memory_events": {
+      "high": 0,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0
+    },
+    "process_rss_mb": {
+      "2": 36.31,
+      "3": 32.36,
+      "4": 27.46,
+      "5": 35.06,
+      "6": 36.82,
+      "7": 27.39,
+      "8": 26.81,
+      "supervisor": 16.71
+    },
+    "total_process_rss_mb": 238.92
+  },
+  "primary_resources": {
+    "timestamp": "2026-10-23T15:56:29.003694434Z",
+    "disk": {
+      "disk_free_mb": 2806.796875,
+      "ok": true,
+      "peak_rss_mb": 36.3125,
+      "reasons": [],
+      "state_mb": 1642.927653312683
+    },
+    "processes": {
+      "cgroup_anon_mb": 142.59,
+      "cgroup_current_mb": 502.31,
+      "cgroup_file_cache_mb": 351.13,
+      "memory_events": {
+        "high": 0,
+        "low": 0,
+        "max": 0,
+        "oom": 0,
+        "oom_group_kill": 0,
+        "oom_kill": 0
+      },
+      "process_rss_mb": {
+        "decision_runtime": 26.81,
+        "long_short_futures_history_worker.py": 27.39,
+        "long_short_futures_kline_worker.py": 36.82,
+        "long_short_futures_universe_worker.py": 27.46,
+        "long_short_native_derivatives.py": 35.06,
+        "supervisor": 36.31
+      },
+      "total_process_rss_mb": 189.85
+    }
+  },
+  "railway_limits_unchanged": {
+    "vcpus": 1,
+    "memory_bytes": 1000000000,
+    "replicas": 1,
+    "restart_policy": "NEVER"
+  },
+  "interpretation": {
+    "shadow_connected": true,
+    "existing_primary_running": true,
+    "new_notifications": false,
+    "real_orders": false,
+    "completed_independent_forward_observations": 0,
+    "required_forward_observations": 100,
+    "startup_records_are_not_forward_samples": true,
+    "new_telegram_delivery_in_this_deployment": "NOT_VERIFIED_NO_NEW_NOTICE_IN_OBSERVED_WINDOW",
+    "profitability": "NOT_VERIFIED",
+    "historical_MAGMA_regression": "3_TESTS_UNVERIFIED_MISSING_ORIGINAL_SNAPSHOT",
+    "scope": "Point-in-time first full scan. Not a future uptime, resource billing or profitability guarantee."
+  }
+}
