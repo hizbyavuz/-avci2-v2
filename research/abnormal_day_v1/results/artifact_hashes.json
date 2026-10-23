@@ -1,0 +1,21 @@
+{
+  "all_signals.csv": "b144674c2b682cd9f2569b2a6b474912e98cf149c8b3b4ff4b5737ee97646bf2",
+  "control_matching.csv": "8b46fc07deb0bcf7bcf530f7c821d233d55785fda8e1799312ef77a23073f9ac",
+  "data_events.csv": "9db8405502fed81609aa37dc91c622c46625e9ada99b3d43e59fd5c85617669a",
+  "data_manifest.json": "b126a4a68022fd87348c6ad4ed5483a410cd5ae6dbc3ffc2a4e18255c31e413a",
+  "equity.csv": "8a9081273d455bb684140a6f4b555a4d42316c1ed0e67ae91925ac3de7601fe9",
+  "equity_curve.png": "58ec1bd29fea49f37a5f234535334aebbe48a883d66ce6137fc1a02f11eb6da1",
+  "frozen_control_matching.json": "8a90fa7b86551879707345d5e216c0259acbfc0c817af4ce0aa16b1df82ea5a6",
+  "frozen_control_matching.json.gz": "b1e12e6df2e89d5db7ef696ffc37a4e335582e78d53355aa6c42ffcd1371c887",
+  "outcomes.jsonl": "49d651296c8e6bb11bf180f6ea7a4be094a972584691766e90e6ff023796eff4",
+  "outcomes.jsonl.gz": "8317877dc2ec3874370f902b88cdeb68cd5dcdfda4286a704b2a8aea2f2734a2",
+  "report.md": "730dd60dc7307cf722686891fd01f511380c985601bb40fb75afbc8b07c4099c",
+  "run.log": "30fc8ec149629e47fe7c8177c249952e3b190c69639b1a311f4c870f06dc2c6a",
+  "sealed_run.json": "1e3acbf56630e3e97dd0c08a94f567e1bdd5848ea88a76fb918bdd1a91f94956",
+  "skipped.csv": "73abffeb3ee805425e453d1824fcd61e14addb4f6db69586ce47d15eb51d0ef4",
+  "summary.json": "c11689ed7c676c1411bf9938299216f3dc4293341d801f518255b217b2c751e7",
+  "test_evidence.json": "31da74b5e98aea963e931e76f0ff521c70c9aaea50594d3f9db8fd910e761e95",
+  "trades.csv": "865bdc8664d989559ccaf3dd071ea26eb8a056342280f3b1248103a6bea8178c",
+  "trades.csv.gz": "56957561a07cccc2ad765e51bd06da688180bd6e076276a58f844c9a2bf545b9",
+  "verification.json": "4b4683f0bf8582322090dffec88693c5a9e3ecf578bd8ff7695403313fcf0a34"
+}

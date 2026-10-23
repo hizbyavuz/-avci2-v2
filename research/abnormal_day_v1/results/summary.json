@@ -1,0 +1,1652 @@
+{
+  "verdict": "BAŞARISIZ",
+  "identity": {
+    "rules": {
+      "version": 1,
+      "return_days": 90,
+      "std_ddof": 1,
+      "z_threshold": 2.0,
+      "atr_days": 14,
+      "stop_atr": 2.0,
+      "hours": 24,
+      "universe_size": 20,
+      "universe_days": 30,
+      "minimum_history_days": 120,
+      "max_positions": 5,
+      "max_direction": 3,
+      "cost_pct": 0.3,
+      "stress_cost_pct": 0.6,
+      "control_seed": 20261023,
+      "initial_equity": 10000.0,
+      "equity_risk": 0.01,
+      "parameter_variants": 0
+    },
+    "rules_hash": "f2b53755aebc38864f31258e623eb2d7ebfb7e45981347359c7ff7bf4a75acf5",
+    "protocol": {
+      "name": "Anormal Gün Devamı v1",
+      "parameter_variants": 0,
+      "allowed_completed_runs": 1,
+      "end_exclusive_utc": "2026-10-23T00:00:00Z",
+      "signal": "close/previous close-1; mean and sample SD ddof=1 of preceding 90 daily returns excluding signal day; inclusive z >= 2 / <= -2",
+      "atr": "daily Wilder ATR14, mean seed of first 14 true ranges; signal day included; a missing calendar interval is not fabricated and starts a new ATR seed; recent return window with a gap is unverified",
+      "universe": "first UTC day of each month, previous 30 closed daily bars quote volume; top20, minimum120 daily history; historical catalogue, not current TRADING list",
+      "entry": "next daily open; exact timestamp ties expire old positions first, then choose largest absolute z, symbol as deterministic tie-break",
+      "exit": "24h boundary next-hour open; emergency stop checked hourly with open-gap fills, intrahour stop level at last millisecond of that hour; unresolved intrahour funding order unverified",
+      "funding": "actual signed rates on fixed entry notional; entry < settlement <= exit, milliseconds floored to seconds; missing series never replaced with zero",
+      "control": "one uniform same-coin same-signal-calendar-month |z|<1 observed day per signal; seed20261023 hash per signal; with replacement; pool frozen before outcomes; retrospective comparison only, no role in live signals; no control resampling after failures",
+      "control_portfolio": "for each accepted actual signal its matched independent control, not a separately capacity-filtered portfolio; duplicates and temporal dependence disclosed",
+      "supplementary": "same accepted main signal IDs held48h with emergency stop, or24h without stop; no new selection or capacity refill; not used to choose rules",
+      "capital": "10000USDT, each entry current equity risk1%; 0.15% entry plus0.15% exit on original notional; UTC boundary equity, not intraday drawdown; no margin/liquidation model",
+      "success": "limited main24h only, six user conditions plus data must be verified; below200 YETERSIZ VERI; no tuning",
+      "annual": "exit calendar year, partial first/last years included; last12months by exit date; best3 by total net percentage then excluded from unchanged trade list",
+      "data_repair": "original monthly archive gaps completed from official daily archive, or all24 official hourly bars if available; every repair logged; no edits to original Turtle inputs",
+      "live": "disabled until GEÇTİ and explicit report-bound user approval; daily00:07UTC; scheduler cannot guarantee exact execution, actual entry/exit timestamps and late-exit delay recorded; minute data only trims partial live entry/exit hours, no minute signals"
+    },
+    "code": {
+      "abnormal_day_backtest.py": "06f8c508e1980ba029a5ec40bb44db7375007834a0f6c8878f1622717666be43",
+      "abnormal_day_data.py": "b41ff5113a0e9b189b5b9bb17399a5d1997b3bba627e8401096668453ad880b2",
+      "abnormal_day_engine.py": "160b8bf137f5386b6a1f70b5aa4eaa413cb9f07ede2b20788956e9166a82d8fe",
+      "abnormal_day_live.py": "b814cdc6abb3be1d480fe4161012cc2cc23d51d45397b5ad5e8a41d00269e9ac"
+    },
+    "manifest_sha256": "b126a4a68022fd87348c6ad4ed5483a410cd5ae6dbc3ffc2a4e18255c31e413a",
+    "universe_sha256": "1996e17974362e6fd72f1e6024bdb1b29ee6f118ac2625f383366cd95cd3d936",
+    "start": 1577836800000,
+    "end": 1792713600000
+  },
+  "results": {
+    "unlimited": {
+      "groups": {
+        "ALL": {
+          "stats": {
+            "trades": 2263,
+            "unverified": 1,
+            "win_pct": 41.31683605832965,
+            "mean_net_return_pct": -0.9448873630277222,
+            "mean_net_r": -0.03266417129626862,
+            "total_net_return_pct": -2138.2801025317353,
+            "total_net_r": -73.91901964345588,
+            "stress_mean_pct": -1.2448873630277222,
+            "without_best_three_mean_pct": -1.0775391748349192,
+            "best_three": [
+              "LUNAUSDT",
+              "LINAUSDT",
+              "AKEUSDT"
+            ],
+            "max_drawdown_r": 83.57772333618801,
+            "longest_loss_streak": 32,
+            "emergency_exits": 86
+          },
+          "control": {
+            "trades": 2260,
+            "unverified": 4,
+            "win_pct": 48.008849557522126,
+            "mean_net_return_pct": 0.4286380140482117,
+            "mean_net_r": 0.02431106920071184,
+            "total_net_return_pct": 968.7219117489584,
+            "total_net_r": 54.94301639360876,
+            "stress_mean_pct": 0.12863801404821174,
+            "without_best_three_mean_pct": 0.2920083986242141,
+            "best_three": [
+              "ETHUSDT",
+              "XRPUSDT",
+              "LTCUSDT"
+            ],
+            "max_drawdown_r": 11.194085186704562,
+            "longest_loss_streak": 10,
+            "emergency_exits": 34
+          },
+          "years": [
+            {
+              "year": 2020,
+              "trades": 283,
+              "unverified": 0,
+              "win_pct": 33.21554770318021,
+              "mean_net_return_pct": -1.8366617688298683,
+              "mean_net_r": -0.07726365896249926,
+              "total_net_return_pct": -519.7752805788527,
+              "total_net_r": -21.86561548638729,
+              "stress_mean_pct": -2.1366617688298684,
+              "without_best_three_mean_pct": -2.211021073335455,
+              "best_three": [
+                "ONTUSDT",
+                "ATOMUSDT",
+                "LTCUSDT"
+              ],
+              "max_drawdown_r": 22.67603889518615,
+              "longest_loss_streak": 19,
+              "emergency_exits": 23
+            },
+            {
+              "year": 2021,
+              "trades": 369,
+              "unverified": 0,
+              "win_pct": 42.00542005420054,
+              "mean_net_return_pct": -1.4467240136481245,
+              "mean_net_r": -0.004825771870180542,
+              "total_net_return_pct": -533.8411610361579,
+              "total_net_r": -1.78070982009662,
+              "stress_mean_pct": -1.7467240136481244,
+              "without_best_three_mean_pct": -2.219641952959921,
+              "best_three": [
+                "BNBUSDT",
+                "ETCUSDT",
+                "XRPUSDT"
+              ],
+              "max_drawdown_r": 17.41096318506105,
+              "longest_loss_streak": 32,
+              "emergency_exits": 10
+            },
+            {
+              "year": 2022,
+              "trades": 317,
+              "unverified": 1,
+              "win_pct": 43.217665615141954,
+              "mean_net_return_pct": -0.825931460682623,
+              "mean_net_r": -0.033430244429590535,
+              "total_net_return_pct": -261.8202730363915,
+              "total_net_r": -10.5973874841802,
+              "stress_mean_pct": -1.125931460682623,
+              "without_best_three_mean_pct": -1.488935083256693,
+              "best_three": [
+                "LUNAUSDT",
+                "WAVESUSDT",
+                "XRPUSDT"
+              ],
+              "max_drawdown_r": 17.99782124606244,
+              "longest_loss_streak": 24,
+              "emergency_exits": 15
+            },
+            {
+              "year": 2023,
+              "trades": 356,
+              "unverified": 0,
+              "win_pct": 40.168539325842694,
+              "mean_net_return_pct": -0.4238194684712863,
+              "mean_net_r": -0.0428631145839064,
+              "total_net_return_pct": -150.87973077577794,
+              "total_net_r": -15.25926879187068,
+              "stress_mean_pct": -0.7238194684712863,
+              "without_best_three_mean_pct": -0.840648590536221,
+              "best_three": [
+                "LINAUSDT",
+                "DYDXUSDT",
+                "UNFIUSDT"
+              ],
+              "max_drawdown_r": 18.82680344304539,
+              "longest_loss_streak": 18,
+              "emergency_exits": 9
+            },
+            {
+              "year": 2024,
+              "trades": 356,
+              "unverified": 0,
+              "win_pct": 42.69662921348315,
+              "mean_net_return_pct": -0.42827551697817506,
+              "mean_net_r": -0.014338379340516832,
+              "total_net_return_pct": -152.46608404423034,
+              "total_net_r": -5.104463045223992,
+              "stress_mean_pct": -0.7282755169781749,
+              "without_best_three_mean_pct": -0.9026609094486375,
+              "best_three": [
+                "XRPUSDT",
+                "1000PEPEUSDT",
+                "REEFUSDT"
+              ],
+              "max_drawdown_r": 19.449207415768917,
+              "longest_loss_streak": 20,
+              "emergency_exits": 11
+            },
+            {
+              "year": 2025,
+              "trades": 311,
+              "unverified": 0,
+              "win_pct": 45.659163987138264,
+              "mean_net_return_pct": -0.9884960345447386,
+              "mean_net_r": -0.044824814305828846,
+              "total_net_return_pct": -307.4222667434137,
+              "total_net_r": -13.940517249112771,
+              "stress_mean_pct": -1.2884960345447385,
+              "without_best_three_mean_pct": -1.1636851282164318,
+              "best_three": [
+                "PENGUUSDT",
+                "LTCUSDT",
+                "TAOUSDT"
+              ],
+              "max_drawdown_r": 22.10791020310484,
+              "longest_loss_streak": 22,
+              "emergency_exits": 7
+            },
+            {
+              "year": 2026,
+              "trades": 271,
+              "unverified": 0,
+              "win_pct": 41.32841328413284,
+              "mean_net_return_pct": -0.7825657059664621,
+              "mean_net_r": -0.01981940135270972,
+              "total_net_return_pct": -212.07530631691122,
+              "total_net_r": -5.371057766584334,
+              "stress_mean_pct": -1.082565705966462,
+              "without_best_three_mean_pct": -1.5045027738807895,
+              "best_three": [
+                "HYPEUSDT",
+                "AKEUSDT",
+                "ZECUSDT"
+              ],
+              "max_drawdown_r": 18.440657950224463,
+              "longest_loss_streak": 17,
+              "emergency_exits": 11
+            }
+          ],
+          "verdict": "BAŞARISIZ",
+          "criteria_only_verdict": "BAŞARISIZ",
+          "checks": {
+            "minimum_200": true,
+            "mean_positive": false,
+            "stress_positive": false,
+            "without_best_three_positive": false,
+            "beats_control": false,
+            "majority_years_positive": false,
+            "data_verified": false
+          },
+          "paired_count": 2259,
+          "paired_difference_pct": -1.387545656026879,
+          "last12": {
+            "trades": 318,
+            "unverified": 0,
+            "win_pct": 44.339622641509436,
+            "mean_net_return_pct": -0.5102583266827527,
+            "mean_net_r": -0.008882796648313365,
+            "total_net_return_pct": -162.26214788511535,
+            "total_net_r": -2.82472933416365,
+            "stress_mean_pct": -0.8102583266827525,
+            "without_best_three_mean_pct": -1.07288796073629,
+            "best_three": [
+              "AKEUSDT",
+              "HYPEUSDT",
+              "ZECUSDT"
+            ],
+            "max_drawdown_r": 18.440657950224463,
+            "longest_loss_streak": 17,
+            "emergency_exits": 11
+          },
+          "hours48": {
+            "trades": 2261,
+            "unverified": 3,
+            "win_pct": 40.20344980097302,
+            "mean_net_return_pct": -1.0798507608838097,
+            "mean_net_r": -0.0324850788148418,
+            "total_net_return_pct": -2441.5425703582937,
+            "total_net_r": -73.4487632003573,
+            "stress_mean_pct": -1.3798507608838095,
+            "without_best_three_mean_pct": -1.1995682881737177,
+            "best_three": [
+              "LINAUSDT",
+              "LUNAUSDT",
+              "HYPEUSDT"
+            ],
+            "max_drawdown_r": 105.34143506736662,
+            "longest_loss_streak": 34,
+            "emergency_exits": 168
+          },
+          "no_stop": {
+            "trades": 2263,
+            "unverified": 1,
+            "win_pct": 41.581970835174545,
+            "mean_net_return_pct": -0.8737715393298829,
+            "mean_net_r": -0.024505218944682064,
+            "total_net_return_pct": -1977.344993503525,
+            "total_net_r": -55.45531047181551,
+            "stress_mean_pct": -1.1737715393298829,
+            "without_best_three_mean_pct": -1.0719882839496677,
+            "best_three": [
+              "LUNAUSDT",
+              "LINAUSDT",
+              "XRPUSDT"
+            ],
+            "max_drawdown_r": 67.75312696802942,
+            "longest_loss_streak": 32,
+            "emergency_exits": 0
+          }
+        },
+        "LONG": {
+          "stats": {
+            "trades": 1305,
+            "unverified": 0,
+            "win_pct": 42.452107279693486,
+            "mean_net_return_pct": -0.39793533757073835,
+            "mean_net_r": -0.01047689811216499,
+            "total_net_return_pct": -519.3056155298135,
+            "total_net_r": -13.67235203637531,
+            "stress_mean_pct": -0.6979353375707382,
+            "without_best_three_mean_pct": -0.6867749711989292,
+            "best_three": [
+              "LINAUSDT",
+              "BNBUSDT",
+              "XRPUSDT"
+            ],
+            "max_drawdown_r": 42.578874785543746,
+            "longest_loss_streak": 18,
+            "emergency_exits": 66
+          },
+          "control": {
+            "trades": 1305,
+            "unverified": 0,
+            "win_pct": 45.97701149425287,
+            "mean_net_return_pct": 0.33529169641847595,
+            "mean_net_r": 0.028165914073395935,
+            "total_net_return_pct": 437.55566382611113,
+            "total_net_r": 36.756517865781696,
+            "stress_mean_pct": 0.035291696418476015,
+            "without_best_three_mean_pct": 0.06728935915720226,
+            "best_three": [
+              "XRPUSDT",
+              "ETHUSDT",
+              "BNBUSDT"
+            ],
+            "max_drawdown_r": 12.561282337400446,
+            "longest_loss_streak": 11,
+            "emergency_exits": 20
+          },
+          "years": [
+            {
+              "year": 2020,
+              "trades": 158,
+              "unverified": 0,
+              "win_pct": 46.835443037974684,
+              "mean_net_return_pct": -0.050149736801331564,
+              "mean_net_r": -0.011314681692057042,
+              "total_net_return_pct": -7.9236584146103874,
+              "total_net_r": -1.7877197073450126,
+              "stress_mean_pct": -0.35014973680133143,
+              "without_best_three_mean_pct": -0.8481556524981205,
+              "best_three": [
+                "ATOMUSDT",
+                "LINKUSDT",
+                "XLMUSDT"
+              ],
+              "max_drawdown_r": 9.746484520897214,
+              "longest_loss_streak": 11,
+              "emergency_exits": 19
+            },
+            {
+              "year": 2021,
+              "trades": 217,
+              "unverified": 0,
+              "win_pct": 41.935483870967744,
+              "mean_net_return_pct": 0.3753357322750154,
+              "mean_net_r": 0.047590401974480355,
+              "total_net_return_pct": 81.44785390367834,
+              "total_net_r": 10.327117228462237,
+              "stress_mean_pct": 0.07533573227501543,
+              "without_best_three_mean_pct": -0.9641187221965883,
+              "best_three": [
+                "BNBUSDT",
+                "ETCUSDT",
+                "ADAUSDT"
+              ],
+              "max_drawdown_r": 8.32814826695825,
+              "longest_loss_streak": 18,
+              "emergency_exits": 9
+            },
+            {
+              "year": 2022,
+              "trades": 159,
+              "unverified": 0,
+              "win_pct": 38.9937106918239,
+              "mean_net_return_pct": -1.8024061243496865,
+              "mean_net_r": -0.07613192378551685,
+              "total_net_return_pct": -286.58257377160015,
+              "total_net_r": -12.104975881897179,
+              "stress_mean_pct": -2.1024061243496863,
+              "without_best_three_mean_pct": -2.459568661087216,
+              "best_three": [
+                "AXSUSDT",
+                "XRPUSDT",
+                "ETHUSDT"
+              ],
+              "max_drawdown_r": 14.720495048412513,
+              "longest_loss_streak": 14,
+              "emergency_exits": 7
+            },
+            {
+              "year": 2023,
+              "trades": 218,
+              "unverified": 0,
+              "win_pct": 40.36697247706422,
+              "mean_net_return_pct": -0.10587398572218015,
+              "mean_net_r": -0.034001410274263885,
+              "total_net_return_pct": -23.08052888743527,
+              "total_net_r": -7.412307439789527,
+              "stress_mean_pct": -0.4058739857221801,
+              "without_best_three_mean_pct": -0.8386726324439181,
+              "best_three": [
+                "LINAUSDT",
+                "DYDXUSDT",
+                "UNFIUSDT"
+              ],
+              "max_drawdown_r": 11.29862384345714,
+              "longest_loss_streak": 14,
+              "emergency_exits": 9
+            },
+            {
+              "year": 2024,
+              "trades": 214,
+              "unverified": 0,
+              "win_pct": 42.52336448598131,
+              "mean_net_return_pct": -0.31107878548060436,
+              "mean_net_r": 0.0034544276387431998,
+              "total_net_return_pct": -66.57086009284933,
+              "total_net_r": 0.7392475146910448,
+              "stress_mean_pct": -0.6110787854806042,
+              "without_best_three_mean_pct": -1.2353610605987688,
+              "best_three": [
+                "XRPUSDT",
+                "1000PEPEUSDT",
+                "DOGEUSDT"
+              ],
+              "max_drawdown_r": 12.57047397007974,
+              "longest_loss_streak": 15,
+              "emergency_exits": 10
+            },
+            {
+              "year": 2025,
+              "trades": 176,
+              "unverified": 0,
+              "win_pct": 46.02272727272727,
+              "mean_net_return_pct": -1.219470522871297,
+              "mean_net_r": -0.05013892320872775,
+              "total_net_return_pct": -214.62681202534827,
+              "total_net_r": -8.824450484736085,
+              "stress_mean_pct": -1.519470522871297,
+              "without_best_three_mean_pct": -1.4436138167617347,
+              "best_three": [
+                "FARTCOINUSDT",
+                "EOSUSDT",
+                "LTCUSDT"
+              ],
+              "max_drawdown_r": 17.337543957160666,
+              "longest_loss_streak": 18,
+              "emergency_exits": 7
+            },
+            {
+              "year": 2026,
+              "trades": 163,
+              "unverified": 0,
+              "win_pct": 41.104294478527606,
+              "mean_net_return_pct": -0.01207997694262876,
+              "mean_net_r": 0.03307200450453503,
+              "total_net_return_pct": -1.9690362416484881,
+              "total_net_r": 5.390736734239209,
+              "stress_mean_pct": -0.31207997694262873,
+              "without_best_three_mean_pct": -1.0389101543942474,
+              "best_three": [
+                "AKEUSDT",
+                "HYPEUSDT",
+                "ZECUSDT"
+              ],
+              "max_drawdown_r": 9.636708277348346,
+              "longest_loss_streak": 12,
+              "emergency_exits": 5
+            }
+          ],
+          "verdict": "BAŞARISIZ",
+          "criteria_only_verdict": "BAŞARISIZ",
+          "checks": {
+            "minimum_200": true,
+            "mean_positive": false,
+            "stress_positive": false,
+            "without_best_three_positive": false,
+            "beats_control": false,
+            "majority_years_positive": false,
+            "data_verified": false
+          },
+          "paired_count": 1305,
+          "paired_difference_pct": -0.7332270339892143,
+          "last12": {
+            "trades": 189,
+            "unverified": 0,
+            "win_pct": 42.857142857142854,
+            "mean_net_return_pct": 0.04765535408916968,
+            "mean_net_r": 0.032928559360432555,
+            "total_net_return_pct": 9.006861922853071,
+            "total_net_r": 6.223497719121752,
+            "stress_mean_pct": -0.2523446459108303,
+            "without_best_three_mean_pct": -0.8237529211960071,
+            "best_three": [
+              "AKEUSDT",
+              "HYPEUSDT",
+              "ZECUSDT"
+            ],
+            "max_drawdown_r": 9.636708277348344,
+            "longest_loss_streak": 12,
+            "emergency_exits": 5
+          },
+          "hours48": {
+            "trades": 1304,
+            "unverified": 1,
+            "win_pct": 43.328220858895705,
+            "mean_net_return_pct": -0.10945429119651791,
+            "mean_net_r": 0.014136876030180595,
+            "total_net_return_pct": -142.72839572025936,
+            "total_net_r": 18.434486343355495,
+            "stress_mean_pct": -0.40945429119651783,
+            "without_best_three_mean_pct": -0.4378199253488876,
+            "best_three": [
+              "LINAUSDT",
+              "BNBUSDT",
+              "ETCUSDT"
+            ],
+            "max_drawdown_r": 41.57999533422723,
+            "longest_loss_streak": 32,
+            "emergency_exits": 127
+          },
+          "no_stop": {
+            "trades": 1305,
+            "unverified": 0,
+            "win_pct": 42.911877394636015,
+            "mean_net_return_pct": -0.27598057675838134,
+            "mean_net_r": 0.0029159365732998447,
+            "total_net_return_pct": -360.1546526696876,
+            "total_net_r": 3.8052972281562973,
+            "stress_mean_pct": -0.5759805767583812,
+            "without_best_three_mean_pct": -0.6012472257158422,
+            "best_three": [
+              "XRPUSDT",
+              "LINAUSDT",
+              "BNBUSDT"
+            ],
+            "max_drawdown_r": 39.41245113074624,
+            "longest_loss_streak": 18,
+            "emergency_exits": 0
+          }
+        },
+        "SHORT": {
+          "stats": {
+            "trades": 958,
+            "unverified": 1,
+            "win_pct": 39.77035490605428,
+            "mean_net_return_pct": -1.6899524916512754,
+            "mean_net_r": -0.06288796201156636,
+            "total_net_return_pct": -1618.9744870019217,
+            "total_net_r": -60.24666760708058,
+            "stress_mean_pct": -1.9899524916512752,
+            "without_best_three_mean_pct": -1.9698583418831792,
+            "best_three": [
+              "LUNAUSDT",
+              "REEFUSDT",
+              "SIRENUSDT"
+            ],
+            "max_drawdown_r": 60.2466676070805,
+            "longest_loss_streak": 27,
+            "emergency_exits": 20
+          },
+          "control": {
+            "trades": 955,
+            "unverified": 4,
+            "win_pct": 50.78534031413613,
+            "mean_net_return_pct": 0.5561950240029815,
+            "mean_net_r": 0.019043453955839857,
+            "total_net_return_pct": 531.1662479228473,
+            "total_net_r": 18.186498527827062,
+            "stress_mean_pct": 0.2561950240029815,
+            "without_best_three_mean_pct": 0.39803753955523463,
+            "best_three": [
+              "LTCUSDT",
+              "PIPPINUSDT",
+              "LABUSDT"
+            ],
+            "max_drawdown_r": 10.850356518746423,
+            "longest_loss_streak": 12,
+            "emergency_exits": 14
+          },
+          "years": [
+            {
+              "year": 2020,
+              "trades": 125,
+              "unverified": 0,
+              "win_pct": 16.0,
+              "mean_net_return_pct": -4.094812977313939,
+              "mean_net_r": -0.16062316623233824,
+              "total_net_return_pct": -511.8516221642424,
+              "total_net_r": -20.07789577904228,
+              "stress_mean_pct": -4.394812977313939,
+              "without_best_three_mean_pct": -4.74021055601539,
+              "best_three": [
+                "BCHUSDT",
+                "ONTUSDT",
+                "COMPUSDT"
+              ],
+              "max_drawdown_r": 20.07789577904228,
+              "longest_loss_streak": 27,
+              "emergency_exits": 4
+            },
+            {
+              "year": 2021,
+              "trades": 152,
+              "unverified": 0,
+              "win_pct": 42.10526315789474,
+              "mean_net_return_pct": -4.047954045656818,
+              "mean_net_r": -0.07965675689841353,
+              "total_net_return_pct": -615.2890149398363,
+              "total_net_r": -12.107827048558857,
+              "stress_mean_pct": -4.3479540456568175,
+              "without_best_three_mean_pct": -4.619803052864753,
+              "best_three": [
+                "MATICUSDT",
+                "AVAXUSDT",
+                "XRPUSDT"
+              ],
+              "max_drawdown_r": 16.871559691478076,
+              "longest_loss_streak": 20,
+              "emergency_exits": 1
+            },
+            {
+              "year": 2022,
+              "trades": 158,
+              "unverified": 1,
+              "win_pct": 47.46835443037975,
+              "mean_net_return_pct": 0.15672342237473824,
+              "mean_net_r": 0.009541698719727718,
+              "total_net_return_pct": 24.76230073520864,
+              "total_net_r": 1.5075883977169793,
+              "stress_mean_pct": -0.14327657762526178,
+              "without_best_three_mean_pct": -1.0361979600373912,
+              "best_three": [
+                "LUNAUSDT",
+                "WAVESUSDT",
+                "SOLUSDT"
+              ],
+              "max_drawdown_r": 15.109168137015963,
+              "longest_loss_streak": 19,
+              "emergency_exits": 8
+            },
+            {
+              "year": 2023,
+              "trades": 138,
+              "unverified": 0,
+              "win_pct": 39.85507246376812,
+              "mean_net_return_pct": -0.9260811731039323,
+              "mean_net_r": -0.05686203878319677,
+              "total_net_return_pct": -127.79920188834267,
+              "total_net_r": -7.846961352081154,
+              "stress_mean_pct": -1.2260811731039323,
+              "without_best_three_mean_pct": -1.1779359733460093,
+              "best_three": [
+                "TRBUSDT",
+                "FTMUSDT",
+                "STORJUSDT"
+              ],
+              "max_drawdown_r": 8.688584115467462,
+              "longest_loss_streak": 13,
+              "emergency_exits": 0
+            },
+            {
+              "year": 2024,
+              "trades": 142,
+              "unverified": 0,
+              "win_pct": 42.95774647887324,
+              "mean_net_return_pct": -0.6048959433195845,
+              "mean_net_r": -0.0411528912670073,
+              "total_net_return_pct": -85.895223951381,
+              "total_net_r": -5.843710559915037,
+              "stress_mean_pct": -0.9048959433195843,
+              "without_best_three_mean_pct": -1.348270782949342,
+              "best_three": [
+                "REEFUSDT",
+                "ORDIUSDT",
+                "PEOPLEUSDT"
+              ],
+              "max_drawdown_r": 12.242920070809193,
+              "longest_loss_streak": 17,
+              "emergency_exits": 1
+            },
+            {
+              "year": 2025,
+              "trades": 135,
+              "unverified": 0,
+              "win_pct": 45.18518518518518,
+              "mean_net_return_pct": -0.6873737386523364,
+              "mean_net_r": -0.03789679084723472,
+              "total_net_return_pct": -92.79545471806541,
+              "total_net_r": -5.116066764376686,
+              "stress_mean_pct": -0.9873737386523364,
+              "without_best_three_mean_pct": -0.9411890290270454,
+              "best_three": [
+                "AVAXUSDT",
+                "PENGUUSDT",
+                "PUMPUSDT"
+              ],
+              "max_drawdown_r": 9.16008263377752,
+              "longest_loss_streak": 13,
+              "emergency_exits": 0
+            },
+            {
+              "year": 2026,
+              "trades": 108,
+              "unverified": 0,
+              "win_pct": 41.666666666666664,
+              "mean_net_return_pct": -1.9454284266228032,
+              "mean_net_r": -0.09964624537799578,
+              "total_net_return_pct": -210.10627007526276,
+              "total_net_r": -10.761794500823544,
+              "stress_mean_pct": -2.245428426622803,
+              "without_best_three_mean_pct": -3.0091048020677507,
+              "best_three": [
+                "SIRENUSDT",
+                "BNBUSDT",
+                "HYPEUSDT"
+              ],
+              "max_drawdown_r": 12.423738886615153,
+              "longest_loss_streak": 15,
+              "emergency_exits": 6
+            }
+          ],
+          "verdict": "BAŞARISIZ",
+          "criteria_only_verdict": "BAŞARISIZ",
+          "checks": {
+            "minimum_200": true,
+            "mean_positive": false,
+            "stress_positive": false,
+            "without_best_three_positive": false,
+            "beats_control": false,
+            "majority_years_positive": false,
+            "data_verified": false
+          },
+          "paired_count": 954,
+          "paired_difference_pct": -2.2826041484368926,
+          "last12": {
+            "trades": 129,
+            "unverified": 0,
+            "win_pct": 46.51162790697674,
+            "mean_net_return_pct": -1.3276667426974296,
+            "mean_net_r": -0.07014129498670854,
+            "total_net_return_pct": -171.26900980796842,
+            "total_net_r": -9.048227053285402,
+            "stress_mean_pct": -1.6276667426974294,
+            "without_best_three_mean_pct": -2.214511094236154,
+            "best_three": [
+              "SIRENUSDT",
+              "BNBUSDT",
+              "NEARUSDT"
+            ],
+            "max_drawdown_r": 12.423738886615151,
+            "longest_loss_streak": 15,
+            "emergency_exits": 6
+          },
+          "hours48": {
+            "trades": 957,
+            "unverified": 2,
+            "win_pct": 35.94566353187043,
+            "mean_net_return_pct": -2.4021046756928257,
+            "mean_net_r": -0.09601175500910428,
+            "total_net_return_pct": -2298.8141746380343,
+            "total_net_r": -91.8832495437128,
+            "stress_mean_pct": -2.702104675692826,
+            "without_best_three_mean_pct": -2.5993399372308135,
+            "best_three": [
+              "SIRENUSDT",
+              "LUNAUSDT",
+              "REEFUSDT"
+            ],
+            "max_drawdown_r": 91.97100597083846,
+            "longest_loss_streak": 21,
+            "emergency_exits": 41
+          },
+          "no_stop": {
+            "trades": 958,
+            "unverified": 1,
+            "win_pct": 39.77035490605428,
+            "mean_net_return_pct": -1.6880901261313543,
+            "mean_net_r": -0.06185867192063863,
+            "total_net_return_pct": -1617.1903408338374,
+            "total_net_r": -59.26060769997181,
+            "stress_mean_pct": -1.9880901261313542,
+            "without_best_three_mean_pct": -1.9679763311573517,
+            "best_three": [
+              "LUNAUSDT",
+              "REEFUSDT",
+              "SIRENUSDT"
+            ],
+            "max_drawdown_r": 59.26060769997175,
+            "longest_loss_streak": 27,
+            "emergency_exits": 0
+          }
+        }
+      },
+      "ending_equity": 4284.791693672812,
+      "return_pct": -57.15208306327189,
+      "max_drawdown_pct": 60.404705201816,
+      "errors": [
+        {
+          "id": "LUNAUSDT:1652313600000",
+          "reason": "ValueError:HOURLY_DATA_MISSING_OR_NO_TRADES"
+        },
+        {
+          "id": "LUNAUSDT:1652400000000",
+          "reason": "ValueError:ENTRY_PRICE_UNVERIFIED"
+        },
+        {
+          "id": "BNXUSDT:1742256000000",
+          "reason": "ValueError:ENTRY_PRICE_UNVERIFIED"
+        },
+        {
+          "id": "ALPACAUSDT:1746057600000",
+          "reason": "ValueError:ENTRY_PRICE_UNVERIFIED"
+        }
+      ]
+    },
+    "limited": {
+      "groups": {
+        "ALL": {
+          "stats": {
+            "trades": 1408,
+            "unverified": 1,
+            "win_pct": 42.25852272727273,
+            "mean_net_return_pct": -0.27940721136842256,
+            "mean_net_r": -0.007671148789122252,
+            "total_net_return_pct": -393.40535360673897,
+            "total_net_r": -10.800977495084132,
+            "stress_mean_pct": -0.5794072113684224,
+            "without_best_three_mean_pct": -0.5486344641013521,
+            "best_three": [
+              "LUNAUSDT",
+              "LINAUSDT",
+              "BNBUSDT"
+            ],
+            "max_drawdown_r": 26.957080053816732,
+            "longest_loss_streak": 12,
+            "emergency_exits": 57
+          },
+          "control": {
+            "trades": 1406,
+            "unverified": 3,
+            "win_pct": 47.51066856330014,
+            "mean_net_return_pct": 0.448515797451597,
+            "mean_net_r": 0.02478922748899931,
+            "total_net_return_pct": 630.6132112169454,
+            "total_net_r": 34.85365384953303,
+            "stress_mean_pct": 0.14851579745159701,
+            "without_best_three_mean_pct": 0.23399587883841363,
+            "best_three": [
+              "ETHUSDT",
+              "LTCUSDT",
+              "PIPPINUSDT"
+            ],
+            "max_drawdown_r": 8.211704793173698,
+            "longest_loss_streak": 9,
+            "emergency_exits": 18
+          },
+          "years": [
+            {
+              "year": 2020,
+              "trades": 177,
+              "unverified": 0,
+              "win_pct": 38.4180790960452,
+              "mean_net_return_pct": -0.493369241106806,
+              "mean_net_r": -0.011362894806477867,
+              "total_net_return_pct": -87.32635567590467,
+              "total_net_r": -2.0112323807465824,
+              "stress_mean_pct": -0.793369241106806,
+              "without_best_three_mean_pct": -1.2119266684543524,
+              "best_three": [
+                "ATOMUSDT",
+                "XLMUSDT",
+                "LINKUSDT"
+              ],
+              "max_drawdown_r": 5.6538840642732815,
+              "longest_loss_streak": 9,
+              "emergency_exits": 10
+            },
+            {
+              "year": 2021,
+              "trades": 231,
+              "unverified": 0,
+              "win_pct": 41.55844155844156,
+              "mean_net_return_pct": -0.049620465416088284,
+              "mean_net_r": 0.029853210590163045,
+              "total_net_return_pct": -11.462327511116394,
+              "total_net_r": 6.896091646327664,
+              "stress_mean_pct": -0.3496204654160882,
+              "without_best_three_mean_pct": -1.0395179817924654,
+              "best_three": [
+                "BNBUSDT",
+                "ETCUSDT",
+                "ADAUSDT"
+              ],
+              "max_drawdown_r": 7.847914948939456,
+              "longest_loss_streak": 10,
+              "emergency_exits": 9
+            },
+            {
+              "year": 2022,
+              "trades": 179,
+              "unverified": 1,
+              "win_pct": 39.10614525139665,
+              "mean_net_return_pct": -0.890094242856395,
+              "mean_net_r": -0.05230955378241856,
+              "total_net_return_pct": -159.3268694712947,
+              "total_net_r": -9.363410127052923,
+              "stress_mean_pct": -1.190094242856395,
+              "without_best_three_mean_pct": -2.0584039150935904,
+              "best_three": [
+                "LUNAUSDT",
+                "FTMUSDT",
+                "RSRUSDT"
+              ],
+              "max_drawdown_r": 13.561011054391338,
+              "longest_loss_streak": 12,
+              "emergency_exits": 9
+            },
+            {
+              "year": 2023,
+              "trades": 239,
+              "unverified": 0,
+              "win_pct": 42.25941422594142,
+              "mean_net_return_pct": 0.3242800878906589,
+              "mean_net_r": 0.0034469583270394836,
+              "total_net_return_pct": 77.50294100586747,
+              "total_net_r": 0.8238230401624366,
+              "stress_mean_pct": 0.02428008789065895,
+              "without_best_three_mean_pct": -0.352566517091778,
+              "best_three": [
+                "LINAUSDT",
+                "UNFIUSDT",
+                "SOLUSDT"
+              ],
+              "max_drawdown_r": 6.352922277852609,
+              "longest_loss_streak": 11,
+              "emergency_exits": 7
+            },
+            {
+              "year": 2024,
+              "trades": 230,
+              "unverified": 0,
+              "win_pct": 45.21739130434783,
+              "mean_net_return_pct": 0.03189076129650969,
+              "mean_net_r": 0.007529067787790664,
+              "total_net_return_pct": 7.334875098197229,
+              "total_net_r": 1.7316855911918525,
+              "stress_mean_pct": -0.2681092387034902,
+              "without_best_three_mean_pct": -0.5661486420615345,
+              "best_three": [
+                "XRPUSDT",
+                "1000PEPEUSDT",
+                "REEFUSDT"
+              ],
+              "max_drawdown_r": 11.041902552252717,
+              "longest_loss_streak": 10,
+              "emergency_exits": 10
+            },
+            {
+              "year": 2025,
+              "trades": 165,
+              "unverified": 0,
+              "win_pct": 45.45454545454545,
+              "mean_net_return_pct": -0.9432364868075721,
+              "mean_net_r": -0.044456194871603176,
+              "total_net_return_pct": -155.63402032324942,
+              "total_net_r": -7.335272153814524,
+              "stress_mean_pct": -1.243236486807572,
+              "without_best_three_mean_pct": -1.3082358656141273,
+              "best_three": [
+                "AAVEUSDT",
+                "LTCUSDT",
+                "TAOUSDT"
+              ],
+              "max_drawdown_r": 9.007599500683696,
+              "longest_loss_streak": 9,
+              "emergency_exits": 4
+            },
+            {
+              "year": 2026,
+              "trades": 187,
+              "unverified": 0,
+              "win_pct": 43.31550802139037,
+              "mean_net_return_pct": -0.34488554400662297,
+              "mean_net_r": -0.008249535353754306,
+              "total_net_return_pct": -64.4935967292385,
+              "total_net_r": -1.5426631111520552,
+              "stress_mean_pct": -0.6448855440066229,
+              "without_best_three_mean_pct": -1.3336481388841916,
+              "best_three": [
+                "HYPEUSDT",
+                "AKEUSDT",
+                "ZECUSDT"
+              ],
+              "max_drawdown_r": 9.622302078577263,
+              "longest_loss_streak": 7,
+              "emergency_exits": 8
+            }
+          ],
+          "verdict": "BAŞARISIZ",
+          "criteria_only_verdict": "BAŞARISIZ",
+          "checks": {
+            "minimum_200": true,
+            "mean_positive": false,
+            "stress_positive": false,
+            "without_best_three_positive": false,
+            "beats_control": false,
+            "majority_years_positive": false,
+            "data_verified": false
+          },
+          "paired_count": 1405,
+          "paired_difference_pct": -0.7509600123529296,
+          "last12": {
+            "trades": 219,
+            "unverified": 0,
+            "win_pct": 43.37899543378995,
+            "mean_net_return_pct": -0.3898077421934421,
+            "mean_net_r": -0.015232082428886767,
+            "total_net_return_pct": -85.36789554036382,
+            "total_net_r": -3.335826051926202,
+            "stress_mean_pct": -0.689807742193442,
+            "without_best_three_mean_pct": -1.211652315090491,
+            "best_three": [
+              "AKEUSDT",
+              "HYPEUSDT",
+              "ZECUSDT"
+            ],
+            "max_drawdown_r": 9.622302078577263,
+            "longest_loss_streak": 7,
+            "emergency_exits": 8
+          },
+          "hours48": {
+            "trades": 1406,
+            "unverified": 3,
+            "win_pct": 43.0298719772404,
+            "mean_net_return_pct": -0.09112214239759278,
+            "mean_net_r": 0.008483676463387118,
+            "total_net_return_pct": -128.11773221101546,
+            "total_net_r": 11.928049107522288,
+            "stress_mean_pct": -0.39112214239759274,
+            "without_best_three_mean_pct": -0.3988773044649094,
+            "best_three": [
+              "LINAUSDT",
+              "BNBUSDT",
+              "LUNAUSDT"
+            ],
+            "max_drawdown_r": 26.240421324115992,
+            "longest_loss_streak": 11,
+            "emergency_exits": 106
+          },
+          "no_stop": {
+            "trades": 1408,
+            "unverified": 1,
+            "win_pct": 42.61363636363637,
+            "mean_net_return_pct": -0.22225497098983144,
+            "mean_net_r": 0.0012721672824599316,
+            "total_net_return_pct": -312.93499915368267,
+            "total_net_r": 1.7912115337035837,
+            "stress_mean_pct": -0.5222549709898313,
+            "without_best_three_mean_pct": -0.4841418038793576,
+            "best_three": [
+              "LUNAUSDT",
+              "LINAUSDT",
+              "BNBUSDT"
+            ],
+            "max_drawdown_r": 24.203017073588406,
+            "longest_loss_streak": 12,
+            "emergency_exits": 0
+          }
+        },
+        "LONG": {
+          "stats": {
+            "trades": 947,
+            "unverified": 0,
+            "win_pct": 43.400211193241816,
+            "mean_net_return_pct": 0.04274139570701499,
+            "mean_net_r": 0.012817285150583073,
+            "total_net_return_pct": 40.47610173454319,
+            "total_net_r": 12.13796903760217,
+            "stress_mean_pct": -0.2572586042929849,
+            "without_best_three_mean_pct": -0.30793488968769456,
+            "best_three": [
+              "BNBUSDT",
+              "LINAUSDT",
+              "XRPUSDT"
+            ],
+            "max_drawdown_r": 17.06753388567135,
+            "longest_loss_streak": 9,
+            "emergency_exits": 51
+          },
+          "control": {
+            "trades": 947,
+            "unverified": 0,
+            "win_pct": 47.62407602956706,
+            "mean_net_return_pct": 0.5529499353182924,
+            "mean_net_r": 0.03801767365951287,
+            "total_net_return_pct": 523.6435887464229,
+            "total_net_r": 36.00273695555869,
+            "stress_mean_pct": 0.25294993531829246,
+            "without_best_three_mean_pct": 0.25499083914439286,
+            "best_three": [
+              "ETHUSDT",
+              "XRPUSDT",
+              "1000PEPEUSDT"
+            ],
+            "max_drawdown_r": 6.611635661241657,
+            "longest_loss_streak": 9,
+            "emergency_exits": 11
+          },
+          "years": [
+            {
+              "year": 2020,
+              "trades": 126,
+              "unverified": 0,
+              "win_pct": 47.61904761904762,
+              "mean_net_return_pct": 0.503809102386242,
+              "mean_net_r": 0.035437924599782,
+              "total_net_return_pct": 63.47994690066649,
+              "total_net_r": 4.465178499572532,
+              "stress_mean_pct": 0.20380910238624206,
+              "without_best_three_mean_pct": -0.5010432388809772,
+              "best_three": [
+                "ATOMUSDT",
+                "XLMUSDT",
+                "LINKUSDT"
+              ],
+              "max_drawdown_r": 4.224093399246005,
+              "longest_loss_streak": 9,
+              "emergency_exits": 10
+            },
+            {
+              "year": 2021,
+              "trades": 170,
+              "unverified": 0,
+              "win_pct": 41.1764705882353,
+              "mean_net_return_pct": 0.8346756847322289,
+              "mean_net_r": 0.05957603615522962,
+              "total_net_return_pct": 141.8948664044789,
+              "total_net_r": 10.127926146389036,
+              "stress_mean_pct": 0.5346756847322289,
+              "without_best_three_mean_pct": -0.4388234797481736,
+              "best_three": [
+                "BNBUSDT",
+                "ETCUSDT",
+                "ADAUSDT"
+              ],
+              "max_drawdown_r": 5.929488521738881,
+              "longest_loss_streak": 8,
+              "emergency_exits": 9
+            },
+            {
+              "year": 2022,
+              "trades": 111,
+              "unverified": 0,
+              "win_pct": 39.63963963963964,
+              "mean_net_return_pct": -1.3930500794183969,
+              "mean_net_r": -0.06247689808720821,
+              "total_net_return_pct": -154.62855881544203,
+              "total_net_r": -6.934935687680111,
+              "stress_mean_pct": -1.6930500794183965,
+              "without_best_three_mean_pct": -2.2136622023422214,
+              "best_three": [
+                "AXSUSDT",
+                "FTMUSDT",
+                "XRPUSDT"
+              ],
+              "max_drawdown_r": 8.947057796553445,
+              "longest_loss_streak": 9,
+              "emergency_exits": 7
+            },
+            {
+              "year": 2023,
+              "trades": 165,
+              "unverified": 0,
+              "win_pct": 41.81818181818182,
+              "mean_net_return_pct": 0.3714093060697368,
+              "mean_net_r": 0.0039669984178038985,
+              "total_net_return_pct": 61.28253550150658,
+              "total_net_r": 0.6545547389376433,
+              "stress_mean_pct": 0.07140930606973692,
+              "without_best_three_mean_pct": -0.537053343557448,
+              "best_three": [
+                "LINAUSDT",
+                "OPUSDT",
+                "UNFIUSDT"
+              ],
+              "max_drawdown_r": 4.70400848519168,
+              "longest_loss_streak": 9,
+              "emergency_exits": 7
+            },
+            {
+              "year": 2024,
+              "trades": 161,
+              "unverified": 0,
+              "win_pct": 45.3416149068323,
+              "mean_net_return_pct": 0.009269661483261379,
+              "mean_net_r": 0.021586277271676647,
+              "total_net_return_pct": 1.492415498805082,
+              "total_net_r": 3.4753906407399406,
+              "stress_mean_pct": -0.2907303385167385,
+              "without_best_three_mean_pct": -1.0331236462486373,
+              "best_three": [
+                "XRPUSDT",
+                "DOGEUSDT",
+                "1000PEPEUSDT"
+              ],
+              "max_drawdown_r": 8.309912909673114,
+              "longest_loss_streak": 7,
+              "emergency_exits": 10
+            },
+            {
+              "year": 2025,
+              "trades": 102,
+              "unverified": 0,
+              "win_pct": 48.03921568627451,
+              "mean_net_return_pct": -0.702384559304319,
+              "mean_net_r": -0.026322178068041702,
+              "total_net_return_pct": -71.64322504904054,
+              "total_net_r": -2.6848621629402536,
+              "stress_mean_pct": -1.0023845593043188,
+              "without_best_three_mean_pct": -1.3818282353741465,
+              "best_three": [
+                "AAVEUSDT",
+                "SUIUSDT",
+                "LTCUSDT"
+              ],
+              "max_drawdown_r": 5.275083510734534,
+              "longest_loss_streak": 6,
+              "emergency_exits": 4
+            },
+            {
+              "year": 2026,
+              "trades": 112,
+              "unverified": 0,
+              "win_pct": 41.07142857142857,
+              "mean_net_return_pct": -0.012516774164565043,
+              "mean_net_r": 0.02709568627306593,
+              "total_net_return_pct": -1.4018787064312848,
+              "total_net_r": 3.034716862583384,
+              "stress_mean_pct": -0.3125167741645651,
+              "without_best_three_mean_pct": -1.4808495123610412,
+              "best_three": [
+                "AKEUSDT",
+                "HYPEUSDT",
+                "ZECUSDT"
+              ],
+              "max_drawdown_r": 8.383801696187312,
+              "longest_loss_streak": 9,
+              "emergency_exits": 4
+            }
+          ],
+          "verdict": "BAŞARISIZ",
+          "criteria_only_verdict": "BAŞARISIZ",
+          "checks": {
+            "minimum_200": true,
+            "mean_positive": true,
+            "stress_positive": false,
+            "without_best_three_positive": false,
+            "beats_control": false,
+            "majority_years_positive": true,
+            "data_verified": false
+          },
+          "paired_count": 947,
+          "paired_difference_pct": -0.5102085396112774,
+          "last12": {
+            "trades": 132,
+            "unverified": 0,
+            "win_pct": 40.90909090909091,
+            "mean_net_return_pct": -0.1582961456469598,
+            "mean_net_r": 0.015308970407454173,
+            "total_net_return_pct": -20.89509122539869,
+            "total_net_r": 2.0207840937839507,
+            "stress_mean_pct": -0.4582961456469598,
+            "without_best_three_mean_pct": -1.4303799566155067,
+            "best_three": [
+              "AKEUSDT",
+              "HYPEUSDT",
+              "ZECUSDT"
+            ],
+            "max_drawdown_r": 8.383801696187314,
+            "longest_loss_streak": 9,
+            "emergency_exits": 4
+          },
+          "hours48": {
+            "trades": 946,
+            "unverified": 1,
+            "win_pct": 44.503171247357294,
+            "mean_net_return_pct": 0.35795072261100447,
+            "mean_net_r": 0.03743818235430308,
+            "total_net_return_pct": 338.6213835900102,
+            "total_net_r": 35.416520507170716,
+            "stress_mean_pct": 0.0579507226110045,
+            "without_best_three_mean_pct": -0.08419318042034735,
+            "best_three": [
+              "BNBUSDT",
+              "LINAUSDT",
+              "ETCUSDT"
+            ],
+            "max_drawdown_r": 18.19873933612639,
+            "longest_loss_streak": 14,
+            "emergency_exits": 94
+          },
+          "no_stop": {
+            "trades": 947,
+            "unverified": 0,
+            "win_pct": 43.92819429778247,
+            "mean_net_return_pct": 0.14320569594251248,
+            "mean_net_r": 0.02565978732374813,
+            "total_net_return_pct": 135.61579405755933,
+            "total_net_r": 24.299818595589475,
+            "stress_mean_pct": -0.15679430405748743,
+            "without_best_three_mean_pct": -0.2674988413592441,
+            "best_three": [
+              "XRPUSDT",
+              "BNBUSDT",
+              "LINAUSDT"
+            ],
+            "max_drawdown_r": 15.10711478011591,
+            "longest_loss_streak": 9,
+            "emergency_exits": 0
+          }
+        },
+        "SHORT": {
+          "stats": {
+            "trades": 461,
+            "unverified": 1,
+            "win_pct": 39.91323210412148,
+            "mean_net_return_pct": -0.941174523516881,
+            "mean_net_r": -0.049759103107779395,
+            "total_net_return_pct": -433.88145534128216,
+            "total_net_r": -22.938946532686302,
+            "stress_mean_pct": -1.241174523516881,
+            "without_best_three_mean_pct": -1.5313471182558966,
+            "best_three": [
+              "LUNAUSDT",
+              "REEFUSDT",
+              "SIRENUSDT"
+            ],
+            "max_drawdown_r": 22.938946532686273,
+            "longest_loss_streak": 9,
+            "emergency_exits": 6
+          },
+          "control": {
+            "trades": 459,
+            "unverified": 3,
+            "win_pct": 47.27668845315904,
+            "mean_net_return_pct": 0.2330492864281535,
+            "mean_net_r": -0.0025034490327356367,
+            "total_net_return_pct": 106.96962247052247,
+            "total_net_r": -1.1490831060256572,
+            "stress_mean_pct": -0.06695071357184648,
+            "without_best_three_mean_pct": -0.14498827981667267,
+            "best_three": [
+              "LTCUSDT",
+              "PIPPINUSDT",
+              "LUNAUSDT"
+            ],
+            "max_drawdown_r": 9.97547285043522,
+            "longest_loss_streak": 8,
+            "emergency_exits": 7
+          },
+          "years": [
+            {
+              "year": 2020,
+              "trades": 51,
+              "unverified": 0,
+              "win_pct": 15.686274509803921,
+              "mean_net_return_pct": -2.956986325030807,
+              "mean_net_r": -0.12698844863370812,
+              "total_net_return_pct": -150.80630257657117,
+              "total_net_r": -6.476410880319114,
+              "stress_mean_pct": -3.2569863250308067,
+              "without_best_three_mean_pct": -4.097218945558661,
+              "best_three": [
+                "BCHUSDT",
+                "ETHUSDT",
+                "NEOUSDT"
+              ],
+              "max_drawdown_r": 6.476410880319115,
+              "longest_loss_streak": 9,
+              "emergency_exits": 0
+            },
+            {
+              "year": 2021,
+              "trades": 61,
+              "unverified": 0,
+              "win_pct": 42.622950819672134,
+              "mean_net_return_pct": -2.5140523592720543,
+              "mean_net_r": -0.05298089344362906,
+              "total_net_return_pct": -153.3571939155953,
+              "total_net_r": -3.2318345000613724,
+              "stress_mean_pct": -2.814052359272054,
+              "without_best_three_mean_pct": -3.097726159571039,
+              "best_three": [
+                "BCHUSDT",
+                "AVAXUSDT",
+                "SXPUSDT"
+              ],
+              "max_drawdown_r": 5.2097789860771675,
+              "longest_loss_streak": 7,
+              "emergency_exits": 0
+            },
+            {
+              "year": 2022,
+              "trades": 68,
+              "unverified": 1,
+              "win_pct": 38.23529411764706,
+              "mean_net_return_pct": -0.06909280376253928,
+              "mean_net_r": -0.03571285940254133,
+              "total_net_return_pct": -4.698310655852671,
+              "total_net_r": -2.428474439372811,
+              "stress_mean_pct": -0.3690928037625393,
+              "without_best_three_mean_pct": -2.839357030514222,
+              "best_three": [
+                "LUNAUSDT",
+                "REEFUSDT",
+                "RSRUSDT"
+              ],
+              "max_drawdown_r": 5.537199392213875,
+              "longest_loss_streak": 7,
+              "emergency_exits": 2
+            },
+            {
+              "year": 2023,
+              "trades": 74,
+              "unverified": 0,
+              "win_pct": 43.24324324324324,
+              "mean_net_return_pct": 0.21919466897784992,
+              "mean_net_r": 0.0022874094760107207,
+              "total_net_return_pct": 16.220405504360894,
+              "total_net_r": 0.16926830122479333,
+              "stress_mean_pct": -0.08080533102215003,
+              "without_best_three_mean_pct": -0.2742567421453599,
+              "best_three": [
+                "FTMUSDT",
+                "TRBUSDT",
+                "LINAUSDT"
+              ],
+              "max_drawdown_r": 1.9641123059920043,
+              "longest_loss_streak": 7,
+              "emergency_exits": 0
+            },
+            {
+              "year": 2024,
+              "trades": 69,
+              "unverified": 0,
+              "win_pct": 44.927536231884055,
+              "mean_net_return_pct": 0.08467332752742242,
+              "mean_net_r": -0.02527108767460997,
+              "total_net_return_pct": 5.842459599392147,
+              "total_net_r": -1.743705049548088,
+              "stress_mean_pct": -0.21532667247257742,
+              "without_best_three_mean_pct": -1.1435658202707395,
+              "best_three": [
+                "REEFUSDT",
+                "ARBUSDT",
+                "PEOPLEUSDT"
+              ],
+              "max_drawdown_r": 4.244181503795656,
+              "longest_loss_streak": 7,
+              "emergency_exits": 0
+            },
+            {
+              "year": 2025,
+              "trades": 63,
+              "unverified": 0,
+              "win_pct": 41.26984126984127,
+              "mean_net_return_pct": -1.333187226574744,
+              "mean_net_r": -0.07381603160117889,
+              "total_net_return_pct": -83.99079527420888,
+              "total_net_r": -4.65040999087427,
+              "stress_mean_pct": -1.633187226574744,
+              "without_best_three_mean_pct": -1.6211895640335638,
+              "best_three": [
+                "TRUMPUSDT",
+                "TAOUSDT",
+                "UNIUSDT"
+              ],
+              "max_drawdown_r": 5.231862838707667,
+              "longest_loss_streak": 6,
+              "emergency_exits": 0
+            },
+            {
+              "year": 2026,
+              "trades": 75,
+              "unverified": 0,
+              "win_pct": 46.666666666666664,
+              "mean_net_return_pct": -0.8412229069707629,
+              "mean_net_r": -0.061031732983139186,
+              "total_net_return_pct": -63.091718022807214,
+              "total_net_r": -4.5773799737354395,
+              "stress_mean_pct": -1.1412229069707627,
+              "without_best_three_mean_pct": -2.1265154662151495,
+              "best_three": [
+                "SIRENUSDT",
+                "HYPEUSDT",
+                "BNBUSDT"
+              ],
+              "max_drawdown_r": 5.910452909279117,
+              "longest_loss_streak": 4,
+              "emergency_exits": 4
+            }
+          ],
+          "verdict": "BAŞARISIZ",
+          "criteria_only_verdict": "BAŞARISIZ",
+          "checks": {
+            "minimum_200": true,
+            "mean_positive": false,
+            "stress_positive": false,
+            "without_best_three_positive": false,
+            "beats_control": false,
+            "majority_years_positive": false,
+            "data_verified": false
+          },
+          "paired_count": 458,
+          "paired_difference_pct": -1.248758363196477,
+          "last12": {
+            "trades": 87,
+            "unverified": 0,
+            "win_pct": 47.12643678160919,
+            "mean_net_return_pct": -0.7410667162639669,
+            "mean_net_r": -0.061570231559886814,
+            "total_net_return_pct": -64.47280431496513,
+            "total_net_r": -5.356610145710153,
+            "stress_mean_pct": -1.0410667162639669,
+            "without_best_three_mean_pct": -1.8629353013746548,
+            "best_three": [
+              "SIRENUSDT",
+              "SOLUSDT",
+              "BNBUSDT"
+            ],
+            "max_drawdown_r": 5.974967080884678,
+            "longest_loss_streak": 5,
+            "emergency_exits": 4
+          },
+          "hours48": {
+            "trades": 460,
+            "unverified": 2,
+            "win_pct": 40.0,
+            "mean_net_return_pct": -1.0146502517413603,
+            "mean_net_r": -0.0510618943470618,
+            "total_net_return_pct": -466.73911580102566,
+            "total_net_r": -23.48847139964843,
+            "stress_mean_pct": -1.31465025174136,
+            "without_best_three_mean_pct": -1.49197873489498,
+            "best_three": [
+              "LUNAUSDT",
+              "SIRENUSDT",
+              "REEFUSDT"
+            ],
+            "max_drawdown_r": 23.576227826773977,
+            "longest_loss_streak": 14,
+            "emergency_exits": 12
+          },
+          "no_stop": {
+            "trades": 461,
+            "unverified": 1,
+            "win_pct": 39.91323210412148,
+            "mean_net_return_pct": -0.9729952130395705,
+            "mean_net_r": -0.048825611847908665,
+            "total_net_return_pct": -448.550793211242,
+            "total_net_r": -22.508607061885893,
+            "stress_mean_pct": -1.2729952130395703,
+            "without_best_three_mean_pct": -1.5635874212667975,
+            "best_three": [
+              "LUNAUSDT",
+              "REEFUSDT",
+              "SIRENUSDT"
+            ],
+            "max_drawdown_r": 22.50860706188586,
+            "longest_loss_streak": 9,
+            "emergency_exits": 0
+          }
+        }
+      },
+      "ending_equity": 8728.597819680568,
+      "return_pct": -12.71402180319432,
+      "max_drawdown_pct": 24.717863351557988,
+      "errors": [
+        {
+          "id": "LUNAUSDT:1652313600000",
+          "reason": "ValueError:HOURLY_DATA_MISSING_OR_NO_TRADES"
+        },
+        {
+          "id": "LUNAUSDT:1652400000000",
+          "reason": "ValueError:ENTRY_PRICE_UNVERIFIED"
+        },
+        {
+          "id": "BNXUSDT:1742256000000",
+          "reason": "ValueError:ENTRY_PRICE_UNVERIFIED"
+        },
+        {
+          "id": "ALPACAUSDT:1746057600000",
+          "reason": "ValueError:ENTRY_PRICE_UNVERIFIED"
+        }
+      ]
+    }
+  },
+  "diagnostics": {
+    "NO_ABNORMAL_DAY": 44230,
+    "ABNORMAL_DAY": 2267
+  },
+  "signals": 2267,
+  "data_errors": [
+    {
+      "symbol": "ICPUSDT",
+      "time": 1663804800000,
+      "reason": "DAILY_AND_HOURLY_GAP_NOT_PUBLISHED"
+    },
+    {
+      "symbol": "ICPUSDT",
+      "time": 1663891200000,
+      "reason": "DAILY_AND_HOURLY_GAP_NOT_PUBLISHED"
+    },
+    {
+      "symbol": "ICPUSDT",
+      "time": 1663977600000,
+      "reason": "DAILY_AND_HOURLY_GAP_NOT_PUBLISHED"
+    },
+    {
+      "symbol": "ICPUSDT",
+      "time": 1664064000000,
+      "reason": "DAILY_AND_HOURLY_GAP_NOT_PUBLISHED"
+    },
+    {
+      "symbol": "ICPUSDT",
+      "time": 1664150400000,
+      "reason": "DAILY_AND_HOURLY_GAP_NOT_PUBLISHED"
+    }
+  ]
+}

@@ -1,0 +1,53 @@
+{
+  "rules": {
+    "version": 1,
+    "return_days": 90,
+    "std_ddof": 1,
+    "z_threshold": 2.0,
+    "atr_days": 14,
+    "stop_atr": 2.0,
+    "hours": 24,
+    "universe_size": 20,
+    "universe_days": 30,
+    "minimum_history_days": 120,
+    "max_positions": 5,
+    "max_direction": 3,
+    "cost_pct": 0.3,
+    "stress_cost_pct": 0.6,
+    "control_seed": 20261023,
+    "initial_equity": 10000.0,
+    "equity_risk": 0.01,
+    "parameter_variants": 0
+  },
+  "rules_hash": "f2b53755aebc38864f31258e623eb2d7ebfb7e45981347359c7ff7bf4a75acf5",
+  "protocol": {
+    "name": "Anormal G\u00fcn Devam\u0131 v1",
+    "parameter_variants": 0,
+    "allowed_completed_runs": 1,
+    "end_exclusive_utc": "2026-10-23T00:00:00Z",
+    "signal": "close/previous close-1; mean and sample SD ddof=1 of preceding 90 daily returns excluding signal day; inclusive z >= 2 / <= -2",
+    "atr": "daily Wilder ATR14, mean seed of first 14 true ranges; signal day included; a missing calendar interval is not fabricated and starts a new ATR seed; recent return window with a gap is unverified",
+    "universe": "first UTC day of each month, previous 30 closed daily bars quote volume; top20, minimum120 daily history; historical catalogue, not current TRADING list",
+    "entry": "next daily open; exact timestamp ties expire old positions first, then choose largest absolute z, symbol as deterministic tie-break",
+    "exit": "24h boundary next-hour open; emergency stop checked hourly with open-gap fills, intrahour stop level at last millisecond of that hour; unresolved intrahour funding order unverified",
+    "funding": "actual signed rates on fixed entry notional; entry < settlement <= exit, milliseconds floored to seconds; missing series never replaced with zero",
+    "control": "one uniform same-coin same-signal-calendar-month |z|<1 observed day per signal; seed20261023 hash per signal; with replacement; pool frozen before outcomes; retrospective comparison only, no role in live signals; no control resampling after failures",
+    "control_portfolio": "for each accepted actual signal its matched independent control, not a separately capacity-filtered portfolio; duplicates and temporal dependence disclosed",
+    "supplementary": "same accepted main signal IDs held48h with emergency stop, or24h without stop; no new selection or capacity refill; not used to choose rules",
+    "capital": "10000USDT, each entry current equity risk1%; 0.15% entry plus0.15% exit on original notional; UTC boundary equity, not intraday drawdown; no margin/liquidation model",
+    "success": "limited main24h only, six user conditions plus data must be verified; below200 YETERSIZ VERI; no tuning",
+    "annual": "exit calendar year, partial first/last years included; last12months by exit date; best3 by total net percentage then excluded from unchanged trade list",
+    "data_repair": "original monthly archive gaps completed from official daily archive, or all24 official hourly bars if available; every repair logged; no edits to original Turtle inputs",
+    "live": "disabled until GE\u00c7T\u0130 and explicit report-bound user approval; daily00:07UTC; scheduler cannot guarantee exact execution, actual entry/exit timestamps and late-exit delay recorded; minute data only trims partial live entry/exit hours, no minute signals"
+  },
+  "code": {
+    "abnormal_day_backtest.py": "06f8c508e1980ba029a5ec40bb44db7375007834a0f6c8878f1622717666be43",
+    "abnormal_day_data.py": "b41ff5113a0e9b189b5b9bb17399a5d1997b3bba627e8401096668453ad880b2",
+    "abnormal_day_engine.py": "160b8bf137f5386b6a1f70b5aa4eaa413cb9f07ede2b20788956e9166a82d8fe",
+    "abnormal_day_live.py": "b814cdc6abb3be1d480fe4161012cc2cc23d51d45397b5ad5e8a41d00269e9ac"
+  },
+  "manifest_sha256": "b126a4a68022fd87348c6ad4ed5483a410cd5ae6dbc3ffc2a4e18255c31e413a",
+  "universe_sha256": "1996e17974362e6fd72f1e6024bdb1b29ee6f118ac2625f383366cd95cd3d936",
+  "start": 1577836800000,
+  "end": 1792713600000
+}

@@ -1,0 +1,6 @@
+{
+  "status": "PASS",
+  "checks": 39899,
+  "strategy_replayed": false,
+  "note": "Accounting and causality checks do not certify missing market/funding data."
+}

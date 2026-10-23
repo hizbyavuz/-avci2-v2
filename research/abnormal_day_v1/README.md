@@ -1,5 +1,16 @@
 # Anormal Gün Devamı
 
+Tamamlanan deney: **BAŞARISIZ**. Dönem 2020-01-01–2026-10-22 UTC.
+Limitli 24h: 1.408 ölçülen işlem; ortalama net −%0,27941; kontrol +%0,44852.
+Son 12 ay ortalama net −%0,38981. LONG ve SHORT ayrı ayrı da başarısız.
+Eksik veri olayları raporda belirtilmiştir; sermaye eğrisi tam doğrulanmadı.
+Canlı kapalıdır.
+
+- [Rapor](results/report.md)
+- [İşlemler (CSV, gzip)](results/trades.csv.gz)
+- [Sermaye eğrisi](results/equity_curve.png)
+- [Doğrulama](results/verification.json)
+
 Turtle'dan bağımsız sabit kural deneyi: günlük z skoru, 24 saat elde tutma,
 2×ATR14 acil stop. Eşik/parametre denemesi yok. 48 saat ve stopsuz ölçümler
 önceden belirtilmiş ek bilgilerdir; ana kural seçmek için kullanılmaz.
