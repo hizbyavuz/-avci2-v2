@@ -1,0 +1,26 @@
+name: Daily Trend sealed historical test
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  historical:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Completed sealed test cannot be repeated
+        run: test ! -f research/trend_daily_v1/results/sealed_run.json
+      - run: pip install -r requirements.trend-breakout.txt
+      - run: python -m unittest test_trend_daily -v
+      - run: python -u trend_daily_data.py --archive-cache trend-daily-archive --data trend-daily-data
+      - run: python -u trend_daily_backtest.py --archive-cache trend-daily-archive --data trend-daily-data
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: trend-daily-historical
+          path: research/trend_daily_v1/results/
+          retention-days: 30
