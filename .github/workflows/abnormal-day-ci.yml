@@ -1,0 +1,19 @@
+name: Abnormal Day isolated tests
+on:
+  push:
+    paths: ['abnormal_day_*.py', 'test_abnormal_day.py', '.github/workflows/abnormal-day-*.yml']
+  pull_request:
+    paths: ['abnormal_day_*.py', 'test_abnormal_day.py', '.github/workflows/abnormal-day-*.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r requirements.trend-breakout.txt
+      - run: python -m unittest test_abnormal_day -v

@@ -1,0 +1,25 @@
+name: Abnormal Day fixed historical experiment
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  historical:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+      - name: Refuse repetition of completed or already sealed experiment
+        run: test ! -e research/abnormal_day_v1/results/sealed_run.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r requirements.trend-breakout.txt
+      - run: python -m unittest test_abnormal_day -v
+      - run: python -u abnormal_day_data.py --source absent-cache --data abnormal-data --archive-cache abnormal-archive
+      - run: python -u abnormal_day_backtest.py --data abnormal-data --archive-cache abnormal-archive
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: abnormal-day-fixed-report
+          path: research/abnormal_day_v1/results
