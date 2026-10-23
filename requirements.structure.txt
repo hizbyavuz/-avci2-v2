@@ -1,0 +1,3 @@
+# Optional isolated renderer; core and replay use Python standard library.
+matplotlib>=3.8,<4
+requests==2.32.5
