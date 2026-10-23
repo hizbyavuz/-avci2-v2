@@ -19,7 +19,7 @@ jobs:
             const targets = new Set(["avci-daily-followup.yml","avci-global-governance.yml","avci-monthly.yml","avci-three-day-scorecard.yml","avci-v2.yml","avci-watchdog.yml","binance-money-flow.yml","binance-native-um-market-watch.yml","binance_avci2.yml","binance_winner_anatomy.yml","gate-fast-telegram.yml","gate-spot-watch.yml","history-oos-quick.yml","human-decision-ledger.yml","long-short-analyst.yml","long-short-live-pool.yml","long-short-motion-coverage-audit.yml","long-short-smoke-telegram.yml","long-short-v32-shadow.yml","long-short-v4-native-research.yml","long-short-watchdog.yml","new-launch-avci.yml","offline-long-short-audit.yml","telegram-route-diagnostic-once.yml","telegram-smoke-test-once.yml"]);
             const workflows = await github.paginate(github.rest.actions.listRepoWorkflows, {owner,repo,per_page:100});
             for (const w of workflows.filter(w=>targets.has(w.path.split('/').pop()))) {
-              await github.rest.actions.disableWorkflow({owner,repo,workflow_id:w.id});
+              if (w.state === 'active') await github.rest.actions.disableWorkflow({owner,repo,workflow_id:w.id});
               for (const status of ['queued','in_progress','waiting','pending','requested']) {
                 const runs = await github.paginate(github.rest.actions.listWorkflowRuns,{owner,repo,workflow_id:w.id,status,per_page:100});
                 for (const run of runs) {
