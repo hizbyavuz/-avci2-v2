@@ -1,0 +1,19 @@
+{
+  "DELIVERY.md": "d2f3dc57a013bc3b450997734a8fb2adae69ad49fea68df7922c79231a81791a",
+  "example_chart.png": "b5c622385d57b41fd7e10f19ab029e568ce1a999e4149e3052388341af0e432e",
+  "results/downloads.jsonl.gz": "18e034ba9d6cfefce2247d8c5babf13b9f60e7317afb691cdc06550564639bbe",
+  "results/github_workflow_status.json": "b3877e84b17838b0da6ab14ea97dd6aba2bdd2b3649a2a1aa3a19608cfbdee63",
+  "results/locked_test_seal.json": "a2e610fefaba56a24a44ab01d4a2a7ce41543f480c0eed16a9f620b532b14fec",
+  "results/monthly.csv": "4df4799881f15743a1cddaea5f3f3fedf15ca3691bccc90b614d3100fd06e1c1",
+  "results/prepared_manifest.json": "02dd5964e0916ba0a852157d91b90b93378b7341d295760a9068262da1930a79",
+  "results/railway_stop_status.json": "28f560dc17e31fb03b365681b6cff76b967d6ed696b897f6cd51a53b9c8ae989",
+  "results/report.md": "6cd57927e3ac4f7bf78119bd2b9fc5707f8fca7f8cefb7ea8c6a62d6fb4d3d6b",
+  "results/skipped_and_rejected.csv": "ed3123cfa1531a756f44ef5e856945c74fe6ca356da1d90170f0415a186bd9cb",
+  "results/skipped_and_rejected.csv.gz": "9ed6da79d2c47fcfdf37d79060ebd6a09474c554e34b8af3cb4e7ec5363e57c3",
+  "results/summary.json": "442eefdc5f34c30a9f415e46560b266ab1db82923ec8e909f7e7d4ba9cc46330",
+  "results/trades.csv": "af5249c24a4297bf1b2d78538533f4e6782a86cee58136f8c8ab157283d0802a",
+  "results/trades.csv.gz": "56383468118fd5d7869c35164ee8d0a1219b4a9c6c20c099399af4ee4474d364",
+  "results/universe.json": "83263c312a07f3093a85e99f779a7e153ea11397b75ae8ec03580b982c75f9df",
+  "results/universe_60_day_audit.json": "28052ec98d98f527691cebc0ef66b9f2d7c1a18064de28c42d707b676271fddb",
+  "results/verification.json": "60b05f4b4b0daf4d9b3f919abbb3c673b512a9298d988cfb0df4e78f5591708c"
+}

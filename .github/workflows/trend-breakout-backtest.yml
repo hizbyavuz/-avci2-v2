@@ -1,0 +1,33 @@
+name: Trend Breakout historical test ONLY
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: trend-breakout-historical-test
+  cancel-in-progress: false
+jobs:
+  backtest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r requirements.trend-breakout.txt
+      - run: python -m unittest test_trend_breakout -v
+      - name: Refuse another locked test for an already reported protocol
+        run: test ! -e research/trend_breakout_v1/results/locked_test_seal.json
+      - run: python -u trend_breakout_data.py --cache trend-breakout-cache
+      - run: python -u trend_breakout_backtest.py --prepare --run --cache trend-breakout-cache
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: trend-breakout-report
+          path: |
+            research/trend_breakout_v1/results/
+            trend-breakout-cache/universe.json
+            trend-breakout-cache/prepared_manifest.json
+            trend-breakout-cache/downloads.jsonl
+          retention-days: 30

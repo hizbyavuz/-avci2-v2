@@ -1,0 +1,50 @@
+name: Trend Breakout paper live — approved template
+# No schedule exists in this delivered workflow. After report + explicit user
+# approval, enable the reviewed template in research/trend_breakout_v1/.
+on:
+  schedule:
+    - cron: "3 * * * *"
+  workflow_dispatch:
+    inputs:
+      initialize_state:
+        description: 'Initialize the separate paper ledger (first approved run only)'
+        type: boolean
+        default: false
+permissions:
+  contents: write
+concurrency:
+  group: trend-breakout-paper-live
+  cancel-in-progress: false
+jobs:
+  paper:
+    if: vars.TREND_BREAKOUT_LIVE_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r requirements.trend-breakout.txt
+      - name: Verify explicit approval bound to exact report and rules
+        run: python -c "from trend_breakout_live import approval; approval('research/trend_breakout_v1/live_approval.json','research/trend_breakout_v1/results/report.md')"
+      - name: Paper scan, never exchange orders
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          INITIALIZE: ${{ inputs.initialize_state }}
+        run: |
+          args=()
+          if [ "$INITIALIZE" = "true" ]; then args+=(--init-state); fi
+          python -u trend_breakout_live.py --send-telegram --git-state "${args[@]}"
+      - name: Attach diagnostics without credentials
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trend-breakout-paper-diagnostics-${{ github.run_id }}
+          path: |
+            trend-breakout-charts/
+            trend-breakout-cache/universe.json
+          if-no-files-found: ignore
+          retention-days: 3

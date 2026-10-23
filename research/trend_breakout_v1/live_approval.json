@@ -1,0 +1,6 @@
+{
+  "approved_by_user": false,
+  "rules_hash": null,
+  "report_sha256": null,
+  "note": "No report approval yet. This file must not be changed to true by the agent without the user's explicit post-report approval."
+}
