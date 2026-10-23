@@ -1,0 +1,244 @@
+{
+  "observed_at_utc": "2026-10-22T22:10:12Z",
+  "accept_result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "Cancelled — the user did not approve this action. No changes were made."
+      }
+    ],
+    "structuredContent": {
+      "error_code": "INVALID_ARGUMENT"
+    },
+    "isError": true
+  },
+  "latest_deployments": [
+    {
+      "id": "e6a9b56f-1fb5-4cda-80d7-47a0da5cc8e5",
+      "status": "REMOVED",
+      "createdAt": "2026-10-17T13:34:31.560Z",
+      "meta": {
+        "reason": "deploy",
+        "commitMessage": "Fix MAJOR delivery capacity, preserve first eligibility, and observe early starts\n\nDecouple paper plans from notification admission with a rolling three-per-15-minute budget. Retain first READY time/price across restarts and V2 references. Add isolated symmetric closed-5m paper observation and per-reference 1/2/3-hour measurement contracts while preserving old outcomes.\n\nValidation: 81 targeted regression tests passed; frozen V1.1 source unchanged. No automatic orders or early-observer Telegram delivery.",
+        "commitHash": "d74f382c6e858c3bfc007dea44bbc5c43d9fb9dc",
+        "branch": "feat/major-delivery-v3-2026-10-17"
+      }
+    },
+    {
+      "id": "23137f2d-b209-435d-b0b7-740ce1272c93",
+      "status": "REMOVED",
+      "createdAt": "2026-10-16T19:27:14.180Z",
+      "meta": {
+        "reason": "deploy",
+        "commitMessage": "Separate major-move context from 15m entry timing; preserve frozen baseline and forward comparison",
+        "commitHash": "72a255ac26bcdd4a082a8f4db6de1556a06e5e7f",
+        "branch": "feat/major-context-entry-v2-2026-10-16"
+      }
+    }
+  ],
+  "staged": {
+    "project": {
+      "id": "ba2b84a7-22c6-4703-aefc-c6f95393c1b6",
+      "name": "long-short-analyst"
+    },
+    "environment": {
+      "id": "5fc78d8b-4f54-4b50-867d-c544cbd74aaa",
+      "name": "production"
+    },
+    "staged": {
+      "patchId": "888082fd-1fde-47e2-a23d-37b5bc2c568e",
+      "status": "STAGED",
+      "changeCount": 9,
+      "message": null,
+      "createdAt": "2026-10-18T07:55:25.554Z",
+      "updatedAt": "2026-10-22T22:08:50.412Z"
+    },
+    "destructive": false,
+    "resources": [
+      {
+        "kind": "service",
+        "id": "caad3157-e67b-4d20-80d9-67aa5fe8778c",
+        "name": "long-short-motor",
+        "action": "update",
+        "changes": [
+          {
+            "path": "services.caad3157-e67b-4d20-80d9-67aa5fe8778c.source.branch",
+            "displayName": "Branch",
+            "type": "updated",
+            "from": "feat/major-delivery-v3-2026-10-17",
+            "to": "feat/trader-scenarios-20261022",
+            "destructive": false
+          },
+          {
+            "path": "services.caad3157-e67b-4d20-80d9-67aa5fe8778c.source.commitSha",
+            "displayName": "Commit Sha",
+            "type": "updated",
+            "from": "d74f382c6e858c3bfc007dea44bbc5c43d9fb9dc",
+            "to": "62dfea5986699f1df5cad60d5329d3f430ed6fd6",
+            "destructive": false
+          },
+          {
+            "path": "services.caad3157-e67b-4d20-80d9-67aa5fe8778c.source.image",
+            "displayName": "Image",
+            "type": "removed",
+            "from": "",
+            "to": "",
+            "destructive": false
+          },
+          {
+            "path": "services.caad3157-e67b-4d20-80d9-67aa5fe8778c.source.repo",
+            "displayName": "Repo",
+            "type": "updated",
+            "from": "hizbyavuz/-avci2-v2",
+            "to": "hizbyavuz/-avci2-v2",
+            "destructive": false
+          },
+          {
+            "path": "services.caad3157-e67b-4d20-80d9-67aa5fe8778c.build.dockerfilePath",
+            "displayName": "Dockerfile Path",
+            "type": "updated",
+            "from": "Dockerfile",
+            "to": "Dockerfile.launch-check",
+            "destructive": false
+          },
+          {
+            "path": "services.caad3157-e67b-4d20-80d9-67aa5fe8778c.deploy.restartPolicyType",
+            "displayName": "Restart Policy Type",
+            "type": "added",
+            "from": "",
+            "to": "NEVER",
+            "destructive": false
+          },
+          {
+            "path": "services.caad3157-e67b-4d20-80d9-67aa5fe8778c.deploy.startCommand",
+            "displayName": "Start Command",
+            "type": "updated",
+            "from": "python -u long_short_daemon.py",
+            "to": "python -u long_short_launch_check.py",
+            "destructive": false
+          },
+          {
+            "path": "services.caad3157-e67b-4d20-80d9-67aa5fe8778c.variables.LS_RUNTIME_PROFILE.encryptedValue",
+            "displayName": "LS_RUNTIME_PROFILE",
+            "type": "added",
+            "from": "",
+            "to": "<redacted>",
+            "destructive": false
+          },
+          {
+            "path": "services.caad3157-e67b-4d20-80d9-67aa5fe8778c.variables.SWING_NOTIFICATIONS.encryptedValue",
+            "displayName": "SWING_NOTIFICATIONS",
+            "type": "added",
+            "from": "",
+            "to": "<redacted>",
+            "destructive": false
+          }
+        ]
+      }
+    ],
+    "sharedVariables": [],
+    "privateNetworkDisabled": null
+  },
+  "live_config": {
+    "service": {
+      "id": "caad3157-e67b-4d20-80d9-67aa5fe8778c",
+      "name": "long-short-motor"
+    },
+    "environment": {
+      "id": "5fc78d8b-4f54-4b50-867d-c544cbd74aaa",
+      "name": "production"
+    },
+    "config": {
+      "source": {
+        "repo": "hizbyavuz/-avci2-v2",
+        "branch": "feat/major-delivery-v3-2026-10-17",
+        "commitSha": "d74f382c6e858c3bfc007dea44bbc5c43d9fb9dc",
+        "rootDirectory": "/"
+      },
+      "build": {
+        "builder": "DOCKERFILE",
+        "watchPatterns": [
+          "**/*.py",
+          "Dockerfile",
+          "requirements.txt"
+        ],
+        "buildEnvironment": "V3",
+        "dockerfilePath": "Dockerfile"
+      },
+      "deploy": {
+        "startCommand": "python -u long_short_daemon.py",
+        "useLegacyStacker": false,
+        "ipv6EgressEnabled": false,
+        "runtime": "V2",
+        "multiRegionConfig": {
+          "asia-southeast1-eqsg3a": {
+            "numReplicas": 1
+          }
+        }
+      },
+      "volumeMounts": {
+        "c20c1400-00b7-4778-9482-bb639954ed81": {
+          "mountPath": "/app/.long-short-state"
+        }
+      }
+    },
+    "variableNames": [
+      "COINALYZE_API_KEY",
+      "LS_ANALYST_DB",
+      "LS_AUDIT_RELEASE",
+      "LS_BACKUP_ACCESS_KEY_ID",
+      "LS_BACKUP_BUCKET",
+      "LS_BACKUP_ENDPOINT",
+      "LS_BACKUP_INTERVAL_SECONDS",
+      "LS_BACKUP_REGION",
+      "LS_BACKUP_SECRET_ACCESS_KEY",
+      "LS_BINANCE_DERIVATIVE_AUDIT_ENABLED",
+      "LS_BINANCE_FOUR_FACTOR_AUDIT",
+      "LS_BINANCE_FUTURES_ONLY",
+      "LS_BYBIT_PAPER_PROBE_ENABLED",
+      "LS_CANDIDATE_PRIORITY_V2",
+      "LS_CHART_FIRST_PREVIEW",
+      "LS_CHART_FIRST_V1",
+      "LS_DATA_OPPORTUNITY_V2",
+      "LS_DB",
+      "LS_EARLY_BREAKOUT_V1_ENABLED",
+      "LS_FUTURES_HISTORY_RELAY_URL",
+      "LS_LEAN_RUNTIME",
+      "LS_LIVE_DB",
+      "LS_NATIVE_CHAIN_V2",
+      "LS_NATIVE_V2_VERIFY",
+      "LS_QUALIFIED_SIGNAL_CHAIN_V1",
+      "LS_SIMPLE_NOTIFY_DB",
+      "LS_STORAGE_DEEP_AUDIT",
+      "LS_STRUCTURAL_PLAN_V3",
+      "LS_TELEGRAM_TRADE_ONLY",
+      "LS_UNIFIED_CARD_ENABLED",
+      "LS_V4_RECLAIM_ENABLED",
+      "TELEGRAM_BOT_TOKEN"
+    ],
+    "staged": {
+      "patchId": "888082fd-1fde-47e2-a23d-37b5bc2c568e",
+      "patchStatus": "STAGED",
+      "changeCount": 9,
+      "config": {
+        "build": {
+          "dockerfilePath": "Dockerfile.launch-check"
+        },
+        "deploy": {
+          "startCommand": "python -u long_short_launch_check.py",
+          "restartPolicyType": "NEVER"
+        },
+        "source": {
+          "repo": "hizbyavuz/-avci2-v2",
+          "image": null,
+          "branch": "feat/trader-scenarios-20261022",
+          "commitSha": "62dfea5986699f1df5cad60d5329d3f430ed6fd6"
+        }
+      },
+      "variableNames": [
+        "LS_RUNTIME_PROFILE",
+        "SWING_NOTIFICATIONS"
+      ]
+    }
+  }
+}

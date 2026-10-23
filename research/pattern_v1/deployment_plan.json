@@ -1,0 +1,37 @@
+{
+  "status": "PREPARED_NOT_APPLIED_AUTOMATIC_APPROVAL_BLOCKED",
+  "project_id": "ba2b84a7-22c6-4703-aefc-c6f95393c1b6",
+  "environment_id": "5fc78d8b-4f54-4b50-867d-c544cbd74aaa",
+  "service_id": "caad3157-e67b-4d20-80d9-67aa5fe8778c",
+  "repository": "hizbyavuz/-avci2-v2",
+  "branch": "feat/trader-scenarios-20261022",
+  "commit": "Pin the reviewed commit containing this plan; never unpin to an unknown latest head.",
+  "dockerfile": "Dockerfile.pattern",
+  "start_command": "python -u long_short_pattern_daemon.py",
+  "restart_policy": "ON_FAILURE",
+  "restart_limit": 3,
+  "variables": {
+    "LS_RUNTIME_PROFILE": "PATTERN_STRUCTURE_V1",
+    "PATTERN_NOTIFICATIONS": "1",
+    "SWING_NOTIFICATIONS": "0",
+    "LS_MAJOR_MOVE_V1": "0"
+  },
+  "preserve": ["existing volume and mount", "region", "existing credentials", "existing verified Telegram recipient", "existing data source architecture"],
+  "required_checks_before_applying": [
+    "Fresh automatic approval or explicit resolution of the rejected deployment action",
+    "Review every staged resource; existing staged launch-check does not launch this engine",
+    "Read-only existing-volume and recipient verification without printing secrets",
+    "Verify existing market metadata, ticker, candles and price sources; no new restriction-bypass relay",
+    "Publish only clearly labelled research notices; strategy performance is unvalidated"
+  ],
+  "completion_evidence": [
+    "Build and deployment terminal SUCCESS",
+    "Expected single runtime and all required workers",
+    "Existing-recipient Telegram startup ACK stored",
+    "Fresh closed candle and quote coverage logged",
+    "No fabricated trade signal when no setup qualifies"
+  ],
+  "orders_enabled": false,
+  "telegram_ack_verified": false,
+  "live_data_verified": false
+}

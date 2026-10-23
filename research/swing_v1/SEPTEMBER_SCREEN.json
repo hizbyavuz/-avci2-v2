@@ -1,0 +1,55 @@
+{
+  "rejections": {
+    "NO_SETUP": 231111,
+    "LONG_VOLUME_OR_BUY_PRESSURE_WEAK": 3904,
+    "INSUFFICIENT_KNOWN_ROOM": 382,
+    "FAILED_BOUNCE_SHORT": 297,
+    "LATE_CHASE": 630,
+    "BASE_BREAKOUT_LONG": 537,
+    "ALREADY_EXTENDED": 452,
+    "INVALID_RISK": 741,
+    "ILLIQUID": 226354,
+    "SHORT_VOLUME_OR_SELL_PRESSURE_WEAK": 1880,
+    "NO_CONFIRMED_LOWER_HIGH": 1438,
+    "EPISODE_SUPPRESSED": 219,
+    "VOLUME_BASELINE_UNAVAILABLE": 22
+  },
+  "evaluated_coin_hours": 467748,
+  "eligible_coin_hours": 241394,
+  "month": "2026-09",
+  "version": "SWING_STRUCTURE_RESEARCH_V1_2026_10_22",
+  "config_hash": "d899d56bf0dea0bc564c7907e4e79ad30b81e464de9021b6ecfd6d44e4577938",
+  "summary": {
+    "LONG": {
+      "episodes": 384,
+      "mature_raw": 319,
+      "immature_or_gap": 65,
+      "matched_mature": 319,
+      "raw_reach_30_pct": 11.912225705329154,
+      "paired_signal_raw_reach_30_pct": 11.912225705329154,
+      "paired_control_raw_reach_30_pct": 12.539184952978056,
+      "median_raw_mfe_pct": 10.055423594615998,
+      "median_raw_mae_pct": 6.3101276893475555
+    },
+    "SHORT": {
+      "episodes": 231,
+      "mature_raw": 175,
+      "immature_or_gap": 56,
+      "matched_mature": 175,
+      "raw_reach_30_pct": 1.7142857142857142,
+      "paired_signal_raw_reach_30_pct": 1.7142857142857142,
+      "paired_control_raw_reach_30_pct": 0.0,
+      "median_raw_mfe_pct": 5.1658926605065325,
+      "median_raw_mae_pct": 9.876434245366283
+    }
+  },
+  "universe_version": "UNCLASSIFIED_USDT_ARCHIVE_V1",
+  "crypto_only": false,
+  "classification": "FROZEN_RULES_SECOND_MONTH_RAW_DESIGN_CHECK_NOT_TRADE_PROFIT",
+  "archive_statuses": {
+    "OK": 869,
+    "NOT_PUBLISHED": 31
+  },
+  "catalogue_symbols": 900,
+  "network_used": false
+}

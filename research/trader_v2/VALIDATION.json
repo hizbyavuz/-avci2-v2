@@ -1,0 +1,71 @@
+{
+  "status": "OFFLINE_COMPARISON_COMPLETE_COST_COVERAGE_PARTIAL_NO_PROMOTION",
+  "test_count": 21,
+  "tests": [
+    {
+      "module": "tests.test_trader_context",
+      "passed": 8
+    },
+    {
+      "module": "tests.test_trade_plan",
+      "passed": 4
+    },
+    {
+      "module": "tests.test_trader_comparison",
+      "passed": 2
+    },
+    {
+      "module": "tests.test_funding_bounds",
+      "passed": 5
+    },
+    {
+      "module": "tests.test_funding_audit",
+      "passed": 2
+    }
+  ],
+  "source_hashes": {
+    "long_short_trader_context.py": "9b683451cd791afdcaad442718ce2c78361afd5974731630f76c84cc8c35f467",
+    "long_short_trade_plan.py": "118a98acb6b7114610de4d314509a55c054b99709262b020cdbb317e1d0ddf83",
+    "long_short_funding_bounds.py": "d905ad63044408ae7effdc3fc69fa361db830e7195d5896cb8150fc452c5caec",
+    "research/swing_v1/download_required.py": "b49b695494d485f95cede9667f2fe27cd998ee7912a597c8a4c00b411d11507e",
+    "research/trader_v2/prepare_funding_costs.py": "be8ef11d068a5b69e493761b0f4fd6d8030d7a6fc27117f19f7abd26ed5f094c",
+    "research/trader_v2/recover_verified_costs.py": "3e4fcca8604d378358a568306b30cec703452510022fb6942f563b05ad0ee4c2",
+    "research/trader_v2/funding_audit.py": "b93344c7afcbb9e812174e64e4365a26529cbe8b24b05f19477e8bc7ad7c7097",
+    "research/trader_v2/compare.py": "794c0ba657a8ce68f8369769da933c7a7180789ba801e76e48120e1ff36f187f",
+    "research/trader_v2/prepare_data.py": "3290bed79cf6595492c2755d19dbe2e81f2c0fccd156bd64e786302b7c8b5e83",
+    "research/trader_v2/PROTOCOL.md": "30f559eabcc89187284a0658ca158df436e2884df0f65143c17367b03e033c2e",
+    "tests/test_trader_context.py": "7243e760adb090cc9a3821c8c14955895b2c94c4146a01a5967a7edcbb3b2b2f",
+    "tests/test_trade_plan.py": "67b720decc55a415b8494fde8b6b57c5bc4318a993abffd9f07af105f0e75c77",
+    "tests/test_trader_comparison.py": "13fd33092520e25be5e01d052166c98620eb71018166c2b0763e06dd3c6c6103",
+    "tests/test_funding_bounds.py": "193bc13d70b6ee9c848b28eac83ea4d694449e56b887fbff5a1a6ce229ba8589",
+    "tests/test_funding_audit.py": "a4191b76ffd7dbedad78daaf68231fc3bcbced97af6f098c7826eddbb0a96761"
+  },
+  "live_deployed": false,
+  "telegram_enabled": false,
+  "performance_certified": false,
+  "previous_v1_sources_unchanged": 15,
+  "previous_v1_changed_source": "research/swing_v1/download_required.py",
+  "previous_v1_change": "Abort wrapped proxy CONNECT 401/403/451; no strategy/outcome change.",
+  "historical_context": {
+    "archives_verified": 3176,
+    "episodes": 1240,
+    "all_variants_reported": true
+  },
+  "funding": {
+    "requested": 816,
+    "original_verified": 666,
+    "offline_recovered": 59,
+    "verified_total": 725,
+    "access_errors": 90,
+    "checksum_404": 1,
+    "bounded_plans": 495,
+    "unknown_plans": 61,
+    "invalid_entries": 69
+  },
+  "final_reports": {
+    "COMPARISON.json": "bf848e0d61ec3718619bdd335212f121166c7f9cc58466e2a4dfb25433a69bc6",
+    "FUNDED_COMPARISON.json": "b0f9ea7d5e056fcfbc92df18dba3f3da983089e8335ceb0f550ec862da814674",
+    "EPISODES.json.gz": "32d56cec8e60d682187c49efcda9cc24882c36ca1814deb68905afe283a1da00",
+    "FUNDING_EPISODES.json.gz": "ae66f43d67e083a9892509e1edd038f2775c72ed0492c75733c4d3566568c6f0"
+  }
+}

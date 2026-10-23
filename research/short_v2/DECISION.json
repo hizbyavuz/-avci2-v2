@@ -1,0 +1,25 @@
+{
+  "version": "SHORT_V2_ACCEPTANCE_2026_10_22",
+  "models": {
+    "FAILED_BREAKOUT_SHORT": {
+      "status": "REJECTED_FOR_ACTIVATION",
+      "reason": "NONPOSITIVE_FEE_ONLY_MEAN_IN_BOTH_MEASURED_MONTHS",
+      "actionable": false
+    },
+    "BEAR_RETEST_SHORT": {
+      "status": "REJECTED_FOR_ACTIVATION",
+      "reason": "NONPOSITIVE_FEE_ONLY_MEAN_IN_BOTH_MEASURED_MONTHS",
+      "actionable": false
+    }
+  },
+  "additional_limits": [
+    "Incomplete minute coverage",
+    "Funding not fully measured",
+    "Unclassified historical asset universe",
+    "No independent untouched evaluation"
+  ],
+  "live_deploy_allowed": false,
+  "user_instruction": "Fix SHORT before activating signals",
+  "railway_changes_made": false,
+  "telegram_messages_sent": 0
+}

@@ -1,0 +1,86 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "path": "evidence/DATA_REQUEST.json.gz",
+      "restore_path": "DATA_REQUEST.json",
+      "bytes": 683637,
+      "sha256": "9aabbfd41d85a5c37a3990e5542bb18c7a763d98ca573e1cf03bf9e230519314",
+      "compressed_sha256": "ecdce287527f3ac95f0e0194f689feb0f80716ce5ddab744d56d8a5589b45f1b"
+    },
+    {
+      "path": "evidence/DOWNLOAD.json.gz",
+      "restore_path": "DOWNLOAD.json",
+      "bytes": 1769246,
+      "sha256": "71d69bbf8cfa38416a3b3a5b9748039cc20be95c489f3ddb780adeb049a368ea",
+      "compressed_sha256": "de51255c88b6be8782ad3b76e5391f48a27969d3eb148e50ec8f16d3edc782b6"
+    },
+    {
+      "path": "evidence/DOWNLOAD.jsonl.gz",
+      "restore_path": "DOWNLOAD.jsonl",
+      "bytes": 1247970,
+      "sha256": "657842eb897adb7d28ded20dce93161564ad8c12f7b6ce6e653eca96f732a966",
+      "compressed_sha256": "40aae6a4b341ac75915333f7df80f05f7c253dea7e7543af51344c539e61d688"
+    },
+    {
+      "path": "evidence/DOWNLOAD.partial12.jsonl.gz",
+      "restore_path": "DOWNLOAD.partial12.jsonl",
+      "bytes": 158258,
+      "sha256": "0bb2e9628a819dfe25ebb9c6bf0e9a720bb1cf6b504c54a38560df6dc701fa32",
+      "compressed_sha256": "3b0fa0b1f9dfaf0be78df1577516ef84afb882f349306d59c268f75a7b702c83"
+    },
+    {
+      "path": "evidence/FUNDING_COST_REQUEST.json.gz",
+      "restore_path": "FUNDING_COST_REQUEST.json",
+      "bytes": 176283,
+      "sha256": "e289e97204d2ef93d3ca9c0601922f874c25775f8b05cb7b3f2cb933641d2c0b",
+      "compressed_sha256": "20caf0e223d926a5188a2934a890ad70b37bfa61a0cdb91536e64d70aa9af2d3"
+    },
+    {
+      "path": "evidence/FUNDING_COST_DOWNLOAD.json.gz",
+      "restore_path": "FUNDING_COST_DOWNLOAD.json",
+      "bytes": 430339,
+      "sha256": "14aea982286325a4cffa828e0bc9cfc9b0cb5b45114ae8e896444a87b1ecb4b6",
+      "compressed_sha256": "ced90b20c3e168269c7e0696274d6b2706de81acadc01ce46d57772d054722ad"
+    },
+    {
+      "path": "evidence/FUNDING_COST_DOWNLOAD.jsonl.gz",
+      "restore_path": "FUNDING_COST_DOWNLOAD.jsonl",
+      "bytes": 143627,
+      "sha256": "7514453700b23d078ce93ade12328c826c7e6038216b33211e2b32c16bcc18f3",
+      "compressed_sha256": "9839a928944451ce95880c2a7e1e243c0f2d3c8242ab2a7a2bb369c989683f22"
+    },
+    {
+      "path": "evidence/FUNDING_COST_OFFLINE_RECOVERY.json.gz",
+      "restore_path": "FUNDING_COST_OFFLINE_RECOVERY.json",
+      "bytes": 455794,
+      "sha256": "f0da1d9e52a19182aa3afd26707e394c009d03450d797b5d04bede279256247a",
+      "compressed_sha256": "825025e9ce4be60eb22ca1dc26a5f7e23907d2f21a4789e4b0178a7b11b75e11"
+    },
+    {
+      "path": "evidence/initial_partial--FUNDED_COMPARISON.json.gz",
+      "restore_path": "initial_partial/FUNDED_COMPARISON.json",
+      "bytes": 8467,
+      "sha256": "acaf72d5e6075bf050b98201d1cadd6f54a2b7951222c44c18b349842dcf099a",
+      "compressed_sha256": "0d7196b1bda9efb2d0f843129e26f5cf5829d8b56a90c990335bffaec30ab461"
+    },
+    {
+      "path": "EPISODES.json.gz",
+      "bytes": 462369,
+      "sha256": "32d56cec8e60d682187c49efcda9cc24882c36ca1814deb68905afe283a1da00",
+      "already_compressed": true
+    },
+    {
+      "path": "FUNDING_EPISODES.json.gz",
+      "bytes": 238739,
+      "sha256": "ae66f43d67e083a9892509e1edd038f2775c72ed0492c75733c4d3566568c6f0",
+      "already_compressed": true
+    },
+    {
+      "path": "initial_partial/FUNDING_EPISODES.json.gz",
+      "bytes": 238666,
+      "sha256": "e50efe0c56a899ebe22c822f6dfc1942e0ca1f76f2247892c1643e3d65c57c9d",
+      "already_compressed": true
+    }
+  ]
+}

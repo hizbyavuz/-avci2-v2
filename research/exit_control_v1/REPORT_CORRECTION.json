@@ -1,0 +1,7 @@
+{
+  "original_summary_sha256": "6c2048a908ccec2769bfb8c0760b88f6016e0f31a97ca9937a518f7b9f25cb2c",
+  "outcomes_sha256": "a73c528cd351cf8031419addc6862a79ff51d7aaed68ae5aa6cf239334affa93",
+  "matches_sha256": "6910be1a2c2334054ac4ff049be916aa0bb887021c37bb1b27f46720842ec0f5",
+  "replay_code_sha256": "2dbff75b59b99903f61a3f623ed583cd5fc2e7257e6c4698fbd3cacb3f4d4bb4",
+  "correction": "Only distinct signal-day metadata in descriptive block intervals; selections, entries, exits and statistical draws unchanged"
+}

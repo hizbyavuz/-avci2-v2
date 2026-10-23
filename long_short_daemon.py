@@ -350,8 +350,8 @@ def handle_signal(signum, _frame) -> None:
 
 def lean_maintenance() -> None:
     """Retire legacy files once; serialize archive and backup I/O thereafter."""
-    from long_short_runtime_profile import major_enabled
-    if not major_enabled():
+    from long_short_runtime_profile import major_enabled, swing_enabled
+    if not major_enabled() and not swing_enabled():
         run_child('chart_v1_delivery_audit', 'long_short_v1_delivery_audit.py')
         run_child('chart_selection_audit', 'long_short_chart_selection_audit.py')
         run_child('legacy_archive', 'long_short_legacy_archive.py')
@@ -362,7 +362,7 @@ def lean_maintenance() -> None:
             rc = run_child('daily_backup', 'long_short_daily_backup.py')
             if rc == 0:
                 run_child('backup_retention', 'long_short_backup_retention.py')
-                if not major_enabled():
+                if not major_enabled() and not swing_enabled():
                     run_child('remote_archive_compact', 'long_short_remote_archive_compact.py')
                 run_child('backup_inventory_after_cleanup', 'long_short_backup_inventory.py')
             elif STOP.wait(3600):
@@ -380,8 +380,8 @@ def lean_health(sd: Path) -> None:
             report = health(sd)
             (sd/'long_short_data_health.json').write_text(json.dumps(report))
             print('CHART_RUNTIME_HEALTH '+json.dumps(report), flush=True)
-            from long_short_runtime_profile import major_enabled
-            if not major_enabled() and time.time()-last_validation>=900:
+            from long_short_runtime_profile import major_enabled, swing_enabled
+            if not major_enabled() and not swing_enabled() and time.time()-last_validation>=900:
                 from long_short_chart_reliability import emit
                 emit(sd)
                 last_validation=time.time()
@@ -390,8 +390,15 @@ def lean_health(sd: Path) -> None:
 
 
 def run_chart_runtime(sd: Path) -> int:
-    from long_short_runtime_profile import PROFILE, WORKERS, RETIRED, MAJOR_WORKERS, major_enabled
-    if major_enabled():
+    from long_short_runtime_profile import PROFILE, WORKERS, RETIRED, MAJOR_WORKERS, major_enabled, swing_enabled, SWING_WORKERS
+    if swing_enabled():
+        os.environ.update(LS_NATIVE_CHAIN_V2='1', LS_LEAN_RUNTIME='1', LS_CHART_FIRST_V1='1')
+        from long_short_swing_runtime import connect as swing_connect
+        swing_connect().close()
+        PROFILE='SWING_STRUCTURE_V1'
+        WORKERS=SWING_WORKERS
+        RETIRED=RETIRED+('major_move','chart_first','chart_delivery_outcomes','binance_taker_shadow')
+    elif major_enabled():
         from long_short_major_move_store import connect as major_connect
         major_connect().close()  # New evidence must exist before the backup inventory.
         PROFILE='MAJOR_MOVE_V1_2026_10_16'
@@ -417,6 +424,10 @@ def run_chart_runtime(sd: Path) -> int:
 
 def main() -> int:
     global TELEGRAM_CHAT_SOURCE
+    # New research release: legacy flags are not consent to restart the old
+    # MAJOR selector. Validate before state changes or Telegram discovery.
+    from long_short_signal_policy import require_explicit_profile
+    require_explicit_profile(os.environ)
     signal.signal(signal.SIGTERM, handle_signal)
     signal.signal(signal.SIGINT, handle_signal)
 

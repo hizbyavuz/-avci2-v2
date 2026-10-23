@@ -35,6 +35,44 @@ def needs_repair(db, symbol, interval, now_ms=None):
             status.get('last_close_age_s', 0) > PERIOD_MS[interval]/1000 + 30)
 
 
+def pattern_priority_pass(db, base, analyst, stop):
+    """Finish each coin's actual setup/context before warming the next coin.
+
+    Existing urgent-plan ordering comes from requested_symbols. No 5m/1h
+    admission sweep can postpone every 30m/4h context indefinitely.
+    """
+    failed = False
+    for symbol in requested_symbols(analyst):
+        for interval in ('1m', '15m', '30m', '4h'):
+            if stop.is_set():
+                return failed
+            try:
+                if needs_repair(db, symbol, interval):
+                    repair(db, base, symbol, interval)
+                    stop.wait(0.4)
+            except Exception as exc:
+                log('FUTURES_HISTORY_UNAVAILABLE', dict(symbol=symbol, interval=interval,
+                    error=type(exc).__name__))
+                failed = True
+                if isinstance(exc, HTTPError) and exc.code == 400:
+                    break
+                return True  # source-wide backoff, including rate limits
+    return failed
+
+
+def guarded_priority_pass(db, base, analyst, stop):
+    try:
+        if os.getenv('LS_RUNTIME_PROFILE') == 'PATTERN_STRUCTURE_V2':
+            return pattern_priority_pass(db, base, analyst, stop)
+        return priority_pass(db, base, analyst, stop)
+    except ValueError as exc:
+        if str(exc) not in {'ASSET_CLASS_METADATA_MISSING', 'ASSET_CLASS_METADATA_STALE',
+                            'CRYPTO_UNIVERSE_UNAVAILABLE', 'UNIVERSE_UNAVAILABLE'}:
+            raise
+        log('FUTURES_HISTORY_WAITING_FOR_UNIVERSE', {'reason': str(exc), 'retry_seconds': 60})
+        return True
+
+
 def priority_pass(db, base, analyst, stop):
     """Keep admission candles fresh while repairing slow context histories.
 
@@ -163,7 +201,7 @@ def main():
     log('FUTURES_HISTORY_WORKER_STARTED',{'source':REST_SOURCE})
     while not stop.is_set():
         if os.getenv('LS_NATIVE_CHAIN_V2','0') == '1':
-            failed = priority_pass(db, base, analyst, stop)
+            failed = guarded_priority_pass(db, base, analyst, stop)
             delay = 60 if failed else 15
             log('FUTURES_HISTORY_PASS_FINISHED', {'mode':'prewarm_priority', 'retry_seconds':delay})
             stop.wait(delay)

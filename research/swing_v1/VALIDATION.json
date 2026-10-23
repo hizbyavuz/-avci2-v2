@@ -1,0 +1,86 @@
+{
+  "date": "2026-10-22",
+  "base_commit": "d74f382c6e858c3bfc007dea44bbc5c43d9fb9dc",
+  "deployed": false,
+  "telegram_enabled": false,
+  "profitability_proven": false,
+  "checks": [
+    {
+      "pattern": "test_swing*.py",
+      "passed": 25,
+      "failed": 0,
+      "scope": "25 tests before baseline comparator; source revision c3b2796"
+    },
+    {
+      "pattern": "test_major*.py",
+      "passed": 68,
+      "failed": 0
+    },
+    {
+      "pattern": "test_native_chain_v2.py",
+      "passed": 15,
+      "failed": 0
+    },
+    {
+      "pattern": "test_futures_history_worker.py",
+      "passed": 6,
+      "failed": 0
+    },
+    {
+      "pattern": "test_swing_baseline.py",
+      "passed": 5,
+      "failed": 0,
+      "scope": "offline comparison tests added after c3b2796"
+    },
+    {
+      "pattern": "test_swing_minute_audit.py",
+      "passed": 6,
+      "failed": 0,
+      "scope": "offline full-denominator audit; no strategy or outcome changes"
+    }
+  ],
+  "notes": [
+    "The first old-test run missed requests while dependency installation was incomplete; rerun after installation passed.",
+    "No live engine/worker was run. Tests used temporary SQLite fixtures and mocked Telegram transports.",
+    "This does not verify production relay, full-universe capacity, historical alpha, funding collection or actual execution.",
+    "Baseline-only changes: five new tests run; previous 114 passing checks retained. Strategy thresholds and runtime files unchanged.",
+    "Minute audit added six targeted tests; earlier 119 passing checks retained. Existing runtime, decision and outcome sources unchanged. No new live runs."
+  ],
+  "base_implementation_commit": "b4c9254cb387d0cab1160c5faa0895c27c80b2a4",
+  "total_tests": 125,
+  "source_sha256": {
+    "long_short_swing.py": "c757e6f34bcd3c5549bfb02f31466f9288721cc77fc8c8697d9ba0bb80f6b5fe",
+    "long_short_swing_outcomes.py": "7798d1a2d6ffe66c367e517b4a7125a15e0d5faf7c2d868292fba136e3411feb",
+    "long_short_swing_runtime.py": "cfb0e1bf1b414a661d2838d3b36b2c8aec025b884884c9ce7bbea148bb68bf58",
+    "long_short_native_derivatives.py": "e375ef40fb6293b133d20d353dd6810cc578776db98767c3a3d6fab8735e79b2",
+    "long_short_runtime_profile.py": "69cb1dfaa3785753dfcd6ee92a07c9a63cc902ebdb0a4665f147f06466e025c9",
+    "long_short_daemon.py": "f4b5b56cab89f0e0d3abe8f8c6e70b9141f21f982d07707f2e80410789c6b317",
+    "long_short_major_move_store.py": "19c0b14764e9a2649e02d5a24d31a335042301962df0ffebb2bb8cd876e299a6",
+    "research/swing_v1/replay.py": "9aa5ca62777f868c8e7481c2050cdfec3e7af35eab351f45ead6eaf045ace394",
+    "research/swing_v1/baseline.py": "71f3b858fc010223daaab7a355e6668563752077263d42527b5a79de2bfed2ef",
+    "tests/test_swing_baseline.py": "db9124efee5782b89aabbffb2b726f037a24b9d42a78854657601b3dc32c4332",
+    "research/swing_v1/minute_audit.py": "585e5554f64b5df4adbf048b1105eb83bdafa0357433fa3d5d0cf8ab47964b49",
+    "tests/test_swing_minute_audit.py": "1e259299945b63db6ab82bf8913a1786e9478f5f71985676331db72d904cdbd2",
+    "research/swing_v1/download_required.py": "537a281b7f16725032d1941026cbe26bd7e0a95567aac14c2ad67486a675a4ea",
+    "research/swing_v1/audit_complete_data.py": "81c30e5f277c26d4672b459207a79c4c639297949b15cb97b97b7b3e05629077",
+    "research/swing_v1/screen_downloaded.py": "9907965d6545cf1e23323e447640ef9fb3418f39a2218cba164bcd0da48e389c",
+    "research/swing_v1/verify_catalogue_absence.py": "513345e51ad61a44390c9fa6427d6706181fa8060a99139340285c4a71ddfc9a"
+  },
+  "data_refresh_checks": {
+    "date": "2026-10-22",
+    "official_checksum_verified_minute_archives": 479,
+    "official_checksum_verified_september_hourly_archives": 869,
+    "missing_archive_head_http_404": 31,
+    "august_candidates_retained": 625,
+    "august_complete_minute_paths": 556,
+    "august_invalid_entries": 69,
+    "previous_complete_or_invalid_results_identical": 14,
+    "previously_validated_source_hashes_unchanged": 12,
+    "new_strategy_tests_added": 0,
+    "full_funding_net_verified": false,
+    "live_runtime_started": false,
+    "september_screen_evaluated_hours": 467748,
+    "september_candidates": 615,
+    "september_config_hash_unchanged": true
+  }
+}

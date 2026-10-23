@@ -1,0 +1,110 @@
+[
+  {
+    "path": "evidence/2026-08-coverage-before-url-repair.json.gz",
+    "uncompressed_sha256": "aab5be7ee0492f46015d9cece0ca49823ae2ed2de6626ae523021e52da219714",
+    "compressed_sha256": "0ab5fcefc117aa9939a4718429af730afbd05b3872b858b1fee5b5b552a14011",
+    "uncompressed_bytes": 290574
+  },
+  {
+    "path": "evidence/2026-08-coverage.json.gz",
+    "uncompressed_sha256": "61b34888bd8b6ff5cbebff5bb4c314b5336cf84516b9f07bda7b5e62de9d36ff",
+    "compressed_sha256": "bb895822d4fe84206a9ef265b7a7a29e9116728f0723e74999b19e0a4198e17a",
+    "uncompressed_bytes": 290962
+  },
+  {
+    "path": "evidence/2026-08-minute-check-before-url-repair.json.gz",
+    "uncompressed_sha256": "84fe436724e5f27d1136802a62c0a45f1a02e1de0666fb1afbc174a13527e3a7",
+    "compressed_sha256": "5414cd5b899e6fca4670a649d14a949dfc1b310203ade1526d646b1234501a23",
+    "uncompressed_bytes": 15836
+  },
+  {
+    "path": "evidence/2026-08-minute-check.json.gz",
+    "uncompressed_sha256": "84fe436724e5f27d1136802a62c0a45f1a02e1de0666fb1afbc174a13527e3a7",
+    "compressed_sha256": "5414cd5b899e6fca4670a649d14a949dfc1b310203ade1526d646b1234501a23",
+    "uncompressed_bytes": 15836
+  },
+  {
+    "path": "evidence/2026-08-screen-before-url-repair.json.gz",
+    "uncompressed_sha256": "2ab72044194d04b070ebc77d32af607dc0cd0ae7d7f80a157cd5b03729aa575e",
+    "compressed_sha256": "5a2f1cf9cbbc915f620f8723f182b39dab0e2766bc523b24fd98df550ed95282",
+    "uncompressed_bytes": 1104324
+  },
+  {
+    "path": "evidence/2026-08-screen.json.gz",
+    "uncompressed_sha256": "8a770d5e4dbd5be6203fdf77ffec9b254438d7120aa1198b5a2b687e68190b26",
+    "compressed_sha256": "0fc5b18d4d5864c447e938999244cf94782fe9f83a1b95d7136816533f0ed491",
+    "uncompressed_bytes": 1106284
+  },
+  {
+    "path": "evidence/catalog.json.gz",
+    "uncompressed_sha256": "8e52151a3b8610f9c62fc6275ceb0fb081ad1fe08d7fb2d7aad9b984b9f8b7f4",
+    "compressed_sha256": "62584d9126d79b673534934734bf57cdc4ad37e3a6690502312ee07700abe0ee",
+    "uncompressed_bytes": 10875
+  },
+  {
+    "path": "evidence/manifest.json.gz",
+    "uncompressed_sha256": "bf105ffd306c5b907b1eb572ce627fa8d0092593ad2716c5d3bc1eabfc186b25",
+    "compressed_sha256": "03b802ecb15e5ffe3639038e6502c84a8603366eb12ef85901846dc4ed573f6f",
+    "uncompressed_bytes": 1131
+  },
+  {
+    "path": "evidence/unicode-archive-repair.json.gz",
+    "uncompressed_sha256": "e4616cbd3aa8e5ff9100c90fbb1460a078b95520cab126a937e78791cff938f7",
+    "compressed_sha256": "90fff4e8702181dac2aec56d978deb4814df090fc1bfa3277d83a914d983cb21",
+    "uncompressed_bytes": 3862
+  },
+  {
+    "path": "evidence/2026-08-momentum-comparison.json.gz",
+    "uncompressed_sha256": "ec48afd00c48e65763dd43c4ac0a4e748f9f3bbb32b390a0cebc6cf8a84f4814",
+    "compressed_sha256": "a0b7fd480bb421978ae3d02dd73c999b05f6eb0e4af4727e1bd283ed576dd10d",
+    "uncompressed_bytes": 2388236
+  },
+  {
+    "path": "evidence/2026-08-minute-audit.json.gz",
+    "uncompressed_sha256": "087c783a06ef4cd23108ecc70c906c25a9a83e9db90c67a7a27ea686c38317dc",
+    "compressed_sha256": "bc866a1871011fe0052655b459aa301d751b5b32dcd46ac4165eade3d09a9d0a",
+    "uncompressed_bytes": 551796
+  },
+  {
+    "path": "evidence/minute-data-requests.json.gz",
+    "uncompressed_sha256": "f16bfe86e976c5dff4198937c9c52f602d3c7bb471cde1c682d6ea662f7483ec",
+    "compressed_sha256": "1ed0bd07d4094862acdbb83b0888492cb3638d1dba83a075e115bbcd8a1430ba",
+    "uncompressed_bytes": 362791
+  },
+  {
+    "path": "evidence/2026-08-full-minute-audit.json.gz",
+    "uncompressed_sha256": "be62d23545e1caae62a90a08a62953a04969a17f57ebffb627c50c9d6c43c13e",
+    "compressed_sha256": "4a85f0ff1f1428fb437d1d26f73e212443540bc00d5519c2062c523a6c375610",
+    "uncompressed_bytes": 1924503
+  },
+  {
+    "path": "evidence/2026-10-22-hourly-download-complete.json.gz",
+    "uncompressed_sha256": "5cc0349fe9ae35e11e234179edbeb95f3c5a4af71b5a7b73024bc4fccc849f5b",
+    "compressed_sha256": "e272ff1c221b668137beaee36a16f5a42391c1313868363e8b3ed20dab6f5ff0",
+    "uncompressed_bytes": 476478
+  },
+  {
+    "path": "evidence/2026-10-22-hourly-download-confirmed.json.gz",
+    "uncompressed_sha256": "e1826b07d0408c12d4afd16c053ac116f5b976b7bb38216a302d57e5ec37b480",
+    "compressed_sha256": "0f5cdb74b81ae1a6ddbf05ca96e534f3f6508cb560200bd997fb6dd47438dcf4",
+    "uncompressed_bytes": 479162
+  },
+  {
+    "path": "evidence/2026-10-22-minute-download-complete.json.gz",
+    "uncompressed_sha256": "45c44f8d33ce54e911f546f453be56cefe0dc546b0eaff91b18f35f51a32b6b4",
+    "compressed_sha256": "dc8517f293638063fe47cfab886331ffc08b959599751412177f8c5d1babf037",
+    "uncompressed_bytes": 257570
+  },
+  {
+    "path": "evidence/2026-09-download-request.json.gz",
+    "uncompressed_sha256": "557309e701e8baef6cc0ff9b1b0a74fb8621f22805163df858214092bd7411f8",
+    "compressed_sha256": "4be85f0051ac98ef9b886ced37776ec468e8b9c78bb63004db849830d0a25ea3",
+    "uncompressed_bytes": 208331
+  },
+  {
+    "path": "evidence/2026-09-screen-complete.json.gz",
+    "uncompressed_sha256": "8e04646cff8fc14dc3d5da8502a764908dd106d88e16f52489dfe2fa4e8f84f4",
+    "compressed_sha256": "b8f14bfc76dc394bf73803ad606c6843e1691259e6a92361ab878b331468703b",
+    "uncompressed_bytes": 1072939
+  }
+]

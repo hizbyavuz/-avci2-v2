@@ -1,0 +1,259 @@
+{
+  "version": "SETTLED_FUNDING_MARK_BOUNDS_V1_2026_10_22",
+  "summary": {
+    "LONG": {
+      "BASE": {
+        "total": 436,
+        "states": {
+          "BOUNDED": 363,
+          "UNKNOWN": 36,
+          "ENTRY_NOT_MEASURED": 37
+        },
+        "unknown_reasons": {
+          "SOURCE_ARCHIVE_MISSING": 34,
+          "FUNDING_SCHEDULE_GAP_OR_CHANGE_UNRESOLVED": 2
+        },
+        "bounded_positive": 207,
+        "bounded_negative": 156,
+        "bounded_uncertain_or_zero": 0,
+        "positive_pct_conditional": 57.02479338842975,
+        "mean_net_low_pct": 4.414808959163307,
+        "mean_net_high_pct": 4.415223751676954,
+        "mean_net_low_r": 0.935453470574652,
+        "mean_net_high_r": 0.9355152103090617,
+        "median_net_low_r": 0.601497213130109,
+        "exact_full_net": false,
+        "crypto_only": false,
+        "portfolio_simulated": false
+      },
+      "STRUCTURE": {
+        "total": 362,
+        "states": {
+          "BOUNDED": 301,
+          "ENTRY_NOT_MEASURED": 29,
+          "UNKNOWN": 32
+        },
+        "unknown_reasons": {
+          "SOURCE_ARCHIVE_MISSING": 30,
+          "FUNDING_SCHEDULE_GAP_OR_CHANGE_UNRESOLVED": 2
+        },
+        "bounded_positive": 167,
+        "bounded_negative": 134,
+        "bounded_uncertain_or_zero": 0,
+        "positive_pct_conditional": 55.48172757475083,
+        "mean_net_low_pct": 4.1966136764866055,
+        "mean_net_high_pct": 4.197069917309231,
+        "mean_net_low_r": 0.8133602152079169,
+        "mean_net_high_r": 0.8134258549733571,
+        "median_net_low_r": 0.40991512933765434,
+        "exact_full_net": false,
+        "crypto_only": false,
+        "portfolio_simulated": false
+      },
+      "PARTICIPATION": {
+        "total": 151,
+        "states": {
+          "BOUNDED": 128,
+          "ENTRY_NOT_MEASURED": 9,
+          "UNKNOWN": 14
+        },
+        "unknown_reasons": {
+          "SOURCE_ARCHIVE_MISSING": 14
+        },
+        "bounded_positive": 67,
+        "bounded_negative": 61,
+        "bounded_uncertain_or_zero": 0,
+        "positive_pct_conditional": 52.34375,
+        "mean_net_low_pct": 3.790707227186651,
+        "mean_net_high_pct": 3.7915319228477626,
+        "mean_net_low_r": 0.7795057178925571,
+        "mean_net_high_r": 0.7796209030374832,
+        "median_net_low_r": 0.24653931483178182,
+        "exact_full_net": false,
+        "crypto_only": false,
+        "portfolio_simulated": false
+      },
+      "CONTEXT": {
+        "total": 107,
+        "states": {
+          "BOUNDED": 89,
+          "ENTRY_NOT_MEASURED": 8,
+          "UNKNOWN": 10
+        },
+        "unknown_reasons": {
+          "SOURCE_ARCHIVE_MISSING": 10
+        },
+        "bounded_positive": 52,
+        "bounded_negative": 37,
+        "bounded_uncertain_or_zero": 0,
+        "positive_pct_conditional": 58.42696629213483,
+        "mean_net_low_pct": 5.03344367831643,
+        "mean_net_high_pct": 5.033762034673248,
+        "mean_net_low_r": 0.8903886559624129,
+        "mean_net_high_r": 0.8904367830611858,
+        "median_net_low_r": 0.6358371876254632,
+        "exact_full_net": false,
+        "crypto_only": false,
+        "portfolio_simulated": false
+      },
+      "BASE_COMMON_CONTEXT": {
+        "total": 431,
+        "states": {
+          "BOUNDED": 360,
+          "UNKNOWN": 35,
+          "ENTRY_NOT_MEASURED": 36
+        },
+        "unknown_reasons": {
+          "SOURCE_ARCHIVE_MISSING": 34,
+          "FUNDING_SCHEDULE_GAP_OR_CHANGE_UNRESOLVED": 1
+        },
+        "bounded_positive": 205,
+        "bounded_negative": 155,
+        "bounded_uncertain_or_zero": 0,
+        "positive_pct_conditional": 56.94444444444444,
+        "mean_net_low_pct": 4.410377515380852,
+        "mean_net_high_pct": 4.410795238689011,
+        "mean_net_low_r": 0.9288268820200639,
+        "mean_net_high_r": 0.9288884902021736,
+        "median_net_low_r": 0.5968623219682728,
+        "exact_full_net": false,
+        "crypto_only": false,
+        "portfolio_simulated": false
+      }
+    },
+    "SHORT": {
+      "BASE": {
+        "total": 189,
+        "states": {
+          "ENTRY_NOT_MEASURED": 32,
+          "BOUNDED": 132,
+          "UNKNOWN": 25
+        },
+        "unknown_reasons": {
+          "SOURCE_ARCHIVE_MISSING": 25
+        },
+        "bounded_positive": 41,
+        "bounded_negative": 91,
+        "bounded_uncertain_or_zero": 0,
+        "positive_pct_conditional": 31.060606060606062,
+        "mean_net_low_pct": -0.8224028694106831,
+        "mean_net_high_pct": -0.8222373092314396,
+        "mean_net_low_r": -0.29881358739555014,
+        "mean_net_high_r": -0.29877644835049433,
+        "median_net_low_r": -1.0544654403526492,
+        "exact_full_net": false,
+        "crypto_only": false,
+        "portfolio_simulated": false
+      },
+      "STRUCTURE": {
+        "total": 153,
+        "states": {
+          "ENTRY_NOT_MEASURED": 23,
+          "BOUNDED": 109,
+          "UNKNOWN": 21
+        },
+        "unknown_reasons": {
+          "SOURCE_ARCHIVE_MISSING": 21
+        },
+        "bounded_positive": 34,
+        "bounded_negative": 75,
+        "bounded_uncertain_or_zero": 0,
+        "positive_pct_conditional": 31.192660550458715,
+        "mean_net_low_pct": -0.8212764096578223,
+        "mean_net_high_pct": -0.8210977701621819,
+        "mean_net_low_r": -0.29493768294522726,
+        "mean_net_high_r": -0.29489869987462985,
+        "median_net_low_r": -1.0474193548387094,
+        "exact_full_net": false,
+        "crypto_only": false,
+        "portfolio_simulated": false
+      },
+      "PARTICIPATION": {
+        "total": 48,
+        "states": {
+          "BOUNDED": 35,
+          "ENTRY_NOT_MEASURED": 8,
+          "UNKNOWN": 5
+        },
+        "unknown_reasons": {
+          "SOURCE_ARCHIVE_MISSING": 5
+        },
+        "bounded_positive": 9,
+        "bounded_negative": 26,
+        "bounded_uncertain_or_zero": 0,
+        "positive_pct_conditional": 25.714285714285715,
+        "mean_net_low_pct": -1.6644692067209832,
+        "mean_net_high_pct": -1.6642625553492372,
+        "mean_net_low_r": -0.539322656526976,
+        "mean_net_high_r": -0.5392775148007436,
+        "median_net_low_r": -1.0613866944806385,
+        "exact_full_net": false,
+        "crypto_only": false,
+        "portfolio_simulated": false
+      },
+      "CONTEXT": {
+        "total": 44,
+        "states": {
+          "BOUNDED": 34,
+          "ENTRY_NOT_MEASURED": 7,
+          "UNKNOWN": 3
+        },
+        "unknown_reasons": {
+          "SOURCE_ARCHIVE_MISSING": 3
+        },
+        "bounded_positive": 9,
+        "bounded_negative": 25,
+        "bounded_uncertain_or_zero": 0,
+        "positive_pct_conditional": 26.470588235294116,
+        "mean_net_low_pct": -1.6818473530574034,
+        "mean_net_high_pct": -1.6816351643503458,
+        "mean_net_low_r": -0.5152336783453416,
+        "mean_net_high_r": -0.5151878929537732,
+        "median_net_low_r": -1.0599502720302996,
+        "exact_full_net": false,
+        "crypto_only": false,
+        "portfolio_simulated": false
+      },
+      "BASE_COMMON_CONTEXT": {
+        "total": 181,
+        "states": {
+          "ENTRY_NOT_MEASURED": 31,
+          "BOUNDED": 125,
+          "UNKNOWN": 25
+        },
+        "unknown_reasons": {
+          "SOURCE_ARCHIVE_MISSING": 25
+        },
+        "bounded_positive": 39,
+        "bounded_negative": 86,
+        "bounded_uncertain_or_zero": 0,
+        "positive_pct_conditional": 31.2,
+        "mean_net_low_pct": -0.8193912616395931,
+        "mean_net_high_pct": -0.8192470928477682,
+        "mean_net_low_r": -0.2917070022267179,
+        "mean_net_high_r": -0.29167461765602554,
+        "median_net_low_r": -1.0544781190833497,
+        "exact_full_net": false,
+        "crypto_only": false,
+        "portfolio_simulated": false
+      }
+    }
+  },
+  "source_sha256": "be62d23545e1caae62a90a08a62953a04969a17f57ebffb627c50c9d6c43c13e",
+  "cost_coverage": "PARTIAL",
+  "unresolved_archive_count": 90,
+  "download_counts": {
+    "OK": 725,
+    "ERROR": 90,
+    "NOT_PUBLISHED": 1
+  },
+  "source_download_sha256": "f0da1d9e52a19182aa3afd26707e394c009d03450d797b5d04bede279256247a",
+  "partial_mode": true,
+  "all_candidate_count": 625,
+  "assumptions": [
+    "0.30% total fee/slippage remains unchanged.",
+    "Mark-minute bounds, not exact settlement marks.",
+    "Funding archive coverage and interval consistency checked; historical contract lifecycle unresolved.",
+    "No retuning, no new exit rule, no portfolio or Telegram execution simulation."
+  ]
+}

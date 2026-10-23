@@ -1,0 +1,463 @@
+{
+  "date": "2026-10-22",
+  "research_stage": "AUGUST_FULL_FEE_ONLY_REPLAY_AND_SEPTEMBER_RAW_SCREEN_COMPLETE",
+  "live_deployed": false,
+  "telegram_enabled": false,
+  "august": {
+    "status": "COMPLETE_WIDE_ARCHIVE_SCREEN",
+    "published_archives": 833,
+    "not_published_http_404": 67,
+    "crypto_only": false,
+    "universe_version": "UNCLASSIFIED_USDT_ARCHIVE_V1",
+    "full_plan_replay": "COMPLETE_556_VALID_PLANS_69_ENTRY_INVALID",
+    "funding_coverage": "UNKNOWN",
+    "simple_momentum_baseline": "COMPLETE_RAW_DISCOVERY_COMPARISON_ONLY",
+    "major_v3_baseline": "BLOCKED_MISSING_FULL_UNIVERSE_15M_AND_REQUIRED_4H_HISTORY",
+    "minute_audit": {
+      "all_candidates": 625,
+      "complete_plans": 556,
+      "entry_invalid": 69,
+      "entry_data_missing": 0,
+      "required_symbol_month_archives": 479,
+      "cached": 479,
+      "missing": 0,
+      "funding": "UNKNOWN_API_HTTP_451",
+      "crypto_only": false,
+      "historical_wide_catalogue_results": {
+        "ALL": {
+          "all_candidates": 625,
+          "status_counts": {
+            "MEASURED": 556,
+            "ENTRY_INVALID": 69
+          },
+          "outcome_status_counts": {
+            "COMPLETE": 556
+          },
+          "complete_path_conditional_technical_sample": {
+            "count": 556,
+            "profitable_fee_only": 261,
+            "losing_fee_only": 295,
+            "positive_fee_only_pct": 46.94244604316547,
+            "mean_fee_only_pct": 2.502972480832262,
+            "median_fee_only_pct": -1.5741062272670412,
+            "mean_fee_only_r": 0.48229801224465,
+            "equal_notional_profit_factor_fee_only": 1.8888135102045378,
+            "profit_factor_status": "DEFINED",
+            "full_net_known_count": 0,
+            "full_net_mean_pct": null
+          },
+          "closed_but_raw_path_incomplete": {
+            "count": 0,
+            "profitable_fee_only": 0,
+            "losing_fee_only": 0,
+            "positive_fee_only_pct": null,
+            "mean_fee_only_pct": null,
+            "median_fee_only_pct": null,
+            "mean_fee_only_r": null,
+            "equal_notional_profit_factor_fee_only": null,
+            "profit_factor_status": "UNDEFINED_NO_LOSSES_OR_EMPTY",
+            "full_net_known_count": 0,
+            "full_net_mean_pct": null
+          },
+          "cost_sensitivity_complete_sample": {
+            "0.3": {
+              "count": 556,
+              "profitable_fee_only": 261,
+              "losing_fee_only": 295,
+              "positive_fee_only_pct": 46.94244604316547,
+              "mean_fee_only_pct": 2.502972480832262,
+              "median_fee_only_pct": -1.5741062272670412,
+              "mean_fee_only_r": 0.48229801224465,
+              "equal_notional_profit_factor_fee_only": 1.8888135102045378,
+              "profit_factor_status": "DEFINED",
+              "full_net_known_count": 0,
+              "full_net_mean_pct": null
+            },
+            "0.6": {
+              "count": 556,
+              "profitable_fee_only": 258,
+              "losing_fee_only": 298,
+              "positive_fee_only_pct": 46.402877697841724,
+              "mean_fee_only_pct": 2.2029724808322624,
+              "median_fee_only_pct": -1.8741062272670412,
+              "mean_fee_only_r": 0.3904334074377962,
+              "equal_notional_profit_factor_fee_only": 1.7402477966455778,
+              "profit_factor_status": "DEFINED",
+              "full_net_known_count": 0,
+              "full_net_mean_pct": null
+            },
+            "1.0": {
+              "count": 556,
+              "profitable_fee_only": 252,
+              "losing_fee_only": 304,
+              "positive_fee_only_pct": 45.32374100719424,
+              "mean_fee_only_pct": 1.8029724808322625,
+              "median_fee_only_pct": -2.2741062272670414,
+              "mean_fee_only_r": 0.26794726769532445,
+              "equal_notional_profit_factor_fee_only": 1.564596559895012,
+              "profit_factor_status": "DEFINED",
+              "full_net_known_count": 0,
+              "full_net_mean_pct": null
+            }
+          },
+          "reach_classifications_complete_sample": {
+            "10": {
+              "NOT_REACHED": 293,
+              "IN_PLAN_CONFIRMED": 213,
+              "ONLY_AFTER_EXIT": 50
+            },
+            "30": {
+              "NOT_REACHED": 469,
+              "IN_PLAN_CONFIRMED": 47,
+              "ONLY_AFTER_EXIT": 40
+            }
+          },
+          "horizons_with_open_and_closed_plans": {
+            "24": {
+              "measured_count": 556,
+              "missing_or_no_entry": 69,
+              "open_plans_included": 397,
+              "mean_fee_only_pct": 1.2728241738672865,
+              "full_net_pct": null
+            },
+            "72": {
+              "measured_count": 556,
+              "missing_or_no_entry": 69,
+              "open_plans_included": 167,
+              "mean_fee_only_pct": 2.7169522017989465,
+              "full_net_pct": null
+            },
+            "168": {
+              "measured_count": 556,
+              "missing_or_no_entry": 69,
+              "open_plans_included": 0,
+              "mean_fee_only_pct": 2.502972480832262,
+              "full_net_pct": null
+            }
+          },
+          "overall_strategy_win_rate": null,
+          "overall_strategy_expectancy": null
+        },
+        "LONG": {
+          "all_candidates": 436,
+          "status_counts": {
+            "MEASURED": 399,
+            "ENTRY_INVALID": 37
+          },
+          "outcome_status_counts": {
+            "COMPLETE": 399
+          },
+          "complete_path_conditional_technical_sample": {
+            "count": 399,
+            "profitable_fee_only": 217,
+            "losing_fee_only": 182,
+            "positive_fee_only_pct": 54.3859649122807,
+            "mean_fee_only_pct": 4.020348481465829,
+            "median_fee_only_pct": 1.6118729438054815,
+            "mean_fee_only_r": 0.8457239753725811,
+            "equal_notional_profit_factor_fee_only": 2.4701241842411887,
+            "profit_factor_status": "DEFINED",
+            "full_net_known_count": 0,
+            "full_net_mean_pct": null
+          },
+          "closed_but_raw_path_incomplete": {
+            "count": 0,
+            "profitable_fee_only": 0,
+            "losing_fee_only": 0,
+            "positive_fee_only_pct": null,
+            "mean_fee_only_pct": null,
+            "median_fee_only_pct": null,
+            "mean_fee_only_r": null,
+            "equal_notional_profit_factor_fee_only": null,
+            "profit_factor_status": "UNDEFINED_NO_LOSSES_OR_EMPTY",
+            "full_net_known_count": 0,
+            "full_net_mean_pct": null
+          },
+          "cost_sensitivity_complete_sample": {
+            "0.3": {
+              "count": 399,
+              "profitable_fee_only": 217,
+              "losing_fee_only": 182,
+              "positive_fee_only_pct": 54.3859649122807,
+              "mean_fee_only_pct": 4.020348481465829,
+              "median_fee_only_pct": 1.6118729438054815,
+              "mean_fee_only_r": 0.8457239753725811,
+              "equal_notional_profit_factor_fee_only": 2.4701241842411887,
+              "profit_factor_status": "DEFINED",
+              "full_net_known_count": 0,
+              "full_net_mean_pct": null
+            },
+            "0.6": {
+              "count": 399,
+              "profitable_fee_only": 215,
+              "losing_fee_only": 184,
+              "positive_fee_only_pct": 53.88471177944862,
+              "mean_fee_only_pct": 3.7203484814658294,
+              "median_fee_only_pct": 1.3118729438054815,
+              "mean_fee_only_r": 0.7769359708454937,
+              "equal_notional_profit_factor_fee_only": 2.2952646530979055,
+              "profit_factor_status": "DEFINED",
+              "full_net_known_count": 0,
+              "full_net_mean_pct": null
+            },
+            "1.0": {
+              "count": 399,
+              "profitable_fee_only": 210,
+              "losing_fee_only": 189,
+              "positive_fee_only_pct": 52.63157894736842,
+              "mean_fee_only_pct": 3.3203484814658295,
+              "median_fee_only_pct": 0.9118729438054816,
+              "mean_fee_only_r": 0.6852186314760437,
+              "equal_notional_profit_factor_fee_only": 2.0850072159532287,
+              "profit_factor_status": "DEFINED",
+              "full_net_known_count": 0,
+              "full_net_mean_pct": null
+            }
+          },
+          "reach_classifications_complete_sample": {
+            "10": {
+              "NOT_REACHED": 161,
+              "IN_PLAN_CONFIRMED": 198,
+              "ONLY_AFTER_EXIT": 40
+            },
+            "30": {
+              "NOT_REACHED": 312,
+              "IN_PLAN_CONFIRMED": 47,
+              "ONLY_AFTER_EXIT": 40
+            }
+          },
+          "horizons_with_open_and_closed_plans": {
+            "24": {
+              "measured_count": 399,
+              "missing_or_no_entry": 37,
+              "open_plans_included": 279,
+              "mean_fee_only_pct": 2.0666687797119265,
+              "full_net_pct": null
+            },
+            "72": {
+              "measured_count": 399,
+              "missing_or_no_entry": 37,
+              "open_plans_included": 96,
+              "mean_fee_only_pct": 4.091426951180718,
+              "full_net_pct": null
+            },
+            "168": {
+              "measured_count": 399,
+              "missing_or_no_entry": 37,
+              "open_plans_included": 0,
+              "mean_fee_only_pct": 4.020348481465829,
+              "full_net_pct": null
+            }
+          },
+          "overall_strategy_win_rate": null,
+          "overall_strategy_expectancy": null
+        },
+        "SHORT": {
+          "all_candidates": 189,
+          "status_counts": {
+            "MEASURED": 157,
+            "ENTRY_INVALID": 32
+          },
+          "outcome_status_counts": {
+            "COMPLETE": 157
+          },
+          "complete_path_conditional_technical_sample": {
+            "count": 157,
+            "profitable_fee_only": 44,
+            "losing_fee_only": 113,
+            "positive_fee_only_pct": 28.02547770700637,
+            "mean_fee_only_pct": -1.3532888201409432,
+            "median_fee_only_pct": -3.2892775912488066,
+            "mean_fee_only_r": -0.4413131934116844,
+            "equal_notional_profit_factor_fee_only": 0.5523224219181638,
+            "profit_factor_status": "DEFINED",
+            "full_net_known_count": 0,
+            "full_net_mean_pct": null
+          },
+          "closed_but_raw_path_incomplete": {
+            "count": 0,
+            "profitable_fee_only": 0,
+            "losing_fee_only": 0,
+            "positive_fee_only_pct": null,
+            "mean_fee_only_pct": null,
+            "median_fee_only_pct": null,
+            "mean_fee_only_r": null,
+            "equal_notional_profit_factor_fee_only": null,
+            "profit_factor_status": "UNDEFINED_NO_LOSSES_OR_EMPTY",
+            "full_net_known_count": 0,
+            "full_net_mean_pct": null
+          },
+          "cost_sensitivity_complete_sample": {
+            "0.3": {
+              "count": 157,
+              "profitable_fee_only": 44,
+              "losing_fee_only": 113,
+              "positive_fee_only_pct": 28.02547770700637,
+              "mean_fee_only_pct": -1.3532888201409432,
+              "median_fee_only_pct": -3.2892775912488066,
+              "mean_fee_only_r": -0.4413131934116844,
+              "equal_notional_profit_factor_fee_only": 0.5523224219181638,
+              "profit_factor_status": "DEFINED",
+              "full_net_known_count": 0,
+              "full_net_mean_pct": null
+            },
+            "0.6": {
+              "count": 157,
+              "profitable_fee_only": 43,
+              "losing_fee_only": 114,
+              "positive_fee_only_pct": 27.388535031847134,
+              "mean_fee_only_pct": -1.653288820140943,
+              "median_fee_only_pct": -3.589277591248807,
+              "mean_fee_only_r": -0.5918246995664794,
+              "equal_notional_profit_factor_fee_only": 0.4896624181537279,
+              "profit_factor_status": "DEFINED",
+              "full_net_known_count": 0,
+              "full_net_mean_pct": null
+            },
+            "1.0": {
+              "count": 157,
+              "profitable_fee_only": 42,
+              "losing_fee_only": 115,
+              "positive_fee_only_pct": 26.751592356687897,
+              "mean_fee_only_pct": -2.0532888201409434,
+              "median_fee_only_pct": -3.9892775912488068,
+              "mean_fee_only_r": -0.7925067077728728,
+              "equal_notional_profit_factor_fee_only": 0.4186329734058475,
+              "profit_factor_status": "DEFINED",
+              "full_net_known_count": 0,
+              "full_net_mean_pct": null
+            }
+          },
+          "reach_classifications_complete_sample": {
+            "10": {
+              "NOT_REACHED": 132,
+              "ONLY_AFTER_EXIT": 10,
+              "IN_PLAN_CONFIRMED": 15
+            },
+            "30": {
+              "NOT_REACHED": 157
+            }
+          },
+          "horizons_with_open_and_closed_plans": {
+            "24": {
+              "measured_count": 157,
+              "missing_or_no_entry": 32,
+              "open_plans_included": 118,
+              "mean_fee_only_pct": -0.7446535186932961,
+              "full_net_pct": null
+            },
+            "72": {
+              "measured_count": 157,
+              "missing_or_no_entry": 32,
+              "open_plans_included": 71,
+              "mean_fee_only_pct": -0.7761396772031365,
+              "full_net_pct": null
+            },
+            "168": {
+              "measured_count": 157,
+              "missing_or_no_entry": 32,
+              "open_plans_included": 0,
+              "mean_fee_only_pct": -1.3532888201409432,
+              "full_net_pct": null
+            }
+          },
+          "overall_strategy_win_rate": null,
+          "overall_strategy_expectancy": null
+        }
+      }
+    },
+    "previous_partial_minute_audit": {
+      "all_candidates": 625,
+      "complete_plans": 12,
+      "entry_invalid": 2,
+      "entry_data_missing": 611,
+      "required_symbol_month_archives": 479,
+      "cached": 8,
+      "missing": 471,
+      "funding": "UNKNOWN",
+      "overall_strategy_win_rate": null,
+      "sample_representative": false
+    }
+  },
+  "september": {
+    "status": "COMPLETE_HOURLY_RAW_SCREEN_NOT_PLAN_PROFIT",
+    "catalog_symbols": 900,
+    "published_archives": 869,
+    "not_published_archive_http_404": 31,
+    "archive_404_independently_head_checked": 31,
+    "hourly_files_cached": 869,
+    "unknown_not_cached": 0,
+    "official_checksum_verified": true,
+    "crypto_only": false,
+    "minute_plan_replay": "NOT_YET_COMPLETE",
+    "performance_estimate": null,
+    "raw_screen": {
+      "rejections": {
+        "NO_SETUP": 231111,
+        "LONG_VOLUME_OR_BUY_PRESSURE_WEAK": 3904,
+        "INSUFFICIENT_KNOWN_ROOM": 382,
+        "FAILED_BOUNCE_SHORT": 297,
+        "LATE_CHASE": 630,
+        "BASE_BREAKOUT_LONG": 537,
+        "ALREADY_EXTENDED": 452,
+        "INVALID_RISK": 741,
+        "ILLIQUID": 226354,
+        "SHORT_VOLUME_OR_SELL_PRESSURE_WEAK": 1880,
+        "NO_CONFIRMED_LOWER_HIGH": 1438,
+        "EPISODE_SUPPRESSED": 219,
+        "VOLUME_BASELINE_UNAVAILABLE": 22
+      },
+      "evaluated_coin_hours": 467748,
+      "eligible_coin_hours": 241394,
+      "month": "2026-09",
+      "version": "SWING_STRUCTURE_RESEARCH_V1_2026_10_22",
+      "config_hash": "d899d56bf0dea0bc564c7907e4e79ad30b81e464de9021b6ecfd6d44e4577938",
+      "summary": {
+        "LONG": {
+          "episodes": 384,
+          "mature_raw": 319,
+          "immature_or_gap": 65,
+          "matched_mature": 319,
+          "raw_reach_30_pct": 11.912225705329154,
+          "paired_signal_raw_reach_30_pct": 11.912225705329154,
+          "paired_control_raw_reach_30_pct": 12.539184952978056,
+          "median_raw_mfe_pct": 10.055423594615998,
+          "median_raw_mae_pct": 6.3101276893475555
+        },
+        "SHORT": {
+          "episodes": 231,
+          "mature_raw": 175,
+          "immature_or_gap": 56,
+          "matched_mature": 175,
+          "raw_reach_30_pct": 1.7142857142857142,
+          "paired_signal_raw_reach_30_pct": 1.7142857142857142,
+          "paired_control_raw_reach_30_pct": 0.0,
+          "median_raw_mfe_pct": 5.1658926605065325,
+          "median_raw_mae_pct": 9.876434245366283
+        }
+      },
+      "universe_version": "UNCLASSIFIED_USDT_ARCHIVE_V1",
+      "crypto_only": false,
+      "classification": "FROZEN_RULES_SECOND_MONTH_RAW_DESIGN_CHECK_NOT_TRADE_PROFIT",
+      "archive_statuses": {
+        "OK": 869,
+        "NOT_PUBLISHED": 31
+      },
+      "catalogue_symbols": 900,
+      "network_used": false
+    }
+  },
+  "live_universe_version": "VERIFIED_COIN_USDT_PERP_V1_2026_10_22",
+  "candidate_decisions": {
+    "LONG": "RESEARCH_ONLY_AUGUST_FEE_ONLY_POSITIVE_SEPTEMBER_RAW_LIFT_NOT_REPLICATED",
+    "SHORT": "NOT_SUPPORTED_NEGATIVE_AUGUST_FEE_ONLY_PLAN_RESULT"
+  },
+  "network_archive_access": "RESTORED_NORMAL_PERMISSION_HTTP_200",
+  "remaining_data_or_evidence": [
+    "Historical COIN classification",
+    "Complete funding settlements with mark prices and certified coverage",
+    "September full minute plans including October tails",
+    "Same-plan control and momentum comparisons",
+    "Production feed capacity and forward paper test"
+  ]
+}
