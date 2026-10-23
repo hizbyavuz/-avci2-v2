@@ -36,7 +36,7 @@ class FullUniverseFeedTests(unittest.TestCase):
             self.assertEqual(len(runtime.demand(90)[0]), 90)
 
     def test_all_symbols_fit_once_without_churn_when_ranking_changes(self):
-        pool = FuturesKlinePool('unused')
+        pool = FuturesKlinePool('unused', retention_seconds=0)
         symbols = [f'C{i:03d}USDT' for i in range(749)]
         first = pool.assign(symbols)
         self.assertEqual(len(first), 5)
@@ -48,6 +48,20 @@ class FullUniverseFeedTests(unittest.TestCase):
         self.assertEqual(sum(map(len, changed)), 730)
         for index, group in enumerate(first):
             self.assertTrue(set(group[20:] if index == 0 else group).issubset(changed[index]))
+
+    def test_temporary_catalogue_dropout_does_not_drop_or_move_live_subscriptions(self):
+        now = [100.]
+        pool = FuturesKlinePool('unused', clock=lambda: now[0], retention_seconds=60)
+        symbols = [f'C{i:03d}USDT' for i in range(287)]
+        original = pool.assign(symbols)
+        now[0] += 30
+        self.assertEqual(pool.assign(symbols[100:]), original)
+        self.assertEqual(len(pool.requested), 187)
+        now[0] += 20
+        self.assertEqual(pool.assign(symbols), original)
+        now[0] += 61
+        expired = pool.assign(symbols[100:])
+        self.assertEqual({s for g in expired for s in g}, set(symbols[100:]))
 
     def test_coverage_distinguishes_subscription_from_actual_fresh_prices(self):
         with tempfile.TemporaryDirectory() as directory:

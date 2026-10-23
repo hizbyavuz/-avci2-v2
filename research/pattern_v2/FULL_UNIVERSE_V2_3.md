@@ -42,3 +42,14 @@ The prior stop, closed-candle, delivery, outcome, history and isolation tests pa
 Live verification must separately observe deployment SUCCESS, the intended commit,
 full current subscription/price coverage, history repair progress, and current-bar
 scan readiness. A successful build alone is not sufficient.
+
+## V2.3.1 live verification follow-up
+
+V2.3 reached SUCCESS at 09:52 UTC; two streams received current prices for all 287
+requested symbols. Verification then found the 24h-volume catalogue temporarily
+shrinking from 287 to 181 symbols when ticker freshness varied. Immediate removal
+in the pool unnecessarily unsubscribed those symbols before they returned.
+
+V2.3.1 retains their shard assignments for the collector's existing 24h retention
+period. This is collection only: scan eligibility and freshness checks are unchanged.
+An additional regression checks dropout, return without movement, and expiry.

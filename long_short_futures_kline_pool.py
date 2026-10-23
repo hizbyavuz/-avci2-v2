@@ -8,19 +8,23 @@ import threading
 import time
 
 from long_short_futures_kline_shadow import (
-    CHART_MAX_SYMBOLS, FuturesKlineStream, SOURCE, connect, log,
+    CHART_MAX_SYMBOLS, RETENTION_SECONDS, FuturesKlineStream, SOURCE, connect, log,
 )
 
-VERSION = 'FULL_PATTERN_UNIVERSE_V1_2026_10_23'
+VERSION = 'FULL_PATTERN_UNIVERSE_V1_1_2026_10_23'
 
 
 class FuturesKlinePool:
-    def __init__(self, db, capacity=CHART_MAX_SYMBOLS, stream_factory=FuturesKlineStream):
+    def __init__(self, db, capacity=CHART_MAX_SYMBOLS, stream_factory=FuturesKlineStream,
+                 retention_seconds=RETENTION_SECONDS, clock=time.monotonic):
         if not 1 <= capacity <= CHART_MAX_SYMBOLS:
             raise ValueError('INVALID_KLINE_SHARD_CAPACITY')
         self.db = db
         self.capacity = capacity
         self.stream_factory = stream_factory
+        self.retention_seconds = retention_seconds
+        self.clock = clock
+        self.last_requested = {}
         self.lock = threading.Lock()
         self.assignments = []
         self.streams = []
@@ -33,8 +37,16 @@ class FuturesKlinePool:
                          if isinstance(s, str) and s.upper().endswith('USDT')))
         wanted = set(requested)
         with self.lock:
+            now = self.clock()
+            for symbol in requested:
+                self.last_requested[symbol] = now
+            self.last_requested = {s: t for s, t in self.last_requested.items()
+                if s in wanted or (self.retention_seconds > 0 and now-t < self.retention_seconds)}
             # A changing rank must not evict a healthy subscription.
-            groups = [[s for s in group if s in wanted] for group in self.assignments]
+            # The volume catalogue may briefly omit a symbol when its ticker
+            # ages out. Keep its candle feed for the existing 24h retention,
+            # without admitting it to scans until eligibility is fresh again.
+            groups = [[s for s in group if s in self.last_requested] for group in self.assignments]
             assigned = {s for group in groups for s in group}
             for symbol in requested:
                 if symbol in assigned:
@@ -108,6 +120,7 @@ class FuturesKlinePool:
         return dict(version=VERSION, observed_ms=now_ms,
             catalogue_current=self.catalogue_current, requested=len(requested),
             assigned=sum(len(g) for g in groups), subscribed=len(requested & subscribed),
+            retained_symbols=sum(len(g) for g in groups)-len(requested),
             uncovered_count=len(missing), uncovered_sample=sorted(missing)[:20],
             fresh_price_symbols=len(requested & fresh), stale_price_count=len(stale),
             stale_price_sample=sorted(stale)[:20], quote_read_error=quote_error,
