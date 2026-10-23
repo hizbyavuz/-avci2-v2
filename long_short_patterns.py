@@ -9,10 +9,11 @@ import json
 import math
 from statistics import median
 
-VERSION = 'PATTERN_STRUCTURE_RESEARCH_V2_2_2026_10_23'
+VERSION = 'PATTERN_STRUCTURE_RESEARCH_V2_3_2026_10_23'
 STOP_POLICY = 'CLOSED_STRUCTURE_INVALIDATION_V1'
 LEGACY_VERSIONS = {'PATTERN_STRUCTURE_RESEARCH_V2_2026_10_23',
-                   'PATTERN_STRUCTURE_RESEARCH_V2_1_2026_10_23'}
+                   'PATTERN_STRUCTURE_RESEARCH_V2_1_2026_10_23',
+                   'PATTERN_STRUCTURE_RESEARCH_V2_2_2026_10_23'}
 MINUTE = 60_000
 HOUR = 60 * MINUTE
 INTERVALS = {'15m': 15 * MINUTE, '30m': 30 * MINUTE, '1h': HOUR, '4h': 4 * HOUR}
@@ -293,7 +294,12 @@ def unbroken_levels(rows, direction, entry):
     return result
 
 
-def _breakouts(symbol, interval, rows, context_rows, now_ms):
+def _count(diagnostics, key, amount=1):
+    if diagnostics is not None:
+        diagnostics[key] = diagnostics.get(key, 0)+amount
+
+
+def _breakouts(symbol, interval, rows, context_rows, now_ms, diagnostics=None):
     if interval not in SETUP_INTERVALS:
         raise ValueError('UNSUPPORTED_SETUP_INTERVAL')
     step = INTERVALS[interval]
@@ -305,15 +311,19 @@ def _breakouts(symbol, interval, rows, context_rows, now_ms):
     n, entry = len(rows)-1, rows[-1]['close']
     candidates = []
     for shape in _shape_candidates(rows, a):
+        _count(diagnostics, 'shapes_considered')
         direction = shape['direction']; sign = 1 if direction == 'LONG' else -1
         boundary = shape['boundary']; trigger = _at(boundary, n)
         # Breakout must be new and the completed structure must still be intact.
         known_i = max(p['i']+2 for p in shape['anchors'])
         if any(sign*(rows[i]['close']-_at(boundary, i)) > CONFIG['break_buffer_atr']*a
                for i in range(known_i, n)):
+            _count(diagnostics, 'shape_already_broken')
             continue
         if sign*(entry-trigger) <= CONFIG['break_buffer_atr']*a:
+            _count(diagnostics, 'shape_awaiting_break')
             continue
+        _count(diagnostics, 'fresh_breaks')
         stop, stop_basis = structural_stop(direction, trigger, a,
             rows[shape['stop_anchor']['i']:], 'BREAK', shape['stop_anchor'])
         obstacles = unbroken_levels(rows, direction, entry)+unbroken_levels(context_rows, direction, entry)
@@ -361,7 +371,7 @@ def _breakouts(symbol, interval, rows, context_rows, now_ms):
     return candidates
 
 
-def assess(symbol, interval, rows, context_rows, now_ms):
+def assess(symbol, interval, rows, context_rows, now_ms, diagnostics=None):
     """Fresh breaks plus a separately specified, confirmed first retest.
 
     Retest uses a boundary frozen at the original break. Previous bar must touch
@@ -369,7 +379,7 @@ def assess(symbol, interval, rows, context_rows, now_ms):
     The stop invalidates this retest, not the original full pattern. No threshold
     was loosened to meet a requested signal count or accuracy.
     """
-    plans = _breakouts(symbol, interval, rows, context_rows, now_ms)
+    plans = _breakouts(symbol, interval, rows, context_rows, now_ms, diagnostics)
     sign_for = {'LONG': 1, 'SHORT': -1}
     current, retest = rows[-1], rows[-2]
     for ago in range(2, CONFIG['retest_lookback_bars']+1):
@@ -386,6 +396,7 @@ def assess(symbol, interval, rows, context_rows, now_ms):
         clean_context = [{k: v for k, v in b.items() if k != 'received_ms'} for b in historical_context]
         origins = _breakouts(symbol, interval, clean, clean_context, historical_now)
         for p in origins:
+            _count(diagnostics, 'retest_origins_considered')
             sign = sign_for[p['direction']]
             trigger, a = p['trigger'], p['atr']
             since = rows[len(prefix):-1]
@@ -394,12 +405,15 @@ def assess(symbol, interval, rows, context_rows, now_ms):
             if any(sign*(b['close']-trigger) < -CONFIG['break_buffer_atr']*a or
                    sign*((b['low'] if sign == 1 else b['high'])-p['stop']) <= 0 or
                    sign*((b['high'] if sign == 1 else b['low'])-p['target']) >= 0 for b in since):
+                _count(diagnostics, 'retest_origin_invalidated')
                 continue
             touch = retest['low'] if sign == 1 else retest['high']
             confirmation = retest['high'] if sign == 1 else retest['low']
             if not (abs(touch-trigger) <= CONFIG['retest_touch_atr']*a and
                     sign*(retest['close']-trigger) >= 0 and sign*(current['close']-confirmation) > 0):
+                _count(diagnostics, 'retest_awaiting_confirmation')
                 continue
+            _count(diagnostics, 'retests_confirmed')
             stop, stop_basis = structural_stop(p['direction'], trigger, a,
                                                rows[-2:], 'RETEST')
             entry = current['close']
@@ -424,7 +438,15 @@ def assess(symbol, interval, rows, context_rows, now_ms):
             ok, _ = executable(updated, entry)
             updated.update(stage='READY' if ok else 'REJECTED', reasons=[] if ok else ['RETEST_GEOMETRY_INVALID'])
             plans.append(updated)
-    return list({p['id']: p for p in plans}.values())
+    plans = list({p['id']: p for p in plans}.values())
+    _count(diagnostics, 'assessed_pairs')
+    _count(diagnostics, 'no_current_shape', int(not (diagnostics or {}).get('shapes_considered', 0)))
+    _count(diagnostics, 'no_confirmed_plan', int(not plans))
+    for p in plans:
+        _count(diagnostics, 'plans_'+p['stage'].lower())
+        for reason in p['reasons']:
+            _count(diagnostics, 'reject:'+reason)
+    return plans
 
 
 def executable(p, price):

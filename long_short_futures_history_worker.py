@@ -6,6 +6,7 @@ Only closed, fully validated bars are inserted via the existing idempotent write
 import json
 import os
 import signal
+import sqlite3
 import threading
 import time
 from urllib.parse import urlencode, urlsplit
@@ -25,6 +26,20 @@ def needs_repair(db, symbol, interval, now_ms=None):
     from long_short_data_health import interval_status
     from long_short_futures_kline_shadow import connect
     now_ms = int(time.time()*1000) if now_ms is None else now_ms
+    if os.getenv('LS_RUNTIME_PROFILE') == 'PATTERN_STRUCTURE_V2' and interval in ('15m', '30m', '4h'):
+        from long_short_pattern_runtime import read_bars
+        from long_short_patterns import validate, CONFIG
+        c = connect(db, timeout=5)
+        c.row_factory = sqlite3.Row
+        try:
+            rows = read_bars(c, symbol, interval, now_ms, limit=CONFIG['max_bars'])
+            validate(rows, PERIOD_MS[interval], now_ms,
+                     30 if interval == '4h' else CONFIG['min_bars'], True)
+            return False
+        except ValueError:
+            return True
+        finally:
+            c.close()
     c = connect(db, timeout=5)
     try:
         status = interval_status(c, symbol, interval, now_ms)

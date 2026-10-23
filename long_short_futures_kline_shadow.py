@@ -251,7 +251,7 @@ class FuturesKlineStream:
 
     def __init__(self, db, url=URL, intervals=INTERVALS, max_symbols=MAX_SYMBOLS,
                  ws_module=None, clock=time.time, sleep=time.sleep,
-                 retention_seconds=RETENTION_SECONDS):
+                 retention_seconds=RETENTION_SECONDS, shard_id=None):
         if max_symbols * len(intervals) > MAX_STREAMS_PER_CONNECTION:
             raise ValueError("stream budget exceeds one Binance connection")
         self.db = db
@@ -262,6 +262,7 @@ class FuturesKlineStream:
         self.clock = clock
         self.sleep = sleep
         self.retention_seconds = retention_seconds
+        self.shard_id = shard_id
         self.ws = None
         self.subscribed = []          # symbols currently subscribed, priority order kept
         self.last_requested = {}      # symbol -> clock() of the last request
@@ -317,7 +318,7 @@ class FuturesKlineStream:
 
     def coverage(self, requested):
         req = list(dict.fromkeys(s.upper() for s in requested))
-        return {"tracked": len(self.subscribed), "requested": len(req),
+        return {"shard": self.shard_id, "tracked": len(self.subscribed), "requested": len(req),
                 "covered": sum(s in self.subscribed for s in req),
                 "uncovered": [s for s in req if s not in self.subscribed],
                 "streams": len(self.subscribed) * len(self.intervals),
@@ -414,6 +415,9 @@ class FuturesKlineStream:
                 requested = []
                 try:
                     requested = requested_fn()
+                    if not requested:
+                        stop.wait(1)
+                        continue
                     self.ws = ws_mod.create_connection(self.url, timeout=10, enable_multithread=True)
                     self.ws.settimeout(1)
                     self.connected_at = self.clock()
@@ -437,6 +441,8 @@ class FuturesKlineStream:
                             self.apply(requested)
                             log("FUTURES_KLINE_STICKY_COVERAGE", self.coverage(requested))
                             last_refresh = now
+                            if not requested:
+                                break
                         second = int(now) % 60
                         if now - self.connected_at >= planned_reconnect_seconds and 15 <= second <= 40:
                             log("FUTURES_KLINE_PLANNED_RECONNECT", {"connection_age_seconds": round(now - self.connected_at)})
@@ -450,7 +456,7 @@ class FuturesKlineStream:
                         self._handle(raw)
                 except Exception as exc:
                     self.totals["disconnects"] += 1
-                    log("FUTURES_KLINE_WS_DISCONNECTED", {"error_type": type(exc).__name__,
+                    log("FUTURES_KLINE_WS_DISCONNECTED", {"shard": self.shard_id, "error_type": type(exc).__name__,
                                                          "error": str(exc)[:160], "retry_in_seconds": backoff})
                     stop.wait(backoff)
                     backoff = min(30.0, backoff * 2)
@@ -724,7 +730,7 @@ def requested_symbols(analyst_db):
 
 
 def continuous_main():
-    """Persistent Binance-only closed candle feed; one long-lived connection."""
+    """Persistent Binance-only feed; pattern mode covers the full universe."""
     import queue
     import signal
     import threading
@@ -783,7 +789,11 @@ def continuous_main():
         return symbols
 
     log("FUTURES_REST_BRIDGE_DISABLED_HTTP_418_451")
-    from long_short_runtime_profile import enabled as lean_enabled
+    from long_short_runtime_profile import enabled as lean_enabled, pattern_enabled
+    if pattern_enabled():
+        from long_short_futures_kline_pool import FuturesKlinePool
+        FuturesKlinePool(db).run(requested, stop)
+        return 0
     stream = FuturesKlineStream(db, max_symbols=CHART_MAX_SYMBOLS if lean_enabled() else MAX_SYMBOLS)
     while not stop.is_set():
         try:

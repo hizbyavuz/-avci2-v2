@@ -51,7 +51,9 @@ def connect(path=None):
         observed_ms INTEGER,reason TEXT,PRIMARY KEY(symbol,interval,bucket));
     ''')
     names = ('long_short_patterns.py', 'long_short_pattern_outcomes.py',
-             'long_short_pattern_runtime.py', 'long_short_pattern_daemon.py')
+             'long_short_pattern_runtime.py', 'long_short_pattern_daemon.py',
+             'long_short_futures_kline_shadow.py', 'long_short_futures_kline_pool.py',
+             'long_short_futures_history_worker.py', 'long_short_runtime_profile.py')
     digest = hashlib.sha256(b''.join(Path(__file__).with_name(n).read_bytes() for n in names)).hexdigest()
     manifest = encoded(dict(version=VERSION, config=CONFIG, config_hash=CONFIG_HASH,
                             code_hash=digest, publication='TWO_WAY_RESEARCH_ONLY'))
@@ -176,7 +178,10 @@ def demand(limit=90, full_chart=False):
     values = universe(now)
     symbols = [r[0] for r in values]
     offset = (now//HOUR*24) % max(1, len(symbols))
-    return list(dict.fromkeys(urgent+['BTCUSDT']+symbols[offset:]+symbols[:offset]))[:limit], urgent[:limit]
+    ordered = list(dict.fromkeys(urgent+['BTCUSDT']+symbols[offset:]+symbols[:offset]))
+    # Candle collection and repair must cover the SAME universe as scan().
+    # Only auxiliary consumers (e.g. derivative annotations) remain bounded.
+    return (ordered, urgent) if full_chart else (ordered[:limit], urgent[:limit])
 
 
 def publish(c, kdb, p, now_ms, token, chat, sender=send):
@@ -221,22 +226,47 @@ def publish(c, kdb, p, now_ms, token, chat, sender=send):
 def scan(c, kdb, now_ms, token=None, chat=None):
     values = universe(now_ms)
     ready, errors, scanned = [], {}, 0
+    already_scanned = 0
+    current_funnel, new_funnel, added_candidates = {}, {}, {}
+    by_interval = {iv: dict(eligible=len(values), already_scanned=0, newly_scanned=0,
+                           failed=0, failure_reasons={}) for iv in SETUP_INTERVALS}
+
+    def accumulate(target, source):
+        for key, value in source.items():
+            target[key] = target.get(key, 0)+value
+
     for symbol, volume, _, _ in values:
         for interval in SETUP_INTERVALS:
             expected = now_ms//INTERVALS[interval]*INTERVALS[interval]-1
-            if c.execute('SELECT 1 FROM scans WHERE symbol=? AND interval=? AND bar_ms=?', (symbol, interval, expected)).fetchone():
+            previous = c.execute('SELECT payload FROM scans WHERE symbol=? AND interval=? AND bar_ms=?',
+                                 (symbol, interval, expected)).fetchone()
+            if previous:
+                already_scanned += 1
+                by_interval[interval]['already_scanned'] += 1
+                payload = json.loads(previous[0])
+                if payload.get('version') == VERSION and 'diagnostics' in payload:
+                    accumulate(current_funnel, payload['diagnostics'])
+                else:
+                    accumulate(current_funnel, {'unclassified_pairs': 1})
                 continue
             try:
                 rows = read_bars(kdb, symbol, interval, now_ms)
                 context = read_bars(kdb, symbol, '4h', now_ms)
-                plans = assess(symbol, interval, rows, context, now_ms)
+                diagnostics = {}
+                plans = assess(symbol, interval, rows, context, now_ms, diagnostics=diagnostics)
                 c.execute('INSERT OR IGNORE INTO scans VALUES(?,?,?,?,?)',
-                          (symbol, interval, expected, now_ms, encoded(dict(quote_volume_24h=volume, candidates=len(plans)))))
+                          (symbol, interval, expected, now_ms, encoded(dict(version=VERSION,
+                           config_hash=CONFIG_HASH, quote_volume_24h=volume, candidates=len(plans),
+                           diagnostics=diagnostics))))
                 scanned += 1
+                by_interval[interval]['newly_scanned'] += 1
+                accumulate(new_funnel, diagnostics)
+                accumulate(current_funnel, diagnostics)
                 for p in plans:
                     inserted = c.execute('INSERT OR IGNORE INTO candidates VALUES(?,?,?,?,?)',
                                          (p['id'], symbol, now_ms, p['stage'], encoded(p))).rowcount
                     if inserted:
+                        accumulate(added_candidates, {p['stage']: 1})
                         audit = {k: p.get(k) for k in ('id','version','config_hash','symbol',
                             'interval','direction','model','stage','reasons','entry_style',
                             'confirmation_ms','structure_start_ms','entry','trigger','stop','target',
@@ -249,6 +279,8 @@ def scan(c, kdb, now_ms, token=None, chat=None):
             except (ValueError, KeyError, TypeError, sqlite3.Error) as exc:
                 key = str(exc) if isinstance(exc, ValueError) else type(exc).__name__
                 errors[key] = errors.get(key, 0)+1
+                by_interval[interval]['failed'] += 1
+                accumulate(by_interval[interval]['failure_reasons'], {key: 1})
                 c.execute('INSERT OR REPLACE INTO scan_failures VALUES(?,?,?,?,?)',
                           (symbol, interval, now_ms//(15*MINUTE), now_ms, key))
     c.commit()
@@ -266,7 +298,13 @@ def scan(c, kdb, now_ms, token=None, chat=None):
         c.commit()
     coverage = dict(version=VERSION, config_hash=CONFIG_HASH,
                     observed_ms=now_ms, universe=len(values), newly_scanned=scanned,
-                    failed_symbol_intervals=errors, publication=decisions)
+                    eligible_symbol_intervals=len(values)*len(SETUP_INTERVALS),
+                    already_scanned=already_scanned,
+                    data_ready_symbol_intervals=already_scanned+scanned,
+                    failed_symbol_intervals=errors, by_interval=by_interval,
+                    current_bar_assessments=current_funnel, new_assessments=new_funnel,
+                    unique_candidates_added=added_candidates, publication=decisions,
+                    counter_scope='current latest closed bar per symbol/timeframe; publication counts are attempts')
     c.execute('INSERT OR REPLACE INTO health VALUES(?,?)', (now_ms//(15*MINUTE), encoded(coverage)))
     c.commit()
     return coverage
