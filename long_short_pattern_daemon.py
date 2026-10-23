@@ -12,7 +12,7 @@ WORKERS = ('long_short_futures_universe_worker.py', 'long_short_native_derivativ
 
 
 def main():
-    if os.getenv('LS_RUNTIME_PROFILE') != 'PATTERN_STRUCTURE_V1':
+    if os.getenv('LS_RUNTIME_PROFILE') != 'PATTERN_STRUCTURE_V2':
         raise SystemExit('EXPLICIT_PATTERN_PROFILE_REQUIRED')
     # Source/repair configuration is inherited. No new relay, region or fallback.
     workers = list(WORKERS)

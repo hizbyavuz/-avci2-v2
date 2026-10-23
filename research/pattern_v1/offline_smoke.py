@@ -24,6 +24,8 @@ def aggregate_four_hours(rows):
 
 
 def run(cache):
+    if VERSION != 'PATTERN_STRUCTURE_RESEARCH_V1_2026_10_23':
+        raise RuntimeError('V1_REPLAY_REQUIRES_COMMIT_53b8262; current strategy uses 15m/30m. Do not overwrite V1 evidence.')
     counts, shapes, reasons, direction, samples, inputs = Counter(), Counter(), Counter(), Counter(), [], []
     for symbol in ('BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'ADAUSDT', 'LINKUSDT', 'DOGEUSDT', 'XRPUSDT'):
         meta, rows = archive(Path(cache), symbol, '2026-08', '1h', offline=True)

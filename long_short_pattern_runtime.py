@@ -14,14 +14,14 @@ import threading
 import time
 from pathlib import Path
 
-from long_short_patterns import (VERSION, CONFIG, CONFIG_HASH, INTERVALS, HOUR, MINUTE,
+from long_short_patterns import (VERSION, CONFIG, CONFIG_HASH, INTERVALS, SETUP_INTERVALS, HOUR, MINUTE,
                                  assess, executable, message, finite)
 from long_short_pattern_outcomes import initial, advance, result
 from long_short_major_move_store import root, db, SOURCES, quote
 from long_short_swing_runtime import universe
 
-PROFILE = 'PATTERN_STRUCTURE_V1'
-DATABASE = 'pattern_structure_v1.db'
+PROFILE = 'PATTERN_STRUCTURE_V2'
+DATABASE = 'pattern_structure_v2.db'
 STOP = threading.Event()
 
 
@@ -219,7 +219,7 @@ def scan(c, kdb, now_ms, token=None, chat=None):
     values = universe(now_ms)
     ready, errors, scanned = [], {}, 0
     for symbol, volume, _, _ in values:
-        for interval in ('15m', '1h'):
+        for interval in SETUP_INTERVALS:
             expected = now_ms//INTERVALS[interval]*INTERVALS[interval]-1
             if c.execute('SELECT 1 FROM scans WHERE symbol=? AND interval=? AND bar_ms=?', (symbol, interval, expected)).fetchone():
                 continue
@@ -353,7 +353,7 @@ def main():
         token, chat = destination()
         receipt = send(c, 'START:'+VERSION, '🧪 LONG / SHORT grafik motoru · DENEME\n'
              'Yeni sürüm başladı. Bu mesaj Telegram bağlantı testidir; işlem sinyali değildir.\n'
-             '15dk ve 1s formasyonları, 4s bağlamı, Fibonacci, yapısal SL/TP hesaplanacak.\n'
+             '15dk ve 30dk grafiklerde giriş, Fibonacci ve aynı yapının SL/TP seviyeleri hesaplanacak. 4s grafik büyük engeller için kullanılacak.\n'
              'Güncel veri ve giriş şartları doğrulanınca ayrı bildirim gelir. Günlük en fazla 10 plan.\n'
              'Başarı oranı henüz ölçülmedi; otomatik emir açılmaz.', token, chat, int(time.time()*1000))
         print('PATTERN_STARTUP_DELIVERY '+receipt['state'], flush=True)

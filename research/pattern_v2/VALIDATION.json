@@ -1,0 +1,56 @@
+{
+  "config": {
+    "atr_period": 14,
+    "break_buffer_atr": 0.05,
+    "hypothesis_status": "UNVALIDATED_RESEARCH_ONLY",
+    "max_active_plans": 10,
+    "max_bars": 220,
+    "max_chase_atr": 0.75,
+    "max_hold_hours": {
+      "15m": 72,
+      "30m": 72
+    },
+    "max_notices_24h": 10,
+    "max_risk_pct": 12.0,
+    "min_bars": 120,
+    "min_quote_volume_24h": 2000000,
+    "min_reward_risk": 1.5,
+    "pivot_right": 2,
+    "ready_minutes": 15,
+    "retest_lookback_bars": 6,
+    "retest_touch_atr": 0.35,
+    "round_trip_cost_pct": 0.3,
+    "setup_intervals": [
+      "15m",
+      "30m"
+    ],
+    "stop_buffer_atr": 0.2
+  },
+  "config_hash": "e5e8865536f6180b17f4b56c9856da4e5ea1be7ccb62b139572346ad9e67814f",
+  "errors": 0,
+  "failures": 0,
+  "live_deployed": false,
+  "network_requests_during_tests": 0,
+  "profitability_validated": false,
+  "skipped": 0,
+  "source_sha256": {
+    "long_short_pattern_daemon.py": "be8912344f1bff7e11a0dedc6ac3d1f124d2c0b8cd3d614eb28952db1f005755",
+    "long_short_pattern_runtime.py": "c4ad06d940f2c6fbbeb4ea2d52ab7e2ddc54906fb19eaa3acbc039c5812e1772",
+    "long_short_patterns.py": "1d7515ded01fc8e7611b077b7ebffa5838ffa566d7fa83f8b148c0c6dd862f08",
+    "long_short_runtime_profile.py": "5b51ec175f50d633d2092e09e78dd9be57393c9232001a134cac105078418545",
+    "tests/test_pattern_engine.py": "f99698c3ad4aaa854bbaf71b653485f85d5a1bfd656f6e052d6bbfe89dbdd749"
+  },
+  "telegram_ack_verified": false,
+  "test_files": [
+    "test_pattern_engine.py",
+    "test_swing_structure.py",
+    "test_major_context.py",
+    "test_native_chain_v2.py",
+    "test_futures_history_worker.py",
+    "test_long_short_futures_kline_shadow.py",
+    "test_long_launch_check.py",
+    "test_short_diagnosis_policy.py"
+  ],
+  "tests_run": 111,
+  "version": "PATTERN_STRUCTURE_RESEARCH_V2_2026_10_23"
+}

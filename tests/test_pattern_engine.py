@@ -13,6 +13,7 @@ import long_short_pattern_outcomes as outcome
 import long_short_pattern_runtime as runtime
 
 M, H = core.MINUTE, core.HOUR
+T = 30*M
 START = 1_788_220_800_000
 
 
@@ -22,7 +23,7 @@ def candle(t, op=100., hi=101., lo=99., close=100., step=M):
 
 
 def triangle():
-    rows = [candle(START+i*H, step=H) for i in range(160)]
+    rows = [candle(START+i*T, step=T) for i in range(160)]
     for i in range(127, 159):
         floor = 100+(i-127)*.24
         phase = (i-127) % 8
@@ -40,7 +41,7 @@ def context(now):
 
 def plan(side='LONG'):
     return dict(version=core.VERSION, config_hash=core.CONFIG_HASH, id='episode-'+side, symbol='TESTUSDT',
-                stage='READY', research_only=True, direction=side, interval='1h', model='RANGE_BREAK',
+                stage='READY', research_only=True, direction=side, interval='30m', model='RANGE_BREAK',
                 entry=100., trigger=99.5 if side == 'LONG' else 100.5, atr=2.,
                 stop=97. if side == 'LONG' else 103., target=106. if side == 'LONG' else 94.,
                 target_source='HISTORICAL_PIVOT', confirmation_ms=START-1, expires_ms=START+15*M,
@@ -48,6 +49,21 @@ def plan(side='LONG'):
 
 
 class GeometryTests(unittest.TestCase):
+    def test_setup_clock_is_15_or_30_minutes_and_hourly_is_not_an_entry(self):
+        self.assertEqual(core.SETUP_INTERVALS, ('15m', '30m'))
+        signatures = []
+        for interval, step in [('15m', 15*M), ('30m', 30*M)]:
+            rows = [dict(b, open_ms=START+i*step, close_ms=START+(i+1)*step-1)
+                    for i, b in enumerate(triangle())]
+            now = rows[-1]['close_ms']+1
+            plans = core.assess('TUSDT', interval, rows, context(now), now)
+            self.assertTrue(any(p['stage'] == 'READY' for p in plans))
+            self.assertTrue(all(p['interval'] == interval for p in plans))
+            signatures.append([(p['direction'],p['model'],p['entry'],p['stop'],p['target']) for p in plans])
+        self.assertEqual(signatures[0], signatures[1])
+        with self.assertRaisesRegex(ValueError, 'UNSUPPORTED_SETUP_INTERVAL'):
+            core.assess('TUSDT', '1h', triangle(), context(now), now)
+
     def test_direction_correct_stop_target_and_costs(self):
         for side, stop, target in [('LONG', 97, 106), ('SHORT', 103, 94)]:
             g = core.geometry(side, 100, stop, target)
@@ -92,17 +108,17 @@ class GeometryTests(unittest.TestCase):
             if mutation == 'gap': del bad[50]
             if mutation == 'ohlc': bad[50]['low'] = bad[50]['high']+1
             if mutation == 'received': bad[50]['received_ms'] = now+1
-            with self.assertRaises(ValueError): core.assess('TUSDT', '1h', bad, context(now2), now2)
-        with self.assertRaises(ValueError): core.assess('TUSDT', '1h', rows, context(now+2*H), now+2*H)
+            with self.assertRaises(ValueError): core.assess('TUSDT', '30m', bad, context(now2), now2)
+        with self.assertRaises(ValueError): core.assess('TUSDT', '30m', rows, context(now+2*H), now+2*H)
 
     def test_pattern_detected_and_volume_cannot_vote(self):
         rows = triangle(); now = rows[-1]['close_ms']+1
-        a = core.assess('TUSDT', '1h', rows, context(now), now)
+        a = core.assess('TUSDT', '30m', rows, context(now), now)
         self.assertTrue(a, 'Fixture must exercise a real detected pattern')
         self.assertTrue(any(p['model'] == 'ASCENDING_TRIANGLE' and p['direction'] == 'LONG' for p in a), a)
         bad = copy.deepcopy(rows)
         for b in bad: b.update(quote_volume=None, taker_buy_quote=None)
-        b = core.assess('TUSDT', '1h', bad, context(now), now)
+        b = core.assess('TUSDT', '30m', bad, context(now), now)
         fields = lambda xs: [(p['id'], p['stage'], p['direction'], p['entry'], p['stop'], p['target']) for p in xs]
         self.assertEqual(fields(a), fields(b))
 
@@ -110,11 +126,11 @@ class GeometryTests(unittest.TestCase):
         rows = triangle(); now = rows[-1]['close_ms']+1
         reflected = [dict(b, open=220-b['open'], high=220-b['low'], low=220-b['high'], close=220-b['close']) for b in rows]
         mirrored_context = [dict(b, open=220-b['open'], high=220-b['low'], low=220-b['high'], close=220-b['close']) for b in context(now)]
-        ps = core.assess('TUSDT', '1h', reflected, mirrored_context, now)
+        ps = core.assess('TUSDT', '30m', reflected, mirrored_context, now)
         self.assertTrue(any(p['direction'] == 'SHORT' and p['model'] == 'DESCENDING_TRIANGLE' for p in ps), ps)
-        original = core.assess('TUSDT', '1h', rows, context(now), now)
-        rows.append(candle(now, op=110.2, hi=110.5, lo=110, close=110.4, step=H))
-        subsequent = core.assess('TUSDT', '1h', rows, context(now+H), now+H)
+        original = core.assess('TUSDT', '30m', rows, context(now), now)
+        rows.append(candle(now, op=110.2, hi=110.5, lo=110, close=110.4, step=T))
+        subsequent = core.assess('TUSDT', '30m', rows, context(now+T), now+T)
         self.assertFalse({p['id'] for p in original} & {p['id'] for p in subsequent})
 
     def test_live_price_recheck_rejects_chase_and_lost_break(self):
@@ -126,10 +142,10 @@ class GeometryTests(unittest.TestCase):
 
     def test_retest_needs_touch_hold_then_closed_rejection_confirmation(self):
         rows = triangle(); t = rows[-1]['close_ms']+1
-        rows += [candle(t, op=110.1, hi=110.2, lo=109.95, close=110.08, step=H),
-                 candle(t+H, op=110.1, hi=110.55, lo=110.05, close=110.4, step=H)]
+        rows += [candle(t, op=110.1, hi=110.2, lo=109.95, close=110.08, step=T),
+                 candle(t+T, op=110.1, hi=110.55, lo=110.05, close=110.4, step=T)]
         now = rows[-1]['close_ms']+1
-        ps = core.assess('TUSDT', '1h', rows, context(now), now)
+        ps = core.assess('TUSDT', '30m', rows, context(now), now)
         rs = [p for p in ps if p['entry_style'] == 'RETEST']
         self.assertTrue(rs, ps)
         self.assertTrue(any(p['stage'] == 'READY' for p in rs), rs)
@@ -139,7 +155,7 @@ class GeometryTests(unittest.TestCase):
             if mutation == 'lost_level': bad[-2]['close'] = 109.96
             if mutation == 'no_confirmation': bad[-1]['close'] = 110.15
             if mutation == 'no_touch': bad[-2].update(open=111, high=111.3, low=110.9, close=111)
-            self.assertFalse(any(p['entry_style'] == 'RETEST' for p in core.assess('TUSDT', '1h', bad, context(now), now)))
+            self.assertFalse(any(p['entry_style'] == 'RETEST' for p in core.assess('TUSDT', '30m', bad, context(now), now)))
 
     def test_all_line_families_have_actual_detectors(self):
         cases = [('RANGE_BREAK',0,0,0), ('ASCENDING_TRIANGLE',0,.22,0),
@@ -264,6 +280,10 @@ class RuntimeTests(unittest.TestCase):
             self.assertTrue(profiles.enabled())
             self.assertFalse(profiles.major_enabled())
             self.assertFalse(profiles.swing_enabled())
+        with patch.dict(os.environ, {'LS_RUNTIME_PROFILE': 'PATTERN_STRUCTURE_V1', 'LS_MAJOR_MOVE_V1': '1'}):
+            self.assertFalse(profiles.major_enabled())
+        self.assertEqual(runtime.PROFILE, 'PATTERN_STRUCTURE_V2')
+        self.assertEqual(runtime.DATABASE, 'pattern_structure_v2.db')
 
     def test_recovery_preserves_ack_after_crash_before_plan_update(self):
         p = plan()
@@ -318,7 +338,7 @@ class RuntimeTests(unittest.TestCase):
             items = [('TESTUSDT', iv, b['open_ms'], b['close_ms'], b['open'], b['high'], b['low'],
                       b['close'], 10., SOURCE, b['close_ms']+1, b['quote_volume'], 10, b['taker_buy_quote']) for b in bars]
             upsert_rows(kc, items); kc.commit()
-        add('1h', rows); add('4h', context(now))
+        add('30m', rows); add('4h', context(now))
         kc.execute('INSERT INTO futures_last_price VALUES(?,?,?,?,?)', ('TESTUSDT',110.15,now,now,SOURCE)); kc.commit()
         kc.close(); reader = runtime.db(path, True)
         fake_post = Mock(return_value=Mock(json=lambda: dict(ok=True, result=dict(message_id=1, chat=dict(id=123)))))

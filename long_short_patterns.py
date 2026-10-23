@@ -9,15 +9,17 @@ import json
 import math
 from statistics import median
 
-VERSION = 'PATTERN_STRUCTURE_RESEARCH_V1_2026_10_23'
+VERSION = 'PATTERN_STRUCTURE_RESEARCH_V2_2026_10_23'
 MINUTE = 60_000
 HOUR = 60 * MINUTE
-INTERVALS = {'15m': 15 * MINUTE, '1h': HOUR, '4h': 4 * HOUR}
+INTERVALS = {'15m': 15 * MINUTE, '30m': 30 * MINUTE, '1h': HOUR, '4h': 4 * HOUR}
+SETUP_INTERVALS = ('15m', '30m')
 CONFIG = dict(pivot_right=2, min_bars=120, max_bars=220, min_quote_volume_24h=2_000_000,
               atr_period=14, stop_buffer_atr=.2, break_buffer_atr=.05,
               max_chase_atr=.75, max_risk_pct=12., min_reward_risk=1.5,
               round_trip_cost_pct=.30, max_notices_24h=10, max_active_plans=10,
-              max_hold_hours={'15m': 72, '1h': 168}, ready_minutes=15,
+              setup_intervals=SETUP_INTERVALS,
+              max_hold_hours={'15m': 72, '30m': 72}, ready_minutes=15,
               retest_lookback_bars=6, retest_touch_atr=.35,
               hypothesis_status='UNVALIDATED_RESEARCH_ONLY')
 CONFIG_HASH = hashlib.sha256(json.dumps(CONFIG, sort_keys=True).encode()).hexdigest()
@@ -231,11 +233,11 @@ def unbroken_levels(rows, direction, entry):
 
 
 def _breakouts(symbol, interval, rows, context_rows, now_ms):
+    if interval not in SETUP_INTERVALS:
+        raise ValueError('UNSUPPORTED_SETUP_INTERVAL')
     step = INTERVALS[interval]
     validate(rows, step, now_ms, CONFIG['min_bars'], True)
     validate(context_rows, INTERVALS['4h'], now_ms, 30, True)
-    if interval not in ('15m', '1h'):
-        raise ValueError('UNSUPPORTED_SETUP_INTERVAL')
     a = atr(rows[:-1])
     if a <= 0:
         return []

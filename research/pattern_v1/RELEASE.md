@@ -1,5 +1,9 @@
 # Grafik ve Fibonacci araştırma motoru — 23 Ekim 2026
 
+> Tarihsel V1 kaydıdır. Kullanıcının 15dk/30dk düzeltmesiyle güncel kod V2'ye
+> geçti; `research/pattern_v2/RELEASE.md` esas alınır. Aşağıdaki V1 kaynak ve
+> yeniden üretim komutları için `53b8262` commit'i kullanılmalıdır.
+
 Durum: yeni kod yazıldı ve yerel yazılım kontrollerinden geçti. **Canlıya alınmadı,
 Telegram kabulü doğrulanmadı, kârlılık gösterilmedi.** Bu belge çalışan canlı
 servis veya eksiksiz piyasa verisi iddiası değildir.

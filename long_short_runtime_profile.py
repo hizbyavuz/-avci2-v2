@@ -34,7 +34,9 @@ def swing_enabled():
 
 
 def pattern_enabled():
-    return os.getenv('LS_RUNTIME_PROFILE') == 'PATTERN_STRUCTURE_V1'
+    # A stale V1 profile must not silently fall back to the MAJOR decision engine.
+    # The pattern daemon itself only accepts the current explicit V2 profile.
+    return os.getenv('LS_RUNTIME_PROFILE') in ('PATTERN_STRUCTURE_V1','PATTERN_STRUCTURE_V2')
 
 
 def major_enabled():
