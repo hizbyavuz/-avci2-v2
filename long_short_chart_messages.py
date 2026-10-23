@@ -13,23 +13,23 @@ def message(p, stage=None):
     if stage in ('BROKEN','EXPIRED','OBSTACLE_REACHED'):
         why={'BROKEN':'🛑 Fikrin bozulacağı seviye aşıldı.',
              'EXPIRED':('⌛ Aradaki fiyat hareketi kesin doğrulanamadı; bu takip kapatıldı.' if p.get('path_guard',{}).get('status')=='AMBIGUOUS' else '⌛ Sistem kuralı güncellendi; eski takip kapatıldı.' if p.get('expiry_reason')=='STRATEGY_CHANGED' else '⌛ Eski giriş koşulu artık geçerli değil; yeni fırsat bekleniyor.'),
-             'OBSTACLE_REACHED':'🎯 Fiyatın zorlanabileceği ilk seviyeye ulaşıldı; bu takip bitti.'}[stage]
+             'OBSTACLE_REACHED':'🎯 İlk destek/direnç seviyesine ulaşıldı; bu planın takibi tamamlandı. Bu, hareketin bittiği anlamına gelmez.'}[stage]
         return '\n'.join([f'{marker} {p["symbol"]} · {side} TAKİBİ BİTTİ',why,
                           f'💰 Güncel fiyat: {p["price"]:.10g}',stamp])
     title='GİRİŞ KOŞULU OLUŞTU' if stage=='READY' else 'İÇİN İZLE'
     rows=[f'{marker} {p["symbol"]} · {move} {title} ({side})',
-          '✅ Giriş koşulu oluştu; fiyat aralığını kontrol et.' if stage=='READY' else '⏳ Henüz giriş koşulu oluşmadı.']
+          '✅ Giriş koşulu oluştu; güncel fiyatı, aralığı ve SL seviyesini kontrol et.' if stage=='READY' else '⏳ Henüz giriş koşulu oluşmadı; aşağıdaki kapanış bekleniyor.']
     if p.get('scenario')=='REVERSAL_ATTEMPT':
         rows.append('⚠️ ANA YÖNE TERS: Büyük yön ters; bu kısa vadeli bir dönüş denemesi.')
     rows.extend(['',f'💰 Şu an fiyat: {p["price"]:.10g}'])
     if stage=='READY':
         lo,hi=sorted((p['trigger'],p['entry_limit']))
-        rows.extend([f'🔔 5 dk mum {p["trigger"]:.10g} {relation} kapandı; fiyat seviyeyi koruyor.',
+        rows.extend([f'🔔 5 dk mum {p["trigger"]:.10g} {relation} kapandı; anlık fiyat da bu tarafta.',
                      f'📍 Giriş için değerlendirilen aralık: {lo:.10g}–{hi:.10g}'])
     else:
         rows.append(f'🔔 Beklenen: 5 dk mum {p["trigger"]:.10g} {relation} kapansın, fiyat bu seviyeyi korusun.')
-    rows.extend(['',f'🎯 {"Yükselişin" if up else "Düşüşün"} zorlanabileceği ilk yer: {p["obstacle"]:.10g}',
-                 f'🛑 {p["stop"]:.10g} {"altına düşerse" if up else "üstüne çıkarsa"} fikir bozulur.'])
+    rows.extend(['',f'🎯 İlk {"direnç" if up else "destek"} / TP1 referansı: {p["obstacle"]:.10g}',
+                 f'🛑 SL referansı: {p["stop"]:.10g} — {"altına düşerse" if up else "üstüne çıkarsa"} fikir bozulur.'])
     if p.get('intermediate_level') is not None and (1 if up else -1)*(p['intermediate_level']-p['price'])>0:
         rows.append(f'⚠️ Arada {p["intermediate_level"]:.10g} seviyesi var; fiyat burada takılabilir.')
     entry=p['price'] if stage=='READY' else p['trigger']
@@ -37,6 +37,8 @@ def message(p, stage=None):
     if g.get('valid'):
         anchor='Şu anki fiyattan' if stage=='READY' else 'Beklenen girişten'
         rows.append(f'📏 {anchor}: {"yukarı" if up else "aşağı"} alan %{g["gross_room_pct"]:.2f} · Stopa uzaklık %{g["invalidation_pct"]:.2f} (masraf hariç)')
+        if g['net_reward_risk'] < 1:
+            rows.append('⚠️ İlk seviyeye kadar masraf sonrası getiri alanı, stop riskinden küçük.')
     ctx=p['context'];labels={'UP':'yükseliş ↑','DOWN':'düşüş ↓','RANGE':'belirsiz ↔'}
     rows.extend(['',f'🧭 1 saat: {labels[ctx["1h"]["direction"]]} · 4 saat: {labels[ctx["4h"]["direction"]]}'])
     vol=p.get('volume_15m_multiple')
