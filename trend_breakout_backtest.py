@@ -249,7 +249,17 @@ def write_csv(path, rows):
         w = csv.DictWriter(f, fieldnames=keys); w.writeheader(); w.writerows(rows)
 
 
-def run(archive, output):
+def acquire_seal(output, identity, resume=False):
+    seal=output/'locked_test_seal.json'
+    if resume:
+        if (output/'summary.json').exists():raise RuntimeError('COMPLETED_LOCKED_TEST_CANNOT_RERUN')
+        if json.loads(seal.read_text())!=identity:raise RuntimeError('RESUME_PROTOCOL_OR_DATA_CHANGED')
+        with (output/'resume_events.jsonl').open('a') as f:f.write(json.dumps(dict(resumed_ms=int(time.time()*1000)))+'\n')
+    else:
+        with seal.open('x') as f:json.dump(identity,f,indent=2)
+
+
+def run(archive, output, resume=False):
     output = Path(output); output.mkdir(parents=True, exist_ok=True)
     protocol = json.loads(Path(__file__).with_name('trend_breakout_protocol.json').read_text())
     universe = json.loads((archive.root/'universe.json').read_text())
@@ -259,10 +269,11 @@ def run(archive, output):
     identity = dict(rules_hash=RULES_HASH, protocol=protocol, start=start, split=split, end=end,
                     variants_tried=0, files={p.name:hashlib.sha256(p.read_bytes()).hexdigest()
                     for p in sorted(Path(__file__).parent.glob('trend_breakout_*.py'))},
+                    prepared_sha256={r['symbol']:hashlib.sha256((archive.root/'prepared'/f"{r['symbol']}.json").read_bytes()).hexdigest() for r in manifest['symbols']},
                     universe_sha256=hashlib.sha256((archive.root/'universe.json').read_bytes()).hexdigest())
     # Exclusive create: an accidental rerun cannot silently inspect the holdout again.
-    with (output/'locked_test_seal.json').open('x') as f:
-        json.dump(identity, f, indent=2)
+    acquire_seal(output,identity,resume)
+    checkpoints=output/'candidate_checkpoints';checkpoints.mkdir(exist_ok=True)
     membership = {m:{r['symbol'] for r in rows} for m,rows in universe['months'].items()}
     candidates, rejected, counts = [], [], Counter()
     minute_cache = {}
@@ -275,7 +286,12 @@ def run(archive, output):
             minute_cache[key] = archive.candles(symbol, '1m', key[1], source_by_symbol[symbol], daily=True)
         return [b for b in minute_cache[key] if at <= b.open_ms < at+HOUR]
     for n, row in enumerate(sorted(manifest['symbols'], key=lambda x:x['symbol']),1):
-        s = row['symbol']; data = json.loads((archive.root/'prepared'/f'{s}.json').read_text())
+        s = row['symbol']; checkpoint=checkpoints/f'{s}.json'
+        if checkpoint.exists():
+            saved=json.loads(checkpoint.read_text());candidates.extend(saved['candidates']);rejected.extend(saved['rejected']);counts.update(saved['counts']);continue
+        before_candidates,before_rejected=len(candidates),len(rejected)
+        before_counts=counts.copy()
+        data = json.loads((archive.root/'prepared'/f'{s}.json').read_text())
         h, q = Series([Candle(**b) for b in data['h']], HOUR), Series([Candle(**b) for b in data['q']], 4*HOUR)
         for i,b in enumerate(h.bars):
             t = b.close_ms
@@ -294,6 +310,9 @@ def run(archive, output):
             if p['status'] != 'PLAN':
                 rejected.append(p); continue
             candidates.append(simulate_trade(p,h.bars,minute_loader,data['funding'],data['funding_coverage']))
+        temporary=checkpoint.with_suffix('.tmp')
+        temporary.write_text(json.dumps(dict(candidates=candidates[before_candidates:],rejected=rejected[before_rejected:],counts=dict(counts-before_counts)),ensure_ascii=False))
+        temporary.replace(checkpoint)
         print(json.dumps(dict(stage='replay', symbols=n, total=len(manifest['symbols']), candidates=len(candidates))),flush=True)
     tables, all_trades, all_skips = {}, [], []
     for limited in (False, True):
@@ -362,7 +381,7 @@ def report(s, path):
 
 if __name__ == '__main__':
     p = argparse.ArgumentParser(); p.add_argument('--cache',required=True); p.add_argument('--output',default='research/trend_breakout_v1/results')
-    p.add_argument('--prepare',action='store_true'); p.add_argument('--run',action='store_true'); p.add_argument('--workers',type=int,default=12)
+    p.add_argument('--prepare',action='store_true'); p.add_argument('--run',action='store_true'); p.add_argument('--resume',action='store_true');p.add_argument('--workers',type=int,default=12)
     a = p.parse_args(); archive = Archive(a.cache)
     if a.prepare: prepare(archive,a.workers)
-    if a.run: run(archive,a.output)
+    if a.run or a.resume: run(archive,a.output,a.resume)

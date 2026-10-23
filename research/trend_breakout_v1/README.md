@@ -34,6 +34,9 @@ python trend_breakout_backtest.py --run --cache /path/to/separate-cache
 `--run`, sonuçtan önce `locked_test_seal.json` dosyasını yalnızca bir kez
 oluşturur. Bu dosya varken yeniden çalışmayı reddeder. Silinerek yeniden test
 yapılması protokol ihlalidir. Veri hazırlama sonuç hesaplamaz ve tekrarlanabilir.
+Çalışma teknik olarak kesilirse `--resume`, yalnızca kod/protokol/veri hash'leri
+aynıyken, tamamlanmamış tek testi kaldığı sembolden sürdürür. Tamamlanan semboller
+tekrar hesaplanmaz. Sonuç dosyası oluşmuş test `--resume` ile de tekrarlanamaz.
 Arşiv dosyaları resmi SHA256 dosyalarıyla doğrulanır. Sentetik veriler yalnızca
 birim testlerindedir; rapor verisine karışmaz.
 

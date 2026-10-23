@@ -197,6 +197,17 @@ class PortfolioTests(unittest.TestCase):
 
 
 class LiveTests(unittest.TestCase):
+    def test_locked_test_cannot_rerun_or_change_on_resume(self):
+        from trend_breakout_backtest import acquire_seal
+        with tempfile.TemporaryDirectory() as d:
+            p=Path(d);identity={'rules':'unchanged','data':'unchanged'}
+            acquire_seal(p,identity)
+            with self.assertRaises(FileExistsError):acquire_seal(p,identity)
+            acquire_seal(p,identity,resume=True)
+            with self.assertRaises(RuntimeError):acquire_seal(p,dict(identity,rules='changed'),resume=True)
+            (p/'summary.json').write_text('{}')
+            with self.assertRaises(RuntimeError):acquire_seal(p,identity,resume=True)
+
     def test_same_evaluate_function_object(self):
         import trend_breakout_live as live
         import trend_breakout_backtest as historical
