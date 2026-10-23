@@ -179,7 +179,17 @@ def main():
                 symbols = list(dict.fromkeys(args.symbols.split(',')))
             else:
                 from long_short_swing_runtime import universe
-                symbols = [r[0] for r in universe(now)]
+                try:
+                    symbols = [r[0] for r in universe(now)]
+                except (ValueError, sqlite3.Error) as exc:
+                    health = dict(state='WAITING_FOR_UNIVERSE', reason=str(exc)[:120], observed_ms=now)
+                    c.execute('INSERT OR IGNORE INTO health VALUES(?,?)', (now, store.encoded(health)))
+                    c.commit()
+                    print('STRUCTURE_HEALTH '+store.encoded(health), flush=True)
+                    if args.once:
+                        break
+                    stop.wait(30)
+                    continue
             health = scan(c, source, symbols, now, args.state_dir, args.interval, args.notify)
             health['outcomes'] = measure_pending(c, source, now)
             if args.notify:
