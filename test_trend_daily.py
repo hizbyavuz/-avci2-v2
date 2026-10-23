@@ -212,5 +212,18 @@ class IntegrationTests(unittest.TestCase):
                 self.assertEqual(evaluator.call_count,3)
             state.db.close()
 
+    def test_missing_stop_history_is_explicit_not_crash_or_invented(self):
+        bars=[candle(i,105.,107.,104.,105.) for i in range(122) if i!=119]
+        p=plan(entry=104.,n=2.);p.update(entry_ms=100*DAY,notional=1040.,quantity=10.,initial_risk_usdt=40.,last_price=105.)
+        class FakeData:
+            series={'TESTUSDT':e.DailySeries(bars)}
+            universe={'months':{}}
+            def bar(self,s,at):return next((b for b in bars if b.open_ms==at),None)
+            def funding_cost(self,p,at):return 0.,0,[]
+        book=bt.new_book('limited');book['positions']=[p]
+        with tempfile.TemporaryDirectory() as d:book=bt.replay(book,FakeData(),120*DAY,122*DAY,Path(d)/'checkpoint')
+        self.assertEqual(book['positions'][0]['stop'],100.)
+        self.assertTrue(book['errors']);self.assertEqual(book['stops'],[])
+
 
 if __name__=='__main__':unittest.main()

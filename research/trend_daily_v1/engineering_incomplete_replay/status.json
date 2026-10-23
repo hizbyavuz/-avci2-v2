@@ -1,0 +1,5 @@
+{
+  "status": "INCOMPLETE_ENGINEERING_RUN_NOT_A_VALID_PERFORMANCE_RESULT",
+  "reason": "STOP_HISTORY_UNAVAILABLE on an open position crossing missing calendar days; fixed to record data uncertainty instead of aborting. No aggregate return inspected; no parameter tuning.",
+  "completed_performance_reports": 0
+}

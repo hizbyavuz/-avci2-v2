@@ -224,8 +224,12 @@ def replay(book,data,start,end,checkpoint):
                 else:
                     p.update(excursions(p,[b]));p['last_price']=b.close
                     accrue(book,p,data,b.close_ms-1)
-                    change=update_stop(p,data.series[p['symbol']],b.close_ms)
-                    p['stop']=change['stop'];book['stops'].append(dict(symbol=p['symbol'],entry_ms=p['entry_ms'],**change))
+                    try:
+                        change=update_stop(p,data.series[p['symbol']],b.close_ms)
+                        p['stop']=change['stop'];book['stops'].append(dict(symbol=p['symbol'],entry_ms=p['entry_ms'],**change))
+                    except ValueError:
+                        p['unverified_stop_history']=True
+                        book['errors'].append(dict(symbol=p['symbol'],time=b.close_ms,reason='STOP_HISTORY_UNAVAILABLE_OLD_STOP_RETAINED'))
             for p,job in jobs:close_position(book,p,job.result(),data)
             book['curve'].append(dict(time=at+DAY,equity=equity(book,data,at),cash=book['cash'],open_positions=len(book['positions'])))
             book['next_day']=at+DAY
@@ -386,9 +390,13 @@ def run(root,archive_root,out,resume=False):
         with seal.open('x') as f:json.dump(identity,f,indent=2)
     data=Data(root,Archive(archive_root));books={}
     preload_stop_days(data,identity['start'],identity['end'],out/'minute_preload.json')
+    run_identity=hashlib.sha256(json.dumps(identity,sort_keys=True).encode()).hexdigest()
     for mode in ('unlimited','limited'):
         checkpoint=out/(mode+'_checkpoint.json')
-        book=json.loads(checkpoint.read_text()) if checkpoint.exists() else new_book(mode)
+        if checkpoint.exists():
+            book=json.loads(checkpoint.read_text())
+            if book.get('run_identity')!=run_identity:raise RuntimeError('CHECKPOINT_BELONGS_TO_DIFFERENT_RUN')
+        else:book=dict(new_book(mode),run_identity=run_identity)
         books[mode]=replay(book,data,identity['start'],identity['end'],checkpoint)
     return final_report(books,data,out,identity)
 

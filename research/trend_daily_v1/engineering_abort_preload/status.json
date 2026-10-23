@@ -1,6 +1,6 @@
 {
-  "status": "ABORTED_BEFORE_PERFORMANCE",
-  "reason": "Correct daily close indexing: next-day 10-day trailing channel must include the just-closed day. Window size remains 10; no parameter variant or return inspected.",
+  "status": "INCOMPLETE_ENGINEERING_RUN",
+  "reason": "Trailing-channel indexing corrected before any aggregate return was inspected. An interrupted worker later reached an incomplete portfolio checkpoint and failed on missing stop history. No completed performance report existed; all partial checkpoints are excluded from the final run.",
   "aborted_commit": "be119b87fac610299bb46ef28438aebedbf88096",
   "completed_performance_runs": 0
 }
