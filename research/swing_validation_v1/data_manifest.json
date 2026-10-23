@@ -1,0 +1,4805 @@
+{
+  "start": 1577836800000,
+  "end": 1792713600000,
+  "symbols": [
+    {
+      "symbol": "0GUSDT",
+      "rows": 9609,
+      "first": 1758121200000,
+      "last": 1792710000000,
+      "sha256": "b43739bb8b1ab723958e45856cc48e3195ba1fef615c826c318886424326914c"
+    },
+    {
+      "symbol": "1000000BOBUSDT",
+      "rows": 12112,
+      "first": 1749110400000,
+      "last": 1792710000000,
+      "sha256": "f5b621369df310d0fe778d8be922504aee9126f093b1154d32730824a020e515"
+    },
+    {
+      "symbol": "1000000MOGUSDT",
+      "rows": 17148,
+      "first": 1730980800000,
+      "last": 1792710000000,
+      "sha256": "deda71f3eb40e1e1bfd0d6dc0971c73422051668094da51e0420e4a060ff079c"
+    },
+    {
+      "symbol": "1000BONKUSDT",
+      "rows": 25570,
+      "first": 1700661600000,
+      "last": 1792710000000,
+      "sha256": "4adfd45df9d03402bf4e21bb2268a95faef128107c4a9be3c8ca8339ab6e971b"
+    },
+    {
+      "symbol": "1000BTTCUSDT",
+      "rows": 1807,
+      "first": 1643166000000,
+      "last": 1649667600000,
+      "sha256": "6f41febb66c05f212429a30369a7d7855cefd2e4020ce5000030e8ec7b2eeba2",
+      "gaps": 0
+    },
+    {
+      "symbol": "1000CATUSDT",
+      "rows": 17556,
+      "first": 1729512000000,
+      "last": 1792710000000,
+      "sha256": "6ea1313042111af85d25d7351e0fc8ff8317e9456047586d7ec2c07b2ef47aff"
+    },
+    {
+      "symbol": "1000CHEEMSUSDT",
+      "rows": 16717,
+      "first": 1732532400000,
+      "last": 1792710000000,
+      "sha256": "231410ebd2f0838eac830ac557ad270b23a1ec338039295ce8410ae17f2a34f7"
+    },
+    {
+      "symbol": "1000FLOKIUSDT",
+      "rows": 30368,
+      "first": 1683388800000,
+      "last": 1792710000000,
+      "sha256": "57f9e382ba009e220499b73faf3ff2099d3fcc4de7a566aa5c01f4949bacecdd"
+    },
+    {
+      "symbol": "1000LUNCUSDT",
+      "rows": 36107,
+      "first": 1662728400000,
+      "last": 1792710000000,
+      "sha256": "2023a963869ef99b0f35cf905f7f4d96b9add2cc1256b375b5c8bd34f9988aa9"
+    },
+    {
+      "symbol": "1000PEPEUSDT",
+      "rows": 30392,
+      "first": 1683302400000,
+      "last": 1792710000000,
+      "sha256": "a2fe97a77129dc66db3afd685eeae1de542b0c021361c421cb00eced49c7f63d"
+    },
+    {
+      "symbol": "1000RATSUSDT",
+      "rows": 25018,
+      "first": 1702648800000,
+      "last": 1792710000000,
+      "sha256": "57eeabc1f169665bf83e8f085fa2472b3b7ce70b26664bf20329c7d345b6cdb5"
+    },
+    {
+      "symbol": "1000SATSUSDT",
+      "rows": 25090,
+      "first": 1702389600000,
+      "last": 1792710000000,
+      "sha256": "e8ca87a2b4918f7dc947e5234a9bbc3ed99c36c1872feb86fc13ba74ddf2938f"
+    },
+    {
+      "symbol": "1000SHIBUSDT",
+      "rows": 47791,
+      "first": 1620666000000,
+      "last": 1792710000000,
+      "sha256": "ffee0aed2065bdb14c27ee9959df0074f534a356862911ecb2daa9de184318ee"
+    },
+    {
+      "symbol": "1000WHYUSDT",
+      "rows": 16717,
+      "first": 1732532400000,
+      "last": 1792710000000,
+      "sha256": "2db2ca6fb787fbdd9321ac2e053bd3784b82edf6e7e034191fc2a301b5f41843"
+    },
+    {
+      "symbol": "1000XECUSDT",
+      "rows": 44685,
+      "first": 1631847600000,
+      "last": 1792710000000,
+      "sha256": "e17cc4be7f5f3f093da8a0009f561d98b80b3e2d8fe791608a78d85d394e26b7"
+    },
+    {
+      "symbol": "1000XUSDT",
+      "rows": 17004,
+      "first": 1731499200000,
+      "last": 1792710000000,
+      "sha256": "7a387388b306fa0ba1a62054fb293215c84612203d3235571410c0a7e7163a05"
+    },
+    {
+      "symbol": "1INCHUSDT",
+      "rows": 51062,
+      "first": 1608890400000,
+      "last": 1792710000000,
+      "sha256": "872414b74485361e6223cae270c7d944af033a64af27057004cf6851c2b08129"
+    },
+    {
+      "symbol": "1MBABYDOGEUSDT",
+      "rows": 18397,
+      "first": 1726484400000,
+      "last": 1792710000000,
+      "sha256": "10f4f30ede70362b6bfbd1ca3b09fa9886cfacd63b66c4d2c3d91b15e739f606"
+    },
+    {
+      "symbol": "2ZUSDT",
+      "rows": 9252,
+      "first": 1759406400000,
+      "last": 1792710000000,
+      "sha256": "f20e2689f2c919f798f20e247eaab631f2dbf71c76fde4b7e8d6a678301a232f"
+    },
+    {
+      "symbol": "42USDT",
+      "rows": 8654,
+      "first": 1761559200000,
+      "last": 1792710000000,
+      "sha256": "d1323e3e94c56214bc2b6d2bd33a23d69d48a3e22fefffaee0a4368ba82e8064"
+    },
+    {
+      "symbol": "4USDT",
+      "rows": 9109,
+      "first": 1759921200000,
+      "last": 1792710000000,
+      "sha256": "ff4305a96b89525946f51d831c20c547355919f99a05cf51d57f6d02ae24eeb5"
+    },
+    {
+      "symbol": "A2ZUSDT",
+      "rows": 10792,
+      "first": 1753862400000,
+      "last": 1792710000000,
+      "sha256": "4d4b3841eec64a6e1c5d08eee25173dbb5149d37e731d52ff1f55158e891f818"
+    },
+    {
+      "symbol": "AAVEUSDT",
+      "rows": 52745,
+      "first": 1602831600000,
+      "last": 1792710000000,
+      "sha256": "396be5339e8453dd476dcab098f0dae718afbb0e190fdc81789f8b05573838c1"
+    },
+    {
+      "symbol": "ACEUSDT",
+      "rows": 24950,
+      "first": 1702893600000,
+      "last": 1792710000000,
+      "sha256": "02332241012771145a92ce6c78754c262b1c82c14568012bdfecb0776ea98e00"
+    },
+    {
+      "symbol": "ACHUSDT",
+      "rows": 32122,
+      "first": 1677074400000,
+      "last": 1792710000000,
+      "sha256": "72780201d4de5bd62070f24aef34bee4cdd83ad2a6f1fa05de4ef00279624fd2"
+    },
+    {
+      "symbol": "ACTUSDT",
+      "rows": 17052,
+      "first": 1731326400000,
+      "last": 1792710000000,
+      "sha256": "4c1b89a3e4b0eb84714260766b9bea01af1024655d2bc55f71becf0601ac72d4"
+    },
+    {
+      "symbol": "ACUUSDT",
+      "rows": 6588,
+      "first": 1768996800000,
+      "last": 1792710000000,
+      "sha256": "56fd765a1a4ecb58a240a1ea830822e3d6aa67470f56b18faa700d54dbb3b8f7"
+    },
+    {
+      "symbol": "ACXUSDT",
+      "rows": 16449,
+      "first": 1733497200000,
+      "last": 1792710000000,
+      "sha256": "fcbf99b8e92ec64743d1231b13513e65f5eb285452a6a88d56f69f8244bc3319"
+    },
+    {
+      "symbol": "ADAUSDT",
+      "rows": 58960,
+      "first": 1580457600000,
+      "last": 1792710000000,
+      "sha256": "b3c38f4a0f84cc20eb2e6a4ec978a5e5343ba3afb94ab94b1bf2d95379bb9880"
+    },
+    {
+      "symbol": "AERGOUSDT",
+      "rows": 15793,
+      "first": 1725969600000,
+      "last": 1782860400000,
+      "sha256": "4584c50131e7fd615467fcfac41c0856c139f3ebf34926cea8c34c5fa85c44cf",
+      "gaps": 1
+    },
+    {
+      "symbol": "AEROUSDT",
+      "rows": 16498,
+      "first": 1733320800000,
+      "last": 1792710000000,
+      "sha256": "e480c7f89d207caa98c0cfc4e2387ba91b391ad41b58ba384f615ea97891bfed"
+    },
+    {
+      "symbol": "AEVOUSDT",
+      "rows": 22883,
+      "first": 1710334800000,
+      "last": 1792710000000,
+      "sha256": "8f9f3662d88dc5795faacf2b5c59c302ca64bf8e245ab2f987d5320741ec3abb"
+    },
+    {
+      "symbol": "AGIXUSDT",
+      "rows": 32266,
+      "first": 1676556000000,
+      "last": 1792710000000,
+      "sha256": "4a44cd4b1b0cde6ac26a8b7551bb7a51267508f4dea6e9cd4d2c3138d2a8b326"
+    },
+    {
+      "symbol": "AGLDUSDT",
+      "rows": 28366,
+      "first": 1690596000000,
+      "last": 1792710000000,
+      "sha256": "d5f8604b639f62cd60ed8987c936c07d1de619a5e1c176a1659b8479941efa8c"
+    },
+    {
+      "symbol": "AGTUSDT",
+      "rows": 12494,
+      "first": 1747735200000,
+      "last": 1792710000000,
+      "sha256": "e00d3cfe519174dcde5b5c93866d4f3f9fb4c6bd0f1f29be926338bd08eb6d6f"
+    },
+    {
+      "symbol": "AI16ZUSDT",
+      "rows": 15803,
+      "first": 1735822800000,
+      "last": 1792710000000,
+      "sha256": "4b4a9971571f771834b38c2f881e53d334cc0b9d36b222446ac963e6c900ee5c"
+    },
+    {
+      "symbol": "AIAUSDT",
+      "rows": 9581,
+      "first": 1758182400000,
+      "last": 1792710000000,
+      "sha256": "4c84f8474d828705d5c223017d5691603f8a53b59b7c31cd75164dedef2b624e"
+    },
+    {
+      "symbol": "AIGENSYNUSDT",
+      "rows": 4234,
+      "first": 1777471200000,
+      "last": 1792710000000,
+      "sha256": "9518e865a4af14aacfefef991b4ca68728de4ae7f34928d44b5bab5c9cea062a"
+    },
+    {
+      "symbol": "AINUSDT",
+      "rows": 11270,
+      "first": 1752141600000,
+      "last": 1792710000000,
+      "sha256": "e16221596765a8a6b939e8453718dd4f4a40a8b34c4e901372c02552c59d857b"
+    },
+    {
+      "symbol": "AIOTUSDT",
+      "rows": 12972,
+      "first": 1746014400000,
+      "last": 1792710000000,
+      "sha256": "2f0ee68dc76aa30fe1beab962fec99396c5b7d77f11b827443894b6d5a086d1a"
+    },
+    {
+      "symbol": "AIOUSDT",
+      "rows": 10453,
+      "first": 1755082800000,
+      "last": 1792710000000,
+      "sha256": "fecf2f024bc4283bbf84da0e9e07628c923bf2b2251ceeb8bae7bb9129f96188"
+    },
+    {
+      "symbol": "AIUSDT",
+      "rows": 24444,
+      "first": 1704715200000,
+      "last": 1792710000000,
+      "sha256": "9b259fe75a18865fe345e7b1bafa16e5e4e6983cdd6858e45e0952fb10e111c6"
+    },
+    {
+      "symbol": "AIXBTUSDT",
+      "rows": 16110,
+      "first": 1734717600000,
+      "last": 1792710000000,
+      "sha256": "e621c131010465c79a93613384f3be4a5b501685e023bdc07cb3a6537b6bc517"
+    },
+    {
+      "symbol": "AKEUSDT",
+      "rows": 9396,
+      "first": 1758888000000,
+      "last": 1792710000000,
+      "sha256": "39f500496beffca507fbff1f86026540ebeeb1206d52a1b3309369cab60692c0"
+    },
+    {
+      "symbol": "AKROUSDT",
+      "rows": 11835,
+      "first": 1611039600000,
+      "last": 1653642000000,
+      "sha256": "82d53a0d6d22b81420927247346ed13b161eb3a80e313d7e3d3c7dde70aa897e",
+      "gaps": 0
+    },
+    {
+      "symbol": "AKTUSDT",
+      "rows": 16885,
+      "first": 1731927600000,
+      "last": 1792710000000,
+      "sha256": "98925d3b614bf5b7a98869d72aaffedeb6cf42f856b58a1f09e262158109caa7"
+    },
+    {
+      "symbol": "ALCHUSDT",
+      "rows": 15685,
+      "first": 1736247600000,
+      "last": 1792710000000,
+      "sha256": "f636781d7c12c0f63490f4173b99a11f7c28735ad50db2fe98afe5912f824105"
+    },
+    {
+      "symbol": "ALGOUSDT",
+      "rows": 55671,
+      "first": 1592298000000,
+      "last": 1792710000000,
+      "sha256": "eb16e09b5a7a22a6a5945b1f1c137e5813244566b251ac7ad6ea8aa80ccf8af8"
+    },
+    {
+      "symbol": "ALICEUSDT",
+      "rows": 49125,
+      "first": 1615863600000,
+      "last": 1792710000000,
+      "sha256": "737262fd3c3893329b6dcb737abef479a6e0650e3f945017f1d2aa541e6326a2"
+    },
+    {
+      "symbol": "ALLOUSDT",
+      "rows": 8290,
+      "first": 1762869600000,
+      "last": 1792710000000,
+      "sha256": "8687e3b82bbf68e2e2e1fa26bf69ce579eebf71fcfec4ff7c828e1e3d6ea1e24"
+    },
+    {
+      "symbol": "ALPACAUSDT",
+      "rows": 18998,
+      "first": 1724320800000,
+      "last": 1792710000000,
+      "sha256": "7960ea4ede0a33fdb2765d1583baeb807ed384cbe6398dc0aa0db24365bfec2d"
+    },
+    {
+      "symbol": "ALPHAUSDT",
+      "rows": 51833,
+      "first": 1606114800000,
+      "last": 1792710000000,
+      "sha256": "b264bcff92ce8349302274f252a96b2edbdb18de0e0f299f579a8766d3ccdff7"
+    },
+    {
+      "symbol": "ALPINEUSDT",
+      "rows": 12831,
+      "first": 1746522000000,
+      "last": 1792710000000,
+      "sha256": "00062f348f90d9700919c6ad61be53e7126a9bbb0232245be948f4f6a013b672"
+    },
+    {
+      "symbol": "ALTUSDT",
+      "rows": 24034,
+      "first": 1706191200000,
+      "last": 1792710000000,
+      "sha256": "eb51328142c55d0dc92c942b123359987ca42d2b8f0500a641f49a53b721690c"
+    },
+    {
+      "symbol": "AMBUSDT",
+      "rows": 31260,
+      "first": 1680177600000,
+      "last": 1792710000000,
+      "sha256": "ba2f7885ec0f5675c26239be4bf1fb888c623254b4ac83007026bff751a03475"
+    },
+    {
+      "symbol": "ANCUSDT",
+      "rows": 1588,
+      "first": 1646708400000,
+      "last": 1652421600000,
+      "sha256": "5a35b001001b836dcef7e0ff1da3f3e717c01b50305418cfb46608c61a667554",
+      "gaps": 0
+    },
+    {
+      "symbol": "ANIMEUSDT",
+      "rows": 15295,
+      "first": 1737651600000,
+      "last": 1792710000000,
+      "sha256": "5cfddeef8ed836f523d6b70112fdd0a7af200a0b2c6c2b9e1124b07861cb5365"
+    },
+    {
+      "symbol": "ANKRUSDT",
+      "rows": 50297,
+      "first": 1611644400000,
+      "last": 1792710000000,
+      "sha256": "4b82b0046ca3569154d701b8cb1197a8bdf40dcea3583ab675ed463d9bda93df"
+    },
+    {
+      "symbol": "ANTUSDT",
+      "rows": 21196,
+      "first": 1640577600000,
+      "last": 1716879600000,
+      "sha256": "d2fc68648d18b5127cd6f3fdad9e0227d9788058c5e5881fec175ac8c25d3783",
+      "gaps": 0
+    },
+    {
+      "symbol": "APEUSDT",
+      "rows": 40329,
+      "first": 1647529200000,
+      "last": 1792710000000,
+      "sha256": "6e97cedbd9c78b46854a071e2f29fe6664f816890c4567016de13f8446bbf15c"
+    },
+    {
+      "symbol": "API3USDT",
+      "rows": 40893,
+      "first": 1645498800000,
+      "last": 1792710000000,
+      "sha256": "94d6346a08e563c661457b38ccccdc8733cdb6801b3fdc5436e88275e74171ea"
+    },
+    {
+      "symbol": "APRUSDT",
+      "rows": 8750,
+      "first": 1761213600000,
+      "last": 1792710000000,
+      "sha256": "4301036933228d861af89de58c98327deaadcbb6112c24ef42afba134e8ea0b7"
+    },
+    {
+      "symbol": "APTUSDT",
+      "rows": 35158,
+      "first": 1666144800000,
+      "last": 1792710000000,
+      "sha256": "06a655bd97207e8d36aca7e76239324ac51eb18e4601e62f64901d66b3b376fe"
+    },
+    {
+      "symbol": "ARBUSDT",
+      "rows": 31425,
+      "first": 1679583600000,
+      "last": 1792710000000,
+      "sha256": "dd417846d90d0fffb638349672ddd058670e1973f5a61cfc1118caa37c6ec2c0"
+    },
+    {
+      "symbol": "ARCUSDT",
+      "rows": 15443,
+      "first": 1737118800000,
+      "last": 1792710000000,
+      "sha256": "a60ae025d4eafbefc5829f160ae6dc0b9c6c2dfecfc9153bfdedbdf2b299c0c8"
+    },
+    {
+      "symbol": "ARIAUSDT",
+      "rows": 9949,
+      "first": 1756897200000,
+      "last": 1792710000000,
+      "sha256": "e43fc559d2128cca377e69f17fbabb09d1f11379357021e8e62deeb3e3313a3b"
+    },
+    {
+      "symbol": "ARKMUSDT",
+      "rows": 28390,
+      "first": 1690509600000,
+      "last": 1792710000000,
+      "sha256": "172dbd91229cc93e7d2d16dc1a8fd0ae6d55f24b5a3d7d2d05e8eff5f47375fe"
+    },
+    {
+      "symbol": "ARKUSDT",
+      "rows": 27104,
+      "first": 1695139200000,
+      "last": 1792710000000,
+      "sha256": "fca6c4b7723cd226b041e9b2d4098101c2ed8e99136dbd2222b25b0c2a8c2d39"
+    },
+    {
+      "symbol": "ARPAUSDT",
+      "rows": 43917,
+      "first": 1634612400000,
+      "last": 1792710000000,
+      "sha256": "9c95fed2402875c300ac7cf1dd7ecbe233557b588846dfe4076a6487968b529f"
+    },
+    {
+      "symbol": "ARUSDT",
+      "rows": 44421,
+      "first": 1632798000000,
+      "last": 1792710000000,
+      "sha256": "7ddda58d06bf98ff6cde4b7201ef397f76efca605350b74695f7e2272d41b5d0"
+    },
+    {
+      "symbol": "ARXUSDT",
+      "rows": 2924,
+      "first": 1782187200000,
+      "last": 1792710000000,
+      "sha256": "2efe19813ca5a6de6affda596065163d184b2e91a636cd38c49e414ba26dcaaa"
+    },
+    {
+      "symbol": "ASRUSDT",
+      "rows": 12831,
+      "first": 1746522000000,
+      "last": 1792710000000,
+      "sha256": "eb6f15aea61489e22aa4406779875299f9055436e06e46d05aa4be5055eabf6f"
+    },
+    {
+      "symbol": "ASTERUSDT",
+      "rows": 9564,
+      "first": 1758283200000,
+      "last": 1792710000000,
+      "sha256": "5bb6abceff3d8d75f445f8d109a018d7998e0c4b5087e455e3c24734171b5f6b"
+    },
+    {
+      "symbol": "ASTRUSDT",
+      "rows": 32326,
+      "first": 1676340000000,
+      "last": 1792710000000,
+      "sha256": "38365ed25b0dbad9976165ee587c5d8a0c6e7d4d8583c72cdc152d497654e388"
+    },
+    {
+      "symbol": "ATAUSDT",
+      "rows": 45093,
+      "first": 1630378800000,
+      "last": 1792710000000,
+      "sha256": "5aab49860f465f9b15a356fb4eb29f4e1d73d2816baa7c233ec2b88ae623b068"
+    },
+    {
+      "symbol": "ATHUSDT",
+      "rows": 13641,
+      "first": 1743606000000,
+      "last": 1792710000000,
+      "sha256": "605607a7b1f5f79e8b6cff87b95814ebdf65fee7287544aaccccd1374faa115d"
+    },
+    {
+      "symbol": "ATOMUSDT",
+      "rows": 58788,
+      "first": 1581076800000,
+      "last": 1792710000000,
+      "sha256": "786fa853bf85a64c91280cddae2072a2b1eaf6211ec25fc825c41f39d5ec0622"
+    },
+    {
+      "symbol": "ATUSDT",
+      "rows": 8605,
+      "first": 1761735600000,
+      "last": 1792710000000,
+      "sha256": "77e18411020edc3df5ef6367f5c87c17bf441702af55daed3cd98ae1396606d6"
+    },
+    {
+      "symbol": "AUCTIONUSDT",
+      "rows": 25019,
+      "first": 1702645200000,
+      "last": 1792710000000,
+      "sha256": "17e6fcdc444a02084f5186a599802b205a4797776babfc3ca3a0186659e7aed4"
+    },
+    {
+      "symbol": "AUDIOUSDT",
+      "rows": 24317,
+      "first": 1629342000000,
+      "last": 1716879600000,
+      "sha256": "332b0025ab526aad1822489ecc83e1dc41d8ecdc9f569b99a1fba4091789190e",
+      "gaps": 0
+    },
+    {
+      "symbol": "AUSDT",
+      "rows": 12304,
+      "first": 1748419200000,
+      "last": 1792710000000,
+      "sha256": "8cb647b22b085d09ba6f64fbe432c79fcb5d009928a41a8304f0cc37ed1f3418"
+    },
+    {
+      "symbol": "AVAAIUSDT",
+      "rows": 15443,
+      "first": 1737118800000,
+      "last": 1792710000000,
+      "sha256": "1a45b8a9bd2e96cafe4d733b12c96414f25c459cb65293e84e84c9b56c9a8ed6"
+    },
+    {
+      "symbol": "AVAUSDT",
+      "rows": 16283,
+      "first": 1734094800000,
+      "last": 1792710000000,
+      "sha256": "53a102a5e15132bd5d371a84c290c56a2decda43a38c12b2ef3e76a2b457d1cd"
+    },
+    {
+      "symbol": "AVAXUSDT",
+      "rows": 53297,
+      "first": 1600844400000,
+      "last": 1792710000000,
+      "sha256": "ee2a38b7954ef8d173fda33775c4754667539c50c5ef00618738cc3cf0da9af6"
+    },
+    {
+      "symbol": "AVNTUSDT",
+      "rows": 9801,
+      "first": 1757430000000,
+      "last": 1792710000000,
+      "sha256": "d2d4e900c7d1fbf4227a9c88f4b68a9c9b33b135cc34d5ce66895bf00c10c2dd"
+    },
+    {
+      "symbol": "AWEUSDT",
+      "rows": 12472,
+      "first": 1747814400000,
+      "last": 1792710000000,
+      "sha256": "5785ebf3a71e8433d4be7e35293fb766f589cbdedb27da568e6d1d2606bd1bf9"
+    },
+    {
+      "symbol": "AXLUSDT",
+      "rows": 23169,
+      "first": 1709305200000,
+      "last": 1792710000000,
+      "sha256": "7f7bb7f2c30109276a9c42e9461b72979e1d2b9141cc9d567077427a699f7e0a"
+    },
+    {
+      "symbol": "AXSUSDT",
+      "rows": 51905,
+      "first": 1605855600000,
+      "last": 1792710000000,
+      "sha256": "cafef6c6386d8870aa56d6363238e706527af1f72b49e0480ee6382c5b4a7238"
+    },
+    {
+      "symbol": "AZTECUSDT",
+      "rows": 6092,
+      "first": 1770782400000,
+      "last": 1792710000000,
+      "sha256": "e99d8e3812ef13edd2cdfc636bdee6999981d6f3fe7a2f37ea1696e675a587b5"
+    },
+    {
+      "symbol": "B2USDT",
+      "rows": 12827,
+      "first": 1746536400000,
+      "last": 1792710000000,
+      "sha256": "f6f58789d1b250eb47a63a7d8e10ab6848992c62dd3c1581809f1d050d1f692d"
+    },
+    {
+      "symbol": "B3USDT",
+      "rows": 14797,
+      "first": 1739444400000,
+      "last": 1792710000000,
+      "sha256": "22eef3fd1baa6727212f629b1d3932f4b4c0d4e394b8991f850900c6700358a0"
+    },
+    {
+      "symbol": "BABYUSDT",
+      "rows": 13571,
+      "first": 1743858000000,
+      "last": 1792710000000,
+      "sha256": "2e8667ee41b1c8baa2d931f720a2d83b8a1e528d0b340764370b610181746975"
+    },
+    {
+      "symbol": "BADGERUSDT",
+      "rows": 25884,
+      "first": 1699531200000,
+      "last": 1792710000000,
+      "sha256": "d4d7b0e6642600db8680f2dfed6b7a9ec53502355d04f43861faba0137b7165a"
+    },
+    {
+      "symbol": "BAKEUSDT",
+      "rows": 47585,
+      "first": 1621407600000,
+      "last": 1792710000000,
+      "sha256": "10516ca6314c3dfd4a9abce5589f7107c99b0b29c061900263ccefbcbf4eefca"
+    },
+    {
+      "symbol": "BALUSDT",
+      "rows": 53825,
+      "first": 1598943600000,
+      "last": 1792710000000,
+      "sha256": "febf230b8f058a19d44b04cca6904c621a291ff01ed418b29f4c8b1a609e027b"
+    },
+    {
+      "symbol": "BANANAS31USDT",
+      "rows": 13911,
+      "first": 1742634000000,
+      "last": 1792710000000,
+      "sha256": "acb1bf65f99e15711df709b25895bfbb34beab038dba207e777d604b81634375"
+    },
+    {
+      "symbol": "BANANAUSDT",
+      "rows": 19174,
+      "first": 1723687200000,
+      "last": 1792710000000,
+      "sha256": "a61d23b1dc707270ecf387d219af6e3d30d72d4828c72459fee35787c39354c7"
+    },
+    {
+      "symbol": "BANDUSDT",
+      "rows": 54641,
+      "first": 1596006000000,
+      "last": 1792710000000,
+      "sha256": "9eb2db56513b15bf59e1927785b9ab2e2b559a3e7454c17222d466d6714ca428"
+    },
+    {
+      "symbol": "BANKUSDT",
+      "rows": 13254,
+      "first": 1744999200000,
+      "last": 1792710000000,
+      "sha256": "38b2802d2e2e9a73d97fdca51874ec55f857be414cebd8951e94f18737ce90e0"
+    },
+    {
+      "symbol": "BANUSDT",
+      "rows": 16885,
+      "first": 1731927600000,
+      "last": 1792710000000,
+      "sha256": "37e11b213dcb1e93604085c865212a9840f9ca496203cd235b53028a512b048f"
+    },
+    {
+      "symbol": "BARDUSDT",
+      "rows": 9589,
+      "first": 1758193200000,
+      "last": 1792710000000,
+      "sha256": "90f941f426b16153d2fb5e5022bddf30aea9f6a840ffa33e63586d288341f060"
+    },
+    {
+      "symbol": "BASEDUSDT",
+      "rows": 4958,
+      "first": 1774864800000,
+      "last": 1792710000000,
+      "sha256": "460c12a96b36f476a18441fa2ac1a8d177afa62f653427ddd3998aaa21daff45"
+    },
+    {
+      "symbol": "BASUSDT",
+      "rows": 10139,
+      "first": 1756213200000,
+      "last": 1792710000000,
+      "sha256": "34ee09f22ad40d95a3146865400bb9794e5158aa1791bcb821c5b7510c4ff37e"
+    },
+    {
+      "symbol": "BATUSDT",
+      "rows": 58648,
+      "first": 1581580800000,
+      "last": 1792710000000,
+      "sha256": "9ce05760b577f1fd89d63a54f63fc329d92046ab8c10f93d5ef3dc73a7e33251"
+    },
+    {
+      "symbol": "BBUSDT",
+      "rows": 21420,
+      "first": 1715601600000,
+      "last": 1792710000000,
+      "sha256": "66ad79d147396d7f9a92e85cb1264966372235d80d536abafd15b4d0ca1013a7"
+    },
+    {
+      "symbol": "BCHUSDT",
+      "rows": 59688,
+      "first": 1577836800000,
+      "last": 1792710000000,
+      "sha256": "a19dc69affe968bbff788f99ce825327541eb910b91e668e3618cf9d96e5aa2a"
+    },
+    {
+      "symbol": "BDXNUSDT",
+      "rows": 7238,
+      "first": 1748944800000,
+      "last": 1774998000000,
+      "sha256": "787b990f49476acc36047c9656cc631e9d4208fe02da8ed17fd9f5a5f8590021",
+      "gaps": 0
+    },
+    {
+      "symbol": "BEAMXUSDT",
+      "rows": 25691,
+      "first": 1700226000000,
+      "last": 1792710000000,
+      "sha256": "fdc6e091cb918e1496c36cf94a40907b86d46c4a40958b35f15f1eb2fcbe5944"
+    },
+    {
+      "symbol": "BEATUSDT",
+      "rows": 8268,
+      "first": 1762948800000,
+      "last": 1792710000000,
+      "sha256": "e1f30f823d9dba5c536e4503d92b60337dbe934a51fd6b2940d5e09123e17da8"
+    },
+    {
+      "symbol": "BELUSDT",
+      "rows": 51953,
+      "first": 1605682800000,
+      "last": 1792710000000,
+      "sha256": "f6ad1727f0e44d81c463924a947f5002f5cda23eb7cc309f2186507b7cbcc6b4"
+    },
+    {
+      "symbol": "BERAUSDT",
+      "rows": 14961,
+      "first": 1738854000000,
+      "last": 1792710000000,
+      "sha256": "83b1e1778c3f7dc05976ec31c6e78b2ed6034453432e466a68b3ce9d0a445ec7"
+    },
+    {
+      "symbol": "BICOUSDT",
+      "rows": 26892,
+      "first": 1695902400000,
+      "last": 1792710000000,
+      "sha256": "ab34ca20acebe330c27619316cdc777f4d60166089dd4e09500a38bde6b6ec78"
+    },
+    {
+      "symbol": "BIDUSDT",
+      "rows": 13959,
+      "first": 1742461200000,
+      "last": 1792710000000,
+      "sha256": "87ed37cf063ecbeeef96443c5a43b731b8f8320bf8466c90be4c2fc32796adca"
+    },
+    {
+      "symbol": "BIGTIMEUSDT",
+      "rows": 26554,
+      "first": 1697119200000,
+      "last": 1792710000000,
+      "sha256": "99ccdf3b04d6b9d64b4df443e3defde6caed6762c2f6df7b67d37e6eb8204231"
+    },
+    {
+      "symbol": "BILLUSDT",
+      "rows": 4048,
+      "first": 1778140800000,
+      "last": 1792710000000,
+      "sha256": "0e4ef8d449c59319e04ea36e29cabbadf43605e5bb3f6d437a79aa6b80f1a9bb"
+    },
+    {
+      "symbol": "BIOUSDT",
+      "rows": 15780,
+      "first": 1735905600000,
+      "last": 1792710000000,
+      "sha256": "c014e3b494a16e5a699ebc50134a975d855850c66122bab0b52156ae5f8b33ee"
+    },
+    {
+      "symbol": "BIRBUSDT",
+      "rows": 6403,
+      "first": 1769662800000,
+      "last": 1792710000000,
+      "sha256": "68347050202e58d6d4ab33836f7c70a24085ae8d34fb7bd94f86b811320c57f6"
+    },
+    {
+      "symbol": "BLESSUSDT",
+      "rows": 9471,
+      "first": 1758618000000,
+      "last": 1792710000000,
+      "sha256": "ac03cde8e1498152cc8e4098b0ff6773c1005399c27d58217b7411502d0b3574"
+    },
+    {
+      "symbol": "BLUAIUSDT",
+      "rows": 8797,
+      "first": 1761044400000,
+      "last": 1792710000000,
+      "sha256": "464fe2a52943e663e79e61f9fe9c8d108c9d95ce77ddfa789631243eff105fa7"
+    },
+    {
+      "symbol": "BLURUSDT",
+      "rows": 30564,
+      "first": 1682683200000,
+      "last": 1792710000000,
+      "sha256": "e18ec26f694600e059017043ac03cc4b112b6ecf4a5a5e6224d00cc2320e64e7"
+    },
+    {
+      "symbol": "BLZUSDT",
+      "rows": 53441,
+      "first": 1600326000000,
+      "last": 1792710000000,
+      "sha256": "edc5a19dbadf712e369ac0e3dcb6283207d5eb36506e69080b7c0f5dc19dff06"
+    },
+    {
+      "symbol": "BMTUSDT",
+      "rows": 14027,
+      "first": 1742216400000,
+      "last": 1792710000000,
+      "sha256": "852ddd0c06fca454401f4aac10436928d1848952360800c5470bcbf15d38bb39"
+    },
+    {
+      "symbol": "BNBUSDT",
+      "rows": 58720,
+      "first": 1581321600000,
+      "last": 1792710000000,
+      "sha256": "6ed5556750a8f4a58a682d6f84794d9f2f682744dd26bdbe9b78ba7ccdc59353"
+    },
+    {
+      "symbol": "BNTUSDT",
+      "rows": 28068,
+      "first": 1691668800000,
+      "last": 1792710000000,
+      "sha256": "197b8cf0a128a9396d022875e0c41e45f7cf2f051aee0a090e096738c6a54528"
+    },
+    {
+      "symbol": "BNXUSDT",
+      "rows": 39343,
+      "first": 1648782000000,
+      "last": 1792710000000,
+      "sha256": "18c4d90182249a3da782258d9e4bb98660e7d12882907fea251c1cb63034b5b4"
+    },
+    {
+      "symbol": "BOBUSDT",
+      "rows": 8054,
+      "first": 1763719200000,
+      "last": 1792710000000,
+      "sha256": "b1f6a58e0f75c48744f3569ff57b0ba56a36e608d0374408207ef38207fbfc50"
+    },
+    {
+      "symbol": "BOMEUSDT",
+      "rows": 22812,
+      "first": 1710590400000,
+      "last": 1792710000000,
+      "sha256": "7bc76e19dbe477487c24c5c0fee46ac9bbf52c404d223afb62200729756286da"
+    },
+    {
+      "symbol": "BONDUSDT",
+      "rows": 26482,
+      "first": 1697378400000,
+      "last": 1792710000000,
+      "sha256": "be151b1d709031ef42a6486e075e0504b27e1297d5cc8b50e6d73e6bfa65ab5e"
+    },
+    {
+      "symbol": "BRETTUSDT",
+      "rows": 19046,
+      "first": 1724148000000,
+      "last": 1792710000000,
+      "sha256": "5264be52392350082f4f85999cf17fffe8ce11095d2a68ee92f9c1508faf46ae"
+    },
+    {
+      "symbol": "BREVUSDT",
+      "rows": 7118,
+      "first": 1767088800000,
+      "last": 1792710000000,
+      "sha256": "4fbaf28d1c49bfb0a159ebfd0bbd01e6d6c0551a4f9d965af57b56c1376d5c24"
+    },
+    {
+      "symbol": "BROCCOLI714USDT",
+      "rows": 13935,
+      "first": 1742547600000,
+      "last": 1792710000000,
+      "sha256": "d4d8f0fcffb2dd2982c11fd2fd08be2a503a0f4e635bbe26ca52c0f7a64a9e64"
+    },
+    {
+      "symbol": "BROCCOLIF3BUSDT",
+      "rows": 13935,
+      "first": 1742547600000,
+      "last": 1792710000000,
+      "sha256": "570bb6cb099880dc0bcdc07710d39c7fcb2f137e8652094aa38d34f57720ef01"
+    },
+    {
+      "symbol": "BRUSDT",
+      "rows": 13932,
+      "first": 1742558400000,
+      "last": 1792710000000,
+      "sha256": "19927287fe462bd9cacb1a288eea0615c40b5175ed265bd5a8b629b44c271ebe"
+    },
+    {
+      "symbol": "BSBUSDT",
+      "rows": 5077,
+      "first": 1774436400000,
+      "last": 1792710000000,
+      "sha256": "8a7627035765405f95651cb01e88e945d18b2601c7f3b9c5b326cf07cf00a2c2"
+    },
+    {
+      "symbol": "BSVUSDT",
+      "rows": 26364,
+      "first": 1697803200000,
+      "last": 1792710000000,
+      "sha256": "91aeee848ae7d387dba8e286201c85751bc6c9ad6db5e5a99a8d155b9cd49dc2"
+    },
+    {
+      "symbol": "BSWUSDT",
+      "rows": 18666,
+      "first": 1725516000000,
+      "last": 1792710000000,
+      "sha256": "d03c9902aaccbe13442e00d5f4b97ad5166a4a443f331dc40b71fcd6190c598b"
+    },
+    {
+      "symbol": "BTCSTUSDT",
+      "rows": 46673,
+      "first": 1614841200000,
+      "last": 1782860400000,
+      "sha256": "1c009cc85a14b6b822da43a0e1fa71c9badd82cffb187a373b4abc7bcb63adee",
+      "gaps": 0
+    },
+    {
+      "symbol": "BTCUSDT",
+      "rows": 59688,
+      "first": 1577836800000,
+      "last": 1792710000000,
+      "sha256": "3bc89468a05a1de6079ce764500194f10a9063e7687776e8c70c8b3b2022d04d"
+    },
+    {
+      "symbol": "BTRUSDT",
+      "rows": 10118,
+      "first": 1756288800000,
+      "last": 1792710000000,
+      "sha256": "8b8971134460e98953325e9962e83cf654bd291a2282950318d2298059f132e1"
+    },
+    {
+      "symbol": "BTSUSDT",
+      "rows": 29089,
+      "first": 1612162800000,
+      "last": 1716879600000,
+      "sha256": "e78d6290d747c8c42c2e8a0c2754758d830a792efd9cca3282b3cdfd697ca3f7",
+      "gaps": 0
+    },
+    {
+      "symbol": "BTTUSDT",
+      "rows": 7085,
+      "first": 1617692400000,
+      "last": 1643194800000,
+      "sha256": "6cff221209dd2ec8e67e099a214f8d9fbbcccffb9d35c0b2870fdcadf1a3def0",
+      "gaps": 0
+    },
+    {
+      "symbol": "BTWUSDT",
+      "rows": 3370,
+      "first": 1780581600000,
+      "last": 1792710000000,
+      "sha256": "4c6906d7d80208db8bb54d9e093c31f370e531def84aed800c5d7c28fb7ee586"
+    },
+    {
+      "symbol": "BULLAUSDT",
+      "rows": 11415,
+      "first": 1751619600000,
+      "last": 1792710000000,
+      "sha256": "52241bb8f56e49ace0c93d2ba2ea2b99b95b1934575abe9ee420e50d85d0f2f3"
+    },
+    {
+      "symbol": "BUSDT",
+      "rows": 12440,
+      "first": 1747929600000,
+      "last": 1792710000000,
+      "sha256": "d02124cf3367a522c621071be3436ac44cccb005fd5548dfc8fa92375d24c96a"
+    },
+    {
+      "symbol": "BZRXUSDT",
+      "rows": 11280,
+      "first": 1599274800000,
+      "last": 1639879200000,
+      "sha256": "6b4507dd0263e90c764ffc01c9dca56b8db8dd1deb3b999b2e3bc0bed174eabd",
+      "gaps": 0
+    },
+    {
+      "symbol": "C98USDT",
+      "rows": 45261,
+      "first": 1629774000000,
+      "last": 1792710000000,
+      "sha256": "217cebef6b1d316e3af60f72ca72140a94c39bdc27ab93ecf49bf22554622a6b"
+    },
+    {
+      "symbol": "CAKEUSDT",
+      "rows": 26052,
+      "first": 1698926400000,
+      "last": 1792710000000,
+      "sha256": "7f8cf1b3a63095e1474548671033bd16e5ba3488e56c6aae50a1fe4ac59b54df"
+    },
+    {
+      "symbol": "CAPUSDT",
+      "rows": 2821,
+      "first": 1782558000000,
+      "last": 1792710000000,
+      "sha256": "06e67df9401e5138e1f53a0323e5c624820f0727e24bf0417bcda388d6bf87b2"
+    },
+    {
+      "symbol": "CARVUSDT",
+      "rows": 10592,
+      "first": 1754582400000,
+      "last": 1792710000000,
+      "sha256": "00d2afde8b8c38e1f2388cfa47ecf1a84374222026fe7e3ab2f886ca3087ba2f"
+    },
+    {
+      "symbol": "CATIUSDT",
+      "rows": 18301,
+      "first": 1726830000000,
+      "last": 1792710000000,
+      "sha256": "2063b0e93420d9fc3d1935f23cde05f251088ff647cba504c8e7625754dc1a7d"
+    },
+    {
+      "symbol": "CCUSDT",
+      "rows": 8556,
+      "first": 1761912000000,
+      "last": 1792710000000,
+      "sha256": "1ca56cec6523af652f02330990a5ec3a7c34d442db941029cdc50ac9210dce74"
+    },
+    {
+      "symbol": "CELOUSDT",
+      "rows": 44445,
+      "first": 1632711600000,
+      "last": 1792710000000,
+      "sha256": "2469cc33e1c210d01d4e6d71aecdfc0d26ce723fb2c365a0ba2c9a928d703f0f"
+    },
+    {
+      "symbol": "CELRUSDT",
+      "rows": 48809,
+      "first": 1617001200000,
+      "last": 1792710000000,
+      "sha256": "47b238e8a0e7df189dbd747351adec3fc3899cf256a9089cf769fe81e1bf3ce2"
+    },
+    {
+      "symbol": "CETUSUSDT",
+      "rows": 17170,
+      "first": 1730901600000,
+      "last": 1792710000000,
+      "sha256": "dc40d85a6dec2990ef93c7f18f51050f6dcec38339791b972504464657236e80"
+    },
+    {
+      "symbol": "CFGUSDT",
+      "rows": 5291,
+      "first": 1773666000000,
+      "last": 1792710000000,
+      "sha256": "82498e8efaa3389e636fa9ca17c5c47fb5ed0bd34102dccc5ab3fda545640d06"
+    },
+    {
+      "symbol": "CFXUSDT",
+      "rows": 32170,
+      "first": 1676901600000,
+      "last": 1792710000000,
+      "sha256": "7997d16e72c00e26436825cbf116ba8d734715869061c886a3b6fa6f58fd79c1"
+    },
+    {
+      "symbol": "CGPTUSDT",
+      "rows": 16109,
+      "first": 1734721200000,
+      "last": 1792710000000,
+      "sha256": "93afc485087d131cc814dac21027263dc3d426b9df335d9f2c207ad862c7bccb"
+    },
+    {
+      "symbol": "CHESSUSDT",
+      "rows": 18833,
+      "first": 1724914800000,
+      "last": 1792710000000,
+      "sha256": "8ec75b5ff869f0197ab1b9b0a942bd9edaae947211b314a95bb03bfff890ab80"
+    },
+    {
+      "symbol": "CHILLGUYUSDT",
+      "rows": 16666,
+      "first": 1732716000000,
+      "last": 1792710000000,
+      "sha256": "6a0adc478059a2af54638062c5be008afa75a511d659f57f753ba5665bae90f3"
+    },
+    {
+      "symbol": "CHIPUSDT",
+      "rows": 4553,
+      "first": 1776322800000,
+      "last": 1792710000000,
+      "sha256": "bab2f4f13c0dcd1c15b30bcde6899932a7359d73ee3dab77e7265a6119dde4ec"
+    },
+    {
+      "symbol": "CHRUSDT",
+      "rows": 49217,
+      "first": 1615532400000,
+      "last": 1792710000000,
+      "sha256": "1b249289fd8bd574d7302f6ed502c72e68d5bd24b9b203690b87870e0f94b3fc"
+    },
+    {
+      "symbol": "CHZUSDT",
+      "rows": 50417,
+      "first": 1611212400000,
+      "last": 1792710000000,
+      "sha256": "2c0ee244f384d7c9972863c7f5fa67e511105ef0f58e78c06ac50a0334c99f7a"
+    },
+    {
+      "symbol": "CKBUSDT",
+      "rows": 31980,
+      "first": 1677585600000,
+      "last": 1792710000000,
+      "sha256": "35caa70db49013db67784b2ea15d832de8ab08fe55a4f71debbebf13ca1c381f"
+    },
+    {
+      "symbol": "CLANKERUSDT",
+      "rows": 8268,
+      "first": 1762948800000,
+      "last": 1792710000000,
+      "sha256": "3c667dce9e6f001675e5cecb72645dd6d8848f61857ef943fa813815d849a126"
+    },
+    {
+      "symbol": "CLOUSDT",
+      "rows": 8965,
+      "first": 1760439600000,
+      "last": 1792710000000,
+      "sha256": "cb2159a9d1266e6332fc8f0ea761e2bf2346f04a8ef149c0f01022d27ae153aa"
+    },
+    {
+      "symbol": "COAIUSDT",
+      "rows": 9425,
+      "first": 1758783600000,
+      "last": 1792710000000,
+      "sha256": "c13a74c6d0455bdb761eaf3c86c9551c3d33794486b979e26661f99d1c4948f4"
+    },
+    {
+      "symbol": "COCOSUSDT",
+      "rows": 11082,
+      "first": 1676988000000,
+      "last": 1716879600000,
+      "sha256": "5c3e54f3313bdab498d471881fac9f6345b7def2fe6b6ede674318edffab7f17",
+      "gaps": 0
+    },
+    {
+      "symbol": "COLLECTUSDT",
+      "rows": 7091,
+      "first": 1767186000000,
+      "last": 1792710000000,
+      "sha256": "fcc379fb6e2e617aaac3a4608c1fb86eb27583297b8dd09143a56e582c413005"
+    },
+    {
+      "symbol": "COMBOUSDT",
+      "rows": 29724,
+      "first": 1685707200000,
+      "last": 1792710000000,
+      "sha256": "49483f1d55a0b2a46667cb3d5d7c17e9e1f47a843cf77628d03049080c813ff3"
+    },
+    {
+      "symbol": "COMMONUSDT",
+      "rows": 8652,
+      "first": 1761566400000,
+      "last": 1792710000000,
+      "sha256": "c30a2eb1412c58c82ac63f85bbf408d22f447c21cec15eed699e0e8877e1b4df"
+    },
+    {
+      "symbol": "COMPUSDT",
+      "rows": 55335,
+      "first": 1593507600000,
+      "last": 1792710000000,
+      "sha256": "72d5894848dd6aad29fea18746615862cade9471f1a4f7af387453e1a4713a22"
+    },
+    {
+      "symbol": "COOKIEUSDT",
+      "rows": 15685,
+      "first": 1736247600000,
+      "last": 1792710000000,
+      "sha256": "ac3f6cfde5518d3cbdf66b99cef919b7fb852d7d268d2915f3016975393c34f5"
+    },
+    {
+      "symbol": "COSUSDT",
+      "rows": 18059,
+      "first": 1727701200000,
+      "last": 1792710000000,
+      "sha256": "e9c049722e06e48e2be76822ae8476da1337013ac8b8fa3e6bc61c5b7e952b97"
+    },
+    {
+      "symbol": "COTIUSDT",
+      "rows": 49265,
+      "first": 1615359600000,
+      "last": 1792710000000,
+      "sha256": "83380ed1c38f702c3d1605a056e51ab1da5c0f5255ad7f728e026b60cdc8f807"
+    },
+    {
+      "symbol": "COWUSDT",
+      "rows": 17171,
+      "first": 1730898000000,
+      "last": 1792710000000,
+      "sha256": "1d7be869a097d1744d2341767e13ac65f5ce3ffe4df81177d6b6a1f476375e80"
+    },
+    {
+      "symbol": "CROSSUSDT",
+      "rows": 11270,
+      "first": 1752141600000,
+      "last": 1792710000000,
+      "sha256": "2318638edb52912fb3ca0066dd93ee67493ee91578502a0115c9c5fa9884c071"
+    },
+    {
+      "symbol": "CRVUSDT",
+      "rows": 53825,
+      "first": 1598943600000,
+      "last": 1792710000000,
+      "sha256": "f34e484b404d0ce46847399058607d024e2e90aca7a9d79ab328477b20854cec"
+    },
+    {
+      "symbol": "CTKUSDT",
+      "rows": 51919,
+      "first": 1605769200000,
+      "last": 1792710000000,
+      "sha256": "565d940835c866384679732d12c5bbe7904f4d91f75617110d66e72b43a5439a"
+    },
+    {
+      "symbol": "CTRUSDT",
+      "rows": 3543,
+      "first": 1779958800000,
+      "last": 1792710000000,
+      "sha256": "c4a36eff50b87220911523184374fd33f561468ed1dd14fd8b6b9086d5e7c909"
+    },
+    {
+      "symbol": "CTSIUSDT",
+      "rows": 43749,
+      "first": 1635217200000,
+      "last": 1792710000000,
+      "sha256": "9ca74733ef149db65306337c9b8e879573b0f193290126e9427a2366266e78af"
+    },
+    {
+      "symbol": "CUDISUSDT",
+      "rows": 10285,
+      "first": 1755687600000,
+      "last": 1792710000000,
+      "sha256": "7315e4871142b0e764574ffe1022739ff174f7f67252be5a2d7056de25352396"
+    },
+    {
+      "symbol": "CUSDT",
+      "rows": 11151,
+      "first": 1752570000000,
+      "last": 1792710000000,
+      "sha256": "b2e44e959f191a77a5a9487ca60a387db2a7585def9e552c87e778c551007421"
+    },
+    {
+      "symbol": "CVCUSDT",
+      "rows": 52113,
+      "first": 1605078000000,
+      "last": 1792710000000,
+      "sha256": "b57028aa2bf853351e66ece9e8e075a70fcf21f18f3f817b5059f7651416c4e1"
+    },
+    {
+      "symbol": "CVXUSDT",
+      "rows": 35785,
+      "first": 1663848000000,
+      "last": 1792710000000,
+      "sha256": "29b770fa8eceddfe0f3f8af63a1c89a0bd713a35a053a1a4dc2bf872ecfe59d9"
+    },
+    {
+      "symbol": "CYBERUSDT",
+      "rows": 27804,
+      "first": 1692619200000,
+      "last": 1792710000000,
+      "sha256": "992b60327d734daf3f1760475040f492b8174483c2e1581f755a94ae469ed9af"
+    },
+    {
+      "symbol": "CYSUSDT",
+      "rows": 7549,
+      "first": 1765537200000,
+      "last": 1792710000000,
+      "sha256": "4864e14be2b4072a53524e1bc770be7ff625b4a891b742e0037bf5ac7d645874"
+    },
+    {
+      "symbol": "DAMUSDT",
+      "rows": 10332,
+      "first": 1755518400000,
+      "last": 1792710000000,
+      "sha256": "392e68328093bbe58e73160848eb335e61b635650e9c9486be5530b6972f3006"
+    },
+    {
+      "symbol": "DARUSDT",
+      "rows": 39309,
+      "first": 1651201200000,
+      "last": 1792710000000,
+      "sha256": "df30651487ba3c49f94893c765809050aa887cbabc7999db228bf244f72a14b6"
+    },
+    {
+      "symbol": "DASHUSDT",
+      "rows": 58864,
+      "first": 1580803200000,
+      "last": 1792710000000,
+      "sha256": "92ee2d19b4b99b61179c25b567e49a4912a7f39563cdd41090b9af8c05c6c533"
+    },
+    {
+      "symbol": "DATAIPUSDT",
+      "rows": 2682,
+      "first": 1783058400000,
+      "last": 1792710000000,
+      "sha256": "91b08d291a6323295ac2de3525bcac8096d0f9f112189ea0f18263ec67a1439d"
+    },
+    {
+      "symbol": "DEEPUSDT",
+      "rows": 13168,
+      "first": 1745308800000,
+      "last": 1792710000000,
+      "sha256": "b1864ef68cc4f520f49170bb345009b4a58060b93bc96b6058e613ddcbfa75c5"
+    },
+    {
+      "symbol": "DEGENUSDT",
+      "rows": 16957,
+      "first": 1731668400000,
+      "last": 1792710000000,
+      "sha256": "e5cdb70783fc8dafa06838aaa1e42b0bf4ef4cbc47552572373bbc75b0d2dd61"
+    },
+    {
+      "symbol": "DEGOUSDT",
+      "rows": 16283,
+      "first": 1734094800000,
+      "last": 1792710000000,
+      "sha256": "68aa666b69e224e395d51eb7e23287d6b14106ccac54dd7c0f3687076a339fab"
+    },
+    {
+      "symbol": "DENTUSDT",
+      "rows": 48932,
+      "first": 1616558400000,
+      "last": 1792710000000,
+      "sha256": "f90c84424043d0dc1ee7f20a6caa0bcfe33b54a291adaf98cac741f215d0e0f5"
+    },
+    {
+      "symbol": "DEXEUSDT",
+      "rows": 16021,
+      "first": 1735038000000,
+      "last": 1792710000000,
+      "sha256": "800fe21403bb9e96a38342f19970259a6b5871babb796ecc21ab211a88be147b"
+    },
+    {
+      "symbol": "DFUSDT",
+      "rows": 15877,
+      "first": 1735556400000,
+      "last": 1792710000000,
+      "sha256": "c0b25eeb4846c37a6af453c441fb0341e84172dc24bbc41a28300a6a2d28ca04"
+    },
+    {
+      "symbol": "DGBUSDT",
+      "rows": 48261,
+      "first": 1618974000000,
+      "last": 1792710000000,
+      "sha256": "de4a67ecb6c31803200220e72e54cdf28343b068bb0b49291f4115e2fcadfb61"
+    },
+    {
+      "symbol": "DIAUSDT",
+      "rows": 18012,
+      "first": 1727870400000,
+      "last": 1792710000000,
+      "sha256": "ee00734d6a48022a66e5247d749590dddce17bc6dc67ff91a7aecb649e6f401c"
+    },
+    {
+      "symbol": "DMCUSDT",
+      "rows": 11651,
+      "first": 1750770000000,
+      "last": 1792710000000,
+      "sha256": "18b278f9eb794c5d7cde0c8e6a25e83913c4f8dc297a7c1dfe61aa1ef93db630"
+    },
+    {
+      "symbol": "DODOUSDT",
+      "rows": 11085,
+      "first": 1613739600000,
+      "last": 1653642000000,
+      "sha256": "a025512b45ba3e7c79a395bac4afa78a21732085c9f51138153d88d0df6963c6",
+      "gaps": 0
+    },
+    {
+      "symbol": "DODOXUSDT",
+      "rows": 28116,
+      "first": 1691496000000,
+      "last": 1792710000000,
+      "sha256": "fef928625d01fd248949aa09fb3ac42e51fb33d518367301ce52c9a2fd3b5dc8"
+    },
+    {
+      "symbol": "DOGEUSDT",
+      "rows": 55095,
+      "first": 1594371600000,
+      "last": 1792710000000,
+      "sha256": "2b4cafa5edadf498a693224ccb1edced7aa1f15d0346bee59a453a661fc99949"
+    },
+    {
+      "symbol": "DOGSUSDT",
+      "rows": 18900,
+      "first": 1724673600000,
+      "last": 1792710000000,
+      "sha256": "fa04547235911b95cfa1d6cc2018b7ed78e15049aa516787bab089ef1d1605de"
+    },
+    {
+      "symbol": "DOLOUSDT",
+      "rows": 12957,
+      "first": 1746068400000,
+      "last": 1792710000000,
+      "sha256": "4def5416402d65b693fbd995c81f148e9d75ac15fbeb0954452b4f161e557b8e"
+    },
+    {
+      "symbol": "DOODUSDT",
+      "rows": 12755,
+      "first": 1746795600000,
+      "last": 1792710000000,
+      "sha256": "f3b6bb02fcc6fbfd1ed94745b89afb44e9ecb1a5d7d23d96caafd430808f5385"
+    },
+    {
+      "symbol": "DOSUSDT",
+      "rows": 1737,
+      "first": 1786460400000,
+      "last": 1792710000000,
+      "sha256": "6d850174a7d7e726cf89ce5789ed3d48b445ad6e6d8437899cc8465d0bfcb4ac"
+    },
+    {
+      "symbol": "DOTUSDT",
+      "rows": 54065,
+      "first": 1598079600000,
+      "last": 1792710000000,
+      "sha256": "d436bcbd33ac95fc65385df4650eb61b8fce0eebb8df6c50d43d0ec4c7d9f7f8"
+    },
+    {
+      "symbol": "DRIFTUSDT",
+      "rows": 17121,
+      "first": 1731078000000,
+      "last": 1792710000000,
+      "sha256": "fd5a0dd60ca850250f431fe669714aa1ef658439fb0d4a3944db434bd26d3dbb"
+    },
+    {
+      "symbol": "DUSDT",
+      "rows": 15638,
+      "first": 1736416800000,
+      "last": 1792710000000,
+      "sha256": "8e83289a8b413205de4e01a72cd487c1ee87321cc105a82b6c58f087e41476d4"
+    },
+    {
+      "symbol": "DUSKUSDT",
+      "rows": 41997,
+      "first": 1641524400000,
+      "last": 1792710000000,
+      "sha256": "d4659fde098bdab1e8b815a8d6e83d08d9b5ac269bd59ecb669982c91907c8d1"
+    },
+    {
+      "symbol": "DYDXUSDT",
+      "rows": 44853,
+      "first": 1631242800000,
+      "last": 1792710000000,
+      "sha256": "9f1c1c7b0bb32a412192547589304e959500b4bffb4cdd9b2ff444198b567058"
+    },
+    {
+      "symbol": "DYMUSDT",
+      "rows": 23729,
+      "first": 1707289200000,
+      "last": 1792710000000,
+      "sha256": "f7cb087f034dba1f17cdc2d9366a413b887137cdac3f940984ff8ebed6460a15"
+    },
+    {
+      "symbol": "EDENUSDT",
+      "rows": 9301,
+      "first": 1759230000000,
+      "last": 1792710000000,
+      "sha256": "5c66461d9dd07f53308f3c709842408302102d5c40aab6a71ca68ecf1f376cb5"
+    },
+    {
+      "symbol": "EDGEUSDT",
+      "rows": 5218,
+      "first": 1773928800000,
+      "last": 1792710000000,
+      "sha256": "ea70665d55330a57feb83d8234826ef7eb051e82520aff59a05beacce2e263bc"
+    },
+    {
+      "symbol": "EDUUSDT",
+      "rows": 30516,
+      "first": 1682856000000,
+      "last": 1792710000000,
+      "sha256": "6bd63540479c84e02bc998bf6bf19794a04c64155c192ff04e9900e08511bba8"
+    },
+    {
+      "symbol": "EGLDUSDT",
+      "rows": 53513,
+      "first": 1600066800000,
+      "last": 1792710000000,
+      "sha256": "8036b2cdf27c53c97228fcbe37fded01efe34f551497c3143f3fe7703f423600"
+    },
+    {
+      "symbol": "EIGENUSDT",
+      "rows": 18042,
+      "first": 1727762400000,
+      "last": 1792710000000,
+      "sha256": "6687f723493487f886160ff6936a7fb8e7cd86b2626ce25a103a5a7fce10a076"
+    },
+    {
+      "symbol": "ELSAUSDT",
+      "rows": 6569,
+      "first": 1769065200000,
+      "last": 1792710000000,
+      "sha256": "a90cbe8abddea986c7ed8991a93dd0273526e3afa9bc34e40659637bb12d9d6a"
+    },
+    {
+      "symbol": "ENAUSDT",
+      "rows": 22404,
+      "first": 1712059200000,
+      "last": 1792710000000,
+      "sha256": "0efad5d0da3c33cd05bf40cdf01e25a3a71d9d5a8d2caa96f1299d6a52b24857"
+    },
+    {
+      "symbol": "ENJUSDT",
+      "rows": 53153,
+      "first": 1601362800000,
+      "last": 1792710000000,
+      "sha256": "ac1577250bed9c9c80e9016ccbafb0d45deedc7acdedb82652b2852d29a0a656"
+    },
+    {
+      "symbol": "ENSOUSDT",
+      "rows": 8967,
+      "first": 1760432400000,
+      "last": 1792710000000,
+      "sha256": "286d631e72cf567698c485ecd8b3233ab1512f951e41c5f0910c76a2dc49ddd2"
+    },
+    {
+      "symbol": "ENSUSDT",
+      "rows": 42909,
+      "first": 1638241200000,
+      "last": 1792710000000,
+      "sha256": "b785c9d4962d424b2facb07312d884007bda9e8a6f6ee4abb115084725b434a4"
+    },
+    {
+      "symbol": "EOSUSDT",
+      "rows": 47042,
+      "first": 1578470400000,
+      "last": 1747818000000,
+      "sha256": "4b8cbc7fc5aba5fcf10adec12e14686c98d2a231c0516016bfa682a784aa44bb",
+      "gaps": 0
+    },
+    {
+      "symbol": "EPICUSDT",
+      "rows": 14128,
+      "first": 1741852800000,
+      "last": 1792710000000,
+      "sha256": "14b92e019cdb9e17fd9d5d3b2c124f0bfa327090542a8938a89cb9f17e67bdab"
+    },
+    {
+      "symbol": "EPTUSDT",
+      "rows": 13187,
+      "first": 1745240400000,
+      "last": 1792710000000,
+      "sha256": "c2c38a42cdc6eaee060ed42a69675f373652ed82471f6d4ef99f6b1e4b5a39dc"
+    },
+    {
+      "symbol": "ERAUSDT",
+      "rows": 11097,
+      "first": 1752764400000,
+      "last": 1792710000000,
+      "sha256": "42535606c7ff1a5bcd39e9eebe04255ebc1da2e52568c8fe8edd9e21a5395f0e"
+    },
+    {
+      "symbol": "ESPORTSUSDT",
+      "rows": 10814,
+      "first": 1753783200000,
+      "last": 1792710000000,
+      "sha256": "48eabe62543438257292c7513119e6bf4113cd552909f162f079ff93eaaf3f26"
+    },
+    {
+      "symbol": "ESPUSDT",
+      "rows": 6112,
+      "first": 1770710400000,
+      "last": 1792710000000,
+      "sha256": "dbed06ba5a734869034cfef005f6ceb670f150ad15a598a301de2144fbf20dad"
+    },
+    {
+      "symbol": "ETCUSDT",
+      "rows": 59320,
+      "first": 1579161600000,
+      "last": 1792710000000,
+      "sha256": "c006fa2549bb2483a2867e351b9ef311e28195250371396034aea8b8531becaf"
+    },
+    {
+      "symbol": "ETHFIUSDT",
+      "rows": 22761,
+      "first": 1710774000000,
+      "last": 1792710000000,
+      "sha256": "1f7fd0fe8178a444f7de15b653bbdb33efa8e88c5ed06a7c99eb3d7b2eb2bb0a"
+    },
+    {
+      "symbol": "ETHUSDT",
+      "rows": 59688,
+      "first": 1577836800000,
+      "last": 1792710000000,
+      "sha256": "a026889579f7de04f396328a58a719a63048d8173f7d07a8740b58089b0d41ee"
+    },
+    {
+      "symbol": "ETHWUSDT",
+      "rows": 25428,
+      "first": 1701172800000,
+      "last": 1792710000000,
+      "sha256": "acb84bf2ac21c45884f791cb59efce64100aa73e5929057494a9c9198bc6aa90"
+    },
+    {
+      "symbol": "EULUSDT",
+      "rows": 8986,
+      "first": 1760364000000,
+      "last": 1792710000000,
+      "sha256": "2bb63e0e4fcdb9979d4186adf90c608f6618ec06e48e96e6bb3259cd9e39fa4f"
+    },
+    {
+      "symbol": "EVAAUSDT",
+      "rows": 9230,
+      "first": 1759485600000,
+      "last": 1792710000000,
+      "sha256": "790dbf937e9a9230a21a96dff9ff523ccf60759c065f99256b6995252d1711e3"
+    },
+    {
+      "symbol": "FARTCOINUSDT",
+      "rows": 16110,
+      "first": 1734717600000,
+      "last": 1792710000000,
+      "sha256": "f8a6b8e73b5bd09761c903da02c8103c9c478f7171ff81c3198287141681bdb9"
+    },
+    {
+      "symbol": "FETUSDT",
+      "rows": 32998,
+      "first": 1673920800000,
+      "last": 1792710000000,
+      "sha256": "6769ec555b1e0ac27d086852a4d09d7c4556e9425a4a5196c282c8225bf696a3"
+    },
+    {
+      "symbol": "FFUSDT",
+      "rows": 9323,
+      "first": 1759150800000,
+      "last": 1792710000000,
+      "sha256": "132285e36c86095d63237cf154b96e19f5e65fa3a54e67ad3ba9c200d2bd46e0"
+    },
+    {
+      "symbol": "FHEUSDT",
+      "rows": 13401,
+      "first": 1744470000000,
+      "last": 1792710000000,
+      "sha256": "ba606527af11ef26c8cff128cfff6821392163c56f69ad794e8270100c4a8f10"
+    },
+    {
+      "symbol": "FIDAUSDT",
+      "rows": 18324,
+      "first": 1726747200000,
+      "last": 1792710000000,
+      "sha256": "48da9d4039bcdd71b5f539b00d980e6627c3cce5c59d01fcfe38cb602f287e3c"
+    },
+    {
+      "symbol": "FIGHTUSDT",
+      "rows": 6540,
+      "first": 1769169600000,
+      "last": 1792710000000,
+      "sha256": "0b9cfc2151398898a07e5e2ed48fd109c6d270c008c74dd6523eab80791509de"
+    },
+    {
+      "symbol": "FILUSDT",
+      "rows": 52626,
+      "first": 1602828000000,
+      "last": 1792710000000,
+      "sha256": "0c4bb73758265d7f24366dcb3701d148d6aca80b2170e92abedb4b326bca944c"
+    },
+    {
+      "symbol": "FIOUSDT",
+      "rows": 18301,
+      "first": 1726830000000,
+      "last": 1792710000000,
+      "sha256": "148947faa6d29fc58a2f2937f8d34eeb75a7d476bda17e28027fb5692c3b4e8a"
+    },
+    {
+      "symbol": "FISUSDT",
+      "rows": 13097,
+      "first": 1745564400000,
+      "last": 1792710000000,
+      "sha256": "62972c665c3b4cd2f935c2629a207a1055e1ec96f85e8bad5b7d2c2fd565955c"
+    },
+    {
+      "symbol": "FLMUSDT",
+      "rows": 53033,
+      "first": 1601362800000,
+      "last": 1792710000000,
+      "sha256": "e9ecd87df57c31640054db447de8aa60e70412a3c1a006f5e21c69443bebd24b"
+    },
+    {
+      "symbol": "FLOCKUSDT",
+      "rows": 9810,
+      "first": 1757397600000,
+      "last": 1792710000000,
+      "sha256": "6599816f66d91e6519658f280250c70603e588a218b02ccc647ffb83d89b723c"
+    },
+    {
+      "symbol": "FLOWUSDT",
+      "rows": 41061,
+      "first": 1644462000000,
+      "last": 1792710000000,
+      "sha256": "f7b4077d092acfcff0990691d943be6f3b8902e726ad7475fe3bb26c7da2c5ea"
+    },
+    {
+      "symbol": "FLUIDUSDT",
+      "rows": 9446,
+      "first": 1758708000000,
+      "last": 1792710000000,
+      "sha256": "000f27e04c86dba6bbf331aa0d988eba6bb6917195364dac9b5a65046955b165"
+    },
+    {
+      "symbol": "FLUXUSDT",
+      "rows": 18713,
+      "first": 1725346800000,
+      "last": 1792710000000,
+      "sha256": "343122097bc05da4bf80a535f7e4d8ac5741e3cee248c43182849053e4afaab9"
+    },
+    {
+      "symbol": "FOGOUSDT",
+      "rows": 6850,
+      "first": 1768053600000,
+      "last": 1792710000000,
+      "sha256": "9a3ec5fd497800648f07f939b013d14d40f488cf0314d4f0072936b8e57dcb42"
+    },
+    {
+      "symbol": "FOLKSUSDT",
+      "rows": 8412,
+      "first": 1762430400000,
+      "last": 1792710000000,
+      "sha256": "49f2c9477cdef1c7a8838ac8674c6a015747acde77b02bd1020a9aedf7b66bdb"
+    },
+    {
+      "symbol": "FORMUSDT",
+      "rows": 13984,
+      "first": 1742371200000,
+      "last": 1792710000000,
+      "sha256": "0667a6e5ae1355e6c2d8dc2e23f7f2016fdd74de90a9ab5514d11e9c7c78d5cd"
+    },
+    {
+      "symbol": "FORTHUSDT",
+      "rows": 13504,
+      "first": 1744099200000,
+      "last": 1792710000000,
+      "sha256": "d414661fa275744ebc4de838028c6a8af1ffcc0fa9a7bf98eb77833aa3ab643b"
+    },
+    {
+      "symbol": "FRAXUSDT",
+      "rows": 6736,
+      "first": 1768464000000,
+      "last": 1792710000000,
+      "sha256": "5dd224b4a459c4e64ae61e9bfd1a594e882f90fcba7c73075a7b560988596f1d"
+    },
+    {
+      "symbol": "FRONTUSDT",
+      "rows": 8516,
+      "first": 1695391200000,
+      "last": 1726045200000,
+      "sha256": "2d83b86a0de33b1f9c123e8a7da983f1d8bacc9ebb4f400bf434dec87c32f809",
+      "gaps": 0
+    },
+    {
+      "symbol": "FTMUSDT",
+      "rows": 53153,
+      "first": 1600930800000,
+      "last": 1792710000000,
+      "sha256": "946343681402a08db288f8618b54b19ef325cc4588d5e33c97e1f1875d8e4360"
+    },
+    {
+      "symbol": "FTTUSDT",
+      "rows": 39645,
+      "first": 1649991600000,
+      "last": 1792710000000,
+      "sha256": "9e791d138e2ea24859604dbb19c9441d3ec83e9f825b06543365e8c15865f7fc"
+    },
+    {
+      "symbol": "FUNUSDT",
+      "rows": 13696,
+      "first": 1743408000000,
+      "last": 1792710000000,
+      "sha256": "8b2ceab4e6595b6fa3e10bdfa62a340176dc465932aef4f2269f4b8200b802bc"
+    },
+    {
+      "symbol": "FUSDT",
+      "rows": 11796,
+      "first": 1750248000000,
+      "last": 1792710000000,
+      "sha256": "671330d2b03dff37274415971a36eda955e589c32363f49f11796fb1313928f2"
+    },
+    {
+      "symbol": "FXSUSDT",
+      "rows": 32925,
+      "first": 1674183600000,
+      "last": 1792710000000,
+      "sha256": "c497fd0d191bb2d2a96228e455cb83bb3d12fe604879d6c27936ed90fd6cfd4e"
+    },
+    {
+      "symbol": "GALAUSDT",
+      "rows": 44661,
+      "first": 1631934000000,
+      "last": 1792710000000,
+      "sha256": "6221ce01b19a054f21d7e209a97c4bdc11450a0fa91554222aad2a04530f6996"
+    },
+    {
+      "symbol": "GALUSDT",
+      "rows": 19601,
+      "first": 1651759200000,
+      "last": 1722319200000,
+      "sha256": "e53d15dc31d7f6ffe254f68691c4ded73c1cdef3c5d96110a5b758ffa53b8874",
+      "gaps": 0
+    },
+    {
+      "symbol": "GASUSDT",
+      "rows": 26254,
+      "first": 1698199200000,
+      "last": 1792710000000,
+      "sha256": "c8073fa29ef5f9f42890a1ccdce9d6e39f33f5b7a748317552bd13e87a368c4d"
+    },
+    {
+      "symbol": "GENIUSUSDT",
+      "rows": 4557,
+      "first": 1776308400000,
+      "last": 1792710000000,
+      "sha256": "864a314e40a6179b7114dccdb83f31442a3a299f6ded2b64a36ae43a53ef6ee4"
+    },
+    {
+      "symbol": "GHSTUSDT",
+      "rows": 18227,
+      "first": 1727096400000,
+      "last": 1792710000000,
+      "sha256": "1ee5ae8c32eb78535f53fda84c5217da3506e54065dff4404cf28664a8225e1b"
+    },
+    {
+      "symbol": "GIGGLEUSDT",
+      "rows": 9087,
+      "first": 1760000400000,
+      "last": 1792710000000,
+      "sha256": "8a1d46e6d8838e40de950628268059b5b31df140c01819dbbb2523f608dfcd44"
+    },
+    {
+      "symbol": "GLMRUSDT",
+      "rows": 26951,
+      "first": 1695690000000,
+      "last": 1792710000000,
+      "sha256": "743395897ac4559ce808c33097e703159988befc1d107ebacd1c7877320ac1dd"
+    },
+    {
+      "symbol": "GLMUSDT",
+      "rows": 23366,
+      "first": 1708596000000,
+      "last": 1792710000000,
+      "sha256": "fa4811bf4ff29babf1e9cf950ef1aa71a3a375e9e0c16dca86510e18581fee37"
+    },
+    {
+      "symbol": "GMTUSDT",
+      "rows": 40340,
+      "first": 1647316800000,
+      "last": 1792710000000,
+      "sha256": "801efe94d94a35ddb16bd9c9a86680185e900ff83fcadc86858bdd14d1762730"
+    },
+    {
+      "symbol": "GMXUSDT",
+      "rows": 32242,
+      "first": 1676642400000,
+      "last": 1792710000000,
+      "sha256": "26685db33e01d81e38a72a5979b85ddf347cb4d64192f3b020ca362bd01039e7"
+    },
+    {
+      "symbol": "GOATUSDT",
+      "rows": 17483,
+      "first": 1729774800000,
+      "last": 1792710000000,
+      "sha256": "12307ca31fe44ee54742ed8a481a4c44bf520c85a87fab5de391057a6754272a"
+    },
+    {
+      "symbol": "GPSUSDT",
+      "rows": 14695,
+      "first": 1739811600000,
+      "last": 1792710000000,
+      "sha256": "894af196f000d0a9e1351e644bec21bddedd5e51ccd452dd97fa63f88dcae147"
+    },
+    {
+      "symbol": "GRAMUSDT",
+      "rows": 2704,
+      "first": 1782979200000,
+      "last": 1792710000000,
+      "sha256": "450bb95524b58e8996c2e8c918cafd4cbbeb6e1da29cb41051ad09bb7deb6cec"
+    },
+    {
+      "symbol": "GRASSUSDT",
+      "rows": 17121,
+      "first": 1731078000000,
+      "last": 1792710000000,
+      "sha256": "afc57c8350907cd5e9e6be30cc6862094368be1918957d81a0eb4b51cd0572ce"
+    },
+    {
+      "symbol": "GRIFFAINUSDT",
+      "rows": 15803,
+      "first": 1735822800000,
+      "last": 1792710000000,
+      "sha256": "a9a18590efe3a20f4c5f8a246a6e2d85746f7fcb954ff9faee8b986e1da4819d"
+    },
+    {
+      "symbol": "GRTUSDT",
+      "rows": 51065,
+      "first": 1608361200000,
+      "last": 1792710000000,
+      "sha256": "fbe256e5c9d3f085d33b9a543c35055a58a2992df810400c365b3b797ceda659"
+    },
+    {
+      "symbol": "GRVTUSDT",
+      "rows": 2004,
+      "first": 1785499200000,
+      "last": 1792710000000,
+      "sha256": "8cf41698f8c71e1ec8af06f5ed8646bf10030367f1ff5c7783cd9aeb08ba8556"
+    },
+    {
+      "symbol": "GTCUSDT",
+      "rows": 46917,
+      "first": 1623380400000,
+      "last": 1792710000000,
+      "sha256": "62e3f5c0180673f45a0f122bf345c9624c4ceee7ea71a533b4cf9da213bc2e89"
+    },
+    {
+      "symbol": "GUAUSDT",
+      "rows": 7334,
+      "first": 1766311200000,
+      "last": 1792710000000,
+      "sha256": "a36b0d3911579f209a69003f5a61cfd9980f53da7d58405a0882ec7892fe59d4"
+    },
+    {
+      "symbol": "GUNUSDT",
+      "rows": 13691,
+      "first": 1743426000000,
+      "last": 1792710000000,
+      "sha256": "c264c9bd37a976ad139c10a59d87e18cac1e96862b40abd60851a318bbff93dc"
+    },
+    {
+      "symbol": "GUSDT",
+      "rows": 19164,
+      "first": 1723723200000,
+      "last": 1792710000000,
+      "sha256": "aff9bd9bbe5f02fb4fa0cf7a6f8cc630fb072f586626ccde6ad026f3c26d535b"
+    },
+    {
+      "symbol": "GWEIUSDT",
+      "rows": 6403,
+      "first": 1769662800000,
+      "last": 1792710000000,
+      "sha256": "ee6be1984980d129d7d38ebbd3eeae70d9eebfcfb0a6c7817d4fca6f7792dcf2"
+    },
+    {
+      "symbol": "HAEDALUSDT",
+      "rows": 12957,
+      "first": 1746068400000,
+      "last": 1792710000000,
+      "sha256": "65d770082a2de7c846e035c36c0ac8d5af9114b5dcad1d40d0a960e0b6687483"
+    },
+    {
+      "symbol": "HANAUSDT",
+      "rows": 9397,
+      "first": 1758884400000,
+      "last": 1792710000000,
+      "sha256": "ca1b9c66b29a5a5e6dc5c1f03887fb53b5dac620019d4e89abe74ee8639fa035"
+    },
+    {
+      "symbol": "HBARUSDT",
+      "rows": 48977,
+      "first": 1615964400000,
+      "last": 1792710000000,
+      "sha256": "23d7ef6ab7751e65d9a149b86a234fab455e4fe9558268b93197ed39835a4669"
+    },
+    {
+      "symbol": "HEIUSDT",
+      "rows": 14799,
+      "first": 1739437200000,
+      "last": 1792710000000,
+      "sha256": "abca7c170720ca4527dd674f72d867312643f30d9dba118faf95c8651dfa515f"
+    },
+    {
+      "symbol": "HEMIUSDT",
+      "rows": 10076,
+      "first": 1756440000000,
+      "last": 1792710000000,
+      "sha256": "22651bf56020143607c72cd15e5e5327a4c09983252893274b7773de384ce395"
+    },
+    {
+      "symbol": "HFTUSDT",
+      "rows": 31092,
+      "first": 1680782400000,
+      "last": 1792710000000,
+      "sha256": "ac7d345e85c359531398de92bd0654ccec8e5f3736404a33f59f06a8b668d094"
+    },
+    {
+      "symbol": "HIFIUSDT",
+      "rows": 27178,
+      "first": 1694872800000,
+      "last": 1792710000000,
+      "sha256": "e72ae88fda549834fbc56eb458c2a5be1a12fca0f602b2e4cc4e5356abb731b0"
+    },
+    {
+      "symbol": "HIGHUSDT",
+      "rows": 32494,
+      "first": 1675735200000,
+      "last": 1792710000000,
+      "sha256": "671d766eb89c98ddb532ea45bd2726bc0ee1c51d4f6bee84c8368af8014cf4e6"
+    },
+    {
+      "symbol": "HIPPOUSDT",
+      "rows": 17004,
+      "first": 1731499200000,
+      "last": 1792710000000,
+      "sha256": "32e326bd6b906f9a3fdabc04a450883603963dcb8dff3eaf2bc754a45548420c"
+    },
+    {
+      "symbol": "HIVEUSDT",
+      "rows": 16045,
+      "first": 1734951600000,
+      "last": 1792710000000,
+      "sha256": "45c636336940dbe325fc1b48e0210d6438242e4e07bb29d645bb68ebecc1bdc6"
+    },
+    {
+      "symbol": "HMSTRUSDT",
+      "rows": 18156,
+      "first": 1727352000000,
+      "last": 1792710000000,
+      "sha256": "cfdd07c42c711f644ba1bf0bd2addb50cc170cd84f7907db1cbb33fd6eb87763"
+    },
+    {
+      "symbol": "HNTUSDT",
+      "rows": 32113,
+      "first": 1601276400000,
+      "last": 1716879600000,
+      "sha256": "a5a67baf3c9f636ea7cc78cbe9cf04a54dd394905725d1674bc70e85f26126ee",
+      "gaps": 0
+    },
+    {
+      "symbol": "HOLOUSDT",
+      "rows": 9756,
+      "first": 1757592000000,
+      "last": 1792710000000,
+      "sha256": "95d036546afe909adb50a249361210fe91815adcf0fed5576491749f0e38f7fd"
+    },
+    {
+      "symbol": "HOMEUSDT",
+      "rows": 11989,
+      "first": 1749553200000,
+      "last": 1792710000000,
+      "sha256": "e81df0f33a2dddf33c8fb6a18d3f8eb572fa0ad70ecf7a07992b3f92a4bcd4e4"
+    },
+    {
+      "symbol": "HOOKUSDT",
+      "rows": 32853,
+      "first": 1674442800000,
+      "last": 1792710000000,
+      "sha256": "33df399037dd565636477f5e7ab38f29ee342b12d235a6ab96df13d07322ea7e"
+    },
+    {
+      "symbol": "HOTUSDT",
+      "rows": 48665,
+      "first": 1617087600000,
+      "last": 1792710000000,
+      "sha256": "8b8a09ad351db2cfb8033736032df4ef320d6e017e845c8d88b790defec7156a"
+    },
+    {
+      "symbol": "HUMAUSDT",
+      "rows": 12347,
+      "first": 1748264400000,
+      "last": 1792710000000,
+      "sha256": "acf6a8c8ad46a5863a52146f69add8c8836194b34e04fb4c1d99a0f8eb43cbc8"
+    },
+    {
+      "symbol": "HUSDT",
+      "rows": 11631,
+      "first": 1750842000000,
+      "last": 1792710000000,
+      "sha256": "da4122390c886f0a27283d7dd8ced65df28c3b468e4b422ee3af3eb705e0f9c1"
+    },
+    {
+      "symbol": "HYPERUSDT",
+      "rows": 13163,
+      "first": 1745326800000,
+      "last": 1792710000000,
+      "sha256": "545b1a86e5301847bcd7c8bb8720b667efbd40c142d66955c6d675442cb5443a"
+    },
+    {
+      "symbol": "HYPEUSDT",
+      "rows": 12254,
+      "first": 1748599200000,
+      "last": 1792710000000,
+      "sha256": "f2973f3b9ae0e34f5081bbe93937e81c809a39a3cb7683f3a4d06cd06ae34a1a"
+    },
+    {
+      "symbol": "ICNTUSDT",
+      "rows": 11435,
+      "first": 1751547600000,
+      "last": 1792710000000,
+      "sha256": "e06a2a52304a10aa289cd1e1a9f91ac3bf72166f456749b596cb6875728fa109"
+    },
+    {
+      "symbol": "ICPUSDT",
+      "rows": 47155,
+      "first": 1620702000000,
+      "last": 1792710000000,
+      "sha256": "417e4971e5fb647033f34f756eae3cdabf0ae487d7eccca6f49caf05092741ff"
+    },
+    {
+      "symbol": "ICXUSDT",
+      "rows": 53490,
+      "first": 1600149600000,
+      "last": 1792710000000,
+      "sha256": "97c1e4671c6f3fcdb4dcc48f6896b933d3e5183241fe05593c30f506a1d62b6c"
+    },
+    {
+      "symbol": "IDEXUSDT",
+      "rows": 30444,
+      "first": 1683115200000,
+      "last": 1792710000000,
+      "sha256": "ab840a6fdec3143b56ac86226304c8df03e3495125a71eca0c56a6bd174e34eb"
+    },
+    {
+      "symbol": "IDOLUSDT",
+      "rows": 11415,
+      "first": 1751619600000,
+      "last": 1792710000000,
+      "sha256": "ef5320baba21c6b4f14437f56665f20190c023b47f74984ee23c78ff729051a3"
+    },
+    {
+      "symbol": "IDUSDT",
+      "rows": 31426,
+      "first": 1679580000000,
+      "last": 1792710000000,
+      "sha256": "2893d9263f1f3ddfdc6b24c38971727bd5ed3620582b810cc9caa32b0010a9d5"
+    },
+    {
+      "symbol": "ILVUSDT",
+      "rows": 25856,
+      "first": 1699632000000,
+      "last": 1792710000000,
+      "sha256": "56aaf9f00ba36301264373973d6e070cb3e85f9d4af406664bd6e3de7b95057d"
+    },
+    {
+      "symbol": "IMXUSDT",
+      "rows": 41037,
+      "first": 1644548400000,
+      "last": 1792710000000,
+      "sha256": "f71e3f65e367265a7fda35fbfe6723a4492d36a6ee701eb776f818fa2ff4b2d6"
+    },
+    {
+      "symbol": "INITUSDT",
+      "rows": 13314,
+      "first": 1744783200000,
+      "last": 1792710000000,
+      "sha256": "37a6800dad3cc6b60eacf44f04320a95fc9ab9c521400fa233c3a2dc63e93d5d"
+    },
+    {
+      "symbol": "INJUSDT",
+      "rows": 36670,
+      "first": 1660701600000,
+      "last": 1792710000000,
+      "sha256": "47c3f691f5d959b8d3f276b953b1dadcf7f21eb87dc65e4c55143fa1ec5e09f2"
+    },
+    {
+      "symbol": "INUSDT",
+      "rows": 10598,
+      "first": 1754560800000,
+      "last": 1792710000000,
+      "sha256": "2c37e809e58ce69e01269377a0123518d40858ae226a3575594654430a7b1803"
+    },
+    {
+      "symbol": "INXUSDT",
+      "rows": 6365,
+      "first": 1769799600000,
+      "last": 1792710000000,
+      "sha256": "4db12dc6a0c468f26b63167a09d2d0ad3cb753ab6dd3f1c91a034e48909d8d07"
+    },
+    {
+      "symbol": "IOSTUSDT",
+      "rows": 58456,
+      "first": 1582272000000,
+      "last": 1792710000000,
+      "sha256": "b822ba187ce2ae8b60144f7358eef96fdca0aed54523406b8127fb55c50e8fde"
+    },
+    {
+      "symbol": "IOTAUSDT",
+      "rows": 58552,
+      "first": 1581494400000,
+      "last": 1792710000000,
+      "sha256": "3c8efafc281f326e8f8de4d26962ab932a50919f16b455ae6c11cad80fdd30f5"
+    },
+    {
+      "symbol": "IOTXUSDT",
+      "rows": 45549,
+      "first": 1628737200000,
+      "last": 1792710000000,
+      "sha256": "f94d3795cab83d5ce48c2f31eb5f74f5e951d509dc6d41b3cfc60853e8150a95"
+    },
+    {
+      "symbol": "IOUSDT",
+      "rows": 20722,
+      "first": 1718114400000,
+      "last": 1792710000000,
+      "sha256": "2e5c39799292262a8574d47cd9e4e46a0ee301def7c6c4b870c79c59f53dc94a"
+    },
+    {
+      "symbol": "IPUSDT",
+      "rows": 14791,
+      "first": 1739466000000,
+      "last": 1792710000000,
+      "sha256": "06c1cf78249675ee8dc7025f6e71ea431014e8b1addf652d34292306fc211d6a"
+    },
+    {
+      "symbol": "IRUSDT",
+      "rows": 7334,
+      "first": 1766311200000,
+      "last": 1792710000000,
+      "sha256": "8fa11597c77a9162a41c76963c8701c3e9d8ee0902ac204679b2069a8d92e202"
+    },
+    {
+      "symbol": "IRYSUSDT",
+      "rows": 7928,
+      "first": 1764172800000,
+      "last": 1792710000000,
+      "sha256": "8fbe22f224e5d33c065d22b0544453de6e819aa27407734bec543638ed8cffd8"
+    },
+    {
+      "symbol": "JASMYUSDT",
+      "rows": 39525,
+      "first": 1650423600000,
+      "last": 1792710000000,
+      "sha256": "e86995fe7fe1e998eb62d56ec68ed7278fb854e69910f468fbea7178caa5a1e0"
+    },
+    {
+      "symbol": "JCTUSDT",
+      "rows": 8318,
+      "first": 1762768800000,
+      "last": 1792710000000,
+      "sha256": "05b9c0e983f1758f3013c2f91cc1206d11ff4adcd9a4ee2773199faaf63abcbe"
+    },
+    {
+      "symbol": "JELLYJELLYUSDT",
+      "rows": 13808,
+      "first": 1743004800000,
+      "last": 1792710000000,
+      "sha256": "f1c3678598a9a4a1f4e7ff14ef72b373b748cdb3f44a4fe07b3514e000372dec"
+    },
+    {
+      "symbol": "JOEUSDT",
+      "rows": 31284,
+      "first": 1680091200000,
+      "last": 1792710000000,
+      "sha256": "97e90a6ab77071e15ca8d8d03d19b0c39a484d6a60aafbfef6a1596294a116b2"
+    },
+    {
+      "symbol": "JSTUSDT",
+      "rows": 13023,
+      "first": 1745830800000,
+      "last": 1792710000000,
+      "sha256": "7cc09b516da05c8dc35a1115fa25875cf3c516d3248b78cdd5b91b38225033d2"
+    },
+    {
+      "symbol": "JTOUSDT",
+      "rows": 25190,
+      "first": 1702029600000,
+      "last": 1792710000000,
+      "sha256": "3bd96e37e3361b604401e61915453899904cdc681ab3fe57d7641ffe49163524"
+    },
+    {
+      "symbol": "JUPUSDT",
+      "rows": 23886,
+      "first": 1706724000000,
+      "last": 1792710000000,
+      "sha256": "868708473fd0db418bf0147ad276eab0f949189692d7b263c55daa9968d9db3d"
+    },
+    {
+      "symbol": "KAIAUSDT",
+      "rows": 16498,
+      "first": 1733320800000,
+      "last": 1792710000000,
+      "sha256": "f949729591ede8a3c10b04bd4f607328c80a327446bedaf5c3159f79200adadf"
+    },
+    {
+      "symbol": "KAITOUSDT",
+      "rows": 14627,
+      "first": 1740056400000,
+      "last": 1792710000000,
+      "sha256": "2be1c4986a1d1123318ef4d54e0b32ea9ae00a691008995746951d0347f9a7d0"
+    },
+    {
+      "symbol": "KASUSDT",
+      "rows": 25702,
+      "first": 1700186400000,
+      "last": 1792710000000,
+      "sha256": "c446631a3b4511a28f5142adb229b33e868fd0082c0741418a4cbb36c7fa2c80"
+    },
+    {
+      "symbol": "KATUSDT",
+      "rows": 5635,
+      "first": 1772427600000,
+      "last": 1792710000000,
+      "sha256": "05d820e8ecec8a35506eaca157f8442dc6f99b55893cf90d35465c09e41190b4"
+    },
+    {
+      "symbol": "KAVAUSDT",
+      "rows": 54665,
+      "first": 1595919600000,
+      "last": 1792710000000,
+      "sha256": "1f96f38e20b37cfd05608de03ebba1f6a9af1f825a27b4110c9bd0c3bdda1425"
+    },
+    {
+      "symbol": "KDAUSDT",
+      "rows": 18347,
+      "first": 1726664400000,
+      "last": 1792710000000,
+      "sha256": "e3c9a1a3ee443e81922243df128edfe07996327bb462e2903e0f5bdf56dbe6ff"
+    },
+    {
+      "symbol": "KEEPUSDT",
+      "rows": 5712,
+      "first": 1624330800000,
+      "last": 1644890400000,
+      "sha256": "17dc30b5cc26221d0be054632b90517d0db7b34f65ff22cc3869409d9606f491",
+      "gaps": 0
+    },
+    {
+      "symbol": "KERNELUSDT",
+      "rows": 13356,
+      "first": 1744632000000,
+      "last": 1792710000000,
+      "sha256": "941f9a4d88b467fbf0e3f6736951a4aa75cf60a3a3eb6fa456bf0607d914824b"
+    },
+    {
+      "symbol": "KEYUSDT",
+      "rows": 29940,
+      "first": 1684929600000,
+      "last": 1792710000000,
+      "sha256": "32f5c330af09d89a526a056f8e7ab763b2d5285009267f724de5dc3bf5bec411"
+    },
+    {
+      "symbol": "KGENUSDT",
+      "rows": 9130,
+      "first": 1759845600000,
+      "last": 1792710000000,
+      "sha256": "c4cbab88964e12c039c3294365a34bc52e7a6ad564ef978900cea0890343b81b"
+    },
+    {
+      "symbol": "KITEUSDT",
+      "rows": 8606,
+      "first": 1761732000000,
+      "last": 1792710000000,
+      "sha256": "5c291fc0e3bcc7fbf04aee7c86bc5c186206e5f9c5ac5e6d98cff0a2100fbbbe"
+    },
+    {
+      "symbol": "KLAYUSDT",
+      "rows": 44085,
+      "first": 1634007600000,
+      "last": 1792710000000,
+      "sha256": "7d0bc1ae1033e9a41cdda689e7a8f39e0e159ca0a84d53a939eed84a1ae27988"
+    },
+    {
+      "symbol": "KMNOUSDT",
+      "rows": 16109,
+      "first": 1734721200000,
+      "last": 1792710000000,
+      "sha256": "e0339ce119806b763f24235369a1cc70b70844cc3be0b5e7f11795d60793d7b3"
+    },
+    {
+      "symbol": "KNCUSDT",
+      "rows": 55408,
+      "first": 1592812800000,
+      "last": 1792710000000,
+      "sha256": "d9892180e4cf4c2fb20fffc062565cc03728cc9e2962d4ee95e0ffbb7e9227fe"
+    },
+    {
+      "symbol": "KOMAUSDT",
+      "rows": 16356,
+      "first": 1733832000000,
+      "last": 1792710000000,
+      "sha256": "843563a39bd1363eb305d80557d73cc35f0fe98c793d08543f0016dfc6b0421d"
+    },
+    {
+      "symbol": "KSMUSDT",
+      "rows": 52673,
+      "first": 1602658800000,
+      "last": 1792710000000,
+      "sha256": "6b5bdc0eb4fb499f69977fc8e94a0ccc07bca1b0891f4044e908ef2961229309"
+    },
+    {
+      "symbol": "LABUSDT",
+      "rows": 8890,
+      "first": 1760709600000,
+      "last": 1792710000000,
+      "sha256": "078b310a38939c087bb93594edc7cd5fa6dd2488915f3b299dcb20d776ffa9bd"
+    },
+    {
+      "symbol": "LAUSDT",
+      "rows": 12111,
+      "first": 1749114000000,
+      "last": 1792710000000,
+      "sha256": "695174ff3cafe2966d8552866e7553a713dabc92e309e8f7978869bbcb00f5e6"
+    },
+    {
+      "symbol": "LAYERUSDT",
+      "rows": 14841,
+      "first": 1739286000000,
+      "last": 1792710000000,
+      "sha256": "7ccedfbb154c170718e3a37e19763cecd09e963123ea6af7e867bf701de61025"
+    },
+    {
+      "symbol": "LDOUSDT",
+      "rows": 35796,
+      "first": 1663848000000,
+      "last": 1792710000000,
+      "sha256": "70b696746e2b8addad205ac6fbbaee2fe7392cd23a0bda806026f8bcbb34de01"
+    },
+    {
+      "symbol": "LENDUSDT",
+      "rows": 2640,
+      "first": 1595494800000,
+      "last": 1604995200000,
+      "sha256": "5b59ab57e18ea3bf28f170254df983412dee10ace1215e3ce0e8922077da96da",
+      "gaps": 0
+    },
+    {
+      "symbol": "LEVERUSDT",
+      "rows": 31260,
+      "first": 1680177600000,
+      "last": 1792710000000,
+      "sha256": "1251cc7548bc8ae4d6478a0e8a69080f8eca874780f31dd0bed7bde1b0aa59ec"
+    },
+    {
+      "symbol": "LIGHTUSDT",
+      "rows": 9373,
+      "first": 1758970800000,
+      "last": 1792710000000,
+      "sha256": "50e22b55470e094ed902b602110bbd09ebf3b0532a7fb5abfaf8a1b566b7ab6d"
+    },
+    {
+      "symbol": "LINAUSDT",
+      "rows": 48929,
+      "first": 1616137200000,
+      "last": 1792710000000,
+      "sha256": "d07d3543adb61e4c2b67785c8af259cbc73bbc191d012489e4b0b66d7fd1eb60"
+    },
+    {
+      "symbol": "LINEAUSDT",
+      "rows": 10000,
+      "first": 1756713600000,
+      "last": 1792710000000,
+      "sha256": "371e3ac3ef3e5e7369ded70af911e6278c1da2f8739a551f214c943917da8b77"
+    },
+    {
+      "symbol": "LINKUSDT",
+      "rows": 59296,
+      "first": 1579248000000,
+      "last": 1792710000000,
+      "sha256": "be23b8170c5afbbae45371b6827b173ad9c9fe960edd8fd04f5798501f885b4a"
+    },
+    {
+      "symbol": "LISTAUSDT",
+      "rows": 20508,
+      "first": 1718884800000,
+      "last": 1792710000000,
+      "sha256": "d98418293f2a464da60b161e6685d32d72781f1037edb694296f1e89ebfc4a64"
+    },
+    {
+      "symbol": "LITUSDT",
+      "rows": 49608,
+      "first": 1613631600000,
+      "last": 1792710000000,
+      "sha256": "fcd4990b67a0f51acec59f116c0db7c40240ba14e64d4e37bb626cfdda867651"
+    },
+    {
+      "symbol": "LOKAUSDT",
+      "rows": 18205,
+      "first": 1727175600000,
+      "last": 1792710000000,
+      "sha256": "2d415fb7918520d76f10a42b69153066bca4b229515bd35cd21e18a1133c460c"
+    },
+    {
+      "symbol": "LOOMUSDT",
+      "rows": 26578,
+      "first": 1697032800000,
+      "last": 1792710000000,
+      "sha256": "815d07e5678a0a637bf5309dc604ee924aaf4bda2859998a28335f408f646c9a"
+    },
+    {
+      "symbol": "LPTUSDT",
+      "rows": 43365,
+      "first": 1636599600000,
+      "last": 1792710000000,
+      "sha256": "fde9366d2f7e251d26a438e83345935e46126cc97a98918dcaca36381ce912e3"
+    },
+    {
+      "symbol": "LQTYUSDT",
+      "rows": 31740,
+      "first": 1678449600000,
+      "last": 1792710000000,
+      "sha256": "6a97a7ff9b84e0f8fff5e6c2d3fe9f543564c0de0af36a529e8d86e5ab08c32a"
+    },
+    {
+      "symbol": "LRCUSDT",
+      "rows": 52553,
+      "first": 1603090800000,
+      "last": 1792710000000,
+      "sha256": "4d7ed39c2e910d272c6e6504a5c5a06d292287782e692e096e0d69a65fc2a767"
+    },
+    {
+      "symbol": "LSKUSDT",
+      "rows": 24034,
+      "first": 1706191200000,
+      "last": 1792710000000,
+      "sha256": "add91fd96fe0b49ba007bfc31764a9edda7c3a3fa5b709812de2151f3be4726d"
+    },
+    {
+      "symbol": "LTCUSDT",
+      "rows": 59368,
+      "first": 1578556800000,
+      "last": 1792710000000,
+      "sha256": "1121c6ea7814197aabbb70ffbad778b794ac751a3dc0d85c59cd1a433ee2d929"
+    },
+    {
+      "symbol": "LUMIAUSDT",
+      "rows": 16165,
+      "first": 1734519600000,
+      "last": 1792710000000,
+      "sha256": "4793670cd1583f26d0e5b532413170f52174b6453fa589147183c7eb2d1477e0"
+    },
+    {
+      "symbol": "LUNA2USDT",
+      "rows": 36093,
+      "first": 1662778800000,
+      "last": 1792710000000,
+      "sha256": "aa4ed991a23dd95391158486e8cf911a9df414a36cdb00bb727e30df9f97d3cf"
+    },
+    {
+      "symbol": "LUNAUSDT",
+      "rows": 11160,
+      "first": 1611817200000,
+      "last": 1652421600000,
+      "sha256": "0e255c036a60285966eb1ec105528abc1d7886501486eff647893d744ee879ef",
+      "gaps": 2
+    },
+    {
+      "symbol": "LYNUSDT",
+      "rows": 9161,
+      "first": 1759734000000,
+      "last": 1792710000000,
+      "sha256": "3df6da68a021b7d03424bcb30886327eb71d4ffa378aeb998d21b4d5983bf5ad"
+    },
+    {
+      "symbol": "MAGICUSDT",
+      "rows": 32805,
+      "first": 1674615600000,
+      "last": 1792710000000,
+      "sha256": "2684c8f49d60d485d64923803db6e7de4335444934690380633366eaedf961fc"
+    },
+    {
+      "symbol": "MAGMAUSDT",
+      "rows": 7091,
+      "first": 1767186000000,
+      "last": 1792710000000,
+      "sha256": "f0ab38cbfe0b88d406b343b59e7f15a28f4b8b7227f47953eaaa8cad7a6f2f10"
+    },
+    {
+      "symbol": "MANAUSDT",
+      "rows": 49025,
+      "first": 1615791600000,
+      "last": 1792710000000,
+      "sha256": "e23826e3f22da1fc50f4a3d184054ed67c72ee19fe77c236369076ccddce41cc"
+    },
+    {
+      "symbol": "MANTAUSDT",
+      "rows": 24202,
+      "first": 1705586400000,
+      "last": 1792710000000,
+      "sha256": "69f009150b090188029fc00cd88653e4a6806f1d341311e29bcf79c20f206827"
+    },
+    {
+      "symbol": "MANTRAUSDT",
+      "rows": 5584,
+      "first": 1772611200000,
+      "last": 1792710000000,
+      "sha256": "1efcea976d5ede87b3cb9e287d4bcc22548529edaa79eb349dd7eff4974a936b"
+    },
+    {
+      "symbol": "MARSCOINUSDT",
+      "rows": 1239,
+      "first": 1788253200000,
+      "last": 1792710000000,
+      "sha256": "62a3d44bad0aa51a41f5a117247a0ad73af683dcd4afab6efebb1f9b9b377798"
+    },
+    {
+      "symbol": "MASKUSDT",
+      "rows": 45069,
+      "first": 1630033200000,
+      "last": 1792710000000,
+      "sha256": "9650869a37f6211b109c7db74be9fb369d9846acef3369a29d62355d0b6c43d9"
+    },
+    {
+      "symbol": "MATICUSDT",
+      "rows": 34083,
+      "first": 1603350000000,
+      "last": 1726045200000,
+      "sha256": "ca8a6c0c1bac9369968aa256db4f55a42c37a5376a03f36d7f49a146f94d592b",
+      "gaps": 0
+    },
+    {
+      "symbol": "MAVIAUSDT",
+      "rows": 23373,
+      "first": 1708509600000,
+      "last": 1792710000000,
+      "sha256": "f4cf85569cd7f456d9bc1d31b989b7cfd43f2437adc1f0f089596120345197d4"
+    },
+    {
+      "symbol": "MAVUSDT",
+      "rows": 29076,
+      "first": 1688040000000,
+      "last": 1792710000000,
+      "sha256": "76c292e1c69273b9f99c6d7e0eecf96f652b9798e7eea7538aea146a88d2d4e4"
+    },
+    {
+      "symbol": "MBLUSDT",
+      "rows": 4697,
+      "first": 1699974000000,
+      "last": 1716879600000,
+      "sha256": "824853a9b48cdb1264533445270e36f666760ed14e318332d2ff45907b30326a",
+      "gaps": 0
+    },
+    {
+      "symbol": "MBOXUSDT",
+      "rows": 18855,
+      "first": 1724835600000,
+      "last": 1792710000000,
+      "sha256": "ee1299daa6c6eca51287745df8c65526252544f4aaf9cbe274cf6ce3f1417342"
+    },
+    {
+      "symbol": "MEGAUSDT",
+      "rows": 6372,
+      "first": 1769774400000,
+      "last": 1792710000000,
+      "sha256": "2c60c28181df8f3b3357e90bd9fc0b5ef10357dbf8f4367a75087d505ef3b024"
+    },
+    {
+      "symbol": "MELANIAUSDT",
+      "rows": 15375,
+      "first": 1737363600000,
+      "last": 1792710000000,
+      "sha256": "896956384914f4d0071f3a653979186df49370749f0c1b13cc2aec841eb23ec8"
+    },
+    {
+      "symbol": "MEMEFIUSDT",
+      "rows": 13097,
+      "first": 1745564400000,
+      "last": 1792710000000,
+      "sha256": "1ee83abb67119efc552d9aca401c2d7411ad965b848c4d07e839623702273e8f"
+    },
+    {
+      "symbol": "MEMEUSDT",
+      "rows": 26028,
+      "first": 1699012800000,
+      "last": 1792710000000,
+      "sha256": "e187fb090ea4e166384d62cdb2ece97c9f0d125a5431030d24647a470c9655f4"
+    },
+    {
+      "symbol": "MERLUSDT",
+      "rows": 12280,
+      "first": 1748505600000,
+      "last": 1792710000000,
+      "sha256": "55c8c51d652a9512ba5645961b10867705866f0b87b22024faf6328766e3223c"
+    },
+    {
+      "symbol": "METISUSDT",
+      "rows": 22912,
+      "first": 1710230400000,
+      "last": 1792710000000,
+      "sha256": "c2d89cd060994a05910e5ecad3b79abef47ec68ccae69337bc2528dc2cf4c442"
+    },
+    {
+      "symbol": "METUSDT",
+      "rows": 9036,
+      "first": 1760184000000,
+      "last": 1792710000000,
+      "sha256": "d956f07d696ea8bc959b151dcd3d826f0fbedf67f659adc57b03e09edad19029"
+    },
+    {
+      "symbol": "MEUSDT",
+      "rows": 16351,
+      "first": 1733850000000,
+      "last": 1792710000000,
+      "sha256": "fd61261bd460f6f1079169affa168391f6bbe2f006f92300528fc2bd961828c5"
+    },
+    {
+      "symbol": "MEWUSDT",
+      "rows": 20578,
+      "first": 1718632800000,
+      "last": 1792710000000,
+      "sha256": "15b912752e9d2be0932e3f0e499bc8d5366e1544ca02eaf14a1a42b5e16a12b3"
+    },
+    {
+      "symbol": "MILKUSDT",
+      "rows": 12827,
+      "first": 1746536400000,
+      "last": 1792710000000,
+      "sha256": "7151c87ebf7c2ec9153a40e81103c7e2c16ce202e57e9b2bb8e9159e32120e1a"
+    },
+    {
+      "symbol": "MINAUSDT",
+      "rows": 32485,
+      "first": 1675767600000,
+      "last": 1792710000000,
+      "sha256": "ad86841bfcaa7a839df0de913403ecfa50f753b28c0e3fa7b379b38d170018ae"
+    },
+    {
+      "symbol": "MIRAUSDT",
+      "rows": 9396,
+      "first": 1758888000000,
+      "last": 1792710000000,
+      "sha256": "b5aed89cb01927487e4ddf3cd37f81d0e1d2388c0bd79dc7c97f9ed10dc7ffcc"
+    },
+    {
+      "symbol": "MITOUSDT",
+      "rows": 10088,
+      "first": 1756396800000,
+      "last": 1792710000000,
+      "sha256": "5a0491195452dbd5537514bbf920fc5134c0b45d530526c385ba4dbed7e43376"
+    },
+    {
+      "symbol": "MKRUSDT",
+      "rows": 54161,
+      "first": 1597302000000,
+      "last": 1792710000000,
+      "sha256": "351833f0f7ebf42c2e159083778e350818c6261d7ddf61d12de9884fca33b468"
+    },
+    {
+      "symbol": "MLNUSDT",
+      "rows": 13696,
+      "first": 1743408000000,
+      "last": 1792710000000,
+      "sha256": "d1f1424f3d1b9ad7cf89ec1c07dd6b9306ac00b6c7e21ce14d75a51cb5257f6e"
+    },
+    {
+      "symbol": "MMTUSDT",
+      "rows": 8460,
+      "first": 1762257600000,
+      "last": 1792710000000,
+      "sha256": "a9d3c3828ef7d982036fc10e4b8e0af7eb726ec62b53d2736a6720784ff95247"
+    },
+    {
+      "symbol": "MOCAUSDT",
+      "rows": 16213,
+      "first": 1734346800000,
+      "last": 1792710000000,
+      "sha256": "3ea832da96c8fb5a8d7e4eddcd7621be3cf660ae17824446f8dd2b4f9a440e77"
+    },
+    {
+      "symbol": "MONUSDT",
+      "rows": 9065,
+      "first": 1760079600000,
+      "last": 1792710000000,
+      "sha256": "a06ed28e35ade52a2590ab005e231a292889cfc00b34c57e788cba34ad0bcee4"
+    },
+    {
+      "symbol": "MOODENGUSDT",
+      "rows": 17462,
+      "first": 1729850400000,
+      "last": 1792710000000,
+      "sha256": "6f47b92004b690b0054a8e768fa36db041e804b501ce2172ade1f948a78baa05"
+    },
+    {
+      "symbol": "MORPHOUSDT",
+      "rows": 16666,
+      "first": 1732716000000,
+      "last": 1792710000000,
+      "sha256": "3ac5414b2167a635111c9184e3bb729c7c85ed2d037676fecf49f34c98a46950"
+    },
+    {
+      "symbol": "MOVEUSDT",
+      "rows": 16378,
+      "first": 1733752800000,
+      "last": 1792710000000,
+      "sha256": "49bd2605575c9fc6ec9c6c6138169a95308ee1f2e71ba21a64a602dcbecf8cfe"
+    },
+    {
+      "symbol": "MOVRUSDT",
+      "rows": 24756,
+      "first": 1703592000000,
+      "last": 1792710000000,
+      "sha256": "6bca4efd7cbd582ddb7c93ed221a5c745a0433be44fe411e544fc8af6eb5e928"
+    },
+    {
+      "symbol": "MTLUSDT",
+      "rows": 48761,
+      "first": 1617174000000,
+      "last": 1792710000000,
+      "sha256": "aaf37207abe27975e0f105252d4f849638e3f907707894b61a130d2b5fe3a1ba"
+    },
+    {
+      "symbol": "MUBARAKUSDT",
+      "rows": 14027,
+      "first": 1742216400000,
+      "last": 1792710000000,
+      "sha256": "b3788069b9c2c0da444f17c85f974605fd392d3f692fd9eb2d1137dbe824b863"
+    },
+    {
+      "symbol": "MUSDT",
+      "rows": 11343,
+      "first": 1751878800000,
+      "last": 1792710000000,
+      "sha256": "31b11dab5c9603b65e1499693817a505072c3dd0d453b24112fbf89b8d6f0b39"
+    },
+    {
+      "symbol": "MYROUSDT",
+      "rows": 23080,
+      "first": 1709625600000,
+      "last": 1792710000000,
+      "sha256": "c048eba51fe163c28594e28f8414d1ad786dc9520e3acdb58bb5d31402746b4b"
+    },
+    {
+      "symbol": "MYXUSDT",
+      "rows": 11796,
+      "first": 1750248000000,
+      "last": 1792710000000,
+      "sha256": "a29cd656d6173a23ddb23d7e449050f1c34a4dec02c4d32f96a4181bc1a3807e"
+    },
+    {
+      "symbol": "NAORISUSDT",
+      "rows": 10764,
+      "first": 1753963200000,
+      "last": 1792710000000,
+      "sha256": "52f609ae87b685816904617afab55e8a4ed3673848baee4be56ef59a833eb402"
+    },
+    {
+      "symbol": "NEARUSDT",
+      "rows": 52648,
+      "first": 1602748800000,
+      "last": 1792710000000,
+      "sha256": "9a9aff9a6ed09c9c8652d1de07dee381078948d935e2524b300b7134e740014e"
+    },
+    {
+      "symbol": "NEIROETHUSDT",
+      "rows": 18634,
+      "first": 1725631200000,
+      "last": 1792710000000,
+      "sha256": "9145550fca5283d01781e46d97c31158bf2d5d5ab024dd52bd2fd12c293b85fb"
+    },
+    {
+      "symbol": "NEIROUSDT",
+      "rows": 18397,
+      "first": 1726484400000,
+      "last": 1792710000000,
+      "sha256": "88f8ed17dbc927a29b80b3ba2289b636d9e8e823fcbef3416f245e9f3ad3b3ab"
+    },
+    {
+      "symbol": "NEOUSDT",
+      "rows": 58552,
+      "first": 1581926400000,
+      "last": 1792710000000,
+      "sha256": "d42d371916b834e09d374a2b37c646ed561106e753efd9ad95a897f55271151b"
+    },
+    {
+      "symbol": "NEWTUSDT",
+      "rows": 11770,
+      "first": 1750341600000,
+      "last": 1792710000000,
+      "sha256": "46bbacf40594b9391fd353369c6071e34e6cacc855098d0170025f075811c3a3"
+    },
+    {
+      "symbol": "NFPUSDT",
+      "rows": 24731,
+      "first": 1703682000000,
+      "last": 1792710000000,
+      "sha256": "3f2fc92d6ec53668b21554c7d0e6acb0d9108b21b54284563c983643b71c645f"
+    },
+    {
+      "symbol": "NIGHTUSDT",
+      "rows": 7597,
+      "first": 1765364400000,
+      "last": 1792710000000,
+      "sha256": "1ff91c770f492948e8d5602193b49cae9b9ab02da4ac448145016391d1ff724c"
+    },
+    {
+      "symbol": "NILUSDT",
+      "rows": 13859,
+      "first": 1742821200000,
+      "last": 1792710000000,
+      "sha256": "33c954ee53375d528bbb4f2d1c0c6bda379f879376ff5e6d83f8f9990018b75c"
+    },
+    {
+      "symbol": "NKNUSDT",
+      "rows": 48545,
+      "first": 1617951600000,
+      "last": 1792710000000,
+      "sha256": "baf6bca536b3d37a52cb7f2b17c3dfbd539d4c1bb8ccd6b760531308d6de2364"
+    },
+    {
+      "symbol": "NMRUSDT",
+      "rows": 29244,
+      "first": 1687435200000,
+      "last": 1792710000000,
+      "sha256": "bc393821c84b2f449e683d87e891ce974f38026eaa986b5ae915118fc3037ae3"
+    },
+    {
+      "symbol": "NOMUSDT",
+      "rows": 9280,
+      "first": 1759305600000,
+      "last": 1792710000000,
+      "sha256": "e6d039e7adcfcb8dd57c39ae2d2c275489d579a9e7ad48c634bf2429c9a6abdf"
+    },
+    {
+      "symbol": "NOTUSDT",
+      "rows": 21346,
+      "first": 1715868000000,
+      "last": 1792710000000,
+      "sha256": "417048a406f4e094aaccbdc9cdf073067bf6df8ddf11a5e5a4b4a2769eb27798"
+    },
+    {
+      "symbol": "NTRNUSDT",
+      "rows": 25764,
+      "first": 1699963200000,
+      "last": 1792710000000,
+      "sha256": "f8dd1aa55a5a0ff27ffe25dcac2a0f4e6659d6dc832251495cbe6a35748f383e"
+    },
+    {
+      "symbol": "NULSUSDT",
+      "rows": 18904,
+      "first": 1724659200000,
+      "last": 1792710000000,
+      "sha256": "078a06918cbc213fb8db5f0f332947d90f812db1d9b2d1c29c223b67a6983b7f"
+    },
+    {
+      "symbol": "NUUSDT",
+      "rows": 2808,
+      "first": 1634785200000,
+      "last": 1644890400000,
+      "sha256": "ba96783b59be2cbba7a5411648da53c3aebab1258c5f1732bf0e641e7e5f9588",
+      "gaps": 0
+    },
+    {
+      "symbol": "NXPCUSDT",
+      "rows": 12618,
+      "first": 1747288800000,
+      "last": 1792710000000,
+      "sha256": "dc3c3d9c401efb8cec9bef83803a1752f458726f0139ba27aa1dce27d61add22"
+    },
+    {
+      "symbol": "OBOLUSDT",
+      "rows": 12806,
+      "first": 1746612000000,
+      "last": 1792710000000,
+      "sha256": "5b914e3f9f0cfb1ef799a0280e4764261a36954adb809e3f62188c6ac5e708fd"
+    },
+    {
+      "symbol": "OCEANUSDT",
+      "rows": 52193,
+      "first": 1604386800000,
+      "last": 1792710000000,
+      "sha256": "3fc691219f273729505e7377d4d5b02a83f07f74b426355d8e4ca9d1a473f55a"
+    },
+    {
+      "symbol": "OGNUSDT",
+      "rows": 48617,
+      "first": 1617260400000,
+      "last": 1792710000000,
+      "sha256": "f67d00645b6f22f6c227ec4a9a79579117efe5a2dd67abd26b9ee8e818b077b4"
+    },
+    {
+      "symbol": "OGUSDT",
+      "rows": 12687,
+      "first": 1747040400000,
+      "last": 1792710000000,
+      "sha256": "70299e0cedd25725cbc1a677167c78cc0f3c2ae3dc5428dd17609f58e64d892e"
+    },
+    {
+      "symbol": "OLUSDT",
+      "rows": 11629,
+      "first": 1750849200000,
+      "last": 1792710000000,
+      "sha256": "59b693d2111931f32255e62d335ef513323678e3771088ae63f0a4ac5f9275e3"
+    },
+    {
+      "symbol": "OMGUSDT",
+      "rows": 55167,
+      "first": 1593680400000,
+      "last": 1792710000000,
+      "sha256": "6aba7b93db42e00b3734e87da517436ab9239af95342ebd2db14972e8345bc62"
+    },
+    {
+      "symbol": "OMNIUSDT",
+      "rows": 22042,
+      "first": 1713362400000,
+      "last": 1792710000000,
+      "sha256": "de0a59363c5e58f6b2a41f4ac33e47d48f9646f7afcbec85e295ccc531d022c2"
+    },
+    {
+      "symbol": "OMUSDT",
+      "rows": 23578,
+      "first": 1707832800000,
+      "last": 1792710000000,
+      "sha256": "93d7bd13baa8c243614b9056545de034b9ebfe381f105c7cf05ddec3839fa32d"
+    },
+    {
+      "symbol": "ONDOUSDT",
+      "rows": 24155,
+      "first": 1705755600000,
+      "last": 1792710000000,
+      "sha256": "3d9864d89d2fbe7e673a44b06f716079eac38c34a645c89619f3ec49663f6030"
+    },
+    {
+      "symbol": "ONEUSDT",
+      "rows": 48953,
+      "first": 1616050800000,
+      "last": 1792710000000,
+      "sha256": "49bd424097e79b9d9106a74338df31e46e5fdfc32163080efd7ca61a21b3fa81"
+    },
+    {
+      "symbol": "ONGUSDT",
+      "rows": 25451,
+      "first": 1701090000000,
+      "last": 1792710000000,
+      "sha256": "b01010c01544c6838b90b57f125452a577f49713084294419b7c6d99fb4c5a1f"
+    },
+    {
+      "symbol": "ONTUSDT",
+      "rows": 58696,
+      "first": 1581408000000,
+      "last": 1792710000000,
+      "sha256": "d8249ccebf1b7292191a37aed1af01eb8255df3f9ffde19a37e0a5cf24b46329"
+    },
+    {
+      "symbol": "ONUSDT",
+      "rows": 8728,
+      "first": 1761292800000,
+      "last": 1792710000000,
+      "sha256": "3541ff2018f4e73d388db02272b4c6d87e8ff936860f65713d2607abaa6e51d3"
+    },
+    {
+      "symbol": "OPENUSDT",
+      "rows": 9827,
+      "first": 1757336400000,
+      "last": 1792710000000,
+      "sha256": "0825eecc6610fb4e4a2ccf3f81d53cf39097d71e8d22945d61bd33fb60812c80"
+    },
+    {
+      "symbol": "OPGUSDT",
+      "rows": 4401,
+      "first": 1776870000000,
+      "last": 1792710000000,
+      "sha256": "48ca5109c47e9511137ea808874faa7b06fc0116aa85dab74f2efb6fad78344c"
+    },
+    {
+      "symbol": "OPNUSDT",
+      "rows": 5841,
+      "first": 1771686000000,
+      "last": 1792710000000,
+      "sha256": "92d63ce0959f94fcbdb045d4b3f9c452f217a012759906447f8ce1ecc4aa2774"
+    },
+    {
+      "symbol": "OPUSDT",
+      "rows": 38506,
+      "first": 1654092000000,
+      "last": 1792710000000,
+      "sha256": "a01b641bdaa9af6659588272dcf304c3a22b9e09526e23bb03c26345e83af69e"
+    },
+    {
+      "symbol": "ORBSUSDT",
+      "rows": 26442,
+      "first": 1697522400000,
+      "last": 1792710000000,
+      "sha256": "93e973f46f39d37fc3099d0e942a11bf1d88afb2c46e8dc43e230e0298b3d9e4"
+    },
+    {
+      "symbol": "ORCAUSDT",
+      "rows": 16449,
+      "first": 1733497200000,
+      "last": 1792710000000,
+      "sha256": "dd681d9b7698eeb47e53176dd27ceab2943079c326341fc9290a5ae9a3e9f4ac"
+    },
+    {
+      "symbol": "ORDERUSDT",
+      "rows": 9396,
+      "first": 1758888000000,
+      "last": 1792710000000,
+      "sha256": "cdce82c88e5e20007844b30bff3a02232f37f60eac789da67644d8fbb761b798"
+    },
+    {
+      "symbol": "ORDIUSDT",
+      "rows": 25932,
+      "first": 1699358400000,
+      "last": 1792710000000,
+      "sha256": "cfe0ed9938069a0c9fa976bf597d1f3606fe93a853f57462b540827e73430520"
+    },
+    {
+      "symbol": "OUSDT",
+      "rows": 2893,
+      "first": 1782298800000,
+      "last": 1792710000000,
+      "sha256": "50747cc4979b4770a37f6e2b6a4aca14ab24ce93cdb2e2cc3b4009b8ea6cfaa0"
+    },
+    {
+      "symbol": "OXTUSDT",
+      "rows": 28044,
+      "first": 1691755200000,
+      "last": 1792710000000,
+      "sha256": "f72db3efb518bd62aa8ecc1342f55a607686338ba18d5124a5a3c7fff6d85cd1"
+    },
+    {
+      "symbol": "PARTIUSDT",
+      "rows": 13835,
+      "first": 1742907600000,
+      "last": 1792710000000,
+      "sha256": "52f063c0c772f16dd9b0b92be1fb66eb2ea23f3f73ed867698f6aa14940b19c4"
+    },
+    {
+      "symbol": "PAXGUSDT",
+      "rows": 13790,
+      "first": 1743069600000,
+      "last": 1792710000000,
+      "sha256": "cc9af71308d219e72c15332b909c29c305087b0f2193d635275ab8e5f888cef9"
+    },
+    {
+      "symbol": "PENDLEUSDT",
+      "rows": 28390,
+      "first": 1690509600000,
+      "last": 1792710000000,
+      "sha256": "c8fe041d2b5ee78584605c047378fe39a19afea36f22128a80cb6bff0b0132f1"
+    },
+    {
+      "symbol": "PENGUUSDT",
+      "rows": 16184,
+      "first": 1734451200000,
+      "last": 1792710000000,
+      "sha256": "61de3f8b3cfe94549756014310a59ff24cd49c4e477cbb3a91cd0ce9b190ab9f"
+    },
+    {
+      "symbol": "PEOPLEUSDT",
+      "rows": 42212,
+      "first": 1640318400000,
+      "last": 1792710000000,
+      "sha256": "8afb9e21db84fe431f7b73ba2710372d3d904943524cecd2dd8e3c290c056fe5"
+    },
+    {
+      "symbol": "PERPUSDT",
+      "rows": 31836,
+      "first": 1678104000000,
+      "last": 1792710000000,
+      "sha256": "cddd4b3f9edd0acf5b8ea2633e2b4cd445ca4b6e0eeefd0ae60572f3b376cf95"
+    },
+    {
+      "symbol": "PHAROSUSDT",
+      "rows": 3883,
+      "first": 1778734800000,
+      "last": 1792710000000,
+      "sha256": "b10e24447955072f54fa73c92a1dc4aef0a2c8fd810a080600f3022afb1af7f5"
+    },
+    {
+      "symbol": "PHAUSDT",
+      "rows": 15877,
+      "first": 1735556400000,
+      "last": 1792710000000,
+      "sha256": "f4af6c17dcfe0d4f709f138f4540cc89d77b32da15f27652a29ababb7f200cb2"
+    },
+    {
+      "symbol": "PHBUSDT",
+      "rows": 32266,
+      "first": 1676556000000,
+      "last": 1792710000000,
+      "sha256": "6fa3137c628c69bcc583caa5a68ae0c78ddb969be0b93b8439b3c8fef134fda8"
+    },
+    {
+      "symbol": "PIEVERSEUSDT",
+      "rows": 8221,
+      "first": 1763118000000,
+      "last": 1792710000000,
+      "sha256": "15d0b6133e9055beb8270285427b4eaf3f884295de836aa91795d29c0932caef"
+    },
+    {
+      "symbol": "PIPPINUSDT",
+      "rows": 15278,
+      "first": 1737712800000,
+      "last": 1792710000000,
+      "sha256": "854ad3376c7af23076d23b819363ef5b59552ce449e06bed4ee7aa58cccc768d"
+    },
+    {
+      "symbol": "PIXELUSDT",
+      "rows": 23433,
+      "first": 1708354800000,
+      "last": 1792710000000,
+      "sha256": "c148bde8b5b3c9ed409f7375a5d6bd9b4edfebf027afcd6f1664386004697cde"
+    },
+    {
+      "symbol": "PLAYUSDT",
+      "rows": 10767,
+      "first": 1753952400000,
+      "last": 1792710000000,
+      "sha256": "ce98268b0e0500fdf65281a081c8fabd5814fb724656eebc5883d93148408f8f"
+    },
+    {
+      "symbol": "PLUMEUSDT",
+      "rows": 13931,
+      "first": 1742562000000,
+      "last": 1792710000000,
+      "sha256": "9aaddd4eb2c3758f8c894f92982184e588d78b7b54dc5a450062aaaea3ec3b7e"
+    },
+    {
+      "symbol": "PNUTUSDT",
+      "rows": 17052,
+      "first": 1731326400000,
+      "last": 1792710000000,
+      "sha256": "9d9531d1627baf777120e4a5b4334a1e841772e2d61acd6f1a9e566806905c39"
+    },
+    {
+      "symbol": "POLUSDT",
+      "rows": 18468,
+      "first": 1726228800000,
+      "last": 1792710000000,
+      "sha256": "f6eb11590ff5a4468b637ec1204c5e51e36c2a6c277113ad0fe5ef64ee218818"
+    },
+    {
+      "symbol": "POLYXUSDT",
+      "rows": 26254,
+      "first": 1698199200000,
+      "last": 1792710000000,
+      "sha256": "d365843f59616957a34a6f2c78a39c039eae694ddd44922d881be956f2fa26f5"
+    },
+    {
+      "symbol": "PONKEUSDT",
+      "rows": 17220,
+      "first": 1730721600000,
+      "last": 1792710000000,
+      "sha256": "50afdb91a17eacecfa90ca50cc897c0eab3913e7aacdbcab786ce3b58cbf4eb7"
+    },
+    {
+      "symbol": "PONSUSDT",
+      "rows": 1122,
+      "first": 1788674400000,
+      "last": 1792710000000,
+      "sha256": "80ecba410971a50c7539f732e1331664bb9a40cf9530b7d7c3a10143d5eaa154"
+    },
+    {
+      "symbol": "POPCATUSDT",
+      "rows": 18995,
+      "first": 1724331600000,
+      "last": 1792710000000,
+      "sha256": "09dbb094e22bfa1bc81344f6cf0cb18370c923eab898984fc30176cca2527c24"
+    },
+    {
+      "symbol": "PORT3USDT",
+      "rows": 12136,
+      "first": 1749024000000,
+      "last": 1792710000000,
+      "sha256": "f2e2867c730e34e765db127eb016e6ff414547860c9e47a1e2d1857f37f89028"
+    },
+    {
+      "symbol": "PORTALUSDT",
+      "rows": 23193,
+      "first": 1709218800000,
+      "last": 1792710000000,
+      "sha256": "278adfe5500edd6addc289f1661f2a3615a9c9a1f9f2914f2f6f49b97b272d53"
+    },
+    {
+      "symbol": "POWERUSDT",
+      "rows": 7695,
+      "first": 1765011600000,
+      "last": 1792710000000,
+      "sha256": "2f749d1c77c3fb56bdb18db023f67f0a3c3641c9bd9563519a12c530359bdd3f"
+    },
+    {
+      "symbol": "POWRUSDT",
+      "rows": 26206,
+      "first": 1698372000000,
+      "last": 1792710000000,
+      "sha256": "e882f6c2c6751c905ab880c86a0b6f62f37f949ce30c4e6f6ae95dff1e5a521f"
+    },
+    {
+      "symbol": "PRLUSDT",
+      "rows": 4910,
+      "first": 1775037600000,
+      "last": 1792710000000,
+      "sha256": "a490413db4b5476c2a5bd085717f3c84d0dcb1cae165e36e407753306c13eca8"
+    },
+    {
+      "symbol": "PROMPTUSDT",
+      "rows": 13434,
+      "first": 1744351200000,
+      "last": 1792710000000,
+      "sha256": "d89184547ca3286d9cf270e6addf60be88ac2dbd932cc25124d0765f53f8f98f"
+    },
+    {
+      "symbol": "PROMUSDT",
+      "rows": 15492,
+      "first": 1736942400000,
+      "last": 1792710000000,
+      "sha256": "a5b8481cae352b60ea063ec24ff1a654d63208d37efe3ac63596bc6b98727005"
+    },
+    {
+      "symbol": "PROVEUSDT",
+      "rows": 10639,
+      "first": 1754413200000,
+      "last": 1792710000000,
+      "sha256": "7a40fabd635a9dbc7c782f93dffdfd1b6863d035750a4a1214ea2683cbaaf4d6"
+    },
+    {
+      "symbol": "PTBUSDT",
+      "rows": 9948,
+      "first": 1756900800000,
+      "last": 1792710000000,
+      "sha256": "b0260ad8860748cd0ce40d4010f378481f6090baa2de97e342b3730dc437e5de"
+    },
+    {
+      "symbol": "PUFFERUSDT",
+      "rows": 12136,
+      "first": 1749024000000,
+      "last": 1792710000000,
+      "sha256": "e122888f4f78d67901c134be229b1d9eea483e81def72824b1afaf42052f7893"
+    },
+    {
+      "symbol": "PUMPBTCUSDT",
+      "rows": 11918,
+      "first": 1749808800000,
+      "last": 1792710000000,
+      "sha256": "35bdab54f133af49ec60bfa36b00cc514eed80a0db77a917bed9b67cf5157fc3"
+    },
+    {
+      "symbol": "PUMPUSDT",
+      "rows": 13395,
+      "first": 1744466400000,
+      "last": 1792710000000,
+      "sha256": "304353b01f24df9a878fd9e2b533fe65a4dd85ed69bd40849f08782efd905123"
+    },
+    {
+      "symbol": "PUNDIXUSDT",
+      "rows": 12974,
+      "first": 1746007200000,
+      "last": 1792710000000,
+      "sha256": "a62fe7df1c1fd9e3caef149d1d70838c6a2b5c5958cfc66adb73825cefab9f36"
+    },
+    {
+      "symbol": "PYTHUSDT",
+      "rows": 25570,
+      "first": 1700661600000,
+      "last": 1792710000000,
+      "sha256": "5401916e3c20b53159a95dafd4f26573276272b2dced7267b9f30bc8450b73cd"
+    },
+    {
+      "symbol": "QNTUSDT",
+      "rows": 35134,
+      "first": 1666231200000,
+      "last": 1792710000000,
+      "sha256": "8fd2a988e41eca6fc4014aaca5c884a2b15951000f9433b2f68335c348bc776f"
+    },
+    {
+      "symbol": "QTUMUSDT",
+      "rows": 58480,
+      "first": 1582185600000,
+      "last": 1792710000000,
+      "sha256": "5bd7cb9c1c1af5ad8e1284f97f7f3427e854099218a5126ba72e24855f88f6b6"
+    },
+    {
+      "symbol": "QUICKUSDT",
+      "rows": 18643,
+      "first": 1725598800000,
+      "last": 1792710000000,
+      "sha256": "46f095919df36550bf2496ba057783d8ec2bee78ef04ca5d32e7bb35dda34ecd"
+    },
+    {
+      "symbol": "QUSDT",
+      "rows": 9977,
+      "first": 1756796400000,
+      "last": 1792710000000,
+      "sha256": "7e4bff75919ef95f8c1b0bc7e9dca5c16ae806c940fc3fefdffbc6690324f249"
+    },
+    {
+      "symbol": "RADUSDT",
+      "rows": 30276,
+      "first": 1683720000000,
+      "last": 1792710000000,
+      "sha256": "08772c5dec8903b01baf6ced5d503ff898338080fd6abbb58cc774d91ef1f022"
+    },
+    {
+      "symbol": "RAREUSDT",
+      "rows": 19163,
+      "first": 1723726800000,
+      "last": 1792710000000,
+      "sha256": "5d1e533cd14544519682ca71b262ae1a1f0d8e0d4720c5c46f491589f60c311f"
+    },
+    {
+      "symbol": "RAVEUSDT",
+      "rows": 7497,
+      "first": 1765724400000,
+      "last": 1792710000000,
+      "sha256": "f56ddd5a1d10c96144b68666dfd79bc68a9cfb82c419a9b1d44a325d6306d196"
+    },
+    {
+      "symbol": "RAYSOLUSDT",
+      "rows": 16356,
+      "first": 1733832000000,
+      "last": 1792710000000,
+      "sha256": "34886322b2116496f3376d3ab6c592a98859f8566f2c14d71e0f794114e105b7"
+    },
+    {
+      "symbol": "RAYUSDT",
+      "rows": 45357,
+      "first": 1629428400000,
+      "last": 1792710000000,
+      "sha256": "bf7f2c9edf89af6cf84494cf403fce840f8cf401bed8709d947e7078753cc4d7"
+    },
+    {
+      "symbol": "RDNTUSDT",
+      "rows": 31116,
+      "first": 1680696000000,
+      "last": 1792710000000,
+      "sha256": "1952758fe6312d4eee819fb75fb4ec1380a415da3bf52dfc8bac42dc692f7280"
+    },
+    {
+      "symbol": "RECALLUSDT",
+      "rows": 8940,
+      "first": 1760529600000,
+      "last": 1792710000000,
+      "sha256": "582e2936d00d7e9bad31056f7f11263c2c98e4766ad5b498e19a0055480e9a1b"
+    },
+    {
+      "symbol": "REDUSDT",
+      "rows": 14288,
+      "first": 1741276800000,
+      "last": 1792710000000,
+      "sha256": "d77d8444b68365bbb4993f7f0c457266a86aaf998aa618866eecc4d074498c5c"
+    },
+    {
+      "symbol": "REEFUSDT",
+      "rows": 49649,
+      "first": 1613977200000,
+      "last": 1792710000000,
+      "sha256": "a6500be7c92aa1bf196dbf88ce0aeab33c1b07bc344320eaac26f5228e753fa5"
+    },
+    {
+      "symbol": "REIUSDT",
+      "rows": 18133,
+      "first": 1727434800000,
+      "last": 1792710000000,
+      "sha256": "085b90617c13ad240e66718f21a96809af44aa0b5f837e46c2f09d4b42fec080"
+    },
+    {
+      "symbol": "RENDERUSDT",
+      "rows": 19646,
+      "first": 1721988000000,
+      "last": 1792710000000,
+      "sha256": "f3909e2ff6d57bec0125070058d6add6fe82cdb08fb4abdb6f7989f2e5867ef9"
+    },
+    {
+      "symbol": "RENUSDT",
+      "rows": 52817,
+      "first": 1602572400000,
+      "last": 1792710000000,
+      "sha256": "d38cdf23109833ced6f3da2cd1583a215987516cde271c8e5a818cb5cca70e44"
+    },
+    {
+      "symbol": "RESOLVUSDT",
+      "rows": 11987,
+      "first": 1749560400000,
+      "last": 1792710000000,
+      "sha256": "a2fd5b71455fb508a9d12fa88c9a86cf292d051e0c213df0e83bdb66740c459c"
+    },
+    {
+      "symbol": "REUSDT",
+      "rows": 3034,
+      "first": 1781791200000,
+      "last": 1792710000000,
+      "sha256": "9b3ccd66f2d01a6fc618bbf2257cdf7a0e57ae8220bef8ce3640cd0bd65f95a0"
+    },
+    {
+      "symbol": "REZUSDT",
+      "rows": 21730,
+      "first": 1714485600000,
+      "last": 1792710000000,
+      "sha256": "8ab954d6db104043d744cccb6a9f17a33bb8babcaeca7ad532cd63e77baa638f"
+    },
+    {
+      "symbol": "RIFUSDT",
+      "rows": 26340,
+      "first": 1697889600000,
+      "last": 1792710000000,
+      "sha256": "091003fe70c4c8603d97b1f483eb69747205af1f4f08a37dbd2cadb7b2a29387"
+    },
+    {
+      "symbol": "RIVERUSDT",
+      "rows": 8890,
+      "first": 1760709600000,
+      "last": 1792710000000,
+      "sha256": "3a9c5194eada64abc1a02a21cd2487772ba20e0becf16caaf4c1e59a9e91a0de"
+    },
+    {
+      "symbol": "RLCUSDT",
+      "rows": 54473,
+      "first": 1596178800000,
+      "last": 1792710000000,
+      "sha256": "dfe101611097ddb73449fc699f965447141fd4d7543b4e7ce7615b5ffac32674"
+    },
+    {
+      "symbol": "RLSUSDT",
+      "rows": 7790,
+      "first": 1764669600000,
+      "last": 1792710000000,
+      "sha256": "6e901d1d6f76e2aae3f079029d5cf8479932538c254739a2132a368e05e323fb"
+    },
+    {
+      "symbol": "RNDRUSDT",
+      "rows": 13037,
+      "first": 1675389600000,
+      "last": 1722319200000,
+      "sha256": "3b5fa42550b89e920ee03bd4e9210688096e221fcfb2473b64de980a873417bc",
+      "gaps": 0
+    },
+    {
+      "symbol": "ROBOUSDT",
+      "rows": 5704,
+      "first": 1772179200000,
+      "last": 1792710000000,
+      "sha256": "e179851e8a59ed8091d1944363b39ea7738b9b1200ff3d6eaeaf3adbd7563934"
+    },
+    {
+      "symbol": "RONINUSDT",
+      "rows": 23756,
+      "first": 1707192000000,
+      "last": 1792710000000,
+      "sha256": "0ac6275d64053ee7dceb851015f5598235d00e172e34fdeff210261a1623cc37"
+    },
+    {
+      "symbol": "ROSEUSDT",
+      "rows": 42045,
+      "first": 1640919600000,
+      "last": 1792710000000,
+      "sha256": "6ea8539c32948860b5ad4c9bfe469258425257e9025678aab72616d7c662b4b6"
+    },
+    {
+      "symbol": "RPLUSDT",
+      "rows": 18564,
+      "first": 1725883200000,
+      "last": 1792710000000,
+      "sha256": "8d64e0da46cb6aeddafacd4d37176ae0a0eb5239558da098700193067596dcb6"
+    },
+    {
+      "symbol": "RSRUSDT",
+      "rows": 52553,
+      "first": 1603090800000,
+      "last": 1792710000000,
+      "sha256": "f0f47c90333491ab021d1c019ff299302c23a4b3ac40fb5d494b898b211f8228"
+    },
+    {
+      "symbol": "RUNEUSDT",
+      "rows": 53753,
+      "first": 1599202800000,
+      "last": 1792710000000,
+      "sha256": "23b17380355b16217d3a2bb9208377e632c6ad780b17fb329a981e7bf50c615f"
+    },
+    {
+      "symbol": "RVNUSDT",
+      "rows": 49505,
+      "first": 1614063600000,
+      "last": 1792710000000,
+      "sha256": "21f7b4b436c3af967f311ae24730b1529e3a9a75028919596d9ba78533e84aa0"
+    },
+    {
+      "symbol": "RVVUSDT",
+      "rows": 8867,
+      "first": 1760792400000,
+      "last": 1792710000000,
+      "sha256": "c71562683c459c127e76d93f66c59959c93b141bb7098dbeae4f7cc8631b1695"
+    },
+    {
+      "symbol": "SAFEUSDT",
+      "rows": 17460,
+      "first": 1729857600000,
+      "last": 1792710000000,
+      "sha256": "84f2282363284787b5da7634408e732f4c99d733666ec0158a231026476f16fd"
+    },
+    {
+      "symbol": "SAGAUSDT",
+      "rows": 22238,
+      "first": 1712656800000,
+      "last": 1792710000000,
+      "sha256": "787f0b681caba4f2f25c1b15669f49b64fc85bcb741d8674093762d4984a611d"
+    },
+    {
+      "symbol": "SAHARAUSDT",
+      "rows": 11604,
+      "first": 1750939200000,
+      "last": 1792710000000,
+      "sha256": "3d46cce20d79080ffdd70f7054612d5b7f0f4eda263e85aa0604ac81e0b0768a"
+    },
+    {
+      "symbol": "SANDUSDT",
+      "rows": 50201,
+      "first": 1611558000000,
+      "last": 1792710000000,
+      "sha256": "0832d35feb46767912d86e30a1d2f73f1b94efbd8c20e1eda4f6344aae096cf6"
+    },
+    {
+      "symbol": "SANTOSUSDT",
+      "rows": 17386,
+      "first": 1730124000000,
+      "last": 1792710000000,
+      "sha256": "6dad6ffd9d26579a9176a7174a77d07677b3df4353c75d2edec925c1e7221eff"
+    },
+    {
+      "symbol": "SAPIENUSDT",
+      "rows": 10279,
+      "first": 1755709200000,
+      "last": 1792710000000,
+      "sha256": "d31b4f357911a9d928a013bcf7a12d3e63dc2467cbeb2cd794493f3ac8a22b6c"
+    },
+    {
+      "symbol": "SCRTUSDT",
+      "rows": 16813,
+      "first": 1732186800000,
+      "last": 1792710000000,
+      "sha256": "ba3958d868108c5a3a1007de2b2dc48eccfa5b3c2eb91531344e36cdb07fc8d6"
+    },
+    {
+      "symbol": "SCRUSDT",
+      "rows": 17534,
+      "first": 1729591200000,
+      "last": 1792710000000,
+      "sha256": "7dca8d4413f10341fb37581757226e765445acb9eb0823450a057a6e09414e39"
+    },
+    {
+      "symbol": "SCUSDT",
+      "rows": 48473,
+      "first": 1618210800000,
+      "last": 1792710000000,
+      "sha256": "069f8f43863806178524bf50e8e8835d8d481961355170c849c42596e472342e"
+    },
+    {
+      "symbol": "SEIUSDT",
+      "rows": 27910,
+      "first": 1692237600000,
+      "last": 1792710000000,
+      "sha256": "293bd77710f4be853a81450122c33f69a2629e93ffc49d8b4ed5d90d5b849d8c"
+    },
+    {
+      "symbol": "SENTUSDT",
+      "rows": 8220,
+      "first": 1763121600000,
+      "last": 1792710000000,
+      "sha256": "5705b8c16d072d04b03c06c4d56c2b029dc34e61f5ab1a19d64b434f6d295210"
+    },
+    {
+      "symbol": "SFPUSDT",
+      "rows": 49601,
+      "first": 1614150000000,
+      "last": 1792710000000,
+      "sha256": "5a753a516f77b97a1bfcf90b326694b520a6d76649480eae5eded2c2a9590672"
+    },
+    {
+      "symbol": "SHELLUSDT",
+      "rows": 14695,
+      "first": 1739811600000,
+      "last": 1792710000000,
+      "sha256": "62d5fd49782d60589a11179985131abce2ae36b49c2f2b5c4b53c6e967c425d9"
+    },
+    {
+      "symbol": "SIGNUSDT",
+      "rows": 13021,
+      "first": 1745838000000,
+      "last": 1792710000000,
+      "sha256": "85894647c4050eb498286c2fa5fae94c12ad11c6a7b1a38832ea9ffff1235026"
+    },
+    {
+      "symbol": "SIRENUSDT",
+      "rows": 13911,
+      "first": 1742634000000,
+      "last": 1792710000000,
+      "sha256": "813074e59571780bb8c00b37d79358a645b749e22be23570f63b922eed95a1f6"
+    },
+    {
+      "symbol": "SKATEUSDT",
+      "rows": 12014,
+      "first": 1749463200000,
+      "last": 1792710000000,
+      "sha256": "40d52c0397447617659defad7a621b4d7a50ac97ea802e74a12ff683656aa80f"
+    },
+    {
+      "symbol": "SKLUSDT",
+      "rows": 51353,
+      "first": 1607410800000,
+      "last": 1792710000000,
+      "sha256": "b0c4c5563562427161c91f80d7521f41ff8edb666e5f2eb7d54acc3933b57ab0"
+    },
+    {
+      "symbol": "SKRUSDT",
+      "rows": 6566,
+      "first": 1769076000000,
+      "last": 1792710000000,
+      "sha256": "f8af2f71067e394223c1907f3a6cafdbd5969f9ef69c54b70b686228a8bfa989"
+    },
+    {
+      "symbol": "SKYAIUSDT",
+      "rows": 12663,
+      "first": 1747126800000,
+      "last": 1792710000000,
+      "sha256": "55b5e012a30c8323b3013da61e0b8d604998c2c5a90cd826d870b20fd0b77d12"
+    },
+    {
+      "symbol": "SKYUSDT",
+      "rows": 9809,
+      "first": 1757401200000,
+      "last": 1792710000000,
+      "sha256": "ec51d47c19e8335c849beab55c40decf3f51ca89f6addde1c13a5316797df09d"
+    },
+    {
+      "symbol": "SLERFUSDT",
+      "rows": 16813,
+      "first": 1732186800000,
+      "last": 1792710000000,
+      "sha256": "107a810a1def31f9a8cb139c4a6ca5e89e81a073799f842e6aefae5cb4c62521"
+    },
+    {
+      "symbol": "SLPUSDT",
+      "rows": 26087,
+      "first": 1698760800000,
+      "last": 1792710000000,
+      "sha256": "2e4974c6a9166b82cbffb1ae22ab2130b55f2ce1966fdb09686d8d31ae8c9892"
+    },
+    {
+      "symbol": "SLXUSDT",
+      "rows": 3449,
+      "first": 1780297200000,
+      "last": 1792710000000,
+      "sha256": "ef559879227374c65199b940ab7755639bca92a3256a9614ed39e944828abf69"
+    },
+    {
+      "symbol": "SNTUSDT",
+      "rows": 26052,
+      "first": 1698926400000,
+      "last": 1792710000000,
+      "sha256": "71e001f3dee68b66726ba4341f92378299315a1d673466caf7ff06a5263dfe0b"
+    },
+    {
+      "symbol": "SNXUSDT",
+      "rows": 54257,
+      "first": 1597388400000,
+      "last": 1792710000000,
+      "sha256": "704acd7cc03e89d06d7cc6ff5078e2beb090cd5c671f6582f2f3cd40364f9602"
+    },
+    {
+      "symbol": "SOLUSDT",
+      "rows": 53393,
+      "first": 1600066800000,
+      "last": 1792710000000,
+      "sha256": "f2749a7ac7f2a57221159d351f8ea9dcfc02fd191323374fed217a534ed74cc4"
+    },
+    {
+      "symbol": "SOLVUSDT",
+      "rows": 15444,
+      "first": 1737115200000,
+      "last": 1792710000000,
+      "sha256": "956935fc64e8d256e912013afe865772542d0e04df3a66d499ffe46db912178e"
+    },
+    {
+      "symbol": "SOMIUSDT",
+      "rows": 10167,
+      "first": 1756112400000,
+      "last": 1792710000000,
+      "sha256": "8db00b740f979fa92cb6da0fbd7cd3287dc863dc0ffb2e7e4459aa2e49aa4630"
+    },
+    {
+      "symbol": "SONICUSDT",
+      "rows": 15665,
+      "first": 1736319600000,
+      "last": 1792710000000,
+      "sha256": "1c555e1a4c15d518f5f8d062b6fcbf8c5bc0dcc12a5c87065911766fe962ebfe"
+    },
+    {
+      "symbol": "SOONUSDT",
+      "rows": 12424,
+      "first": 1747987200000,
+      "last": 1792710000000,
+      "sha256": "f4c05c140bc44275297128d7413ebc35cee3c678fe2365521b30c608637dab21"
+    },
+    {
+      "symbol": "SOPHUSDT",
+      "rows": 12299,
+      "first": 1748437200000,
+      "last": 1792710000000,
+      "sha256": "30c71850d67e3ae25b77d61b2a29685bf6a319cd8f0c3c54b59da8d21bf27eb0"
+    },
+    {
+      "symbol": "SPACEUSDT",
+      "rows": 6541,
+      "first": 1769166000000,
+      "last": 1792710000000,
+      "sha256": "3281fc20470e9496187acb8798386585dfdcee005fad4f85580c3c9399411c2c"
+    },
+    {
+      "symbol": "SPELLUSDT",
+      "rows": 36180,
+      "first": 1662465600000,
+      "last": 1792710000000,
+      "sha256": "163687f6d9068cd1d976d143421741d705f25f8704d553d63e6bcae0985a2a6c"
+    },
+    {
+      "symbol": "SPKUSDT",
+      "rows": 11823,
+      "first": 1750150800000,
+      "last": 1792710000000,
+      "sha256": "ad2e23ada3b77cd52e224813669c2c58828b798209a31a20a75adac14486b363"
+    },
+    {
+      "symbol": "SPORTFUNUSDT",
+      "rows": 6707,
+      "first": 1768568400000,
+      "last": 1792710000000,
+      "sha256": "882c50b874c9a3be372ce38e7ae38e62572149ffbad6e5cdadf350aec236ecc9"
+    },
+    {
+      "symbol": "SPXUSDT",
+      "rows": 16356,
+      "first": 1733832000000,
+      "last": 1792710000000,
+      "sha256": "1cd6969cab70c192b215011e20029f883f9cf88e5477219609ca7381c43456bc"
+    },
+    {
+      "symbol": "SQDUSDT",
+      "rows": 11964,
+      "first": 1749643200000,
+      "last": 1792710000000,
+      "sha256": "78857e025ded4d3ca68134318856fde6557fc2aff15b3d22ac65d4151181b1fb"
+    },
+    {
+      "symbol": "SRMUSDT",
+      "rows": 32670,
+      "first": 1599271200000,
+      "last": 1716879600000,
+      "sha256": "4afec2a46dd744f6980d8c5e5291f51fa4cb14f6726544b334d2981e6548afa7",
+      "gaps": 0
+    },
+    {
+      "symbol": "SSVUSDT",
+      "rows": 32076,
+      "first": 1677240000000,
+      "last": 1792710000000,
+      "sha256": "59d7921ac2b13f9e4254c31276086d53fd0aadb4b4778faf972c527c2cf42098"
+    },
+    {
+      "symbol": "STABLEUSDT",
+      "rows": 8412,
+      "first": 1762430400000,
+      "last": 1792710000000,
+      "sha256": "35d68f4a4d17d1f2e064c338fb37b6640e241cb452f55035a7782bc0e22f5083"
+    },
+    {
+      "symbol": "STARUSDT",
+      "rows": 3883,
+      "first": 1778734800000,
+      "last": 1792710000000,
+      "sha256": "d0c7902924d2004a71af53834f3c777b3c296fee3f3b8a76ef72cf8b70971477"
+    },
+    {
+      "symbol": "STBLUSDT",
+      "rows": 9619,
+      "first": 1758085200000,
+      "last": 1792710000000,
+      "sha256": "fd8d37ea2448693d9c116684d97e93ea28f5ef212e8de1f7dc18074c9e7413ef"
+    },
+    {
+      "symbol": "STEEMUSDT",
+      "rows": 25906,
+      "first": 1699452000000,
+      "last": 1792710000000,
+      "sha256": "ab09f5421fc925525eceb38701e0075f4d4a85ed4a61e0ce3348ff044b5d4104"
+    },
+    {
+      "symbol": "STGUSDT",
+      "rows": 36468,
+      "first": 1661428800000,
+      "last": 1792710000000,
+      "sha256": "91b23a12b4d72310487724c57087edf8a936670d13da2e388439676f8d0fcfda"
+    },
+    {
+      "symbol": "STMXUSDT",
+      "rows": 48977,
+      "first": 1616396400000,
+      "last": 1792710000000,
+      "sha256": "e38c443ecfff250751276e4065b3c3f06dc98d7ebe2e566c148e7cea9ae7c0ac"
+    },
+    {
+      "symbol": "STORJUSDT",
+      "rows": 53345,
+      "first": 1600239600000,
+      "last": 1792710000000,
+      "sha256": "41b74d24ea4d374d1fc10a46bfa61dcea190955d259fdf645192ddcf72272642"
+    },
+    {
+      "symbol": "STOUSDT",
+      "rows": 13402,
+      "first": 1744466400000,
+      "last": 1792710000000,
+      "sha256": "6ac95bce7130320e8ec1bc214da5938e9d031f9844908d00fe64e2f417515942"
+    },
+    {
+      "symbol": "STPTUSDT",
+      "rows": 26410,
+      "first": 1697637600000,
+      "last": 1792710000000,
+      "sha256": "90913da2df78846bcc97bb85fc2de69cf5cf2fa9746d1d81a52460f2621064c4"
+    },
+    {
+      "symbol": "STRAXUSDT",
+      "rows": 26590,
+      "first": 1696989600000,
+      "last": 1792710000000,
+      "sha256": "6014277d6b2b0a19f40819ac1ad075787fa29ed2b6d1c2b38ebc8c8cbaf925ba"
+    },
+    {
+      "symbol": "STRKUSDT",
+      "rows": 23407,
+      "first": 1708448400000,
+      "last": 1792710000000,
+      "sha256": "f49920963c9809c7e7211ded3abba2699e47ee1a87e8178de40f40c328bd20a5"
+    },
+    {
+      "symbol": "STXUSDT",
+      "rows": 32146,
+      "first": 1676988000000,
+      "last": 1792710000000,
+      "sha256": "f9dab697761f892e0b187bc798da96361c7335bec57b43d7a0921eb45f46c722"
+    },
+    {
+      "symbol": "SUIUSDT",
+      "rows": 30440,
+      "first": 1683129600000,
+      "last": 1792710000000,
+      "sha256": "d952914b1a426520bde93d5e870011901675c7d9b3d9e78ea1c8ca45d833493c"
+    },
+    {
+      "symbol": "SUNUSDT",
+      "rows": 18995,
+      "first": 1724331600000,
+      "last": 1792710000000,
+      "sha256": "68ca1250152e60cffe55d413a98c8439080a96f3d000afc5a6bdf1eac1ab7ded"
+    },
+    {
+      "symbol": "SUPERUSDT",
+      "rows": 25475,
+      "first": 1701003600000,
+      "last": 1792710000000,
+      "sha256": "80c4ed94536b76847c2ff2a4f2a57ddb93b2f1d3f154969c65ab5856e3d46530"
+    },
+    {
+      "symbol": "SUSDT",
+      "rows": 15470,
+      "first": 1737021600000,
+      "last": 1792710000000,
+      "sha256": "d73ec4da6c3faff5900949fa677d6d1ead2bd7ee04676eb4b87b6b4de3f96622"
+    },
+    {
+      "symbol": "SUSHIUSDT",
+      "rows": 53633,
+      "first": 1599202800000,
+      "last": 1792710000000,
+      "sha256": "e612ec4f26bf9ca612e4c2a22e78a3e17d9edf8ade52bae0c73dffdf4fcb32e0"
+    },
+    {
+      "symbol": "SWARMSUSDT",
+      "rows": 15684,
+      "first": 1736251200000,
+      "last": 1792710000000,
+      "sha256": "5a9602fec6ade18a555d597a1215ce7e0f3f5d971fa4c1b571de4c9bdfa80cfc"
+    },
+    {
+      "symbol": "SWELLUSDT",
+      "rows": 17120,
+      "first": 1731081600000,
+      "last": 1792710000000,
+      "sha256": "68d37d63113f3a443f3acc506ebb80140e843b4911606f4e5d06fc4af9bf7186"
+    },
+    {
+      "symbol": "SXPUSDT",
+      "rows": 51375,
+      "first": 1595322000000,
+      "last": 1780268400000,
+      "sha256": "fbc72886e1fd27b6e810a4c61bf9a6c009a5a1c6e75b264dc9b6ee2e60c08c71",
+      "gaps": 0
+    },
+    {
+      "symbol": "SXTUSDT",
+      "rows": 12928,
+      "first": 1746172800000,
+      "last": 1792710000000,
+      "sha256": "b8963edcd54eb45632195b7b9c6046a07e3faa889956caa5ba92eb8d9d042c76"
+    },
+    {
+      "symbol": "SYNUSDT",
+      "rows": 19140,
+      "first": 1723809600000,
+      "last": 1792710000000,
+      "sha256": "ce79230c8c5a87f0182bb15bf746a427fd9e6ff6e4e78a352c22cf94dc5ba08a"
+    },
+    {
+      "symbol": "SYRUPUSDT",
+      "rows": 12808,
+      "first": 1746604800000,
+      "last": 1792710000000,
+      "sha256": "68d7a1e4ce8eee701712ab218661c05fdb0e5a32d0391a4fb27af4724c54396d"
+    },
+    {
+      "symbol": "SYSUSDT",
+      "rows": 19068,
+      "first": 1724068800000,
+      "last": 1792710000000,
+      "sha256": "e7e79e598940818834e8e8e92cc30816445006b475ba48ee3915906fcdc4733f"
+    },
+    {
+      "symbol": "TACUSDT",
+      "rows": 11150,
+      "first": 1752573600000,
+      "last": 1792710000000,
+      "sha256": "78ef34f0114a033cedaca1730f40d07060499e7c21aace74e3c237b752da11f7"
+    },
+    {
+      "symbol": "TAGUSDT",
+      "rows": 10909,
+      "first": 1753441200000,
+      "last": 1792710000000,
+      "sha256": "f685ce81892d835edef35aa7aa9840df31582cb9ec09eeff4c357c2d41797624"
+    },
+    {
+      "symbol": "TAIKOUSDT",
+      "rows": 11964,
+      "first": 1749643200000,
+      "last": 1792710000000,
+      "sha256": "ab4ac87ad18dc262baa14ce50007ef3cee1f5e8dd72f16193d8c70b0ba7a6a62"
+    },
+    {
+      "symbol": "TAKEUSDT",
+      "rows": 9949,
+      "first": 1756897200000,
+      "last": 1792710000000,
+      "sha256": "0781f8450d46ad6cd0097a5099144c551f118d4c6800d0f01c5715fb95c831cb"
+    },
+    {
+      "symbol": "TANSSIUSDT",
+      "rows": 11293,
+      "first": 1752058800000,
+      "last": 1792710000000,
+      "sha256": "1ffc557afa1f4333595118d45cf3368b0c00f3fd7307ab36e29b40172f5351a8"
+    },
+    {
+      "symbol": "TAOUSDT",
+      "rows": 22186,
+      "first": 1712844000000,
+      "last": 1792710000000,
+      "sha256": "c27256d2369ad2161e86d8093dd103a7729efcfc481d0a914771ab0170f001e3"
+    },
+    {
+      "symbol": "TAUSDT",
+      "rows": 11009,
+      "first": 1753081200000,
+      "last": 1792710000000,
+      "sha256": "47f548ae8f28c93f6b39d5be34cd87bcf5e870f9a879beb8e5644af1d9ec7214"
+    },
+    {
+      "symbol": "THETAUSDT",
+      "rows": 56152,
+      "first": 1590566400000,
+      "last": 1792710000000,
+      "sha256": "e4d8d0329c71c6a58ffbe66d2fc4b60a9e52735629c117225234520dfb66018d"
+    },
+    {
+      "symbol": "THEUSDT",
+      "rows": 16668,
+      "first": 1732708800000,
+      "last": 1792710000000,
+      "sha256": "0799acedc10b742872a73fab27c2ea98797b7d373d8f6bfd2aa1152588d1cf6e"
+    },
+    {
+      "symbol": "TIAUSDT",
+      "rows": 26094,
+      "first": 1698775200000,
+      "last": 1792710000000,
+      "sha256": "f0a70b248cf8009b8ddecd4cdea84e5583569c3242bf411deb91bdf52d72fddb"
+    },
+    {
+      "symbol": "TLMUSDT",
+      "rows": 45489,
+      "first": 1626404400000,
+      "last": 1792710000000,
+      "sha256": "8d6004dc6c1fc75c032506bf82e5ec65e0def47bc32ef9b5d6c59d31b699120e"
+    },
+    {
+      "symbol": "TNSRUSDT",
+      "rows": 22255,
+      "first": 1712595600000,
+      "last": 1792710000000,
+      "sha256": "82d8afc4c9c23d91af81fdd1e80fe61d1794df5486ee33ecf8d4bf2644ebbbea"
+    },
+    {
+      "symbol": "TOKENUSDT",
+      "rows": 26025,
+      "first": 1699023600000,
+      "last": 1792710000000,
+      "sha256": "8291bf303c0b6b4acc4d5caeb7c1c6fe2ff10870c5a6e3f0bad1357b3503bc58"
+    },
+    {
+      "symbol": "TOMOUSDT",
+      "rows": 31777,
+      "first": 1602486000000,
+      "last": 1716879600000,
+      "sha256": "07e48eb60696e922e2dda8c3b1a14c215f23ee25824c1313cb95cf3d89dbb1a5",
+      "gaps": 0
+    },
+    {
+      "symbol": "TONUSDT",
+      "rows": 23172,
+      "first": 1709294400000,
+      "last": 1792710000000,
+      "sha256": "099c56b568e5510356ead2a3d28857e4ffb4a2b460f7865f16d78466e2c1800c"
+    },
+    {
+      "symbol": "TOSHIUSDT",
+      "rows": 9619,
+      "first": 1758085200000,
+      "last": 1792710000000,
+      "sha256": "28916db8d167c1201494046791330ff87b67661bd86ef7ff53845735568627c9"
+    },
+    {
+      "symbol": "TOWNSUSDT",
+      "rows": 10642,
+      "first": 1754402400000,
+      "last": 1792710000000,
+      "sha256": "07f00c92fc6930ee0ed9077a3c7c41dddab63bd87560d98cbb11c7891269110a"
+    },
+    {
+      "symbol": "TRADOORUSDT",
+      "rows": 9564,
+      "first": 1758283200000,
+      "last": 1792710000000,
+      "sha256": "991935232d2b2b6c35cc5d2668d4e3e84482270a2781a6a9033d18e17520093a"
+    },
+    {
+      "symbol": "TRBUSDT",
+      "rows": 53657,
+      "first": 1599116400000,
+      "last": 1792710000000,
+      "sha256": "a6056f27add132f88205557ecc392881a73be923a3e9dcd69e65774371d27742"
+    },
+    {
+      "symbol": "TREEUSDT",
+      "rows": 10810,
+      "first": 1753797600000,
+      "last": 1792710000000,
+      "sha256": "3f8f8c6dc8a8b8d0306032f7f2698d25a1b30072be46e8981e0e085a884ee69c"
+    },
+    {
+      "symbol": "TRIAUSDT",
+      "rows": 6204,
+      "first": 1770379200000,
+      "last": 1792710000000,
+      "sha256": "557796357bd1f76d0ecae0c65665aab3781f955755fa73a76e42845c16d781d0"
+    },
+    {
+      "symbol": "TROYUSDT",
+      "rows": 17315,
+      "first": 1730379600000,
+      "last": 1792710000000,
+      "sha256": "c7f75840fa0436b41cd289a38f35e0ab1949c57416e26a569ecc4b238f65e030"
+    },
+    {
+      "symbol": "TRUMPUSDT",
+      "rows": 15419,
+      "first": 1737205200000,
+      "last": 1792710000000,
+      "sha256": "2e1a071af66f56166777831832b783c5fbfe1339f53e48888df4f2d80d74a998"
+    },
+    {
+      "symbol": "TRUSTUSDT",
+      "rows": 8439,
+      "first": 1762333200000,
+      "last": 1792710000000,
+      "sha256": "ccad715b8a823f3ddc7d32484813727703b45734cbb6e141e387d2cfdfb7e2f9"
+    },
+    {
+      "symbol": "TRUTHUSDT",
+      "rows": 9276,
+      "first": 1759320000000,
+      "last": 1792710000000,
+      "sha256": "99af74a9451736204b7e5914e249a77375105cfdec83c5a98ee079645ffd579c"
+    },
+    {
+      "symbol": "TRUUSDT",
+      "rows": 31812,
+      "first": 1678190400000,
+      "last": 1792710000000,
+      "sha256": "8bee52fb0f8db4bbf7cbbc0852807f0d037a3ec68c35b74596e0b01926b068d3"
+    },
+    {
+      "symbol": "TRXUSDT",
+      "rows": 59224,
+      "first": 1579075200000,
+      "last": 1792710000000,
+      "sha256": "4461f1071b360d5fe4b56b2da9eb1790c32a872c0837f4380193ab3f15daf418"
+    },
+    {
+      "symbol": "TSTUSDT",
+      "rows": 14891,
+      "first": 1739106000000,
+      "last": 1792710000000,
+      "sha256": "82c929e18040aebb220c02ec35139a63dba91bfc7f356c9545ed8528d827355e"
+    },
+    {
+      "symbol": "TURBOUSDT",
+      "rows": 21009,
+      "first": 1717081200000,
+      "last": 1792710000000,
+      "sha256": "9bed30bf3bbda30331fbd1e3a3497aebf3181cd7635eb7bda120cd62262295b3"
+    },
+    {
+      "symbol": "TURTLEUSDT",
+      "rows": 8769,
+      "first": 1761145200000,
+      "last": 1792710000000,
+      "sha256": "35ab02fa97b8bf16bc7939363b0132240b6fbdcde92b226caceb681152ff9c10"
+    },
+    {
+      "symbol": "TUSDT",
+      "rows": 32627,
+      "first": 1675256400000,
+      "last": 1792710000000,
+      "sha256": "d1f61e44ab1df955889e8034b9af672aaf9325a84d82ff9470eafa753c6ceb6d"
+    },
+    {
+      "symbol": "TUTUSDT",
+      "rows": 13959,
+      "first": 1742461200000,
+      "last": 1792710000000,
+      "sha256": "f08ac520cf310e8439851b77b139eb1769ecd356d621d6afdcdde57c55ba9fa5"
+    },
+    {
+      "symbol": "TWTUSDT",
+      "rows": 26026,
+      "first": 1699020000000,
+      "last": 1792710000000,
+      "sha256": "875a20ce784bc337695e4c00a497ebae73bde9f83fb8dbdef406fcc1ae54addb"
+    },
+    {
+      "symbol": "UAIUSDT",
+      "rows": 8413,
+      "first": 1762426800000,
+      "last": 1792710000000,
+      "sha256": "440b986d8358fd2c5d36a7ccb85ebbcccc423039dc5f330313176759cbce16d1"
+    },
+    {
+      "symbol": "UBUSDT",
+      "rows": 9734,
+      "first": 1757671200000,
+      "last": 1792710000000,
+      "sha256": "ba7bb1ea867b899f8f34f8909cba4e7b22a68928aee1f1a78ee9444ce36f5213"
+    },
+    {
+      "symbol": "UMAUSDT",
+      "rows": 30276,
+      "first": 1683720000000,
+      "last": 1792710000000,
+      "sha256": "2312ff106fb918a2deceb12ce14931ffef936a5c6020c538dc602376151bac74"
+    },
+    {
+      "symbol": "UNFIUSDT",
+      "rows": 49601,
+      "first": 1613718000000,
+      "last": 1792710000000,
+      "sha256": "817c0af0fef8896f35b71e89987569009365d59cc88ce174008d096293390fc5"
+    },
+    {
+      "symbol": "UNIUSDT",
+      "rows": 53417,
+      "first": 1600412400000,
+      "last": 1792710000000,
+      "sha256": "c1ca90ce14b75ce889d92782c1223752327a87339ebc4440ad6bf96c99d1c226"
+    },
+    {
+      "symbol": "USDCUSDT",
+      "rows": 31687,
+      "first": 1678640400000,
+      "last": 1792710000000,
+      "sha256": "d9f719445f6021f8584076ac6b13323e8ec43acde497bbad7e2a985abab4871f"
+    },
+    {
+      "symbol": "USELESSUSDT",
+      "rows": 10404,
+      "first": 1755259200000,
+      "last": 1792710000000,
+      "sha256": "72d3f979bceb79274fbe9a585f63691e77e6f31b2fe834181762f6afc467bb76"
+    },
+    {
+      "symbol": "USTCUSDT",
+      "rows": 25452,
+      "first": 1701086400000,
+      "last": 1792710000000,
+      "sha256": "357aa7c15c196eedac2a5bd27204859b2d332c0277a0e91b6c9fec7d4b911963"
+    },
+    {
+      "symbol": "USUALUSDT",
+      "rows": 16163,
+      "first": 1734526800000,
+      "last": 1792710000000,
+      "sha256": "705c376f8d0d9644e83b5e7f8939452f7343e94b8a1084bd0e90cfb88cf5aa5e"
+    },
+    {
+      "symbol": "USUSDT",
+      "rows": 7550,
+      "first": 1765533600000,
+      "last": 1792710000000,
+      "sha256": "50521f155cab3e31133eb49af41e220c97e192e844e853cb1f9233d6d73ddbf2"
+    },
+    {
+      "symbol": "UXLINKUSDT",
+      "rows": 18417,
+      "first": 1726412400000,
+      "last": 1792710000000,
+      "sha256": "f894f8ab1abbeabd90b01ad701168beee7cc4099543b1dcc05e4d4d6294f45d1"
+    },
+    {
+      "symbol": "VANAUSDT",
+      "rows": 16211,
+      "first": 1734354000000,
+      "last": 1792710000000,
+      "sha256": "5d65476136e2dc6174d80cf8751d918baa6c2e1d5c27943b4b703c914a02d284"
+    },
+    {
+      "symbol": "VANRYUSDT",
+      "rows": 22879,
+      "first": 1710349200000,
+      "last": 1792710000000,
+      "sha256": "2694944e031af5432494a49be4d74476b711d2c919acda2af2933c3a6f5b165b"
+    },
+    {
+      "symbol": "VELODROMEUSDT",
+      "rows": 16280,
+      "first": 1734105600000,
+      "last": 1792710000000,
+      "sha256": "2a65d24a3312a7e74a1f433a9ce60982b5cbbbb6ebd2502662bd0002b57097eb"
+    },
+    {
+      "symbol": "VELVETUSDT",
+      "rows": 11151,
+      "first": 1752570000000,
+      "last": 1792710000000,
+      "sha256": "e33c045b74cc9eb23c793891edbb01a4f0d4d7611a0676a46cbc45df7b40bd33"
+    },
+    {
+      "symbol": "VETUSDT",
+      "rows": 58504,
+      "first": 1581667200000,
+      "last": 1792710000000,
+      "sha256": "bd54c50946c7c339100bee58e8d2f85388769f34227ac0d11b8b9627e2e9ec2d"
+    },
+    {
+      "symbol": "VFYUSDT",
+      "rows": 9300,
+      "first": 1759233600000,
+      "last": 1792710000000,
+      "sha256": "334cb1be0c3f17aef2a22b0f8e6c74e34bed6788e6c0f3f3f616d0a9a7f61024"
+    },
+    {
+      "symbol": "VICUSDT",
+      "rows": 14143,
+      "first": 1741798800000,
+      "last": 1792710000000,
+      "sha256": "8ed6ec4394411e0b1ceabc5167dc1b3b2b166cbc35f9d483fd13701c9fa280a9"
+    },
+    {
+      "symbol": "VIDTUSDT",
+      "rows": 18975,
+      "first": 1724403600000,
+      "last": 1792710000000,
+      "sha256": "ddb4d94df69e68542236ddca52ebc3e0f5d2b1223f600d406c77f402ec42eabb"
+    },
+    {
+      "symbol": "VINEUSDT",
+      "rows": 15278,
+      "first": 1737712800000,
+      "last": 1792710000000,
+      "sha256": "83fe535b4aceedf8f01064620d2103d40562242f9b0e1e3e4f2987457ff0a0bc"
+    },
+    {
+      "symbol": "VIRTUALUSDT",
+      "rows": 16356,
+      "first": 1733832000000,
+      "last": 1792710000000,
+      "sha256": "f8b9178d36ec1b0cde3357831e4bad203abf91f6a8ca51f4edaa6e6a2e5c3f08"
+    },
+    {
+      "symbol": "VOXELUSDT",
+      "rows": 19046,
+      "first": 1724148000000,
+      "last": 1792710000000,
+      "sha256": "711e7c7cd655889d566cad8bc73a6a8486a6038a2455873d5c2d8c99cab2f869"
+    },
+    {
+      "symbol": "VTHOUSDT",
+      "rows": 15327,
+      "first": 1737536400000,
+      "last": 1792710000000,
+      "sha256": "dab75f864408d16fe8c99d41dcf261420876468605919793c031b9ca73581011"
+    },
+    {
+      "symbol": "VVVUSDT",
+      "rows": 15160,
+      "first": 1738137600000,
+      "last": 1792710000000,
+      "sha256": "40a7c8fddddc91bb2110957c79376501d6abc4a6ed2a76e1441dc8df71cb6cf8"
+    },
+    {
+      "symbol": "WALUSDT",
+      "rows": 13785,
+      "first": 1743087600000,
+      "last": 1792710000000,
+      "sha256": "ac6bf6a306c3d902d5cd076ece563c4290b1152fe8ec906f0f0b23bd0b19fb9a"
+    },
+    {
+      "symbol": "WAVESUSDT",
+      "rows": 54185,
+      "first": 1597215600000,
+      "last": 1792710000000,
+      "sha256": "22b4f397ee983cc429f03624b9b2974163bccaf0985806fdb212e5bb054a4d7b"
+    },
+    {
+      "symbol": "WAXPUSDT",
+      "rows": 26410,
+      "first": 1697637600000,
+      "last": 1792710000000,
+      "sha256": "05194a00e0162e6f9e8269bc0f3ef499140d75fad5b203eee7f99329d320fbbf"
+    },
+    {
+      "symbol": "WCTUSDT",
+      "rows": 13333,
+      "first": 1744714800000,
+      "last": 1792710000000,
+      "sha256": "a73fe8624c09edf3de6d9569ed777e938b96c3e824bcfdaa97c65f3b3bb22aac"
+    },
+    {
+      "symbol": "WETUSDT",
+      "rows": 7601,
+      "first": 1765350000000,
+      "last": 1792710000000,
+      "sha256": "c8db6cdb0895cda00a73e359984fe6aaa7df41551dfc8e68884ec849a729f5d8"
+    },
+    {
+      "symbol": "WIFUSDT",
+      "rows": 24202,
+      "first": 1705586400000,
+      "last": 1792710000000,
+      "sha256": "93d3d597ff3df3acebb0f15de7022022a2c18778a184b3520f36bd119344b701"
+    },
+    {
+      "symbol": "WLDUSDT",
+      "rows": 28476,
+      "first": 1690200000000,
+      "last": 1792710000000,
+      "sha256": "8e631412eb256cf88fdcc8abb562f8e7c1da248fc7d686761e0a437d264deee4"
+    },
+    {
+      "symbol": "WLFIUSDT",
+      "rows": 10216,
+      "first": 1755936000000,
+      "last": 1792710000000,
+      "sha256": "dec2f3bbe932e18c68438f86d1a2c2d462e99c6078cdc32080dc6c2bfedff07f"
+    },
+    {
+      "symbol": "WOOUSDT",
+      "rows": 39813,
+      "first": 1649386800000,
+      "last": 1792710000000,
+      "sha256": "67e638a662f8376a98d7d41103db17f157c1a55c73ce3c82ca7d092d9092a76b"
+    },
+    {
+      "symbol": "WUSDT",
+      "rows": 22377,
+      "first": 1712156400000,
+      "last": 1792710000000,
+      "sha256": "94ef86d3b2e9edc8615914f27839082e84b762f3dadec640382ae368c407cfb9"
+    },
+    {
+      "symbol": "XAIUSDT",
+      "rows": 24418,
+      "first": 1704808800000,
+      "last": 1792710000000,
+      "sha256": "cb9b0cc60cff31e88d11497c117bae63c0463624050efcd5ef0f4338aa04fd27"
+    },
+    {
+      "symbol": "XANUSDT",
+      "rows": 9326,
+      "first": 1759140000000,
+      "last": 1792710000000,
+      "sha256": "7ac86da52b2087ff6b4b5237c47246cee269eb7fe0c9c8f64b623b9d6da2f5ae"
+    },
+    {
+      "symbol": "XAUTUSDT",
+      "rows": 5050,
+      "first": 1774533600000,
+      "last": 1792710000000,
+      "sha256": "ff9e2036dc45d1e122aa718daf8dd0cf23cbf2be011326090721f245b00563a8"
+    },
+    {
+      "symbol": "XCNUSDT",
+      "rows": 13425,
+      "first": 1744383600000,
+      "last": 1792710000000,
+      "sha256": "bf75f2823c33f5124a95c169f129f6d6261c5021702f2f79840f16720dab6528"
+    },
+    {
+      "symbol": "XEMUSDT",
+      "rows": 49313,
+      "first": 1614754800000,
+      "last": 1792710000000,
+      "sha256": "1c13b8702bbf0c77e8496d6e2031252117419ede10ed8700d3783f5f1173aac6"
+    },
+    {
+      "symbol": "XLMUSDT",
+      "rows": 59104,
+      "first": 1579507200000,
+      "last": 1792710000000,
+      "sha256": "8c38078dc7bd4c999b53f116f3027ffbb461bad03225df36e2fa358232be63d1"
+    },
+    {
+      "symbol": "XMRUSDT",
+      "rows": 58888,
+      "first": 1580716800000,
+      "last": 1792710000000,
+      "sha256": "8fb235bdf086a153f08a4f399d31f661e632ac3d2ab49cbd3abf6a37dd861cca"
+    },
+    {
+      "symbol": "XNYUSDT",
+      "rows": 10453,
+      "first": 1755082800000,
+      "last": 1792710000000,
+      "sha256": "0822b6dc42aac1bb22993aaf5f9662ff8d97a1fb785a87d786c53ab2a92459c8"
+    },
+    {
+      "symbol": "XPINUSDT",
+      "rows": 9736,
+      "first": 1757664000000,
+      "last": 1792710000000,
+      "sha256": "b11fe179a3c4deca9965c6387290cfad44a28c413352c57439bbcba40491e381"
+    },
+    {
+      "symbol": "XPLUSDT",
+      "rows": 10239,
+      "first": 1755853200000,
+      "last": 1792710000000,
+      "sha256": "1e25f199bfc73c747f312fee198d763fa5e1eb27b2be79526bdee099bcf1bf1d"
+    },
+    {
+      "symbol": "XRPUSDT",
+      "rows": 59440,
+      "first": 1578297600000,
+      "last": 1792710000000,
+      "sha256": "53ddd45afa05177099e6c8994c228c1fb97dc96f61c8882485ade04f3218f4dd"
+    },
+    {
+      "symbol": "XTZUSDT",
+      "rows": 58816,
+      "first": 1580976000000,
+      "last": 1792710000000,
+      "sha256": "88d3661d4542e5ae322c52ffb22e9730ada1fa6267495771bbe1844ed2081274"
+    },
+    {
+      "symbol": "XVGUSDT",
+      "rows": 28932,
+      "first": 1688558400000,
+      "last": 1792710000000,
+      "sha256": "35de3ffb3f2daff120e81a804a2bde130f2f2a549956d768c7c9e26d80b10563"
+    },
+    {
+      "symbol": "XVSUSDT",
+      "rows": 30934,
+      "first": 1681351200000,
+      "last": 1792710000000,
+      "sha256": "717ada172335606f027636b0d201eae0518de162026af6787fbdc16dd2aef041"
+    },
+    {
+      "symbol": "YALAUSDT",
+      "rows": 10592,
+      "first": 1754582400000,
+      "last": 1792710000000,
+      "sha256": "0550c1974598ebde5071659d955145f923312824670a31ec7109caf036b237ad"
+    },
+    {
+      "symbol": "YBUSDT",
+      "rows": 9058,
+      "first": 1760104800000,
+      "last": 1792710000000,
+      "sha256": "58cf2cc579454d39ce9479654e67a10eef9c52296e60659d5c40da625317213e"
+    },
+    {
+      "symbol": "YFIIUSDT",
+      "rows": 13947,
+      "first": 1599116400000,
+      "last": 1649754000000,
+      "sha256": "6e75d10eb5cd5098713b747e7862a940e49ffd5b49fe8c44ec9bc9b384fb002c",
+      "gaps": 2
+    },
+    {
+      "symbol": "YFIUSDT",
+      "rows": 53729,
+      "first": 1598857200000,
+      "last": 1792710000000,
+      "sha256": "999d3a34a4e5334b3806a172bfac036cde8f315dcc94799c5375cf9e16453349"
+    },
+    {
+      "symbol": "YGGUSDT",
+      "rows": 28197,
+      "first": 1691204400000,
+      "last": 1792710000000,
+      "sha256": "6a0ea10204b30e7f9ce44d7e471a99f74cb50cc31104994029c05ca734d23331"
+    },
+    {
+      "symbol": "ZAMAUSDT",
+      "rows": 6879,
+      "first": 1767949200000,
+      "last": 1792710000000,
+      "sha256": "ef5878a0d2b03210b91c1d3304c6419e2af5df09bcdc20da35b2e1d1708b6a85"
+    },
+    {
+      "symbol": "ZBTUSDT",
+      "rows": 8893,
+      "first": 1760698800000,
+      "last": 1792710000000,
+      "sha256": "12a1dfe7ca4a58fd046ca24f3ea5f752b6a04491d856e62cf71c1976e86a318a"
+    },
+    {
+      "symbol": "ZECUSDT",
+      "rows": 58720,
+      "first": 1580889600000,
+      "last": 1792710000000,
+      "sha256": "6396a9dfe22890c8dbb4aef3dd6a9b8ce00e65fd7541323b37d47afbada1031f"
+    },
+    {
+      "symbol": "ZENUSDT",
+      "rows": 51689,
+      "first": 1606201200000,
+      "last": 1792710000000,
+      "sha256": "a1f50c6f4d115b18d54403c7d921b25a867b4a87a38341759be4df9180488aac"
+    },
+    {
+      "symbol": "ZEREBROUSDT",
+      "rows": 15802,
+      "first": 1735826400000,
+      "last": 1792710000000,
+      "sha256": "434a414af20358479d9f0b35a9ca55af275a5ea91ffd166682804ac0815fb695"
+    },
+    {
+      "symbol": "ZESTUSDT",
+      "rows": 3370,
+      "first": 1780581600000,
+      "last": 1792710000000,
+      "sha256": "97bf9d99aa7bcfcb4786b856b0bd769045f55e6135088103c2b220824d128b60"
+    },
+    {
+      "symbol": "ZETAUSDT",
+      "rows": 23848,
+      "first": 1706860800000,
+      "last": 1792710000000,
+      "sha256": "e49df875c78795aba6837b960414dc31f9b74bd4e4cda143fb0d86c56d033dda"
+    },
+    {
+      "symbol": "ZILUSDT",
+      "rows": 55503,
+      "first": 1592470800000,
+      "last": 1792710000000,
+      "sha256": "061552504effd51badccc5cf1051f4e099a372212af90515a5b3a09ba1c4535f"
+    },
+    {
+      "symbol": "ZKCUSDT",
+      "rows": 9658,
+      "first": 1757944800000,
+      "last": 1792710000000,
+      "sha256": "256b5632ab491fe97a6f3068dbd0f3170bd11e6eec49de06dc8496d5e576794c"
+    },
+    {
+      "symbol": "ZKJUSDT",
+      "rows": 12663,
+      "first": 1747126800000,
+      "last": 1792710000000,
+      "sha256": "318c1fe5cc021f230f378054358674184bea58bee81ce70a1d2bf8a72eeb6ab2"
+    },
+    {
+      "symbol": "ZKPUSDT",
+      "rows": 7334,
+      "first": 1766311200000,
+      "last": 1792710000000,
+      "sha256": "e061af983a48773bdb840eb5183c0a773197c0258843abfeb52a70d840f1244d"
+    },
+    {
+      "symbol": "ZKUSDT",
+      "rows": 20581,
+      "first": 1718622000000,
+      "last": 1792710000000,
+      "sha256": "61dd3e5c4ab7282bee4672b07e403b86b3baebff2656fcde7e1cc48cc0d5c985"
+    },
+    {
+      "symbol": "ZORAUSDT",
+      "rows": 10909,
+      "first": 1753441200000,
+      "last": 1792710000000,
+      "sha256": "cd98a5740816cfb9c2cf3a8d0c1652a5232a97648a3f2258c44452a283840cbc"
+    },
+    {
+      "symbol": "ZRCUSDT",
+      "rows": 10815,
+      "first": 1753779600000,
+      "last": 1792710000000,
+      "sha256": "fd407a787a9f177ae4cace513999f86c9d24303cb39e9456c1977324c8e6258f"
+    },
+    {
+      "symbol": "ZROUSDT",
+      "rows": 20506,
+      "first": 1718892000000,
+      "last": 1792710000000,
+      "sha256": "2031afb8f170abd15f6660d2da0b04de551c401f97c95cce7cdefbadb41ddab2"
+    },
+    {
+      "symbol": "ZRXUSDT",
+      "rows": 55479,
+      "first": 1592989200000,
+      "last": 1792710000000,
+      "sha256": "b859384b2d06af82f34c5f321745dd1c3efacd7ffe57ebd3feeac00157edf914"
+    },
+    {
+      "symbol": "哈基米USDT",
+      "rows": 1121,
+      "first": 1788678000000,
+      "last": 1792710000000,
+      "sha256": "e4779ee5e0d4ac679afa59450591d5c4b279c0b5d07da7a6f064219b47faf6ef"
+    },
+    {
+      "symbol": "币安人生USDT",
+      "rows": 8821,
+      "first": 1760958000000,
+      "last": 1792710000000,
+      "sha256": "215d2500594860b8d8fc83e91b26fc11d48dfae515f09c7b060f6e388e29c05c"
+    },
+    {
+      "symbol": "我踏马来了USDT",
+      "rows": 6586,
+      "first": 1769004000000,
+      "last": 1792710000000,
+      "sha256": "e1b1e3cbf1c326b2b4ef318f9d187064359d2f2bbab52f2b486d4be3bd2587bb"
+    },
+    {
+      "symbol": "牛来USDT",
+      "rows": 1285,
+      "first": 1788087600000,
+      "last": 1792710000000,
+      "sha256": "2fc3b4a40c6c6c5b110372e32f4c13803ecbe9ba25cac7d6fa9608ade3c50c89"
+    },
+    {
+      "symbol": "龙虾USDT",
+      "rows": 5413,
+      "first": 1773226800000,
+      "last": 1792710000000,
+      "sha256": "9a08761c2ca2079576c326270d2ac45c3f2caac6c5780d308da33376170b7ece"
+    }
+  ],
+  "errors": [],
+  "catalog_count": 900,
+  "classified_coins": 681,
+  "unknown": []
+}

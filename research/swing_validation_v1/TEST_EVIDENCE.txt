@@ -1,0 +1,21 @@
+test_actual_funding_sign_and_mark_notional (test_swing_validation.ValidationTests.test_actual_funding_sign_and_mark_notional) ... ok
+test_comparison_day_basis (test_swing_validation.ValidationTests.test_comparison_day_basis) ... ok
+test_control_percentage_geometry (test_swing_validation.ValidationTests.test_control_percentage_geometry) ... ok
+test_daily_equal_weights (test_swing_validation.ValidationTests.test_daily_equal_weights) ... ok
+test_entry_geometry_rechecked (test_swing_validation.ValidationTests.test_entry_geometry_rechecked) ... /workspace/scratch/c48b23fca3ac/motor-swing-validation/swing_validation_engine.py:18: RuntimeWarning: All-NaN slice encountered
+  baseline=np.nanmedian(np.array([pd.Series(arr[:,5]).shift(24*d).to_numpy() for d in range(1,8)]),axis=0)
+ok
+test_frozen_config (test_swing_validation.ValidationTests.test_frozen_config) ... ok
+test_gap_exits_at_worse_open (test_swing_validation.ValidationTests.test_gap_exits_at_worse_open) ... ok
+test_limits_rank_known_volume_and_keep_skipped (test_swing_validation.ValidationTests.test_limits_rank_known_volume_and_keep_skipped) ... ok
+test_missing_minute_stop_first (test_swing_validation.ValidationTests.test_missing_minute_stop_first) ... ok
+test_replay_exact_reference_and_trailing (test_swing_validation.ValidationTests.test_replay_exact_reference_and_trailing) ... ok
+test_same_hour_stop_arm_order_minute (test_swing_validation.ValidationTests.test_same_hour_stop_arm_order_minute) ... ok
+test_seed_and_no_signal_control (test_swing_validation.ValidationTests.test_seed_and_no_signal_control) ... ok
+test_signal_prefix_invariant (test_swing_validation.ValidationTests.test_signal_prefix_invariant) ... ok
+test_timeout_168h_plus_minute (test_swing_validation.ValidationTests.test_timeout_168h_plus_minute) ... ok
+
+----------------------------------------------------------------------
+Ran 14 tests in 0.100s
+
+OK

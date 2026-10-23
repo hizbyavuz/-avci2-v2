@@ -1,0 +1,39 @@
+{
+  "config_hash": "d899d56bf0dea0bc564c7907e4e79ad30b81e464de9021b6ecfd6d44e4577938",
+  "candidates": 436,
+  "matching_status": 436,
+  "matching_result": 436,
+  "groups": {
+    "unlimited": {
+      "n": 399,
+      "positive": 217,
+      "mean_fee_only_pct": 4.020348481465829,
+      "mean_fee_only_r": 0.8457239753725811,
+      "mean_pct_cost060": 3.7203484814658294,
+      "mean_pct_cost100": 3.3203484814658295,
+      "peak_open": 186,
+      "skipped": 0,
+      "funding": "NOT_INCLUDED_ORIGINAL_REPLICATION_ONLY"
+    },
+    "limited": {
+      "n": 44,
+      "positive": 17,
+      "mean_fee_only_pct": -0.06651445656397251,
+      "mean_fee_only_r": -0.08114993850584445,
+      "mean_pct_cost060": -0.36651445656397275,
+      "mean_pct_cost100": -0.7665144565639722,
+      "peak_open": 5,
+      "skipped": 355,
+      "funding": "NOT_INCLUDED_ORIGINAL_REPLICATION_ONLY"
+    }
+  },
+  "states": {
+    "MEASURED": 399,
+    "ENTRY_INVALID": 37
+  },
+  "scope": "Original unclassified August cohort; not independent proof; fee-only replication",
+  "source_sha256": {
+    "2026-08-screen.json.gz": "0fc5b18d4d5864c447e938999244cf94782fe9f83a1b95d7136816533f0ed491",
+    "2026-08-full-minute-audit.json.gz": "4a85f0ff1f1428fb437d1d26f73e212443540bc00d5519c2062c523a6c375610"
+  }
+}
