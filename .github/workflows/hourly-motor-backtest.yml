@@ -1,0 +1,32 @@
+name: Saatlik Motor fixed historical test
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: hourly-motor-fixed-experiment
+  cancel-in-progress: false
+jobs:
+  historical:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+      - name: Refuse a second completed test
+        run: test ! -f research/hourly_motor_v1/results/sealed_run.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r requirements.hourly-motor.txt
+      - run: python -m unittest -v test_hourly_motor
+      - uses: actions/cache@v4
+        with:
+          path: hourly-motor-data
+          key: hourly-motor-history-v1
+      - run: python -u hourly_motor_data.py --data hourly-motor-data --archive-cache hourly-motor-data/archive
+      - run: python -u hourly_motor_backtest.py --run --data hourly-motor-data --archive-cache hourly-motor-data/archive --out research/hourly_motor_v1/results
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: hourly-motor-fixed-report
+          path: research/hourly_motor_v1/results/

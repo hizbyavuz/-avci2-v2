@@ -1,0 +1,22 @@
+{
+  "name": "Saatlik Motor v1",
+  "parameter_trials": 0,
+  "start_utc": "2020-01-01T00:00:00Z",
+  "end_exclusive_utc": "2026-10-23T00:00:00Z",
+  "daily_list": "At each UTC midnight use the daily candle that has just closed. Same list until next midnight. The hourly candle closing at midnight may use that new, already known daily list.",
+  "monthly_universe": "Previous 30 complete UTC days of quote volume; top30; archived delisted names included. Stablecoin registry only. No additional age or trend filter in universe; indicators need their mathematical warmup.",
+  "ema": "SMA seed of first period closes; alpha 2/(period+1). Wilder ATR14 with first14 true ranges SMA seed. A missing candle starts a new contiguous seed segment; no price imputation.",
+  "volume": "Signal volume >= 1.5 * mean of previous20 volumes, signal excluded.",
+  "channel": "Previous24 hourly highs/lows, signal excluded.",
+  "quota": "At most one accepted plan per symbol per UTC signal-close date, independently in MAIN, CONTROL_A, CONTROL_B. No additional portfolio position limits.",
+  "control_a": "Opposite-direction24h breakouts in coins on a daily LONG or SHORT list; same monthly top30, volume condition, stop, target, time exit, costs and funding.",
+  "control_b": "LONG or SHORT24h breakouts in monthly top30 coins on neither directional list. Daily data must be valid. Same plan and execution rules. Not selected using subsequent returns.",
+  "entry": "Next hourly open. Nonpositive price/risk/target is an invalid plan, not a new strategy filter.",
+  "timeout": "Exactly entry+2h: opening price of the hourly candle at that boundary. Stops/targets apply to the two preceding hours. A stop gap exits at the open; a favorable target gap exits at target conservatively.",
+  "ambiguous_hour": "Official1m replay. Missing/inconsistent1m => STOP. Both hit in same1m => STOP. A single-hit hourly exit is timestamped at hour-end minus1ms; funding settles at hourly boundaries.",
+  "funding": "Actual published signed rates on constant entry notional; LONG pays positive rate, SHORT receives. Entry<settlement<=exit. Normalize millisecond settlement jitter to second. Series must bracket trade and have no gap over8h. Missing history is UNVERIFIED, never zero or an assumed rate.",
+  "closed_data_only": true,
+  "live_enabled": false,
+  "approval": "Live requires GEÇTİ in report and subsequent explicit user approval. No schedule in active workflow until then.",
+  "success": "MAIN>=200 closed measured trades; mean net%>0 at0.30% and0.60% costs; MAIN mean net% greater than both control means. No parameter changes or reruns after completed result. Missing data disclosed separately."
+}

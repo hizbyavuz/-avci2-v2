@@ -1,0 +1,42 @@
+name: Saatlik Motor paper — LOCKED
+# No schedule until passing report plus explicit user approval.
+on:
+  workflow_dispatch:
+    inputs:
+      initialize_state:
+        description: 'Create isolated paper ledger after approval'
+        type: boolean
+        default: false
+permissions:
+  contents: write
+concurrency:
+  group: hourly-motor-paper
+  cancel-in-progress: false
+jobs:
+  paper:
+    if: vars.HOURLY_MOTOR_LIVE_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r requirements.hourly-motor.txt
+      - name: Require passing report and approval
+        run: python -c "from hourly_motor_live import approve; approve('hourly_motor_approval.json','research/hourly_motor_v1/results/summary.json','research/hourly_motor_v1/results/report.md')"
+      - uses: actions/cache@v4
+        with:
+          path: .hourly-motor-cache
+          key: hourly-motor-data-${{ github.run_id }}
+          restore-keys: hourly-motor-data-
+      - name: Paper only
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          INITIALIZE: ${{ inputs.initialize_state }}
+        run: |
+          args=()
+          if [ "$INITIALIZE" = "true" ]; then args+=(--initialize-state); fi
+          python -u hourly_motor_live.py "${args[@]}"
