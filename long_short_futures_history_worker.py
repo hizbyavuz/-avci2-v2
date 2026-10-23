@@ -58,7 +58,7 @@ def pattern_priority_pass(db, base, analyst, stop):
     """
     failed = False
     for symbol in requested_symbols(analyst):
-        for interval in ('1m', '15m', '30m', '4h'):
+        for interval in ('1m', '15m', '30m', '1h', '4h'):
             if stop.is_set():
                 return failed
             try:
