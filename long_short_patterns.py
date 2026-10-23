@@ -9,7 +9,10 @@ import json
 import math
 from statistics import median
 
-VERSION = 'PATTERN_STRUCTURE_RESEARCH_V2_1_2026_10_23'
+VERSION = 'PATTERN_STRUCTURE_RESEARCH_V2_2_2026_10_23'
+STOP_POLICY = 'CLOSED_STRUCTURE_INVALIDATION_V1'
+LEGACY_VERSIONS = {'PATTERN_STRUCTURE_RESEARCH_V2_2026_10_23',
+                   'PATTERN_STRUCTURE_RESEARCH_V2_1_2026_10_23'}
 MINUTE = 60_000
 HOUR = 60 * MINUTE
 INTERVALS = {'15m': 15 * MINUTE, '30m': 30 * MINUTE, '1h': HOUR, '4h': 4 * HOUR}
@@ -21,7 +24,7 @@ CONFIG = dict(pivot_right=2, min_bars=120, max_bars=220, min_quote_volume_24h=2_
               setup_intervals=SETUP_INTERVALS,
               max_hold_hours={'15m': 72, '30m': 72}, ready_minutes=15,
               retest_lookback_bars=6, retest_touch_atr=.35,
-              hypothesis_status='UNVALIDATED_RESEARCH_ONLY')
+              hypothesis_status='UNVALIDATED_RESEARCH_ONLY', stop_policy=STOP_POLICY)
 CONFIG_HASH = hashlib.sha256(json.dumps(CONFIG, sort_keys=True).encode()).hexdigest()
 LABELS = {'RANGE_BREAK': 'Yatay aralık kırılımı', 'ASCENDING_TRIANGLE': 'Yükselen üçgen',
           'DESCENDING_TRIANGLE': 'Alçalan üçgen', 'SYMMETRIC_TRIANGLE': 'Simetrik üçgen',
@@ -132,6 +135,64 @@ def _at(line, i):
     return line[0]*i+line[1]
 
 
+def structural_stop(direction, trigger, a, rows, entry_style, pivot=None):
+    """Use only already closed bars, including the confirmation candle.
+
+    A break protects the latest opposite pivot AND every newer adverse wick.
+    A retest protects its own two-bar structure. Both leave the frozen break
+    boundary on the entry side of the stop. No target is moved to recover R.
+    """
+    sign = 1 if direction == 'LONG' else -1
+    field = 'low' if sign == 1 else 'high'
+    choose = min if sign == 1 else max
+    extreme = choose(rows, key=lambda b: b[field])
+    prices = [trigger, extreme[field]] + ([pivot['price']] if pivot else [])
+    reference = choose(prices)
+    buffer = CONFIG['stop_buffer_atr']*a
+    stop = reference-sign*buffer
+    basis = dict(policy=STOP_POLICY, entry_style=entry_style, boundary_price=trigger,
+                 reference_price=reference, buffer_atr=CONFIG['stop_buffer_atr'],
+                 buffer_price=buffer, stop=stop,
+                 window_start_ms=rows[0]['open_ms'], window_end_ms=rows[-1]['close_ms'],
+                 adverse_extreme=dict(field=field, price=extreme[field],
+                                      open_ms=extreme['open_ms'], close_ms=extreme['close_ms']),
+                 confirmed_pivot=({k: pivot[k] for k in ('kind','price','open_ms','known_ms')}
+                                  if pivot else None))
+    return stop, basis
+
+
+def stop_contract_valid(p):
+    # Existing published plans keep their original entry/exit contract. Only
+    # the new release may be published, enforced separately by runtime.publish.
+    if p.get('version') in LEGACY_VERSIONS:
+        return True
+    if p.get('version') != VERSION:
+        return False
+    b = p.get('stop_basis') or {}
+    try:
+        sign = 1 if p['direction'] == 'LONG' else -1
+        if b['policy'] != STOP_POLICY or b['entry_style'] != p.get('entry_style', 'BREAK'):
+            return False
+        fields = (p['stop'], p['trigger'], p['atr'], b['reference_price'],
+                  b['buffer_price'], b['adverse_extreme']['price'])
+        if not all(finite(v) and v > 0 for v in fields):
+            return False
+        if b['boundary_price'] != p['trigger'] or b['stop'] != p['stop']:
+            return False
+        reference = b['reference_price']
+        prices = [p['trigger'], b['adverse_extreme']['price']]
+        if b.get('confirmed_pivot'):
+            prices.append(b['confirmed_pivot']['price'])
+        if any(not finite(v) or sign*(v-reference) < 0 for v in prices):
+            return False
+        buffer = CONFIG['stop_buffer_atr']*p['atr']
+        return (sign*(p['trigger']-p['stop']) > 0 and
+                math.isclose(b['buffer_price'], buffer, rel_tol=1e-12) and
+                math.isclose(p['stop'], reference-sign*buffer, rel_tol=1e-12))
+    except (KeyError, TypeError, ValueError):
+        return False
+
+
 def _shape_candidates(rows, a):
     """Both directions use the same geometry; their results stay separate."""
     prior = rows[:-1]
@@ -187,7 +248,7 @@ def _shape_candidates(rows, a):
                     continue
                 result.append(dict(model=model, direction=direction, start_i=start,
                                    boundary=line, stop_anchor=stop_pivot, height=old_width,
-                                   anchors=hp+lp))
+                                   anchors=hp+lp, fitted_lines=dict(upper=upper, lower=lower)))
     # Reversal patterns: lows/highs in sequence and intervening neckline peaks.
     for direction, kind in [('LONG', 'L'), ('SHORT', 'H')]:
         sign = 1 if direction == 'LONG' else -1
@@ -253,7 +314,8 @@ def _breakouts(symbol, interval, rows, context_rows, now_ms):
             continue
         if sign*(entry-trigger) <= CONFIG['break_buffer_atr']*a:
             continue
-        stop = shape['stop_anchor']['price']-sign*CONFIG['stop_buffer_atr']*a
+        stop, stop_basis = structural_stop(direction, trigger, a,
+            rows[shape['stop_anchor']['i']:], 'BREAK', shape['stop_anchor'])
         obstacles = unbroken_levels(rows, direction, entry)+unbroken_levels(context_rows, direction, entry)
         projected = trigger+sign*shape['height']
         # A closer obstacle is never skipped to make risk/reward look better.
@@ -286,7 +348,12 @@ def _breakouts(symbol, interval, rows, context_rows, now_ms):
             structure_start_ms=rows[shape['start_i']]['open_ms'], confirmation_ms=rows[-1]['close_ms'],
             expires_ms=rows[-1]['close_ms']+CONFIG['ready_minutes']*MINUTE,
             stage='REJECTED' if reasons else 'READY', reasons=reasons, research_only=True,
-            entry_style='BREAK',
+            entry_style='BREAK', stop_basis=stop_basis,
+            structure_geometry=dict(index_origin_open_ms=rows[0]['open_ms'],
+                window_bars=n-shape['start_i'], boundary_slope=boundary[0],
+                boundary_intercept=boundary[1], evaluated_index=n,
+                boundary_at_confirmation=trigger, fitted_lines=shape.get('fitted_lines'),
+                confirmed_stop_pivot=stop_basis['confirmed_pivot']),
             entry=entry, trigger=trigger, stop=stop, target=target, target_source=target_source,
             nearest_obstacle=min(obstacles, key=lambda v: sign*(v-entry)) if obstacles else None,
             atr=a, geometry=g, context_4h=trend(context_rows), fibonacci=fibonacci(rows[:-1], direction), supporting=supporting,
@@ -333,7 +400,8 @@ def assess(symbol, interval, rows, context_rows, now_ms):
             if not (abs(touch-trigger) <= CONFIG['retest_touch_atr']*a and
                     sign*(retest['close']-trigger) >= 0 and sign*(current['close']-confirmation) > 0):
                 continue
-            stop = touch-sign*CONFIG['stop_buffer_atr']*a
+            stop, stop_basis = structural_stop(p['direction'], trigger, a,
+                                               rows[-2:], 'RETEST')
             entry = current['close']
             obstacles = unbroken_levels(rows, p['direction'], entry)+unbroken_levels(context_rows, p['direction'], entry)
             targets = obstacles+[p['target']]
@@ -348,6 +416,7 @@ def assess(symbol, interval, rows, context_rows, now_ms):
             updated = dict(p, id=hashlib.sha256((p['id']+':RETEST:'+str(retest['open_ms'])).encode()).hexdigest(),
                            origin_id=p['id'], origin_confirmation_ms=p['confirmation_ms'],
                            origin_reconstructed=True, entry_style='RETEST', entry=entry, stop=stop,
+                           stop_basis=stop_basis,
                            target=target, target_source=p['target_source'] if target == p['target'] else 'HISTORICAL_PIVOT',
                            retest_bar_ms=retest['open_ms'], geometry=g, confirmation_ms=current['close_ms'],
                            expires_ms=current['close_ms']+CONFIG['ready_minutes']*MINUTE,
@@ -361,7 +430,7 @@ def assess(symbol, interval, rows, context_rows, now_ms):
 def executable(p, price):
     g = geometry(p['direction'], price, p['stop'], p['target'])
     sign = 1 if p['direction'] == 'LONG' else -1
-    valid = (g['valid'] and g['risk_pct'] <= CONFIG['max_risk_pct'] and
+    valid = (stop_contract_valid(p) and g['valid'] and g['risk_pct'] <= CONFIG['max_risk_pct'] and
              g['rr_after_assumed_cost'] >= CONFIG['min_reward_risk'] and
              CONFIG['break_buffer_atr']*p['atr'] < sign*(price-p['trigger']) <= CONFIG['max_chase_atr']*p['atr'])
     return valid, g
@@ -393,7 +462,7 @@ def message(p, price, context=None):
             f'⚖️ Masraf sonrası ödül/risk: {g["rr_after_assumed_cost"]:.2f}R',
             f'⌛ Plan geçerliliği: {expiry} · fiyat değişirse R yeniden hesaplanır.',
             '',
-            '📐 Hesap: '+('geri test ucu' if retest else 'formasyonun geçersizlik noktası')+' + 0,20 ATR tamponu (mum oynaklığı).',
+            '📐 SL hesabı: '+('geri test ve teyit mumunun ucu' if retest else 'son teyitli dip/tepe ve sonraki mumların ucu')+'; kırılım çizgisi de korunur. Tampon: 0,20 ATR (mum oynaklığı).',
             '🎯 Hedef dayanağı: '+('henüz aşılmamış fiyat engeli.' if p['target_source'] == 'HISTORICAL_PIVOT' else 'formasyon boyu tahmini; doğrulanmış destek/direnç değil.'),
             f'🧭 4 saatlik yapı: {trend_name} · ATR(14): {f(p["atr"])}']
     supporting = p.get('supporting', {})

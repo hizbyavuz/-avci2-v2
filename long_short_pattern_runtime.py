@@ -212,6 +212,9 @@ def publish(c, kdb, p, now_ms, token, chat, sender=send):
     entry_ms = (ack//MINUTE+1)*MINUTE if ack else None
     c.execute('UPDATE plans SET state=?,ack_ms=?,entry_ms=? WHERE id=?', (state, ack, entry_ms, p['id']))
     c.commit()
+    print('PATTERN_PLAN_DELIVERY '+encoded(dict(version=p['version'], id=p['id'],
+        symbol=p['symbol'], direction=p['direction'], state=state, ack_ms=ack,
+        reference_price=price, entry_ms=entry_ms)), flush=True)
     return state
 
 
@@ -231,8 +234,16 @@ def scan(c, kdb, now_ms, token=None, chat=None):
                           (symbol, interval, expected, now_ms, encoded(dict(quote_volume_24h=volume, candidates=len(plans)))))
                 scanned += 1
                 for p in plans:
-                    c.execute('INSERT OR IGNORE INTO candidates VALUES(?,?,?,?,?)',
-                              (p['id'], symbol, now_ms, p['stage'], encoded(p)))
+                    inserted = c.execute('INSERT OR IGNORE INTO candidates VALUES(?,?,?,?,?)',
+                                         (p['id'], symbol, now_ms, p['stage'], encoded(p))).rowcount
+                    if inserted:
+                        audit = {k: p.get(k) for k in ('id','version','config_hash','symbol',
+                            'interval','direction','model','stage','reasons','entry_style',
+                            'confirmation_ms','structure_start_ms','entry','trigger','stop','target',
+                            'target_source','geometry','anchors','structure_geometry','stop_basis',
+                            'origin_id','origin_confirmation_ms','retest_bar_ms')}
+                        print('PATTERN_CANDIDATE_AUDIT '+encoded(dict(observed_ms=now_ms,
+                            record_type='ASSESSMENT_NOT_DELIVERY', **audit)), flush=True)
                     if p['stage'] == 'READY':
                         ready.append(p)
             except (ValueError, KeyError, TypeError, sqlite3.Error) as exc:
@@ -253,7 +264,8 @@ def scan(c, kdb, now_ms, token=None, chat=None):
         decisions[status] = decisions.get(status, 0)+1
         c.execute('UPDATE candidates SET decision=? WHERE id=?', (status, p['id']))
         c.commit()
-    coverage = dict(observed_ms=now_ms, universe=len(values), newly_scanned=scanned,
+    coverage = dict(version=VERSION, config_hash=CONFIG_HASH,
+                    observed_ms=now_ms, universe=len(values), newly_scanned=scanned,
                     failed_symbol_intervals=errors, publication=decisions)
     c.execute('INSERT OR REPLACE INTO health VALUES(?,?)', (now_ms//(15*MINUTE), encoded(coverage)))
     c.commit()
@@ -301,6 +313,8 @@ def measure(c, kdb, now_ms, token=None, chat=None, sender=send):
                     f'Dakika yolunda boşluk var; bu aralık için SL/TP sonucu bilinmiyor. Plan: {p["id"][:10]}', now_ms)
         if not had_exit and progress['exit']:
             ex = progress['exit']
+            print('PATTERN_PLAN_OUTCOME '+encoded(dict(version=p['version'], id=p['id'],
+                symbol=p['symbol'], direction=p['direction'], result=outcome)), flush=True)
             enqueue(c, 'EXIT:'+p['id'], f'📋 {p["symbol"]} {p["direction"]} · DENEME {ex["kind"]}\n'
                    f'Kağıt giriş: {progress["entry"]:.8g} · Çıkış: {ex["price"]:.8g}\n'
                    f'Komisyon/kayma varsayımı sonrası: %{outcome["fee_slippage_only_pct"]:+.2f}; funding bilinmiyor.\n'
@@ -309,19 +323,31 @@ def measure(c, kdb, now_ms, token=None, chat=None, sender=send):
     flush_events(c, token, chat, now_ms, sender)
 
 
-def report(c):
-    out = dict(version=VERSION, states=dict(c.execute('SELECT state,COUNT(*) FROM plans GROUP BY state')),
-               directions={}, estimated_portfolio_performance=None)
+def _cohort_report(rows):
+    states = {}
+    for row in rows:
+        states[row['state']] = states.get(row['state'], 0)+1
+    out = dict(states=states, directions={}, estimated_portfolio_performance=None)
     for direction in ('LONG', 'SHORT'):
-        rows = c.execute('SELECT state,result FROM plans WHERE direction=?', (direction,)).fetchall()
-        results = [json.loads(r['result']) for r in rows if r['result']]
+        directional = [r for r in rows if r['direction'] == direction]
+        results = [json.loads(r['result']) for r in directional if r['result']]
         closed = [r for r in results if r['exit']]
-        out['directions'][direction] = dict(notices=len(rows), closed=len(closed),
+        out['directions'][direction] = dict(notices=len(directional), closed=len(closed),
             positive_fee_only=sum(r['fee_slippage_only_pct'] > 0 for r in closed),
             missing_full_net=sum(r['full_net_pct'] is None for r in results),
             closed_fee_only_mean_pct=sum(r['fee_slippage_only_pct'] for r in closed)/len(closed) if closed else None,
             denominator_note='Closed plan description only; pending, cancelled and unknown counts are retained in states. No hit-rate claim.')
     return out
+
+
+def report(c):
+    cohorts = {}
+    for row in c.execute('SELECT direction,state,result,payload FROM plans').fetchall():
+        version = json.loads(row['payload']).get('version', 'UNKNOWN_VERSION')
+        cohorts.setdefault(version, []).append(row)
+    return dict(version=VERSION, **_cohort_report(cohorts.get(VERSION, [])),
+                by_version={v: _cohort_report(rows) for v, rows in cohorts.items()},
+                cohort_note='Top-level results are current-version only; old plans retain their saved stops and outcomes.')
 
 
 def health(directory):

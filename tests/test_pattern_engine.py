@@ -40,12 +40,17 @@ def context(now):
 
 
 def plan(side='LONG'):
-    return dict(version=core.VERSION, config_hash=core.CONFIG_HASH, id='episode-'+side, symbol='TESTUSDT',
+    p = dict(version=core.VERSION, config_hash=core.CONFIG_HASH, id='episode-'+side, symbol='TESTUSDT',
                 stage='READY', research_only=True, direction=side, interval='30m', model='RANGE_BREAK',
                 entry=100., trigger=99.5 if side == 'LONG' else 100.5, atr=2.,
                 stop=97. if side == 'LONG' else 103., target=106. if side == 'LONG' else 94.,
                 target_source='HISTORICAL_PIVOT', confirmation_ms=START-1, expires_ms=START+15*M,
                 context_4h='RANGE', max_hold_hours=72, geometry=core.geometry(side, 100, 97 if side == 'LONG' else 103, 106 if side == 'LONG' else 94))
+    p['stop_basis'] = dict(policy=core.STOP_POLICY, entry_style='BREAK',
+        boundary_price=p['trigger'], stop=p['stop'], reference_price=97.4 if side=='LONG' else 102.6,
+        buffer_atr=.2, buffer_price=.4, confirmed_pivot=None,
+        adverse_extreme=dict(price=97.4 if side=='LONG' else 102.6))
+    return p
 
 
 class GeometryTests(unittest.TestCase):
