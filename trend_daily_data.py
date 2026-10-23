@@ -145,7 +145,7 @@ def repair_funding(archive,root,workers=6):
         return dict(symbol=x['symbol'],rows=len(x['bars']),funding_errors=x['funding_errors'],sha256=hashlib.sha256(path.read_bytes()).hexdigest())
     with ThreadPoolExecutor(max_workers=workers) as pool:manifest['symbols']=list(pool.map(one,manifest['symbols']))
     (root/'manifest.json').write_text(json.dumps(manifest,indent=2))
-    print(json.dumps(dict(stage='funding_repair',remaining_transport_errors=sum(sum(e['error']!='NO_ACTUAL_FUNDING' for e in r['funding_errors']) for r in manifest['symbols'])),flush=True))
+    print(json.dumps(dict(stage='funding_repair',remaining_transport_errors=sum(sum(e['error']!='NO_ACTUAL_FUNDING' for e in r['funding_errors']) for r in manifest['symbols']))),flush=True)
     return manifest
 
 

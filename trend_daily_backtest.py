@@ -198,7 +198,8 @@ def replay(book,data,start,end,checkpoint):
                 if s in occupied_at_signal:
                     book['skips'].append(dict(sig,status='SKIPPED',reason='SAME_SYMBOL_OPEN'));continue
                 bar=data.bar(s,at)
-                if not bar:book['skips'].append(dict(sig,status='SKIPPED',reason='NEXT_OPEN_MISSING'));continue
+                if not bar or bar.volume==0:
+                    book['skips'].append(dict(sig,status='SKIPPED',reason='NEXT_OPEN_MISSING_OR_NO_TRADES'));continue
                 candidates.append(make_plan(sig,bar.open,at))
             accepted,rejected=choose(candidates,book['positions'],book['mode']=='limited')
             book['skips'].extend(rejected)
