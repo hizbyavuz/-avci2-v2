@@ -1,0 +1,33 @@
+name: Swing V1 fixed independent validation (research only)
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: swing-v1-validation
+  cancel-in-progress: false
+jobs:
+  research:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.swing-validation.txt
+      - run: python -m unittest -v test_swing_validation
+      - name: Refuse repeating a completed fixed experiment
+        run: test ! -f research/swing_validation_v1/results/sealed_run.json
+      - uses: actions/cache@v4
+        with:
+          path: swing-validation-data
+          key: swing-validation-20261023-v1
+      - run: python -u swing_validation_data.py --data swing-validation-data --workers 12
+      - run: python -u swing_validation_backtest.py --data swing-validation-data --out research/swing_validation_v1/results --workers 12
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: swing-v1-validation
+          path: research/swing_validation_v1/
+          retention-days: 90
