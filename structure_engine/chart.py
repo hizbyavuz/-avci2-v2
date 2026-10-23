@@ -21,7 +21,7 @@ def drawing_spec(assessment, plan):
                 analysis=assessment.get('chart_analysis'), model=plan['model'], plan_eligible=plan['plan_eligible'])
 
 
-def render(assessment, frames, plan, path):
+def render_detail(assessment, frames, plan, path):
     import matplotlib
     matplotlib.use('Agg')
     import matplotlib.pyplot as plt
@@ -169,4 +169,69 @@ def render(assessment, frames, plan, path):
     metadata = {'Description': json.dumps(spec, ensure_ascii=False)}
     fig.savefig(path, dpi=135, metadata=metadata, bbox_inches='tight', pad_inches=.2)
     plt.close(fig)
+    return spec
+
+
+def render(assessment, frames, plan, path):
+    """Mobile-first single price chart. Full annotation chart is a separate file."""
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+    from matplotlib.patches import Rectangle
+    from .presentation import card
+    spec=drawing_spec(assessment,plan)
+    for tf in (assessment['interval'],'1h','4h'):
+        if any(b['close_ms']>=assessment['asof_ms'] for b in frames[tf]):
+            raise ValueError('FUTURE_CANDLE_IN_CHART')
+    path=Path(path);path.parent.mkdir(parents=True,exist_ok=True)
+    c=card(plan);spec['card']=c
+    rows=frames[assessment['interval']][-48:]
+    fig=plt.figure(figsize=(9,9),facecolor='#101923')
+    ax=fig.add_axes([.09,.30,.68,.43],facecolor='#101923')
+    text='#e7edf5';muted='#afbdcc';red='#ff7284';green='#50d0aa';blue='#65b8ff'
+    title_color=green if c['eligible'] else '#f6c46b'
+    fig.text(.07,.95,c['status'],color=title_color,fontsize=19,weight='bold')
+    stamp=datetime.fromtimestamp(assessment['asof_ms']/1000,ZoneInfo('Europe/Istanbul')).strftime('%d/%m %H:%M')
+    fig.text(.07,.91,f"{plan['symbol']} · {plan['direction']} senaryosu · {plan['interval']} · {stamp}",color=text,fontsize=13)
+    fig.text(.07,.855,c['reason'],color=text,fontsize=12,wrap=True)
+    fig.text(.07,.815,c['condition'],color=muted,fontsize=11,wrap=True)
+    for i,b in enumerate(rows):
+        color=green if b['close']>=b['open'] else red
+        ax.vlines(i,b['low'],b['high'],color=color,lw=1)
+        ax.add_patch(Rectangle((i-.3,min(b['open'],b['close'])),.6,max(abs(b['close']-b['open']),b['close']*.00001),facecolor=color,edgecolor=color))
+    z=spec['zone'];ax.axhspan(z['low'],z['high'],color=blue,alpha=.12)
+    ax.annotate('İzlenen seviye',(1,z['high']),xytext=(0,5),textcoords='offset points',color=blue,fontsize=9)
+    n=len(rows);ax.set_xlim(-1,n+8)
+    levels=[c['last'],c['stop'],c['target'],c['entry'] or c['trigger']]
+    lo=min([b['low'] for b in rows]+[v for v in levels if v is not None]);hi=max([b['high'] for b in rows]+[v for v in levels if v is not None])
+    pad=max((hi-lo)*.12,hi*.001);ax.set_ylim(lo-pad,hi+pad)
+    label_levels=[('SL' if c['eligible'] else 'Geçersizlik',c['stop'],red),('TP' if c['eligible'] else 'İlk engel',c['target'],green),('Giriş' if c['eligible'] else 'Kırılım',c['entry'] or c['trigger'],blue)]
+    # Avoid right-side text collisions while retaining leader lines to exact prices.
+    positions=[]
+    for label,value,color in sorted([v for v in label_levels if v[1] is not None],key=lambda v:v[1]):
+        y=value
+        if positions:y=max(y,positions[-1]+(hi-lo+2*pad)*.12)
+        positions.append(y)
+        ax.axhline(value,color=color,lw=1.2,ls='--')
+        ax.annotate(f'{label}\n{value:.7g}',xy=(n+6,value),xytext=(1.02,(y-(lo-pad))/(hi-lo+2*pad)),textcoords='axes fraction',color=color,fontsize=11,weight='bold',va='center',annotation_clip=False,arrowprops=dict(arrowstyle='-',color=color,lw=.8))
+    ax.scatter([n-1],[c['last']],color='white',s=23,zorder=6)
+    if c['eligible']:
+        for boundary,color in [(c['stop'],red),(c['target'],green)]:
+            ax.add_patch(Rectangle((n+.3,min(c['entry'],boundary)),6,abs(boundary-c['entry']),facecolor=color,alpha=.24,edgecolor=color))
+    ticks=list(range(0,n,max(1,n//4)))
+    ax.set_xticks(ticks,[datetime.fromtimestamp(rows[i]['open_ms']/1000,ZoneInfo('Europe/Istanbul')).strftime('%d/%m\n%H:%M') for i in ticks])
+    ax.tick_params(colors=muted,labelsize=9);ax.grid(alpha=.12,color='white')
+    for spine in ax.spines.values():spine.set_color('#334453')
+    ax.set_ylabel('Fiyat · USDT',color=muted,fontsize=10)
+    f=lambda v:f'{v:.8g}' if v is not None else 'Bilinmiyor'
+    fig.text(.07,.22,f"GİRİŞ REFERANSI: {f(c['entry'])}" if c['eligible'] else 'GİRİŞ: YOK · işlem planı doğrulanmadı',color=blue if c['eligible'] else title_color,fontsize=14,weight='bold')
+    fig.text(.07,.175,f"{c['stop_label']}: {f(c['stop'])}",color=red,fontsize=12,weight='bold')
+    fig.text(.07,.135,f"{c['target_label']}: {f(c['target'])}",color=green,fontsize=12,weight='bold')
+    g=plan['payoff']
+    if g.get('net_r') is not None:
+        fig.text(.07,.09,f"Hedef %{g['room_pct']:.2f} · Risk %{g['risk_pct']:.2f} · Masraf sonrası {g['net_r']:.2f} R",color=text,fontsize=11)
+    fig.text(.07,.035,'Karar anı referansları · emir değil · %0,30 masraf varsayımı, funding hariç.\nFiyat değişirse uygunluk değişebilir. Geçmiş test kârlılığı doğrulamadı.',color=muted,fontsize=9)
+    fig.savefig(path,dpi=140,facecolor=fig.get_facecolor(),metadata={'Description':json.dumps(spec,ensure_ascii=False)})
+    plt.close(fig)
+    render_detail(assessment,frames,plan,path.with_name(path.stem+'-detail.png'))
     return spec

@@ -155,7 +155,7 @@ def publish(c, p, image_path, text, now_ms, token, chat, post=None):
             if part == 'chart':
                 with open(image_path, 'rb') as f:
                     r = post(f'https://api.telegram.org/bot{token}/sendPhoto',
-                             data={'chat_id': str(chat), 'caption': f"{p['symbol']} · {p['direction']} · {p['interval']} · {p['stage']}"},
+                             data={'chat_id': str(chat), 'caption': text.splitlines()[0]},
                              files={'photo': f}, timeout=15)
             else:
                 r = post(f'https://api.telegram.org/bot{token}/sendMessage',

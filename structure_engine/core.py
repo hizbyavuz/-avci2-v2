@@ -296,43 +296,21 @@ def assess(symbol, frames, now_ms, interval='15m'):
 
 
 def message(p):
-    """Plain Turkish, no invented win rate or automatic entry instruction."""
-    side = p['direction']
-    label = {'WATCH': 'İÇİN İZLE', 'CONDITION_MET': 'KOŞUL OLUŞTU', 'LATE': 'GEÇ / KOVALAMA'}[p['stage']]
-    emoji = '🟢' if side == 'LONG' else '🔴'
-    f = lambda v: f'{v:.8g}'
-    relation = 'üstünde' if side == 'LONG' else 'altında'
-    z = p['decision_zone']
-    reason = {'LEVEL_BREAK': 'Anlamlı dip–tepe seviyesine yaklaşım / kırılım',
-              'DOUBLE_TOP': 'Benzer iki tepe arasındaki desteğin izlenmesi',
-              'DOUBLE_BOTTOM': 'Benzer iki dip arasındaki direncin izlenmesi'}[p['model']]
-    states = {'UP': 'yükseliş', 'DOWN': 'düşüş', 'RANGE': 'yatay', 'UNKNOWN': 'yeterince net değil'}
-    condition = ('Seviyeye dönüş ve tekrar yönünde kapanış görüldü.' if p['condition'] == 'RETEST_HELD'
-                 else 'Kırılım kapanışı görüldü; seviyeyi koruması henüz ayrı bir teyit değil.' if p['condition'] == 'CLOSE_THROUGH_ZONE'
-                 else f"{p['interval']} mum {f(p['trigger'])} {relation} kapansın; ardından seviyeyi koruması izlensin.")
-    if not p['plan_eligible']:
-        label += ' · İŞLEM PLANI YOK'
-    lines = [f"{emoji} {side} {label} | {p['symbol']} | {p['interval']}",
-             f"💰 Son kapanış: {f(p['reference_price'])}", f"📍 İzlenen karar bölgesi (otomatik giriş değil): {f(z['low'])} – {f(z['high'])}",
-             f"Neden: {reason}.", f"🔔 {condition}",
-             f"🛑 Fikrin bozulma / stop referansı: {f(p['stop'])}",
-             f"🎯 İlk engel / hedef referansı: {f(p['target']) if p['target'] is not None else 'belirlenemedi'}",
-             f"🧭 1 saat: {states[p['context_directions']['1h']]} · 4 saat: {states[p['context_directions']['4h']]}"]
+    from .presentation import card
+    c = card(p)
+    f = lambda v: f'{v:.8g}' if v is not None else 'Bilinmiyor'
+    lines = [f"{c['status']} | {p['symbol']} | {p['direction']} | {p['interval']}",
+             c['reason'], c['condition'],
+             f"Son kapanış: {f(c['last'])}",
+             f"Giriş referansı: {f(c['entry'])}" if c['eligible'] else 'Giriş: YOK — bu kayıt işlem planı değildir.',
+             f"{c['stop_label']}: {f(c['stop'])}",
+             f"{c['target_label']}: {f(c['target'])}"]
     g = p['payoff']
     if g.get('net_r') is not None:
-        lines.append(f"📏 Hedef alanı %{g['room_pct']:.2f} · stop uzaklığı %{g['risk_pct']:.2f} · varsayılan masraf sonrası {g['net_r']:.2f} R")
-    if not p['plan_eligible']:
-        lines.append('⚠️ Girişe uygun plan olarak doğrulanmadı; izleme / durum bilgisidir.')
-    warn = {'LOW_NET_REWARD_RISK': 'Hedefe kalan alan stop riskine göre dar.',
-            'COST_EXCEEDS_ROOM': 'Hedefe kalan alan varsayılan masrafı karşılamıyor.',
-            'FIRST_OBSTACLE_UNKNOWN': 'Yakın hedef bilinmiyor; hedef uydurulmadı.',
-            'PRICE_EXTENDED': 'Fiyat karar seviyesinden uzaklaştı.',
-            'TARGET_WRONG_SIDE': 'Hedef mevcut giriş referansının gerisinde.',
-            'STOP_WRONG_SIDE': 'Stop giriş referansına göre geçersiz.'}
-    for w in p['warnings']:
-        if w.startswith('AGAINST_'):
-            lines.append('⚠️ '+w.split('_')[1]+' yapı bu fikrin ters yönünde.')
-        elif w in warn:
-            lines.append('⚠️ '+warn[w])
-    lines.append('Araştırma sürümü · otomatik emir yok · %0,30 komisyon/kayma varsayımı; fonlama ücreti hariç.')
+        lines.append(f"Hedef alanı %{g['room_pct']:.2f} / stop mesafesi %{g['risk_pct']:.2f} / masraf sonrası {g['net_r']:.2f} R")
+    for tf, state in p['context_directions'].items():
+        translated={'UP':'yükseliş','DOWN':'düşüş','RANGE':'yatay','UNKNOWN':'belirsiz'}[state]
+        lines.append(f"{tf}: {translated}")
+    lines.append('Seviyeler karar anına aittir; gerçekleşmiş emir/giriş değildir. Fiyat değişirse uygunluk değişebilir.')
+    lines.append('Araştırma · otomatik emir yok · %0,30 toplam komisyon/kayma varsayımı · funding hariç.')
     return '\n'.join(lines)

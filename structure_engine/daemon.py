@@ -42,7 +42,7 @@ def main():
         while not stop.is_set():
             if 'decision_runtime' not in children and source.is_file():
                 command = [sys.executable, '-u', '-m', 'structure_engine.runtime', '--source-db', str(source),
-                           '--state-dir', str(root/'structure_context_v1_2'), '--interval', interval]
+                           '--state-dir', str(root/'structure_context_v1_3'), '--interval', interval]
                 if os.getenv('STRUCTURE_NOTIFICATIONS') == '1': command.append('--notify')
                 children['decision_runtime'] = subprocess.Popen(command, cwd=base, env=dict(os.environ, LS_STATE_DIR=str(root)))
             for name, child in children.items():

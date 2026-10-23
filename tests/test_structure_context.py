@@ -99,7 +99,8 @@ class StructureTests(unittest.TestCase):
         self.assertEqual(p['stage'], 'WATCH')
         self.assertFalse(p['plan_eligible'])
         self.assertIn(p['payoff']['reason'], ('COST_EXCEEDS_ROOM', 'LOW_NET_REWARD_RISK'))
-        self.assertIn('İÇİN İZLE', core.message(p))
+        self.assertTrue(core.message(p).startswith('İŞLEM UYGUN DEĞİL'))
+        self.assertIn('Giriş: YOK', core.message(p))
 
     def test_fresh_break_and_excessive_chase_are_separate(self):
         frames, now = fixture()
@@ -124,7 +125,7 @@ class StructureTests(unittest.TestCase):
         self.assertEqual(p['stage'], q['stage'])
         self.assertAlmostEqual(p['trigger'], 200-q['trigger'])
         self.assertAlmostEqual(p['stop'], 200-q['stop'])
-        self.assertTrue(core.message(q).startswith('🔴 SHORT'))
+        self.assertIn('| SHORT |', core.message(q).splitlines()[0])
 
     def test_30m_is_independent_not_extra_confirmation(self):
         frames, now = fixture(interval='30m')
