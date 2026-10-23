@@ -333,7 +333,7 @@ def final_report(books,data,out,identity):
         for y in r['years']:lines.append(f"| {y['year']} | {y['trades']} | {fmt(y['total_net_r'])} | {fmt(y['portfolio_return_pct'])} |")
     lines+=['','## BTC karşılaştırması',f"Aynı aralıkta BTC al-tut brüt getiri %{fmt(benchmark['gross_return_pct'])}; günlük kapanış maksimum düşüşü %{fmt(benchmark['close_max_drawdown_pct'])}.",
             '', '## Ölçüm ve veri sınırları',
-            '- Yalnız kapanmış günlük mumlar. Kanal ve stop referansları sinyal/güncelleme gününü dışlar. Yeni stop ertesi gün uygulanır.',
+            '- Yalnız kapanmış günlük mumlar. Giriş kanalı sinyal gününü dışlar. Ertesi günün stopu, az önce kapanan gün dahil son 10 kapalı günden hesaplanır; geriye uygulanmaz.',
             '- Gün içi stop saatini ve çıkış öncesi hareketi belirlemek için 1m arşivi kullanılır; 1m sinyal/filtre oluşturmaz. Çıkış dakikasının iç sırası bilinmez: o dakikanın ekstremi MFE/MAE’ye eklenmez; stop/gap fiyatı eklenir.',
             '- Gerçek funding oranlarının işaretli toplamı sabit giriş nominaline uygulanır. Değişen mark-price nominali ayrıca modellenmez. Eksik funding uydurulmaz; veri doğrulanamıyorsa GEÇTİ sonucu verilmez.',
             '- Funding arşivinde yayımlanmamış dönemler aynı resmi Binance futures REST uç noktasından tamamlanır; kaynak yanıtları saklanır.',

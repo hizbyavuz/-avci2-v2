@@ -6,7 +6,7 @@
   "start": "earliest available official monthly daily archive among eligible product identities; initial months may have fewer than 50 products or none with 100 days",
   "atr": "Wilder ATR20, initial average of first 20 true ranges, signal day included",
   "entry_channel": "20 daily bars before signal bar, signal bar excluded; strict close breakout",
-  "stop_channel": "10 days before the just-closed update day, update day excluded; first update after the entry day closes; effective only from that close onward",
+  "stop_channel": "ten most recent fully closed days, including the just-closed day; first update after entry day closes; applied only to the next day, never to the bar just evaluated",
   "entry": "next daily open for history, fresh quote for live; all same-time candidates sorted by latest 30 closed days quote volume, symbol tie-break",
   "same_coin": "a position still open at signal close blocks that signal even if it gaps out at the next open",
   "funding": "published actual signed rates on fixed entry notional; entry < funding time <= exit; timestamp rounded down to whole second; missing actual funding is unverified, no invented rate",

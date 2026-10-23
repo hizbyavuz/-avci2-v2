@@ -1,0 +1,6 @@
+{
+  "status": "ABORTED_BEFORE_PERFORMANCE",
+  "reason": "Correct daily close indexing: next-day 10-day trailing channel must include the just-closed day. Window size remains 10; no parameter variant or return inspected.",
+  "aborted_commit": "be119b87fac610299bb46ef28438aebedbf88096",
+  "completed_performance_runs": 0
+}

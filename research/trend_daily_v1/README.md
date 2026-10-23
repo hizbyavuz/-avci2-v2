@@ -56,7 +56,10 @@ eski kapanış için giriş yine yeni mesaj öncesi alınan fiyattır.
 ## Açık uygulama varsayımları
 
 `trend_daily_protocol.json` tüm yorumları sonuçtan önce sabitler. 10 günlük
-çıkış kanalı, güncelleme gününü hariç tutar. Stop yalnız sonraki gün geçerlidir.
+çıkış kanalı, az önce kapanan günü kapsayan son 10 kapalı gündür. Stop yalnız
+sonraki gün geçerlidir. İlk veri ön hazırlığında bu indeksleme düzeltildi;
+performans hesaplanmadan kesilen hazırlığın kaydı `engineering_abort_preload`
+klasöründe saklandı. Parametre denemesi ve önceki performans sonucu yoktur.
 İsabet = net R > 0. Yıllık R ve son 12 ay sonuçları çıkış tarihine göre;
 portföy getirisi günlük NAV üzerinden. BTC karşılaştırması aynı futures mumlarından
 çıkarılan brüt fiyat al-tut serisidir, funding ödenen sürekli kontrat hesabı değildir.

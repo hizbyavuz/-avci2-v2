@@ -52,13 +52,13 @@ class SignalTests(unittest.TestCase):
         a=e.evaluate('T',b,120*DAY);c=e.evaluate('T',other,120*DAY)
         self.assertEqual(c['side'],'SHORT');self.assertEqual(a['n'],c['n']);self.assertEqual(a['level']+c['level'],300.)
 
-    def test_stop_only_favorable_and_excludes_just_closed_day(self):
+    def test_stop_only_favorable_uses_ten_closed_days(self):
         b=fixture();p=plan();p['stop']=95.
         self.assertEqual(e.update_stop(p,b,120*DAY)['stop'],99.)
         p['stop']=103.;self.assertEqual(e.update_stop(p,b,120*DAY)['stop'],103.)
-        q=plan('SHORT');q['stop']=110.;self.assertEqual(e.update_stop(q,b,120*DAY)['stop'],101.)
+        q=plan('SHORT');q['stop']=110.;self.assertEqual(e.update_stop(q,b,120*DAY)['stop'],106.)
         q['stop']=98.;self.assertEqual(e.update_stop(q,b,120*DAY)['stop'],98.)
-        b[-1]=replace(b[-1],low=1.,high=500.);p['stop']=95.;self.assertEqual(e.update_stop(p,b,120*DAY)['stop'],99.)
+        b[-1]=replace(b[-1],low=1.,high=500.);p['stop']=95.;self.assertEqual(e.update_stop(p,b,120*DAY)['stop'],95.)
 
     def test_gap_and_normal_stop(self):
         p=plan();self.assertEqual(p['stop'],101.)
@@ -168,7 +168,7 @@ class IntegrationTests(unittest.TestCase):
 
     def test_new_trailing_stop_is_not_retroactive_and_exit_outside_universe(self):
         bars=[candle(i,105.,107.,104.,105.) for i in range(122)]
-        bars[120]=candle(120,105.,107.,102.,105.);bars[121]=candle(121,103.,106.,102.,105.)
+        bars[120]=candle(120,105.,107.,102.,105.);bars[121]=candle(121,101.,106.,100.,105.)
         p=plan(entry=104.,n=2.);p.update(entry_ms=100*DAY,notional=1040.,quantity=10.,initial_risk_usdt=40.,last_price=105.)
         class FakeData:
             series={'TESTUSDT':e.DailySeries(bars)}
@@ -178,9 +178,9 @@ class IntegrationTests(unittest.TestCase):
             def resolve(self,p,b):raise AssertionError('old stop was not touched')
         book=bt.new_book('limited');book['positions']=[p]
         with tempfile.TemporaryDirectory() as d:book=bt.replay(book,FakeData(),120*DAY,122*DAY,Path(d)/'checkpoint')
-        self.assertEqual(book['stops'][0]['stop'],104.)
+        self.assertEqual(book['stops'][0]['stop'],102.)
         self.assertEqual(book['trades'][0]['exit_ms'],121*DAY)
-        self.assertEqual(book['trades'][0]['exit'],103.)
+        self.assertEqual(book['trades'][0]['exit'],101.)
 
     def test_minute_resolution_excludes_post_exit_extrema(self):
         p=plan();p['entry_ms']=120*DAY

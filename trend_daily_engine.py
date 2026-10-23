@@ -68,12 +68,15 @@ def make_plan(signal,entry,entry_ms,source='futures'):
 
 
 def update_stop(plan,candles,at):
-    """After close t, use the ten days BEFORE the just-closed day; effective from t."""
+    """After close t, the previous ten CLOSED days include the day just closed.
+
+    This channel becomes effective for the next trading day, never retroactively.
+    """
     s=candles if isinstance(candles,DailySeries) else DailySeries(candles)
     i=s.index(at)
-    if i<10 or s.bars[i].close_ms!=at or s.gaps[i+1]!=s.gaps[i-9]:
+    if i<9 or s.bars[i].close_ms!=at or s.gaps[i+1]!=s.gaps[i-8]:
         raise ValueError('STOP_HISTORY_UNAVAILABLE')
-    prior=s.bars[i-10:i]
+    prior=s.bars[i-9:i+1]
     reference=min(b.low for b in prior) if plan['side']=='LONG' else max(b.high for b in prior)
     stop=max(plan['stop'],reference) if plan['side']=='LONG' else min(plan['stop'],reference)
     return dict(stop=stop,previous_stop=plan['stop'],channel_reference=reference,effective_ms=at)
