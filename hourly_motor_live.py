@@ -79,7 +79,12 @@ class Market:
         if bars:
             known={b.open_ms:b for b in bars};missing=sorted({t//DAY*DAY for t in range(bars[0].open_ms,bars[-1].close_ms,period) if t not in known})
             for d in missing:
-                for b in self.archive.candles(s,interval,iso(d)[:10],daily=True):
+                extra=self.archive.candles(s,interval,iso(d)[:10],daily=True)
+                if interval=='1d' and not extra:
+                    hh=[b for b in self.archive.candles(s,'1h',month(d)) if d<=b.open_ms<d+DAY]
+                    if len(hh)==24 and all(b.open_ms==d+i*HOUR for i,b in enumerate(hh)):
+                        extra=[Candle(d,d+DAY,hh[0].open,max(b.high for b in hh),min(b.low for b in hh),hh[-1].close,sum(b.volume for b in hh),sum(b.quote_volume for b in hh))]
+                for b in extra:
                     if b.close_ms<=end:known.setdefault(b.open_ms,b)
             bars=sorted(known.values(),key=lambda b:b.open_ms)
         Series(bars,period)
@@ -193,12 +198,17 @@ def chart(p,bars,path):
         color='#45c9a3' if b.close>=b.open else '#f77387'
         ax.vlines(i,b.low,b.high,color=color,lw=1)
         ax.add_patch(Rectangle((i-.3,min(b.open,b.close)),.6,max(abs(b.close-b.open),p['atr']*.01),color=color))
-    for label,key,color in [('24s kırılım','level','#70b8f0'),('Giriş','entry','white'),('STOP','stop','#f77387'),('HEDEF · 1,5R','target','#45c9a3')]:
+    levels=[('24s kırılım','level','#70b8f0'),('Giriş','entry','white'),('STOP','stop','#f77387'),('HEDEF · 1,5R','target','#45c9a3')]
+    spread=max([b.high for b in bars]+[p['target'],p['stop']])-min([b.low for b in bars]+[p['target'],p['stop']])
+    last_y=-float('inf')
+    for label,key,color in sorted(levels,key=lambda v:p[v[1]]):
         ax.axhline(p[key],color=color,ls='--',lw=1)
-        ax.text(49,p[key],label+' '+price_text(p[key],p.get('tick_size')),color=color,va='center',fontsize=10)
+        y=max(p[key],last_y+spread*.065);last_y=y
+        ax.annotate(label+' '+price_text(p[key],p.get('tick_size')),xy=(48,p[key]),xytext=(51,y),color=color,va='center',fontsize=10,arrowprops=dict(arrowstyle='-',color=color))
     ax.axvline(len(bars)-1,color='white',ls=':',alpha=.4);ax.set_xlim(-1,72)
     indices=list(range(0,len(bars),8));ax.set_xticks(indices,[iso(bars[i].open_ms)[5:16].replace('T',' ') for i in indices],rotation=20)
-    ax.set_title(f"{p['symbol']} · {p['side']} · Saatlik Motor\nSon48 saat · 1h mumlar · UTC",loc='left')
+    kind='GEÇMİŞ TEST ÖRNEĞİ' if p.get('historical_example') else 'Paper öneri'
+    ax.set_title(f"{p['symbol']} · {p['side']} · Saatlik Motor\n{kind} · Son48 saat · 1h mumlar · UTC",loc='left')
     ax.set_ylabel('USDT');ax.grid(alpha=.15);fig.tight_layout();fig.savefig(path);plt.close(fig)
 
 
@@ -326,7 +336,15 @@ def main():
     approve(a.approval,a.summary,a.report)
     remote=RemoteState(os.environ['GITHUB_REPOSITORY'],os.environ['GH_TOKEN'],a.db);remote.load(a.initialize_state)
     state=State(a.db);market=Market(a.cache);telegram=Telegram(os.environ['TELEGRAM_BOT_TOKEN'],os.environ['TELEGRAM_CHAT_ID'])
-    scan(state,market,telegram,remote.save,now_ms())
+    started=now_ms();scan(state,market,telegram,remote.save,started)
+    # An hourly job can start seconds before a two-hour quote-time deadline.
+    # Wait for nearby deadlines so it does not defer the notice an entire hour.
+    while True:
+        current=now_ms();near=[p['deadline_ms'] for p in state.active() if current<p['deadline_ms']<=current+10*MINUTE]
+        if not near or min(near)-started>50*MINUTE:break
+        due=min(near)+1000
+        while now_ms()<due:time.sleep(min(30,max(.1,(due-now_ms())/1000)))
+        scan(state,market,telegram,remote.save,now_ms())
 
 
 if __name__=='__main__':main()

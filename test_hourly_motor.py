@@ -83,6 +83,12 @@ class EngineTests(unittest.TestCase):
         d,b=daily_fixture();del d[70]
         self.assertEqual(daily_direction('TESTUSDT',d,b,90*DAY)['status'],'UNVERIFIED')
 
+    def test_universe_has_no_unrequested_minimum_age(self):
+        recent=[replace(b,quote_volume=100000) for b in bars(10,DAY,20*DAY)]
+        old=bars(30,DAY)
+        rows=universe_at({'NEWUSDT':recent,'OLDUSDT':old},30*DAY)
+        self.assertEqual(rows[0]['symbol'],'NEWUSDT');self.assertEqual(rows[0]['observed_days'],10)
+
     def test_daily_extension_boundary(self):
         d,b=daily_fixture();d[-1]=replace(d[-1],high=240,close=240)
         self.assertEqual(daily_direction('TESTUSDT',d,b,90*DAY)['reason'],'EXTENDED')
@@ -147,6 +153,23 @@ class EngineTests(unittest.TestCase):
         p=dict(symbol='T',side='LONG',entry_ms=30_000,deadline_ms=30_000+2*HOUR,stop=95,target=110)
         event,at=paper_exit(p,FakeMarket(),2*MINUTE)
         self.assertIsNone(event);self.assertEqual(at,2*MINUTE)
+
+    def test_replay_one_accepted_plan_per_utc_day(self):
+        import gzip
+        from dataclasses import asdict,astuple
+        from hourly_motor_backtest import candidates
+        from trend_breakout_data import month
+        d,btc=daily_fixture();_,h,_=signal_fixture();at=90*DAY
+        h.extend(Candle(at+i*HOUR,at+(i+1)*HOUR,104+i,105+i,102+i,104.8+i,300,30000) for i in range(5))
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);(root/'prepared').mkdir()
+            for s,dd in [('TESTUSDT',d),('BTCUSDT',btc)]:
+                with gzip.open(root/'prepared'/(s+'.json.gz'),'wt') as f:json.dump(dict(daily=[asdict(b) for b in dd],hourly=[astuple(b) for b in h]),f)
+            (root/'universe.json').write_text(json.dumps(dict(start=at,end=at+4*HOUR,months={month(at):[dict(symbol='TESTUSDT')]})))
+            (root/'manifest.json').write_text('{}')
+            rows=candidates(root,root/'out')
+            self.assertEqual(sum(r['status']=='PLAN' for r in rows),1)
+            self.assertGreater(sum(r['reason']=='DAILY_QUOTA' for r in rows),0)
 
 
 if __name__=='__main__':unittest.main()

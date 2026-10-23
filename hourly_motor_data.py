@@ -11,6 +11,13 @@ from hourly_motor_engine import Candle,DAY,HOUR,Series,STABLECOINS,universe_at
 from trend_breakout_data import Archive,ms,iso,month,months
 
 
+def boundary_hour(symbol,end):
+    r=requests.get('https://www.binance.com/fapi/v1/klines',params=dict(symbol=symbol,interval='1h',startTime=end,endTime=end+HOUR-1,limit=1),timeout=30)
+    r.raise_for_status();raw=r.json()
+    if not isinstance(raw,list):raise ValueError('INVALID_BOUNDARY_PRICE_RESPONSE')
+    return [Candle(int(v[0]),int(v[6])+1,*map(float,v[1:6]),float(v[7])) for v in raw if int(v[0])==end and int(v[6])+1==end+HOUR]
+
+
 def rest_funding(symbol,start,end,root):
     path=Path(root)/'rest_funding'/f'{symbol}-{start}-{end}.json'
     if path.exists():return json.loads(path.read_text())
@@ -48,6 +55,17 @@ def prepare(root,archive_root,sources,start,end,workers=12):
             for k in keys:
                 if k.endswith('.zip') and ms(k[-11:-4]+'-01')<end:bars.extend(archive.candles(s,'1d',k[-11:-4]))
         bars=sorted({b.open_ms:b for b in bars if b.close_ms<=end}.values(),key=lambda b:b.open_ms)
+        if bars:
+            known={b.open_ms:b for b in bars}
+            for t in range(bars[0].open_ms,bars[-1].close_ms,DAY):
+                if t in known:continue
+                extra=archive.candles(s,'1d',iso(t)[:10],daily=True)
+                if extra:known[t]=extra[0]
+                else:
+                    hh=[b for b in archive.candles(s,'1h',month(t)) if t<=b.open_ms<t+DAY]
+                    if len(hh)==24 and all(b.open_ms==t+i*HOUR for i,b in enumerate(hh)):
+                        known[t]=Candle(t,t+DAY,hh[0].open,max(b.high for b in hh),min(b.low for b in hh),hh[-1].close,sum(b.volume for b in hh),sum(b.quote_volume for b in hh))
+            bars=sorted(known.values(),key=lambda b:b.open_ms)
         Series(bars,DAY);dest.write_text(json.dumps(dict(bars=[asdict(b) for b in bars]),separators=(',',':')))
         return s,bars
     with ThreadPoolExecutor(max_workers=workers) as pool:
@@ -61,7 +79,12 @@ def prepare(root,archive_root,sources,start,end,workers=12):
     target=root/'prepared';target.mkdir(exist_ok=True)
     def finish(s):
         p=target/(s+'.json.gz')
-        if p.exists():return dict(symbol=s,sha256=hashlib.sha256(p.read_bytes()).hexdigest())
+        if p.exists():
+            with gzip.open(p,'rt') as f:x=json.load(f)
+            if x['daily'] and x['daily'][-1]['close_ms']==end and x['daily'][-1]['volume']>0 and not any(b[0]==end for b in x['hourly']):
+                x['hourly'].extend(astuple(b) for b in boundary_hour(s,end))
+                with gzip.open(p,'wt') as f:json.dump(x,f,separators=(',',':'))
+            return dict(symbol=s,sha256=hashlib.sha256(p.read_bytes()).hexdigest(),daily=len(x['daily']),hourly=len(x['hourly']),hourly_gaps=x['hourly_gaps'],daily_gaps=[dict(before=a['close_ms'],after=b['open_ms']) for a,b in zip(x['daily'],x['daily'][1:]) if a['close_ms']!=b['open_ms']])
         bars=all_bars[s];funding=[];coverage=set();ferrors=[]
         for source in sources:
             old=source/'prepared'/(s+'.json')
@@ -83,12 +106,7 @@ def prepare(root,archive_root,sources,start,end,workers=12):
         # The last complete day's timeout needs the next boundary opening.
         # Today's daily ZIP is not published until tomorrow; use original REST.
         if bars and bars[-1].close_ms==end and bars[-1].volume>0 and end not in known:
-            rr=requests.get('https://www.binance.com/fapi/v1/klines',params=dict(symbol=s,interval='1h',startTime=end,endTime=end+HOUR-1,limit=1),timeout=30)
-            rr.raise_for_status();raw=rr.json()
-            if not isinstance(raw,list):raise ValueError('INVALID_BOUNDARY_PRICE_RESPONSE')
-            for v in raw:
-                b=Candle(int(v[0]),int(v[6])+1,*map(float,v[1:6]),float(v[7]))
-                if b.open_ms==end and b.close_ms==end+HOUR:known[end]=b
+            for b in boundary_hour(s,end):known[end]=b
         if known:
             missing_days=sorted({t//DAY*DAY for t in range(min(known),max(known)+HOUR,HOUR) if t not in known})
             for d in missing_days:
@@ -98,8 +116,10 @@ def prepare(root,archive_root,sources,start,end,workers=12):
                         if b.open_ms not in known and b.close_ms<=end+HOUR:known[b.open_ms]=b;repairs.append(dict(symbol=s,time=b.open_ms))
                 except Exception as e:errors.append(dict(symbol=s,time=d,stage='hourly_repair',error=str(e)[:100]))
         hours=sorted(known.values(),key=lambda b:b.open_ms)
-        for m in months(bars[0].open_ms,end+8*HOUR):
-            a=ms(m+'-01');z=min(ms(list(months(a,a+33*DAY))[1]+'-01'),end+8*HOUR)
+        trading_hours=[b for b in hours if b.volume>0]
+        funding_end=min(end+8*HOUR,trading_hours[-1].close_ms+8*HOUR) if trading_hours else end
+        for m in months(bars[0].open_ms,funding_end):
+            a=ms(m+'-01');z=min(ms(list(months(a,a+33*DAY))[1]+'-01'),funding_end)
             if m in coverage and m!=month(end):continue
             try:
                 rows=archive.funding(s,m) or rest_funding(s,max(a,bars[0].open_ms),z,root)
@@ -112,7 +132,8 @@ def prepare(root,archive_root,sources,start,end,workers=12):
         payload=dict(symbol=s,source='futures',daily=[asdict(b) for b in bars],hourly=[astuple(b) for b in hours],
                      funding=funding,funding_coverage=sorted(coverage),funding_errors=ferrors,hourly_gaps=gaps)
         with gzip.open(p,'wt') as f:json.dump(payload,f,separators=(',',':'))
-        return dict(symbol=s,sha256=hashlib.sha256(p.read_bytes()).hexdigest(),daily=len(bars),hourly=len(hours),hourly_gaps=gaps)
+        return dict(symbol=s,sha256=hashlib.sha256(p.read_bytes()).hexdigest(),daily=len(bars),hourly=len(hours),hourly_gaps=gaps,
+                    daily_gaps=[dict(before=a.close_ms,after=b.open_ms) for a,b in zip(bars,bars[1:]) if a.close_ms!=b.open_ms])
     records=[]
     with ThreadPoolExecutor(max_workers=workers) as pool:
         jobs={pool.submit(finish,s):s for s in union}

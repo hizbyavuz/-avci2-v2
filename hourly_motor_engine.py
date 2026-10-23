@@ -120,9 +120,13 @@ def universe_at(all_bars,at):
     ranking=[]
     for s,bars in all_bars.items():
         if s in STABLECOINS or not s.endswith('USDT') or '_' in s:continue
-        recent=[b for b in bars if at-30*DAY<=b.open_ms and b.close_ms<=at]
-        if len(recent)!=30 or any(b.open_ms!=at-30*DAY+i*DAY for i,b in enumerate(recent)):continue
-        ranking.append(dict(symbol=s,volume_30d=sum(b.quote_volume for b in recent),selection_ms=at,last_used_ms=recent[-1].close_ms))
+        past=[b for b in bars if b.close_ms<=at]
+        if not past:continue
+        begin=max(at-30*DAY,past[0].open_ms)
+        recent=[b for b in past if b.open_ms>=begin]
+        expected=(at-begin)//DAY
+        if len(recent)!=expected or not recent or any(b.open_ms!=begin+i*DAY for i,b in enumerate(recent)):continue
+        ranking.append(dict(symbol=s,volume_30d=sum(b.quote_volume for b in recent),selection_ms=at,last_used_ms=recent[-1].close_ms,observed_days=len(recent)))
     return sorted(ranking,key=lambda r:(-r['volume_30d'],r['symbol']))[:30]
 
 

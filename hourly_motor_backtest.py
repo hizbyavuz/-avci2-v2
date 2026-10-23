@@ -118,7 +118,7 @@ def assess(main,a,b):
     return ('GEÇTİ' if all(checks.values()) else 'BAŞARISIZ'),checks
 
 
-def report(root,out,rows,seal):
+def report(root,out,rows,seal,records):
     out=Path(out);manifest=json.loads((Path(root)/'manifest.json').read_text());end=manifest['end'];groups={}
     for g in ('MAIN','CONTROL_A','CONTROL_B'):
         rr=[r for r in rows if r['group']==g]
@@ -128,7 +128,8 @@ def report(root,out,rows,seal):
                        statuses=dict(Counter(r['status'] for r in rr)))
     status,checks=assess(*(groups[g]['all'] for g in ('MAIN','CONTROL_A','CONTROL_B')))
     summary=dict(status=status,checks=checks,rules_hash=RULES_HASH,start=manifest['start'],end=end,groups=groups,
-                 data_issues=[dict(id=r['id'],reason=r.get('reason')) for r in rows if r['status']=='UNVERIFIED'],source_seal=seal)
+                 data_issues=[dict(id=r['id'],reason=r.get('reason')) for r in rows+records if r['status']=='UNVERIFIED'],
+                 candidate_statuses=dict(Counter(r['status'] for r in records)),source_seal=seal)
     (out/'summary.json').write_text(json.dumps(summary,indent=2,ensure_ascii=False))
     def fmt(x):return 'doğrulanmadı' if x is None else f'{x:.5f}'
     text=['# Saatlik Motor — '+status,'',f"Dönem: {iso(manifest['start'])} – {iso(end)} (UTC; son tam gün 22 Ekim 2026).",
@@ -152,8 +153,9 @@ def report(root,out,rows,seal):
       '- EMA SMA ile başlar; ATR Wilder14. Eksik mumda göstergeler yeniden yeterli kesintisiz geçmiş bekler. Sentetik fiyat/funding yok. Bir coin/grup için UTC sinyal-kapanış gününde en fazla1 plan; ek portföy limiti yok.',
       '- Gerçek funding giriş nominaline, yön işaretiyle uygulanır. Giriş anındaki settlement hariç, çıkış anındaki dahil. Milisaniye jitter saniyeye indirilir; funding kaydı işlemi iki yandan çevrelemeli, aralık8 saati aşmamalı.',
       '- Aynı saatte SL/TP: 1m sırası; 1m yok/tutarsız veya aynı1m içinde ikisi varsa STOP. Tek isabetli saatte çıkış zamanı saat sonundan1ms önce; saat içi funding sırası belirsizse doğrulanmadı.',
-      '- Delist arşivleri dahil. Yalnız stablecoinler hariç; önceki deneylerin asgari yaş/filtreleri uygulanmadı. Evren için önceki30 tam günlük hacim gerekiyor; EMA50 ayrıca doğal 50 mum başlangıcı gerektiriyor.',
+      '- Delist arşivleri dahil. Yalnız stablecoinler hariç; asgari yaş filtresi yok. Yeni listelenenlerde önceki30 gün içindeki mevcut günlerin hacmi toplanır; EMA50 doğal 50 mum başlangıcı gerektirir. Ara boşluğu olan30 günlük pencerenin sıralaması doğrulanamaz; o coin/ay atlanır. Arşivin başlamasından önceki dönem varsayılmaz.',
       f"- Veri hazırlama hatası: {len(manifest['errors'])}; işlem sonucu doğrulanamayan: {len(summary['data_issues'])}. Bunlar net getiri hesabına katılmadı; kayıtlar CSV ve data_manifest.json içinde korunuyor.",
+      f"- Veri dizilerinde saatlik boşluk aralığı: {sum(len(v.get('hourly_gaps',[])) for v in manifest['symbols'])}; günlük boşluk aralığı: {sum(len(v.get('daily_gaps',[])) for v in manifest['symbols'])}. Gösterge başlangıcının/boşluğunun etkilediği adaylar signal_audit.json içindedir.",
       '- Sonuçlar kapalı işlem örneklemi içindir. Ortalama getiri, portföy getirisi değildir; eşzamanlı toplam kaldıraç/sermaye modeli bu deneyde tanımlanmadı.',
       '- Kaynak: https://data.binance.vision/ ; gerçek funding tamamlama: https://www.binance.com/fapi/v1/fundingRate . ZIPler resmi SHA256 ile doğrulandı.','',
       '## Ek muhasebe','', '```json',json.dumps({g:dict(statuses=v['statuses'],resolutions=v['all'].get('resolutions',{}),mean_gross_pct=v['all'].get('mean_gross_pct'),max_drawdown_r=v['all'].get('max_drawdown_r')) for g,v in groups.items()},indent=2,ensure_ascii=False),'```','',
@@ -169,7 +171,7 @@ def run(root,archive_root,out,workers=12):
     if manifest['errors']:raise ValueError('PREPARATION_ERRORS_MUST_BE_REVIEWED')
     for r in manifest['symbols']:
         if hashlib.sha256((root/'prepared'/(r['symbol']+'.json.gz')).read_bytes()).hexdigest()!=r['sha256']:raise ValueError('DATA_CHANGED')
-    files=['hourly_motor_engine.py','hourly_motor_data.py','hourly_motor_backtest.py','hourly_motor_protocol.json','trend_breakout_backtest.py']
+    files=['hourly_motor_engine.py','hourly_motor_data.py','hourly_motor_backtest.py','hourly_motor_live.py','hourly_motor_protocol.json','test_hourly_motor.py','trend_breakout_backtest.py']
     seal=dict(rules_hash=RULES_HASH,files={p:hashlib.sha256(Path(p).read_bytes()).hexdigest() for p in files},
               manifest_sha256=hashlib.sha256((root/'manifest.json').read_bytes()).hexdigest(),universe_sha256=hashlib.sha256((root/'universe.json').read_bytes()).hexdigest())
     lock=out/'sealed_run.json'
@@ -199,7 +201,7 @@ def run(root,archive_root,out,workers=12):
             f.flush()
             if n%10==0 or n==len(jobs):print(json.dumps(dict(stage='fixed_replay',done=n,total=len(jobs),trades=len(done))),flush=True)
     rows=[done[p['id']] for p in plans]
-    summary=report(root,out,rows,seal)
+    summary=report(root,out,rows,seal,records)
     write_csv(out/'all_candidates.csv',records)
     (out/'data_manifest.json').write_text((root/'manifest.json').read_text())
     (out/'universe.json').write_text((root/'universe.json').read_text())

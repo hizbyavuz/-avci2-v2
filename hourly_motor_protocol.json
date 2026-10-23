@@ -4,7 +4,7 @@
   "start_utc": "2020-01-01T00:00:00Z",
   "end_exclusive_utc": "2026-10-23T00:00:00Z",
   "daily_list": "At each UTC midnight use the daily candle that has just closed. Same list until next midnight. The hourly candle closing at midnight may use that new, already known daily list.",
-  "monthly_universe": "Previous 30 complete UTC days of quote volume; top30; archived delisted names included. Stablecoin registry only. No additional age or trend filter in universe; indicators need their mathematical warmup.",
+  "monthly_universe": "Previous30 UTC days quote volume; top30; archived delisted names included. For a newly observed contract use its available days within that window, without a30-day minimum age. Interior gaps are unverified and excluded from that month's ranking. Stablecoin registry only; indicators need their mathematical warmup.",
   "ema": "SMA seed of first period closes; alpha 2/(period+1). Wilder ATR14 with first14 true ranges SMA seed. A missing candle starts a new contiguous seed segment; no price imputation.",
   "volume": "Signal volume >= 1.5 * mean of previous20 volumes, signal excluded.",
   "channel": "Previous24 hourly highs/lows, signal excluded.",
