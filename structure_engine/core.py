@@ -288,6 +288,9 @@ def assess(symbol, frames, now_ms, interval='15m'):
     for p in sorted(out['decisions'], key=lambda p: (priority[p['condition']], -int(p['origin_ms'] or 0))):
         chosen.setdefault(p['idea_id'], p)
     out['decisions'] = list(chosen.values())
+    if out['decisions']:
+        from .annotations import analyze
+        out['chart_analysis'] = analyze(rows)
     out['reason'] = 'EXPLAINED_CANDIDATES' if out['decisions'] else 'NO_CURRENT_LEVEL_EVENT'
     return out
 
@@ -307,8 +310,10 @@ def message(p):
     condition = ('Seviyeye dönüş ve tekrar yönünde kapanış görüldü.' if p['condition'] == 'RETEST_HELD'
                  else 'Kırılım kapanışı görüldü; seviyeyi koruması henüz ayrı bir teyit değil.' if p['condition'] == 'CLOSE_THROUGH_ZONE'
                  else f"{p['interval']} mum {f(p['trigger'])} {relation} kapansın; ardından seviyeyi koruması izlensin.")
+    if not p['plan_eligible']:
+        label += ' · İŞLEM PLANI YOK'
     lines = [f"{emoji} {side} {label} | {p['symbol']} | {p['interval']}",
-             f"💰 Son kapanış: {f(p['reference_price'])}", f"📍 Bölge: {f(z['low'])} – {f(z['high'])}",
+             f"💰 Son kapanış: {f(p['reference_price'])}", f"📍 İzlenen karar bölgesi (otomatik giriş değil): {f(z['low'])} – {f(z['high'])}",
              f"Neden: {reason}.", f"🔔 {condition}",
              f"🛑 Fikrin bozulma / stop referansı: {f(p['stop'])}",
              f"🎯 İlk engel / hedef referansı: {f(p['target']) if p['target'] is not None else 'belirlenemedi'}",

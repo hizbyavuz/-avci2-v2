@@ -69,7 +69,7 @@ def connect(path):
 def save(c, assessment, frames, directory):
     a = assessment
     scan_id = identity(VERSION, a['symbol'], a['interval'], a.get('setup_close_ms', a['asof_ms']))
-    summary = {k: v for k, v in a.items() if k not in ('decisions', 'levels', 'context')}
+    summary = {k: v for k, v in a.items() if k not in ('decisions', 'levels', 'context', 'chart_analysis')}
     summary['stages'] = [p['stage'] for p in a['decisions']]
     summary['warnings'] = [w for p in a['decisions'] for w in p['warnings']]
     summary['context_directions'] = {tf: x['direction'] for tf, x in a['context'].items()}

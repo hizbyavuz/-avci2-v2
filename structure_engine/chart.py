@@ -17,7 +17,8 @@ def drawing_spec(assessment, plan):
                 zone=plan['decision_zone'], trigger=plan['trigger'], stop=plan['stop'],
                 target=plan['target'], invalidation_anchor=plan['invalidation_anchor'],
                 swings=plan['evidence_swings'], fibonacci=plan['fibonacci'],
-                context=assessment['context'], first_obstacle=plan['first_obstacle'])
+                context=assessment['context'], first_obstacle=plan['first_obstacle'],
+                analysis=assessment.get('chart_analysis'), model=plan['model'], plan_eligible=plan['plan_eligible'])
 
 
 def render(assessment, frames, plan, path):
@@ -37,7 +38,7 @@ def render(assessment, frames, plan, path):
     directions = {'UP': 'yükseliş', 'DOWN': 'düşüş', 'RANGE': 'yatay', 'UNKNOWN': 'yapı net değil'}
     stages = {'WATCH': 'İZLE', 'CONDITION_MET': 'KOŞUL OLUŞTU', 'LATE': 'GEÇ / KOVALAMA'}
     date = lambda ms: datetime.fromtimestamp(ms/1000, tz=timezone.utc)
-    fig, axes = plt.subplots(3, 1, figsize=(11, 11), gridspec_kw={'height_ratios': [1, 1, 1.7]})
+    fig, axes = plt.subplots(6, 1, figsize=(12, 18), gridspec_kw={'height_ratios': [1, 1, 2.6, .5, .6, .6]})
     for ax, tf in zip(axes, ('4h', '1h', assessment['interval'])):
         rows = frames[tf][-80:]
         if tf == assessment['interval']:
@@ -70,7 +71,8 @@ def render(assessment, frames, plan, path):
             for z in assessment['levels']:
                 if z['timeframe'] == tf and rows[-1]['close']*.8 < z['center'] < rows[-1]['close']*1.2:
                     ax.axhspan(z['low'], z['high'], color='#888888', alpha=.12)
-    ax = axes[-1]
+    ax = axes[2]
+    setup_rows = rows
     z = spec['zone']
     ax.axhspan(z['low'], z['high'], color='#3075ba', alpha=.15, label='Karar bölgesi')
     for label, value, color in [('Kırılım', spec['trigger'], '#3075ba'), ('Stop', spec['stop'], '#b73542'),
@@ -89,12 +91,79 @@ def render(assessment, frames, plan, path):
             ax.plot([date(b['open_ms']), date(frames[assessment['interval']][-1]['open_ms'])],
                     [value, value], ':', color='#8055a6', alpha=.65,
                     label=f'Fib %{float(ratio)*100:g}: {value:.8g}')
-    ax.legend(loc='upper center', bbox_to_anchor=(.5, -.15), ncol=2, fontsize=9, frameon=False)
+    analysis = spec['analysis']
+    if analysis:
+        ind = analysis['indicators']
+        start = next(i for i,t in enumerate(ind['open_ms']) if t >= setup_rows[0]['open_ms'])
+        times = [date(t) for t in ind['open_ms'][start:]]
+        ax.plot(times, ind['ema20'][start:], color='#d39000', lw=1, label='EMA20')
+        ax.plot(times, ind['ema50'][start:], color='#7758a5', lw=1, label='EMA50')
+        visible_events=list({(e['kind'],e['side'],e['anchor_ms']):e for e in analysis['events']}.values())[-10:]
+        for e in visible_events:
+            if e['at_ms'] < setup_rows[0]['open_ms']: continue
+            color = '#14776b' if e['side']=='LONG' else '#b73542'
+            if e['kind']=='SWEEP':
+                ax.annotate('Süpürme*', (date(e['at_ms']),e['level']), xytext=(-14,24 if e['side']=='LONG' else -28),
+                            textcoords='offset points', fontsize=7, color=color, ha='center', arrowprops=dict(arrowstyle='->',color=color,lw=.6))
+            else:
+                ax.plot([date(max(e['anchor_ms'],setup_rows[0]['open_ms'])),date(e['at_ms'])], [e['level']]*2, color=color,lw=1.1)
+                ax.annotate(e['kind'], (date(e['at_ms']),e['level']), xytext=(0,5), textcoords='offset points', fontsize=8,color=color,ha='right')
+        zones = sorted(analysis['zones'], key=lambda z:abs((z['low']+z['high'])/2-setup_rows[-1]['close']))
+        shown=zones[:4]
+        for j,zann in enumerate(shown):
+            left=date(max(zann['known_ms']+1,setup_rows[0]['open_ms']))
+            right=date(setup_rows[-1]['close_ms'])
+            if left>=right:continue
+            color='#e7b94c' if zann['kind']=='OB_ADAY' else '#33a6b8'
+            ax.add_patch(Rectangle((dates.date2num(left),zann['low']), dates.date2num(right)-dates.date2num(left),zann['high']-zann['low'],facecolor=color,edgecolor=color,alpha=.16))
+            ax.annotate('OB adayı' if zann['kind']=='OB_ADAY' else 'FVG', (left,zann['high']),fontsize=8,color='#73561c' if zann['kind']=='OB_ADAY' else '#176d78')
+        last_by_kind={}
+        for swing in assessment['context'][assessment['interval']]['swings']:
+            prior=last_by_kind.get(swing['kind']); last_by_kind[swing['kind']]=swing
+            fib_times={spec['fibonacci'][k]['open_ms'] for k in ('start','end')} if spec['fibonacci'] else set()
+            if prior and swing['open_ms']>=setup_rows[0]['open_ms'] and swing['open_ms'] not in fib_times:
+                label=('HH' if swing['price']>prior['price'] else 'LH') if swing['kind']=='H' else ('HL' if swing['price']>prior['price'] else 'LL')
+                ax.annotate(label,(date(swing['open_ms']),swing['price']),xytext=(0,10 if swing['kind']=='H' else -13),textcoords='offset points',fontsize=7,color='#555555')
+        vol,rs,mc=axes[3:]
+        vol.bar(times,ind['quote_volume'][start:],width=width,color=['#14776b' if b['close']>=b['open'] else '#b73542' for b in setup_rows])
+        vol.set_ylabel('Hacim\nUSDT',fontsize=9)
+        rs.plot(times,ind['rsi14'][start:],color='#7758a5',lw=1)
+        rs.axhspan(30,70,color='#7758a5',alpha=.06)
+        for value in (30,50,70):rs.axhline(value,color='#888888',lw=.5,ls=':')
+        rs.set_ylim(0,100);rs.set_ylabel('RSI14',fontsize=9)
+        mc.plot(times,ind['macd'][start:],color='#3075ba',lw=1,label='MACD12/26')
+        mc.plot(times,ind['signal'][start:],color='#d39000',lw=1,label='Sinyal9')
+        mc.bar(times,ind['histogram'][start:],width=width,color=['#14776b' if v>=0 else '#b73542' for v in ind['histogram'][start:]],alpha=.5)
+        mc.set_ylabel('MACD',fontsize=9);mc.legend(loc='upper left',fontsize=7,ncol=2)
+        for panel in (vol,rs,mc):
+            panel.set_xlim(ax.get_xlim());panel.xaxis.set_major_locator(MaxNLocator(4))
+            panel.xaxis.set_major_formatter(dates.DateFormatter('%d/%m %H:%M',tz=tz));panel.tick_params(labelsize=8);panel.grid(alpha=.12)
+        counts=analysis['counts']
+        footer=f"Son 60 mum: {counts['structure']} yapı kırılımı · {counts['sweeps']} süpürme* · {counts['active_fvg']} dokunulmamış FVG · {counts['ob_candidates']} OB adayı\nGrafikte en yakın {len(shown)} FVG/OB ve son 10 ayrı yapı işareti gösterilir; tamamı kayıtta saklanır."
+        fig.text(.08,.035,footer,fontsize=9)
+    if plan['plan_eligible']:
+        entry=plan['entry_reference'];left=x[-1]+width;boxwidth=width*8
+        for boundary,color in [(spec['stop'],'#b73542'),(spec['target'],'#14776b')]:
+            ax.add_patch(Rectangle((left,min(entry,boundary)),boxwidth,abs(boundary-entry),facecolor=color,alpha=.18,edgecolor=color))
+        ax.annotate(f'Giriş referansı {entry:.7g}',(left,entry),fontsize=8)
+        ax.set_xlim(x[0]-width,x[-1]+width*12)
+    model={'LEVEL_BREAK':'Seviye kırılımı / yaklaşım (şekil formasyonu değil)','DOUBLE_TOP':'Benzer iki tepe · yerel geometri adayı','DOUBLE_BOTTOM':'Benzer iki dip · yerel geometri adayı'}[plan['model']]
+    if plan['model'] in ('DOUBLE_TOP','DOUBLE_BOTTOM'):
+        kind='H' if plan['model']=='DOUBLE_TOP' else 'L'
+        anchors=[p for p in spec['swings'] if p['kind']==kind][-2:]
+        for n,pivot in enumerate(anchors,1):
+            ax.scatter([date(pivot['open_ms'])],[pivot['price']],s=65,facecolors='none',edgecolors='#d39000',zorder=6)
+            ax.annotate(('Tepe ' if kind=='H' else 'Dip ')+str(n),(date(pivot['open_ms']),pivot['price']),xytext=(12,20 if kind=='H' else -24),textcoords='offset points',fontsize=8,color='#815600')
+    ax.set_title(tf_labels[assessment['interval']]+' · '+model,loc='left',fontsize=11,fontweight='bold')
+    ax.legend(loc='upper left',fontsize=7,ncol=3,framealpha=.9)
+    fig.text(.08,.012,'*Süpürme: fitil geçişi + geri kapanış; emir defteri kanıtı değil. OB: kurala dayalı aday. Göstergeler giriş onayı değildir.',fontsize=8)
+
     ax.set_xlabel('Tarih / saat · Türkiye')
     stamp = date(assessment['asof_ms']).astimezone(tz).strftime('%d.%m.%Y %H:%M')
     title = f"{assessment['symbol']} · {plan['direction']} · {stages.get(plan['stage'], plan['stage'])} · {stamp}"
-    fig.suptitle(title+'\nKarar anı görünümü · sonrası gizli · araştırma, emir değil', fontsize=12)
-    fig.tight_layout(rect=(0, .035, 1, .95))
+    fig.suptitle(title+'\n'+('KOŞULLU PLAN · giriş, risk ve hedef sağda' if plan['plan_eligible'] else 'İŞLEM PLANI YOK · mavi bant izleme bölgesi, giriş bölgesi değil'), fontsize=12)
+    axes[2].margins(y=.10)
+    fig.tight_layout(rect=(0, .065, 1, .97))
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     metadata = {'Description': json.dumps(spec, ensure_ascii=False)}
