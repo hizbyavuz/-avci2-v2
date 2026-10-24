@@ -1,3 +1,4 @@
+from test_chart_first import aligned_flow
 import copy
 import unittest
 from unittest.mock import patch
@@ -15,8 +16,8 @@ class StructureTests(unittest.TestCase):
             if '5m' in frames:return (price+.05,'5m')
             return original(frames,*args)
         with patch.object(chart,'first_obstacle',side_effect=levels):
-            old=chart.assess('X',f,price,50e6,NOW,comparison_v3=True)
-            new=chart.assess('X',f,price,50e6,NOW)
+            old=chart.assess('X',f,price,50e6,NOW,comparison_v3=True,flow=aligned_flow(False))
+            new=chart.assess('X',f,price,50e6,NOW,flow=aligned_flow(False))
         self.assertEqual(old['reason'],'OBSTACLE_WITHIN_COST_ALLOWANCE')
         self.assertEqual(new['stage'],'READY')
         self.assertNotEqual(new['obstacle_timeframe'],'5m')

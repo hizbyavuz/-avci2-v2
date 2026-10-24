@@ -49,15 +49,17 @@ def summarize(rows, now_ms):
             key=(sid,row['symbol'],row['observed_ms']//900000,row['direction'],stage,row['reason'],h)
         if key in seen:duplicates+=1;continue
         seen.add(key)
-        gkey=(sid,stage,h)
-        g=groups.setdefault(gkey,dict(strategy_id=sid,version=p.get('version'),stage=stage,horizon=h,
+        gkey=(sid,stage,h,row['direction'])
+        g=groups.setdefault(gkey,dict(strategy_id=sid,version=p.get('version'),stage=stage,horizon=h,side=row['direction'],
             primary_endpoint=h==PRIMARY_HORIZON,records=0,pending=0,missing=0,unresolved=0,
             resolved=0,symbols=set(),utc_days=set(),reasons=Counter(),barriers=Counter(),
             net=[],directional=[],pessimistic=[],daily_net=defaultdict(list),
-            directions=Counter(),models=Counter(),scenarios=Counter(),invalid_entry_geometry=0))
+            directions=Counter(),models=Counter(),scenarios=Counter(),ready_blockers=Counter(),
+            invalid_entry_geometry=0,invalid_ready_quality=0))
         g['records']+=1;g['symbols'].add(row['symbol']);day=row['observed_ms']//86400000
         g['utc_days'].add(day);g['reasons'][row['reason']]+=1;g['directions'][row['direction']]+=1
         g['models'][p.get('model','UNCLASSIFIED')]+=1;g['scenarios'][p.get('scenario','UNKNOWN')]+=1
+        g['ready_blockers'].update(p.get('ready_blockers',[]))
         if row['state'] is None:
             if now_ms<row['observed_ms']+(h+1)*60000:g['pending']+=1
             else:g['missing']+=1
@@ -72,10 +74,13 @@ def summarize(rows, now_ms):
         if stage=='DELIVERED_READY' and finite(v.get('model_net_return_pct')):
             g['net'].append(v['model_net_return_pct']);g['daily_net'][day].append(v['model_net_return_pct'])
             geom=p.get('geometry') or {}
+            minimum=p.get('ready_min_net_r',p.get('min_net_reward_risk',1))
             if geom and (not geom.get('valid') or
-                    p.get('risk_reward_filter_enabled',True) and
-                    geom.get('net_reward_risk',0)<p.get('min_net_reward_risk',1)-1e-10):
+                    (p.get('risk_reward_filter_enabled',True) or p.get('ready_quality_policy')) and
+                    geom.get('net_reward_risk',0)<minimum-1e-10):
                 g['invalid_entry_geometry']+=1
+            if p.get('ready_quality_policy') and p.get('ready_blockers'):
+                g['invalid_ready_quality']+=1
     result=[]
     for g in groups.values():
         net=g.pop('net');directional=g.pop('directional');pess=g.pop('pessimistic')
@@ -116,7 +121,7 @@ def rejection_review(c, root, now_ms):
             if key in seen:continue
             seen.add(key)
             if not finite(p.get('price')) or p['price']<=0:continue
-            g=groups.setdefault(r['reason'],dict(reason=r['reason'],observations=0,missing=0,values=[],symbols=set()))
+            g=groups.setdefault((r['reason'],r['direction']),dict(reason=r['reason'],side=r['direction'],observations=0,missing=0,values=[],symbols=set()))
             g['observations']+=1;g['symbols'].add(r['symbol'])
             start=r['observed_ms']//60000*60000
             end=(r['observed_ms']+15*60000+59999)//60000*60000

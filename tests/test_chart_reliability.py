@@ -1,3 +1,4 @@
+from test_chart_first import aligned_flow
 import contextlib
 import io
 import json
@@ -19,8 +20,8 @@ class ReliabilityTests(unittest.TestCase):
     def test_old_confirmation_is_not_advertised_as_ready_both_sides(self):
         for short in (False, True):
             frames,price=sample(short)
-            fresh=chart.assess('XUSDT',frames,price,50e6,NOW)
-            stale=chart.assess('XUSDT',frames,price,50e6,NOW+80000)
+            fresh=chart.assess('XUSDT',frames,price,50e6,NOW,flow=aligned_flow(short))
+            stale=chart.assess('XUSDT',frames,price,50e6,NOW+80000,flow=aligned_flow(short))
             self.assertEqual(fresh['stage'],'READY')
             self.assertEqual(stale['stage'],'REJECTED')
             self.assertEqual(stale['reason'],'CONFIRMATION_WINDOW_EXPIRED')
@@ -47,7 +48,7 @@ class ReliabilityTests(unittest.TestCase):
     def test_admission_reports_cap_active_and_same_coin_cooldown(self):
         p={'strategy_id':'new'}
         r=dict(ended_ms=NOW-1000,created_ms=NOW-60000,payload=json.dumps(p))
-        self.assertEqual(admission_reason(r,p,NOW,3,chart.CONFIG),'CYCLE_NOTICE_CAP')
+        self.assertEqual(admission_reason(r,p,NOW,3,chart.CONFIG),'SAME_COIN_COOLDOWN')
         self.assertEqual(admission_reason(dict(r,ended_ms=None),p,NOW,0,chart.CONFIG),'EXISTING_ACTIVE_EPISODE')
         self.assertEqual(admission_reason(r,p,NOW,0,chart.CONFIG),'SAME_COIN_COOLDOWN')
         self.assertIsNone(admission_reason(r,p,NOW+3600000,0,chart.CONFIG))
@@ -139,7 +140,10 @@ class ReliabilityTests(unittest.TestCase):
             c.commit();k.commit()
             r=rejection_review(c,root,1200000)
             self.assertEqual(r['measured'],2);self.assertEqual(r['missing'],0)
-            self.assertAlmostEqual(r['groups'][0]['raw_directional_endpoint']['mean_pct'],0)
+            self.assertEqual(len(r['groups']),2)
+            by_side={g['side']:g for g in r['groups']}
+            self.assertAlmostEqual(by_side['LONG']['raw_directional_endpoint']['mean_pct'],1)
+            self.assertAlmostEqual(by_side['SHORT']['raw_directional_endpoint']['mean_pct'],-1)
             self.assertEqual(r['examples_best'][0]['symbol'],'A')
             self.assertEqual(r['examples_worst'][0]['symbol'],'B')
             self.assertEqual(c.execute('SELECT COUNT(*) FROM outcomes').fetchone()[0],0)

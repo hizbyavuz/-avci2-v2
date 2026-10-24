@@ -16,6 +16,7 @@ from datetime import datetime, timezone
 
 from long_short_chart_first import CONFIG, CONFIG_HASH, STRATEGY_ID, VERSION, assess, enabled, message, first_obstacle, daily_from_4h
 from long_short_chart_setups import geometry
+from long_short_chart_quality import entry_quality, candidate_priority
 from long_short_chart_flow import hourly_flow, reversal_reason
 from long_short_chart_lifecycle import path_guard
 from long_short_chart_outcomes import outcome as outcome_v2
@@ -118,7 +119,8 @@ def record(c,p):
     # every polling tick. Rejections retain both the reason and subsequent path.
     key=hashlib.sha256(json.dumps([p.get('strategy_id',STRATEGY_ID),p['symbol'],p['observed_ms']//900000,
         p['direction'],p['stage'],p['reason'],p.get('trigger'),p.get('stop'),
-        p.get('episode_id') if p['stage'].startswith('DELIVERED_') else None]).encode()).hexdigest()
+        p.get('episode_id') if p['stage'].startswith('DELIVERED_') else None,
+        p.get('ready_blockers',[])]).encode()).hexdigest()
     c.execute('INSERT OR IGNORE INTO assessments(event_key,observed_ms,symbol,direction,stage,reason,price,payload) VALUES(?,?,?,?,?,?,?,?)',
         (key,p['observed_ms'],p['symbol'],p['direction'],p['stage'],p['reason'],p['price'],json.dumps(p,ensure_ascii=False)))
 
@@ -141,6 +143,7 @@ def live_stage(p,price,last_close,closed_ms,now_ms,previous_close=None):
             and 250<=now_ms-closed_ms<=75000):
         if p.get('obstacle') and sign*(p['obstacle']-price)/price*100<=CONFIG['round_trip_cost_pct']:
             return 'EXPIRED'
+        if entry_quality(p,price,now_ms)['blockers']:return 'WATCH'
         return 'READY'
     return 'WATCH'
 
@@ -244,6 +247,12 @@ def advance(c,kdb,decisions,now_ms,publisher,token,chat):
         p=json.loads(row['payload']);price=quote(kdb,row['symbol'],now_ms)
         if price is None:
             audit_note(c,p,now_ms,'HOLD','FRESH_PRICE_UNAVAILABLE',row['id']);c.commit();continue
+        decision=decisions.get(row['symbol'])
+        # Never confirm using a WATCH's older flow snapshot.
+        if p.get('ready_quality_policy'):
+            p['hourly_flow']=(decision or {}).get('hourly_flow') or {'status':'UNAVAILABLE'}
+            p['entry_quality']=entry_quality(p,price,now_ms)
+            p['ready_blockers']=p['entry_quality']['blockers']
         latest_rows=kdb.execute("SELECT close,close_ms FROM futures_closed_klines WHERE symbol=? AND interval='5m' ORDER BY open_ms DESC LIMIT 2",(row['symbol'],)).fetchall()
         if not latest_rows:
             audit_note(c,p,now_ms,'HOLD','CONFIRMATION_CANDLE_MISSING',row['id']);c.commit();continue
@@ -306,7 +315,8 @@ def advance(c,kdb,decisions,now_ms,publisher,token,chat):
             stage=row['stage'];final_reason=p.get('lifecycle_reason','TERMINAL_RETRY')
         p.update(stage=stage,price=price,observed_ms=now_ms,lifecycle_reason=final_reason)
         audit_note(c,p,now_ms,'ADVANCE',final_reason,row['id'],delivery_stage=row['delivery_stage'])
-        p['geometry']=geometry(p['direction'],price,p['stop'],p.get('obstacle'),CONFIG['round_trip_cost_pct'])
+        reference=price if stage!='WATCH' else (max(price,p['trigger']) if p['direction']=='LONG' else min(price,p['trigger']))
+        p['geometry']=geometry(p['direction'],reference,p['stop'],p.get('obstacle'),CONFIG['round_trip_cost_pct'])
         if stage!=row['stage']:
             changes+=1
             if stage=='READY':p.update(ready_ms=now_ms,ready_price=price)
@@ -335,11 +345,15 @@ def advance(c,kdb,decisions,now_ms,publisher,token,chat):
                     delivered=dict(p,observed_ms=accepted_ms,price=accepted_price,
                                    stage='DELIVERED_'+stage,reason='TELEGRAM_ACK',episode_id=row['id'])
                     if accepted_price is not None:
-                        delivered['geometry']=geometry(p['direction'],accepted_price,p['stop'],p.get('obstacle'),CONFIG['round_trip_cost_pct'])
+                        reference=accepted_price if stage=='READY' else (max(accepted_price,p['trigger']) if p['direction']=='LONG' else min(accepted_price,p['trigger']))
+                        delivered['geometry']=geometry(p['direction'],reference,p['stop'],p.get('obstacle'),CONFIG['round_trip_cost_pct'])
+                        delivered['entry_quality']=entry_quality(delivered,accepted_price,accepted_ms)
+                        delivered['ready_blockers']=delivered['entry_quality']['blockers']
                     record(c,delivered)
                     print('CHART_FIRST_DELIVERY '+json.dumps({k:delivered.get(k) for k in
                         ('version','strategy_id','episode_id','symbol','direction','model','stage',
-                         'observed_ms','price','trigger','stop','obstacle','entry_limit','geometry','scenario','hourly_flow')},ensure_ascii=False),flush=True)
+                         'observed_ms','price','trigger','stop','obstacle','entry_limit','geometry','scenario','hourly_flow',
+                         'ready_quality_policy','ready_blockers')},ensure_ascii=False),flush=True)
             else:
                 audit_note(c,p,now_ms,'DELIVERY','PUBLISH_NOT_ACKNOWLEDGED',row['id'],receipt_status=receipt.get('status'))
         elif stage in ('WATCH','READY') and (not token or not chat):
@@ -396,7 +410,7 @@ def scan():
         chat=resolve_telegram_chat(token,os.getenv('TELEGRAM_CHAT_ID','').strip()) if token else None
         sent,changed=advance(c,kdb,decisions,int(time.time()*1000),publish,token,chat) if enabled() else (0,0)
         eligible=[p for p in decisions.values() if p['stage'] in ('WATCH','READY')]
-        eligible.sort(key=lambda p:(p['stage']!='READY',abs(p['price']-p['trigger'])/p['atr5'],p['symbol']))
+        eligible.sort(key=candidate_priority)
         created=0
         five_minute_start=int(time.time()*1000)//300000*300000
         already_created=c.execute('SELECT COUNT(*) FROM episodes WHERE created_ms>=?',(five_minute_start,)).fetchone()[0]
@@ -437,6 +451,7 @@ def scan():
             risk_reward_filter_enabled=CONFIG['risk_reward_filter_enabled'],
             checked=len(decisions),directions=dict(Counter(p['direction'] for p in decisions.values())),
             stages=dict(Counter(p['stage'] for p in decisions.values())),reasons=dict(counts),
+            ready_blockers=dict(Counter(b for p in decisions.values() for b in p.get('ready_blockers',[]))),
             same_tick_v3_rules=dict(comparison),newly_eligible=rescued,
             pattern_results=dict(Counter(x['model']+':'+x['reason'] for p in decisions.values()
                                          for x in p.get('pattern_evaluations',[]))),
@@ -446,7 +461,8 @@ def scan():
             eligible=[dict(symbol=p['symbol'],side=p['direction'],stage=p['stage'],scenario=p.get('scenario'),
                 daily=p['context']['1d']['direction'],four_hour=p['context']['4h']['direction'],hour=p['context']['1h']['direction'],
                 price=p['price'],trigger=p['trigger'],invalidation=p['stop'],obstacle=p.get('obstacle'),entry_limit=p['entry_limit'],
-                daily_bars=p['context']['1d']['bars'],model=p.get('model'),geometry=p.get('geometry'),hourly_flow=p.get('hourly_flow')) for p in eligible],
+                daily_bars=p['context']['1d']['bars'],model=p.get('model'),geometry=p.get('geometry'),hourly_flow=p.get('hourly_flow'),
+                ready_blockers=p.get('ready_blockers',[])) for p in eligible],
             derived_tail_symbols=sum(bool(p.get('chart_tail_aggregated_from_native_5m')) for p in decisions.values()),
             created=created,delivered=sent+extra,final_gates=dict(final_gates),primary_enabled=enabled(),automatic_orders=False)),flush=True)
     finally:

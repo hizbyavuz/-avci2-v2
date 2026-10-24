@@ -1,3 +1,4 @@
+from test_chart_first import aligned_flow
 import copy
 import json
 import os
@@ -62,7 +63,7 @@ class ChartV2Tests(unittest.TestCase):
         for short in (False,True):
             frames,price=sample(short)
             with patch.dict(CONFIG,risk_reward_filter_enabled=True):
-                p=assess('XUSDT',frames,price,50e6,NOW)
+                p=assess('XUSDT',frames,price,50e6,NOW,flow=aligned_flow(short))
             self.assertEqual(p['stage'],'READY',p)
             for fraction in (0,.25,.5,.75,1):
                 entry=p['trigger']+fraction*(p['entry_limit']-p['trigger'])
@@ -113,7 +114,7 @@ class ChartV2Tests(unittest.TestCase):
         self.assertFalse(geometry('LONG',100,99,None,.3)['valid'])
 
     def test_messages_explain_cost_and_structural_distance(self):
-        f,price=sample();p=assess('XUSDT',f,price,50e6,NOW)
+        f,price=sample();p=assess('XUSDT',f,price,50e6,NOW,flow=aligned_flow(False))
         text=message(p)
         self.assertIn('🔔 5 dk mum',text)
         self.assertIn('Stopa uzaklık',text)
@@ -172,7 +173,7 @@ class ChartV2Tests(unittest.TestCase):
             c=connect();k=sqlite3.connect(':memory:')
             k.executescript('CREATE TABLE futures_last_price(symbol,price,event_ms,received_ms,source);'
                            'CREATE TABLE futures_closed_klines(symbol,interval,close,close_ms,open_ms);')
-            frames,price=sample();p=assess('XUSDT',frames,price,50e6,NOW)
+            frames,price=sample();p=assess('XUSDT',frames,price,50e6,NOW,flow=aligned_flow(False))
             p.update(stage='WATCH',created_ms=NOW-60000,support={'oi_change_1h':999})
             k.execute('INSERT INTO futures_last_price VALUES(?,?,?,?,?)',('XUSDT',price,NOW-100,NOW-100,'BINANCE_UM_FUTURES_WEBSOCKET'))
             k.executemany('INSERT INTO futures_closed_klines VALUES(?,?,?,?,?)',[

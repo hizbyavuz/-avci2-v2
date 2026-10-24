@@ -1,3 +1,4 @@
+from test_chart_first import aligned_flow
 import copy
 import importlib
 import json
@@ -21,7 +22,7 @@ class LifecycleTests(unittest.TestCase):
         k.executescript('''CREATE TABLE futures_closed_klines(symbol,interval,open_ms,close_ms,open,high,low,close,source);
             CREATE TABLE futures_current_1m(symbol,open_ms,close_ms,open,high,low,close,source,event_ms,received_ms);
             CREATE TABLE futures_last_price(symbol,price,event_ms,received_ms,source);''')
-        f,price=sample(short);p=chart.assess('XUSDT',f,price,50e6,NOW)
+        f,price=sample(short);p=chart.assess('XUSDT',f,price,50e6,NOW,flow=aligned_flow(short))
         end=NOW//60000*60000;p.update(stage='WATCH',created_ms=end-120000+(1000 if partial else 0))
         for t in range(end-120000,end,60000):
             k.execute('INSERT INTO futures_closed_klines VALUES(?,?,?,?,?,?,?,?,?)',

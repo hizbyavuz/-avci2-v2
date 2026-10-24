@@ -11,14 +11,16 @@ import os
 from pathlib import Path
 from long_short_chart_setups import setups, level_watch, geometry, quality_limit
 from long_short_chart_flow import reversal_reason, flow_note
+from long_short_chart_quality import POLICY, entry_quality
 
-VERSION = 'CHART_FIRST_STRUCTURE_V4_1_2026_10_15'
+VERSION = 'CHART_FIRST_STRUCTURE_V4_2_2026_10_24'
 CONFIG = dict(target_timeframes=('15m','1h','4h','1d'), pivot_confirmation_bars=2, daily_min_bars=20,
               approach_atr15=1.0, chase_atr5=1.0, level_tolerance_atr5=0.10,
               candle_grace_ms=20000, quote_max_age_ms=5000,
               min_quote_volume=25000000, round_trip_cost_pct=0.30,
               max_initial_notices_per_cycle=3, cooldown_ms=3600000,
               horizon_minutes=180, min_net_reward_risk=1.0, risk_reward_filter_enabled=False,
+              ready_quality_policy=POLICY, ready_min_net_r=1.0,
               compression_bars=6, compression_range_ratio=0.80,
               compression_width_atr=2.5, stop_buffer_atr=0.10,
               pullback_lookback_bars=24, pullback_min_atr=0.5,
@@ -31,7 +33,8 @@ STRATEGY_ID = hashlib.sha256((CONFIG_HASH+VERSION).encode()+Path(__file__).read_
     Path(__file__).with_name('long_short_chart_outcomes.py').read_bytes()+
     Path(__file__).with_name('long_short_chart_flow.py').read_bytes()+
     Path(__file__).with_name('long_short_chart_lifecycle.py').read_bytes()+
-    Path(__file__).with_name('long_short_chart_dispatch_audit.py').read_bytes()).hexdigest()
+    Path(__file__).with_name('long_short_chart_dispatch_audit.py').read_bytes()+
+    Path(__file__).with_name('long_short_chart_quality.py').read_bytes()).hexdigest()
 PERIODS = {'5m':300000, '15m':900000, '1h':3600000, '4h':14400000, '1d':86400000}
 
 
@@ -132,6 +135,9 @@ def assess(symbol, frames, price, quote_volume, now_ms, evidence=None, flow=None
     out['risk_reward_filter_enabled']=comparison_v3 or CONFIG['risk_reward_filter_enabled']
     out['min_net_reward_risk']=CONFIG['min_net_reward_risk']
     out['outcome_schema']='PARTIAL_MINUTE_V2'
+    if not comparison_v3:
+        out['ready_quality_policy']=CONFIG['ready_quality_policy']
+        out['ready_min_net_r']=CONFIG['ready_min_net_r']
     out['cost_assumption_pct']=CONFIG['round_trip_cost_pct']
     out['hourly_flow']=flow or {'status':'UNAVAILABLE'}
     def reject(reason):
@@ -243,6 +249,12 @@ def assess_pattern(out, pattern, frames, price, now_ms):
                            out['min_net_reward_risk'] if out['risk_reward_filter_enabled'] else 0.0)
     entry_limit=min(entry_limit,boundary) if sign==1 else max(entry_limit,boundary)
     out.update(stage='READY' if ready else 'WATCH',reason='OK',entry_limit=entry_limit)
+    out['entry_quality']=entry_quality(out,price,now_ms)
+    out['ready_blockers']=out['entry_quality']['blockers']
+    if out['ready_blockers']:out['stage']='WATCH'
+    ready_boundary=quality_limit(direction,stop,obstacle,CONFIG['round_trip_cost_pct'],
+                                 CONFIG['ready_min_net_r'])
+    out['ready_entry_limit']=min(entry_limit,ready_boundary) if sign==1 else max(entry_limit,ready_boundary)
     out['setup_key']=hashlib.sha256(json.dumps([STRATEGY_ID,symbol,direction,pattern['model'],pattern['model_anchor_ms'],trigger,stop],
                                               separators=(',',':')).encode()).hexdigest()
     return out

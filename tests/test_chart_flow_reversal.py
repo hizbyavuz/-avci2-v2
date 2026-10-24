@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from unittest.mock import Mock, patch
 
-from test_chart_first import sample, NOW
+from test_chart_first import sample, NOW, aligned_flow
 from long_short_chart_flow import hourly_flow, reversal_reason, flow_note
 from long_short_chart_first import assess, message
 from long_short_chart_first_worker import connect, advance
@@ -50,7 +50,7 @@ class FlowReversalTests(unittest.TestCase):
         for short in (False,True):
             frames,price=sample(short);opposite,_=sample(not short);frames['4h']=opposite['4h']
             side='SHORT' if short else 'LONG'
-            flow=dict(status='OK',buy_share=.4 if short else .6,price_return_pct=-1 if short else 1)
+            flow=aligned_flow(short)
             p=assess('X',frames,price,50e6,NOW,flow=flow)
             self.assertEqual(p['stage'],'READY',p)
             self.assertEqual(p['scenario'],'REVERSAL_ATTEMPT')
@@ -85,7 +85,7 @@ class FlowReversalTests(unittest.TestCase):
                 k.executescript('CREATE TABLE futures_last_price(symbol,price,event_ms,received_ms,source);'
                                'CREATE TABLE futures_closed_klines(symbol,interval,close,close_ms,open_ms);')
                 frames,price=sample();opp,_=sample(True);frames['4h']=opp['4h']
-                flow=dict(status='OK',buy_share=.6,price_return_pct=1)
+                flow=aligned_flow()
                 p=assess('X',frames,price,50e6,NOW,flow=flow);p.update(stage='WATCH',created_ms=NOW-60000)
                 k.execute('INSERT INTO futures_last_price VALUES(?,?,?,?,?)',('X',price,NOW-100,NOW-100,'BINANCE_UM_FUTURES_WEBSOCKET'))
                 k.executemany('INSERT INTO futures_closed_klines VALUES(?,?,?,?,?)',[

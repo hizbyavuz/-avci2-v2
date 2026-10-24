@@ -18,16 +18,23 @@ def message(p, stage=None):
                           f'💰 Güncel fiyat: {p["price"]:.10g}',stamp])
     title='GİRİŞ KOŞULU OLUŞTU' if stage=='READY' else 'İÇİN İZLE'
     rows=[f'{marker} {p["symbol"]} · {move} {title} ({side})',
-          '✅ Giriş koşulu oluştu; güncel fiyatı, aralığı ve SL seviyesini kontrol et.' if stage=='READY' else '⏳ Henüz giriş koşulu oluşmadı; aşağıdaki kapanış bekleniyor.']
+          '✅ Kapanış, işlem akışı ve masraf sonrası alan koşulları oluştu; güncel fiyatı ve SL seviyesini kontrol et.' if stage=='READY' else '⏳ İzleme adayı; kapanış ve giriş kalitesi birlikte doğrulanmalı.']
     if p.get('scenario')=='REVERSAL_ATTEMPT':
         rows.append('⚠️ ANA YÖNE TERS: Büyük yön ters; bu kısa vadeli bir dönüş denemesi.')
     rows.extend(['',f'💰 Şu an fiyat: {p["price"]:.10g}'])
     if stage=='READY':
-        lo,hi=sorted((p['trigger'],p['entry_limit']))
+        lo,hi=sorted((p['trigger'],p.get('ready_entry_limit',p['entry_limit'])))
         rows.extend([f'🔔 5 dk mum {p["trigger"]:.10g} {relation} kapandı; anlık fiyat da bu tarafta.',
                      f'📍 Giriş için değerlendirilen aralık: {lo:.10g}–{hi:.10g}'])
     else:
         rows.append(f'🔔 Beklenen: 5 dk mum {p["trigger"]:.10g} {relation} kapansın, fiyat bu seviyeyi korusun.')
+        blockers=p.get('ready_blockers',[])
+        if 'READY_REWARD_BELOW_RISK' in blockers:
+            rows.append('⛔ Giriş teyidi yok: ilk seviyeye kadar masraf sonrası alan, stop riskini karşılamıyor.')
+        if 'READY_FLOW_UNAVAILABLE' in blockers:
+            rows.append('⏳ Giriş teyidi için güncel alış/satış verisi eksik.')
+        elif any(b in blockers for b in ('READY_FLOW_NOT_ALIGNED','READY_PRICE_NOT_RESPONDING')):
+            rows.append('⏳ Giriş teyidi için son saat işlem baskısı ve fiyatın bu yönü birlikte desteklemesi bekleniyor.')
     rows.extend(['',f'🎯 İlk {"direnç" if up else "destek"} / TP1 referansı: {p["obstacle"]:.10g}',
                  f'🛑 SL referansı: {p["stop"]:.10g} — {"altına düşerse" if up else "üstüne çıkarsa"} fikir bozulur.'])
     if p.get('intermediate_level') is not None and (1 if up else -1)*(p['intermediate_level']-p['price'])>0:

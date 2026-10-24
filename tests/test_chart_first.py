@@ -15,6 +15,12 @@ from long_short_chart_first_worker import live_stage, path_outcome, record, conn
 NOW=1792065908000
 
 
+def aligned_flow(short=False):
+    end=(NOW-250)//300000*300000
+    return dict(status="OK", start_ms=end-3600000, end_ms=end,
+                buy_share=.4 if short else .6, price_return_pct=-1 if short else 1)
+
+
 def sample(short=False):
     frames={}
     for tf,n,slope,amp in [('5m',120,.015,.3),('15m',120,.025,.8),('1h',120,.06,2),('4h',220,.12,3)]:
@@ -45,7 +51,7 @@ class ChartFirstTests(unittest.TestCase):
     def test_long_and_short_use_identical_mirrored_logic(self):
         for short,side in [(False,'LONG'),(True,'SHORT')]:
             frames,price=sample(short)
-            p=assess('TESTUSDT',frames,price,50e6,NOW)
+            p=assess('TESTUSDT',frames,price,50e6,NOW,flow=aligned_flow(short))
             self.assertEqual((p['direction'],p['stage'],p['reason']),(side,'READY','OK'),p)
             self.assertEqual(set(p['context']),{'5m','15m','1h','4h','1d'})
             self.assertIn('GİRİŞ KOŞULU OLUŞTU',message(p))
@@ -179,7 +185,7 @@ class ChartFirstTests(unittest.TestCase):
             c=connect();k=sqlite3.connect(':memory:')
             k.executescript('''CREATE TABLE futures_last_price(symbol,price,event_ms,received_ms,source);
               CREATE TABLE futures_closed_klines(symbol,interval,close,close_ms,open_ms);''')
-            frames,price=sample();p=assess('XUSDT',frames,price,50e6,NOW)
+            frames,price=sample();p=assess('XUSDT',frames,price,50e6,NOW,flow=aligned_flow(False))
             p.update(stage='WATCH',created_ms=NOW-60000)
             k.execute('INSERT INTO futures_last_price VALUES(?,?,?,?,?)',('XUSDT',price,NOW-100,NOW-100,'BINANCE_UM_FUTURES_WEBSOCKET'))
             k.execute('INSERT INTO futures_closed_klines VALUES(?,?,?,?,?)',('XUSDT','5m',price,NOW-8000,NOW-308000))

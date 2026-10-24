@@ -1,3 +1,4 @@
+from test_chart_first import aligned_flow
 import copy
 import unittest
 from unittest.mock import patch
@@ -14,7 +15,7 @@ class SelectionTests(unittest.TestCase):
             valid=setups(frames['5m'],side,h,l,chart.CONFIG)[0]
             bad=dict(valid,stop=price+(1 if not short else -1),model='INVALID_FIRST')
             with patch.object(chart,'setups',return_value=[bad,valid]):
-                result=chart.assess('X',frames,price,50e6,NOW)
+                result=chart.assess('X',frames,price,50e6,NOW,flow=aligned_flow(short))
             self.assertEqual(result['stage'],'READY')
             self.assertEqual(result['pattern_evaluations'][0]['reason'],'LOCAL_IDEA_INVALIDATED')
             self.assertEqual(result['pattern_evaluations'][1]['reason'],'OK')
@@ -24,7 +25,7 @@ class SelectionTests(unittest.TestCase):
         ready=setups(f['5m'],'LONG',h,l,chart.CONFIG)[0]
         watch=dict(ready,model='WATCH_FIRST',model_ready=False,confirmation_ms=None)
         with patch.object(chart,'setups',return_value=[watch,ready]):
-            result=chart.assess('X',f,p,50e6,NOW)
+            result=chart.assess('X',f,p,50e6,NOW,flow=aligned_flow(False))
         self.assertEqual(result['stage'],'READY')
         self.assertEqual(result['model'],ready['model'])
 

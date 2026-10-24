@@ -1,6 +1,7 @@
 """Bounded final-gate evidence. Never selects a side or relaxes a trade rule."""
 import hashlib
 import json
+from long_short_chart_quality import entry_quality
 
 
 def initialize(c):
@@ -17,7 +18,7 @@ def note(c, p, now_ms, action, reason, episode_id=None, **details):
     key=hashlib.sha256(json.dumps([sid,identity,now_ms//300000,action,reason]).encode()).hexdigest()
     payload=dict(symbol=p.get('symbol'),direction=p.get('direction'),
         assessed_stage=p.get('stage'),price=p.get('price'),trigger=p.get('trigger'),
-        stop=p.get('stop'),obstacle=p.get('obstacle'),**details)
+        stop=p.get('stop'),obstacle=p.get('obstacle'),ready_blockers=p.get('ready_blockers',[]),**details)
     cur=c.execute('INSERT OR IGNORE INTO dispatch_audit VALUES(?,?,?,?,?,?,?,?)',
         (key,now_ms,sid,p.get('symbol'),episode_id,action,reason,json.dumps(payload)))
     if cur.rowcount:
@@ -26,14 +27,14 @@ def note(c, p, now_ms, action, reason, episode_id=None, **details):
 
 
 def admission_reason(recent, p, now_ms, already_created, config):
-    if already_created>=config['max_initial_notices_per_cycle']:
-        return 'CYCLE_NOTICE_CAP'
     if recent:
         if recent['ended_ms'] is None:return 'EXISTING_ACTIVE_EPISODE'
         previous=json.loads(recent['payload'])
         if (previous.get('strategy_id')==p.get('strategy_id') and
                 now_ms-recent['created_ms']<config['cooldown_ms']):
             return 'SAME_COIN_COOLDOWN'
+    if already_created>=config['max_initial_notices_per_cycle']:
+        return 'CYCLE_NOTICE_CAP'
     return None
 
 
@@ -49,4 +50,6 @@ def stage_reason(p, stage, price, last_close, previous_close, closed_ms, now_ms,
     if previous_close is not None and sign*(previous_close-p['trigger'])>0:
         return 'BREAK_ALREADY_HAPPENED'
     if sign*(price-p['trigger'])<0:return 'PRICE_LOST_TRIGGER'
+    blockers=entry_quality(p,price,now_ms)['blockers']
+    if blockers:return blockers[0]
     return 'WAITING_CONFIRMATION'

@@ -1,3 +1,4 @@
+from test_chart_first import aligned_flow
 import json
 import unittest
 from unittest.mock import patch
@@ -8,21 +9,22 @@ from test_chart_first import sample, NOW
 
 
 class RewardRiskSwitchTests(unittest.TestCase):
-    def test_sub_one_ratio_passes_scan_and_final_gate_both_sides(self):
+    def test_sub_one_ratio_remains_watch_but_never_ready_both_sides(self):
         for short in (False,True):
             frames,price=sample(short);sign=-1 if short else 1
             with patch.object(chart,'first_obstacle',return_value=(price+sign*.7,'15m')):
                 with patch.dict(chart.CONFIG,risk_reward_filter_enabled=True):
-                    before=chart.assess('X',frames,price,50e6,NOW)
-                after=chart.assess('X',frames,price,50e6,NOW)
+                    before=chart.assess('X',frames,price,50e6,NOW,flow=aligned_flow(short))
+                after=chart.assess('X',frames,price,50e6,NOW,flow=aligned_flow(short))
             self.assertEqual(before['reason'],'NET_REWARD_BELOW_STRUCTURAL_RISK')
-            self.assertEqual(after['stage'],'READY')
+            self.assertEqual(after['stage'],'WATCH')
+            self.assertIn('READY_REWARD_BELOW_RISK',after['ready_blockers'])
             self.assertFalse(after['risk_reward_filter_enabled'])
             self.assertGreater(after['geometry']['net_reward_risk'],0)
             self.assertLess(after['geometry']['net_reward_risk'],1)
             probe=dict(after,stage='WATCH',created_ms=NOW)
             last,previous=frames['5m'][-1],frames['5m'][-2]
-            self.assertEqual(live_stage(probe,price,last[4],last[6],NOW,previous[4]),'READY')
+            self.assertEqual(live_stage(probe,price,last[4],last[6],NOW,previous[4]),'WATCH')
             self.assertEqual(live_stage(dict(probe,risk_reward_filter_enabled=True),
                 price,last[4],last[6],NOW,previous[4]),'EXPIRED')
 
