@@ -29,9 +29,8 @@ def note(c, p, now_ms, action, reason, episode_id=None, **details):
 def admission_reason(recent, p, now_ms, already_created, config):
     if recent:
         if recent['ended_ms'] is None:return 'EXISTING_ACTIVE_EPISODE'
-        previous=json.loads(recent['payload'])
-        if (previous.get('strategy_id')==p.get('strategy_id') and
-                now_ms-recent['created_ms']<config['cooldown_ms']):
+        # A deployment must not reset the per-coin notification cooldown.
+        if now_ms-recent['created_ms']<config['cooldown_ms']:
             return 'SAME_COIN_COOLDOWN'
     if already_created>=config['max_initial_notices_per_cycle']:
         return 'CYCLE_NOTICE_CAP'

@@ -52,7 +52,8 @@ class ReliabilityTests(unittest.TestCase):
         self.assertEqual(admission_reason(dict(r,ended_ms=None),p,NOW,0,chart.CONFIG),'EXISTING_ACTIVE_EPISODE')
         self.assertEqual(admission_reason(r,p,NOW,0,chart.CONFIG),'SAME_COIN_COOLDOWN')
         self.assertIsNone(admission_reason(r,p,NOW+3600000,0,chart.CONFIG))
-        self.assertIsNone(admission_reason(r,{'strategy_id':'other'},NOW,0,chart.CONFIG))
+        self.assertEqual(admission_reason(r,{'strategy_id':'other'},NOW,0,chart.CONFIG),'SAME_COIN_COOLDOWN')
+        self.assertIsNone(admission_reason(r,{'strategy_id':'other'},NOW+3600000,0,chart.CONFIG))
 
     def test_dispatch_notes_are_bounded_per_bucket(self):
         with tempfile.TemporaryDirectory() as root,patch.dict(os.environ,{'LS_STATE_DIR':root}):

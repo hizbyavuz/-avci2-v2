@@ -53,6 +53,10 @@ def message(p, stage=None):
     flow=p.get('hourly_flow') or {}
     if flow.get('status')=='OK':
         rows.append(f'🛒 Son 1 saat işlem payı: Alış %{flow["buy_share"]*100:.0f} · Satış %{(1-flow["buy_share"])*100:.0f} · Fiyat %{flow["price_return_pct"]:+.2f}')
+        from long_short_chart_discovery_audit import short_flow_aligned
+        if stage=='WATCH' and short_flow_aligned(flow,side,p['observed_ms']) and any(
+                b in p.get('ready_blockers',[]) for b in ('READY_FLOW_NOT_ALIGNED','READY_PRICE_NOT_RESPONDING')):
+            rows.append('ℹ️ Son 15 dk işlem akışı ve fiyat bu yönü destekliyor; saatlik teyit henüz oluşmadı.')
         sign=1 if up else -1
         if sign*(flow['buy_share']-.5)<=0 or sign*flow['price_return_pct']<=0:
             rows.append('⚠️ Son saatte alış/satış baskısı ile fiyat bu yönü birlikte desteklemiyor.')

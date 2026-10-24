@@ -28,10 +28,17 @@ def hourly_flow(con, symbol, now_ms):
         q=sum(r[4] for r in part)
         return sum(r[5] for r in part)/q if q>0 else None
     previous,recent=share(rows[:6]),share(rows[6:])
+    windows={}
+    for minutes,count in ((15,3),(30,6)):
+        part=rows[-count:]
+        windows[str(minutes)]=dict(start_ms=part[0][0],end_ms=end,
+            buy_share=share(part),quote_volume=sum(r[4] for r in part),
+            price_return_pct=(part[-1][3]/part[0][2]-1)*100)
     return dict(status='OK',start_ms=start,end_ms=end,window_minutes=60,
                 buy_share=buy/total,quote_volume=total,
                 price_return_pct=(rows[-1][3]/rows[0][2]-1)*100,
-                previous_30m_buy_share=previous,recent_30m_buy_share=recent)
+                previous_30m_buy_share=previous,recent_30m_buy_share=recent,
+                recent_windows=windows)
 
 
 def reversal_reason(flow, direction):

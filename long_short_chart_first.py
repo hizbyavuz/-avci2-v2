@@ -11,9 +11,9 @@ import os
 from pathlib import Path
 from long_short_chart_setups import setups, level_watch, geometry, quality_limit
 from long_short_chart_flow import reversal_reason, flow_note
-from long_short_chart_quality import POLICY, entry_quality
+from long_short_chart_quality import POLICY, entry_quality, candidate_priority
 
-VERSION = 'CHART_FIRST_STRUCTURE_V4_2_2026_10_24'
+VERSION = 'CHART_FIRST_STRUCTURE_V4_3_2026_10_24'
 CONFIG = dict(target_timeframes=('15m','1h','4h','1d'), pivot_confirmation_bars=2, daily_min_bars=20,
               approach_atr15=1.0, chase_atr5=1.0, level_tolerance_atr5=0.10,
               candle_grace_ms=20000, quote_max_age_ms=5000,
@@ -21,6 +21,7 @@ CONFIG = dict(target_timeframes=('15m','1h','4h','1d'), pivot_confirmation_bars=
               max_initial_notices_per_cycle=3, cooldown_ms=3600000,
               horizon_minutes=180, min_net_reward_risk=1.0, risk_reward_filter_enabled=False,
               ready_quality_policy=POLICY, ready_min_net_r=1.0,
+              early_observation_policy='15M_TURN_OBSERVATION_ONLY_V1',
               compression_bars=6, compression_range_ratio=0.80,
               compression_width_atr=2.5, stop_buffer_atr=0.10,
               pullback_lookback_bars=24, pullback_min_atr=0.5,
@@ -34,7 +35,8 @@ STRATEGY_ID = hashlib.sha256((CONFIG_HASH+VERSION).encode()+Path(__file__).read_
     Path(__file__).with_name('long_short_chart_flow.py').read_bytes()+
     Path(__file__).with_name('long_short_chart_lifecycle.py').read_bytes()+
     Path(__file__).with_name('long_short_chart_dispatch_audit.py').read_bytes()+
-    Path(__file__).with_name('long_short_chart_quality.py').read_bytes()).hexdigest()
+    Path(__file__).with_name('long_short_chart_quality.py').read_bytes()+
+    Path(__file__).with_name('long_short_chart_discovery_audit.py').read_bytes()).hexdigest()
 PERIODS = {'5m':300000, '15m':900000, '1h':3600000, '4h':14400000, '1d':86400000}
 
 
@@ -197,11 +199,15 @@ def assess(symbol, frames, price, quote_volume, now_ms, evidence=None, flow=None
         if level is not None:patterns.append(level)
     if not patterns:return reject('NO_DEFINED_SETUP')
     evaluated=[assess_pattern(dict(out), pattern, frames, price, now_ms) for pattern in patterns]
-    # Prefer a fresh executable hypothesis to an unconfirmed watch. Within a
-    # stage retain declared model order, never rank by later market outcomes.
-    selected=next((p for stage in ('READY','WATCH') for p in evaluated if p['stage']==stage), evaluated[0])
+    # Rank every valid setup, not just the first valid WATCH. A weak first
+    # pattern must not hide an independently detected, better structural plan.
+    valid=[p for p in evaluated if p['stage'] in ('READY','WATCH')]
+    selected=min(valid,key=candidate_priority) if valid and not comparison_v3 else next(
+        (p for stage in ('READY','WATCH') for p in evaluated if p['stage']==stage),evaluated[0])
     selected['pattern_evaluations']=[dict(model=p['model'], stage=p['stage'], reason=p['reason'],
-                                         trigger=p['trigger'], stop=p['stop']) for p in evaluated]
+                                         trigger=p['trigger'], stop=p['stop'],
+                                         ready_blockers=p.get('ready_blockers',[]),
+                                         net_reward_risk=p.get('geometry',{}).get('net_reward_risk')) for p in evaluated]
     return selected
 
 

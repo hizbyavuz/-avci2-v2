@@ -17,6 +17,7 @@ from datetime import datetime, timezone
 from long_short_chart_first import CONFIG, CONFIG_HASH, STRATEGY_ID, VERSION, assess, enabled, message, first_obstacle, daily_from_4h
 from long_short_chart_setups import geometry
 from long_short_chart_quality import entry_quality, candidate_priority
+from long_short_chart_discovery_audit import market_position, early_observation, audit_row
 from long_short_chart_flow import hourly_flow, reversal_reason
 from long_short_chart_lifecycle import path_guard
 from long_short_chart_outcomes import outcome as outcome_v2
@@ -24,6 +25,7 @@ from long_short_chart_dispatch_audit import initialize as audit_initialize, note
 
 STOP=threading.Event()
 LAST_REPORT_BUCKET=None
+LAST_DISCOVERY_AUDIT_BUCKET=None
 VALID={'BINANCE_UM_FUTURES_WEBSOCKET','BINANCE_UM_FUTURES_ARCHIVE','BINANCE_UM_FUTURES_REST'}
 
 
@@ -175,18 +177,27 @@ def path_outcome(p,bars,start,horizon):
     return result
 
 
-def resolve(c,kdb,now_ms):
-    # Select only due horizons. Already measured 15m cases must not starve
-    # newer records while waiting for their 60m/180m horizons.
-    rows=c.execute("""WITH horizons(h) AS (VALUES(15),(60),(180))
+def due_assessments(c,now_ms):
+    # Reserve work for today's current-version observations. An old missing
+    # archive must not monopolize every retry; it retains the remaining budget.
+    query="""WITH horizons(h) AS (VALUES(15),(60),(180))
       SELECT a.* FROM assessments a WHERE EXISTS (
         SELECT 1 FROM horizons h LEFT JOIN outcomes o
           ON o.assessment_id=a.id AND o.horizon=h.h
         WHERE a.observed_ms+(h.h+1)*60000<=? AND
           (o.assessment_id IS NULL OR (o.state NOT IN ('RESOLVED','UNRESOLVED_BOUNDARY')
-                                      AND o.checked_ms<?)))
-      ORDER BY (a.stage='DELIVERED_READY') DESC,a.id LIMIT 90""",
-      (now_ms,now_ms-3600000)).fetchall()
+                                      AND o.checked_ms<?))) """
+    order=" ORDER BY (a.stage='DELIVERED_READY') DESC,a.id LIMIT ?"
+    current=c.execute(query+" AND json_extract(a.payload,'$.strategy_id')=? AND a.observed_ms>=?"+order,
+        (now_ms,now_ms-3600000,STRATEGY_ID,now_ms-86400000,60)).fetchall()
+    ids=[r['id'] for r in current]
+    exclude=' AND a.id NOT IN ('+','.join('?' for _ in ids)+')' if ids else ''
+    older=c.execute(query+exclude+order,(now_ms,now_ms-3600000,*ids,90-len(current))).fetchall()
+    return current+older
+
+
+def resolve(c,kdb,now_ms):
+    rows=due_assessments(c,now_ms)
     for row in rows:
         p=json.loads(row['payload'])
         modern=p.get('outcome_schema')=='PARTIAL_MINUTE_V2' or p.get('version','').startswith(('CHART_FIRST_TWO_SETUPS_V2_', 'CHART_FIRST_FLOW_REVERSAL_V3_', 'CHART_FIRST_PATH_GUARD_V3_1_', 'CHART_FIRST_RELIABILITY_V3_2_', 'CHART_FIRST_RELIABILITY_V3_3_', 'CHART_FIRST_STRUCTURE_V4_'))
@@ -365,6 +376,7 @@ def advance(c,kdb,decisions,now_ms,publisher,token,chat):
 
 
 def scan():
+    global LAST_DISCOVERY_AUDIT_BUCKET
     from long_short_analyst import native_futures_websocket_universe,resolve_telegram_chat
     from long_short_native_derivatives import evidence
     from long_short_message_card import publish
@@ -372,7 +384,7 @@ def scan():
     universe=native_futures_websocket_universe(all_eligible=True,quiet=True)
     path=os.path.join(root(),'binance_futures_kline_shadow.db')
     c=connect();kdb=sqlite3.connect('file:'+os.path.abspath(path)+'?mode=ro',uri=True,timeout=5)
-    decisions={};counts=Counter();comparison=Counter();rescued=[]
+    decisions={};counts=Counter();comparison=Counter();rescued=[];early=[]
     active={r['symbol']:json.loads(r['payload']) for r in c.execute('SELECT symbol,payload FROM episodes WHERE ended_ms IS NULL')}
     try:
         for symbol,qv,_,_ in universe:
@@ -380,6 +392,14 @@ def scan():
             try:
                 frames,derived=candles(kdb,symbol,with_provenance=True)
                 p=assess(symbol,frames,price,qv,stamp,flow=hourly_flow(kdb,symbol,stamp))
+                if p.get('context'):
+                    # Diagnostics never turn an audit failure into a live rejection.
+                    try:
+                        p['market_position']=market_position(frames,price)
+                        observation=early_observation(p,frames,stamp)
+                        if observation is not None:early.append(observation)
+                    except (ValueError,TypeError,KeyError,ZeroDivisionError) as exc:
+                        p['discovery_audit_error']=type(exc).__name__
                 previous=assess(symbol,frames,price,qv,stamp,flow=p.get('hourly_flow'),comparison_v3=True)
                 comparison[previous['stage']+':'+previous['reason']]+=1
                 if p['stage'] in ('WATCH','READY') and previous['stage']=='REJECTED':
@@ -404,6 +424,7 @@ def scan():
                 p=dict(version=VERSION,config_hash=CONFIG_HASH,strategy_id=STRATEGY_ID,symbol=symbol,observed_ms=stamp,
                        price=price,direction='NONE',stage='REJECTED',reason=str(exc)[:120])
             record(c,p);decisions[symbol]=p;counts[p['reason']]+=1
+        for observation in early:record(c,observation)
         c.commit()
         token=os.getenv('TELEGRAM_BOT_TOKEN','').strip()
         if os.getenv('LS_CHART_FIRST_NOTIFY_V1','1')!='1':token=''
@@ -447,11 +468,21 @@ def scan():
         extra,_=advance(c,kdb,decisions,int(time.time()*1000),publish,token,chat) if enabled() else (0,0)
         resolve(c,kdb,int(time.time()*1000))
         report(c,int(time.time()*1000))
+        audit_bucket=int(time.time()*1000)//300000
+        if LAST_DISCOVERY_AUDIT_BUCKET!=audit_bucket:
+            rows=[audit_row(p) for p in decisions.values() if p.get('context')]+[audit_row(p) for p in early]
+            for offset in range(0,max(1,len(rows)),8):
+                print('CHART_DISCOVERY_AUDIT '+json.dumps(dict(strategy_id=STRATEGY_ID,
+                    observed_ms=int(time.time()*1000),scope='OBSERVATIONS_NOT_ENTRY_SIGNALS',
+                    batch_index=offset//8,batches=max(1,(len(rows)+7)//8),rows=rows[offset:offset+8],
+                    audit_errors=sum(bool(p.get('discovery_audit_error')) for p in decisions.values())),ensure_ascii=False),flush=True)
+            LAST_DISCOVERY_AUDIT_BUCKET=audit_bucket
         print('CHART_FIRST_SUMMARY '+json.dumps(dict(version=VERSION,config_hash=CONFIG_HASH,strategy_id=STRATEGY_ID,
             risk_reward_filter_enabled=CONFIG['risk_reward_filter_enabled'],
             checked=len(decisions),directions=dict(Counter(p['direction'] for p in decisions.values())),
             stages=dict(Counter(p['stage'] for p in decisions.values())),reasons=dict(counts),
             ready_blockers=dict(Counter(b for p in decisions.values() for b in p.get('ready_blockers',[]))),
+            early_observations=dict(Counter(p['direction'] for p in early)),
             same_tick_v3_rules=dict(comparison),newly_eligible=rescued,
             pattern_results=dict(Counter(x['model']+':'+x['reason'] for p in decisions.values()
                                          for x in p.get('pattern_evaluations',[]))),

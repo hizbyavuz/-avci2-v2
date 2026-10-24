@@ -43,7 +43,7 @@ def demand(limit=90, full_chart=False):
         c = sqlite3.connect(f'file:{path.resolve()}?mode=ro', uri=True, timeout=3)
         try:
             pending = [r[0] for r in c.execute("""SELECT DISTINCT symbol FROM assessments
-                WHERE observed_ms>=? AND stage IN ('DELIVERED_READY','DELIVERED_WATCH')""",
+                WHERE observed_ms>=? AND stage IN ('DELIVERED_READY','DELIVERED_WATCH','EARLY_OBSERVATION')""",
                 (int(time.time()*1000)-181*60000,))]
         finally:
             c.close()
