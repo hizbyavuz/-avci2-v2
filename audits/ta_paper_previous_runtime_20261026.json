@@ -1,0 +1,149 @@
+{
+  "temporary-futures-history-readonly-20261013": {
+    "id": "03cdcaaf-03d2-4206-a5b2-34449b0c5268",
+    "source": {
+      "image": "ghcr.io/railwayapp/function-bun:1.4.4"
+    },
+    "deploy": {
+      "startCommand": "/bin/sh -c 'printf '\"'\"'%s'\"'\"' '\"'\"'// Private read-only Binance USD-M REST. No keys or order/account routes.\nconst root='\"'\"'\"'\"'\"'\"'\"'\"'https://fapi.binance.com'\"'\"'\"'\"'\"'\"'\"'\"';\nconst intervals=new Set(['\"'\"'\"'\"'\"'\"'\"'\"'1m'\"'\"'\"'\"'\"'\"'\"'\"','\"'\"'\"'\"'\"'\"'\"'\"'5m'\"'\"'\"'\"'\"'\"'\"'\"','\"'\"'\"'\"'\"'\"'\"'\"'15m'\"'\"'\"'\"'\"'\"'\"'\"','\"'\"'\"'\"'\"'\"'\"'\"'30m'\"'\"'\"'\"'\"'\"'\"'\"','\"'\"'\"'\"'\"'\"'\"'\"'1h'\"'\"'\"'\"'\"'\"'\"'\"','\"'\"'\"'\"'\"'\"'\"'\"'4h'\"'\"'\"'\"'\"'\"'\"'\"']);\nlet nextRequest=0,blockedUntil=0;\nlet markets:any=null,marketsAt=0,marketsPending:Promise<any>|null=null;\nconst snapshots=new Map<string,{at:number,value:any}>(),pending=new Map<string,Promise<any>>();\nasync function upstream(path:string,params:Record<string,string>={}) {\n if(Date.now()<blockedUntil)throw new Error('\"'\"'\"'\"'\"'\"'\"'\"'UPSTREAM_COOLDOWN'\"'\"'\"'\"'\"'\"'\"'\"');\n const slot=Math.max(Date.now(),nextRequest);\n if(slot-Date.now()>10000)throw new Error('\"'\"'\"'\"'\"'\"'\"'\"'QUEUE_FULL'\"'\"'\"'\"'\"'\"'\"'\"');\n nextRequest=slot+350;await Bun.sleep(Math.max(0,slot-Date.now()));\n if(Date.now()<blockedUntil)throw new Error('\"'\"'\"'\"'\"'\"'\"'\"'UPSTREAM_COOLDOWN'\"'\"'\"'\"'\"'\"'\"'\"');\n const r=await fetch(root+path+'\"'\"'\"'\"'\"'\"'\"'\"'?'\"'\"'\"'\"'\"'\"'\"'\"'+new URLSearchParams(params),{signal:AbortSignal.timeout(12000),redirect:'\"'\"'\"'\"'\"'\"'\"'\"'error'\"'\"'\"'\"'\"'\"'\"'\"'});\n if(!r.ok){if([418,429,451].includes(r.status))blockedUntil=Date.now()+3600000;throw new Error('\"'\"'\"'\"'\"'\"'\"'\"'UPSTREAM_HTTP_'\"'\"'\"'\"'\"'\"'\"'\"'+r.status);}\n return await r.json();\n}\nasync function exchangeInfo(){\n if(markets&&Date.now()-marketsAt<3600000)return markets;\n if(!marketsPending)marketsPending=upstream('\"'\"'\"'\"'\"'\"'\"'\"'/fapi/v1/exchangeInfo'\"'\"'\"'\"'\"'\"'\"'\"').then((x:any)=>{markets=x;marketsAt=Date.now();return x;}).finally(()=>{marketsPending=null;});\n return await marketsPending;\n}\nasync function derivatives(symbol:string){\n const c=snapshots.get(symbol);if(c&&Date.now()-c.at<60000)return c.value;\n if(pending.has(symbol))return await pending.get(symbol);\n const job=(async()=>{\n  const info:any=await exchangeInfo(),market=info.symbols?.find((x:any)=>x.symbol===symbol);\n  if(!market||market.status!=='\"'\"'\"'\"'\"'\"'\"'\"'TRADING'\"'\"'\"'\"'\"'\"'\"'\"'||market.contractType!=='\"'\"'\"'\"'\"'\"'\"'\"'PERPETUAL'\"'\"'\"'\"'\"'\"'\"'\"'||market.quoteAsset!=='\"'\"'\"'\"'\"'\"'\"'\"'USDT'\"'\"'\"'\"'\"'\"'\"'\"'||market.marginAsset!=='\"'\"'\"'\"'\"'\"'\"'\"'USDT'\"'\"'\"'\"'\"'\"'\"'\"')throw new Error('\"'\"'\"'\"'\"'\"'\"'\"'UNVERIFIED_MARKET'\"'\"'\"'\"'\"'\"'\"'\"');\n  const observed_ms=Date.now();\n  const [oi,oi_history,long_short,mark]=await Promise.all([\n   upstream('\"'\"'\"'\"'\"'\"'\"'\"'/fapi/v1/openInterest'\"'\"'\"'\"'\"'\"'\"'\"',{symbol}),\n   upstream('\"'\"'\"'\"'\"'\"'\"'\"'/futures/data/openInterestHist'\"'\"'\"'\"'\"'\"'\"'\"',{symbol,period:'\"'\"'\"'\"'\"'\"'\"'\"'5m'\"'\"'\"'\"'\"'\"'\"'\"',limit:'\"'\"'\"'\"'\"'\"'\"'\"'13'\"'\"'\"'\"'\"'\"'\"'\"'}),\n   upstream('\"'\"'\"'\"'\"'\"'\"'\"'/futures/data/globalLongShortAccountRatio'\"'\"'\"'\"'\"'\"'\"'\"',{symbol,period:'\"'\"'\"'\"'\"'\"'\"'\"'5m'\"'\"'\"'\"'\"'\"'\"'\"',limit:'\"'\"'\"'\"'\"'\"'\"'\"'1'\"'\"'\"'\"'\"'\"'\"'\"'}),\n   upstream('\"'\"'\"'\"'\"'\"'\"'\"'/fapi/v1/premiumIndex'\"'\"'\"'\"'\"'\"'\"'\"',{symbol})]);\n  const value={source:'\"'\"'\"'\"'\"'\"'\"'\"'BINANCE_UM_FUTURES_REST'\"'\"'\"'\"'\"'\"'\"'\"',symbol,observed_ms,market,\n   endpoints:['\"'\"'\"'\"'\"'\"'\"'\"'/fapi/v1/exchangeInfo'\"'\"'\"'\"'\"'\"'\"'\"','\"'\"'\"'\"'\"'\"'\"'\"'/fapi/v1/openInterest'\"'\"'\"'\"'\"'\"'\"'\"','\"'\"'\"'\"'\"'\"'\"'\"'/futures/data/openInterestHist'\"'\"'\"'\"'\"'\"'\"'\"','\"'\"'\"'\"'\"'\"'\"'\"'/futures/data/globalLongShortAccountRatio'\"'\"'\"'\"'\"'\"'\"'\"','\"'\"'\"'\"'\"'\"'\"'\"'/fapi/v1/premiumIndex'\"'\"'\"'\"'\"'\"'\"'\"'],oi,oi_history,long_short,mark};\n  snapshots.set(symbol,{at:Date.now(),value});\n  console.log('\"'\"'\"'\"'\"'\"'\"'\"'FUTURES_NATIVE_DERIVATIVES_OK'\"'\"'\"'\"'\"'\"'\"'\"',JSON.stringify({symbol,points:(oi_history as any[]).length}));return value;\n })().finally(()=>pending.delete(symbol));\n pending.set(symbol,job);return await job;\n}\nBun.serve({hostname:'\"'\"'\"'\"'\"'\"'\"'\"'::'\"'\"'\"'\"'\"'\"'\"'\"',port:Number(Bun.env.PORT||8080),async fetch(request){\n const u=new URL(request.url);\n if(u.pathname==='\"'\"'\"'\"'\"'\"'\"'\"'/health'\"'\"'\"'\"'\"'\"'\"'\"')return Response.json({source:'\"'\"'\"'\"'\"'\"'\"'\"'BINANCE_UM_FUTURES_REST'\"'\"'\"'\"'\"'\"'\"'\"',read_only:true});\n if(request.method==='\"'\"'\"'\"'\"'\"'\"'\"'GET'\"'\"'\"'\"'\"'\"'\"'\"'&&u.pathname==='\"'\"'\"'\"'\"'\"'\"'\"'/markets'\"'\"'\"'\"'\"'\"'\"'\"'){\n  try{const info:any=await exchangeInfo();return Response.json({source:'\"'\"'\"'\"'\"'\"'\"'\"'BINANCE_UM_FUTURES_REST'\"'\"'\"'\"'\"'\"'\"'\"',observed_ms:Date.now(),\n   markets:info.symbols.filter((m:any)=>m.status==='\"'\"'\"'\"'\"'\"'\"'\"'TRADING'\"'\"'\"'\"'\"'\"'\"'\"'&&m.contractType==='\"'\"'\"'\"'\"'\"'\"'\"'PERPETUAL'\"'\"'\"'\"'\"'\"'\"'\"'&&m.quoteAsset==='\"'\"'\"'\"'\"'\"'\"'\"'USDT'\"'\"'\"'\"'\"'\"'\"'\"'&&m.marginAsset==='\"'\"'\"'\"'\"'\"'\"'\"'USDT'\"'\"'\"'\"'\"'\"'\"'\"')});\n  }catch(e){return new Response('\"'\"'\"'\"'\"'\"'\"'\"'Market catalogue unavailable'\"'\"'\"'\"'\"'\"'\"'\"',{status:503});}\n }\n if(request.method!=='\"'\"'\"'\"'\"'\"'\"'\"'GET'\"'\"'\"'\"'\"'\"'\"'\"'||!['\"'\"'\"'\"'\"'\"'\"'\"'/klines'\"'\"'\"'\"'\"'\"'\"'\"','\"'\"'\"'\"'\"'\"'\"'\"'/derivatives'\"'\"'\"'\"'\"'\"'\"'\"','\"'\"'\"'\"'\"'\"'\"'\"'/depth'\"'\"'\"'\"'\"'\"'\"'\"','\"'\"'\"'\"'\"'\"'\"'\"'/funding'\"'\"'\"'\"'\"'\"'\"'\"'].includes(u.pathname))return new Response('\"'\"'\"'\"'\"'\"'\"'\"'Not found'\"'\"'\"'\"'\"'\"'\"'\"',{status:404});\n const symbol=u.searchParams.get('\"'\"'\"'\"'\"'\"'\"'\"'symbol'\"'\"'\"'\"'\"'\"'\"'\"')||'\"'\"'\"'\"'\"'\"'\"'\"''\"'\"'\"'\"'\"'\"'\"'\"';\n if(!/^[\\p{L}\\p{N}]{1,40}USDT$/u.test(symbol))return new Response('\"'\"'\"'\"'\"'\"'\"'\"'Invalid symbol'\"'\"'\"'\"'\"'\"'\"'\"',{status:400});\n try{\n  if(u.pathname==='\"'\"'\"'\"'\"'\"'\"'\"'/derivatives'\"'\"'\"'\"'\"'\"'\"'\"')return Response.json(await derivatives(symbol));\n  if(u.pathname==='\"'\"'\"'\"'\"'\"'\"'\"'/depth'\"'\"'\"'\"'\"'\"'\"'\"'){const requested_ms=Date.now(),book=await upstream('\"'\"'\"'\"'\"'\"'\"'\"'/fapi/v1/depth'\"'\"'\"'\"'\"'\"'\"'\"',{symbol,limit:'\"'\"'\"'\"'\"'\"'\"'\"'100'\"'\"'\"'\"'\"'\"'\"'\"'});return Response.json({source:'\"'\"'\"'\"'\"'\"'\"'\"'BINANCE_UM_FUTURES_REST'\"'\"'\"'\"'\"'\"'\"'\"',symbol,requested_ms,book});}\n  if(u.pathname==='\"'\"'\"'\"'\"'\"'\"'\"'/funding'\"'\"'\"'\"'\"'\"'\"'\"'){\n   const startTime=u.searchParams.get('\"'\"'\"'\"'\"'\"'\"'\"'startTime'\"'\"'\"'\"'\"'\"'\"'\"')||'\"'\"'\"'\"'\"'\"'\"'\"''\"'\"'\"'\"'\"'\"'\"'\"',endTime=u.searchParams.get('\"'\"'\"'\"'\"'\"'\"'\"'endTime'\"'\"'\"'\"'\"'\"'\"'\"')||'\"'\"'\"'\"'\"'\"'\"'\"''\"'\"'\"'\"'\"'\"'\"'\"';\n   if(!/^[0-9]{13}$/.test(startTime)||!/^[0-9]{13}$/.test(endTime)||Number(endTime)<Number(startTime)||Number(endTime)-Number(startTime)>86400000)return new Response('\"'\"'\"'\"'\"'\"'\"'\"'Invalid horizon'\"'\"'\"'\"'\"'\"'\"'\"',{status:400});\n   return Response.json({source:'\"'\"'\"'\"'\"'\"'\"'\"'BINANCE_UM_FUTURES_REST'\"'\"'\"'\"'\"'\"'\"'\"',symbol,rates:await upstream('\"'\"'\"'\"'\"'\"'\"'\"'/fapi/v1/fundingRate'\"'\"'\"'\"'\"'\"'\"'\"',{symbol,startTime,endTime,limit:'\"'\"'\"'\"'\"'\"'\"'\"'100'\"'\"'\"'\"'\"'\"'\"'\"'})});\n  }\n  const interval=u.searchParams.get('\"'\"'\"'\"'\"'\"'\"'\"'interval'\"'\"'\"'\"'\"'\"'\"'\"')||'\"'\"'\"'\"'\"'\"'\"'\"''\"'\"'\"'\"'\"'\"'\"'\"';if(!intervals.has(interval))return new Response('\"'\"'\"'\"'\"'\"'\"'\"'Invalid interval'\"'\"'\"'\"'\"'\"'\"'\"',{status:400});\n  const bars=await upstream('\"'\"'\"'\"'\"'\"'\"'\"'/fapi/v1/klines'\"'\"'\"'\"'\"'\"'\"'\"',{symbol,interval,limit:'\"'\"'\"'\"'\"'\"'\"'\"'300'\"'\"'\"'\"'\"'\"'\"'\"'});if(!Array.isArray(bars))throw new Error('\"'\"'\"'\"'\"'\"'\"'\"'INVALID_KLINES'\"'\"'\"'\"'\"'\"'\"'\"');\n  console.log('\"'\"'\"'\"'\"'\"'\"'\"'FUTURES_RELAY_OK'\"'\"'\"'\"'\"'\"'\"'\"',JSON.stringify({symbol,interval,bars:bars.length}));\n  return Response.json({source:'\"'\"'\"'\"'\"'\"'\"'\"'BINANCE_UM_FUTURES_REST'\"'\"'\"'\"'\"'\"'\"'\"',endpoint:root+'\"'\"'\"'\"'\"'\"'\"'\"'/fapi/v1/klines'\"'\"'\"'\"'\"'\"'\"'\"',symbol,interval,bars});\n }catch(e){console.log('\"'\"'\"'\"'\"'\"'\"'\"'FUTURES_RELAY_ERROR'\"'\"'\"'\"'\"'\"'\"'\"',symbol,u.pathname,String(e));return new Response('\"'\"'\"'\"'\"'\"'\"'\"'Upstream unavailable: '\"'\"'\"'\"'\"'\"'\"'\"'+String(e),{status:503});}\n}});\n// A bounded read-only startup probe reports endpoint availability, never a signal.\nderivatives('\"'\"'\"'\"'\"'\"'\"'\"'BTCUSDT'\"'\"'\"'\"'\"'\"'\"'\"').then((x:any)=>console.log('\"'\"'\"'\"'\"'\"'\"'\"'NATIVE_REST_BOOT_PROBE'\"'\"'\"'\"'\"'\"'\"'\"',JSON.stringify({\n symbol:x.symbol,oi:x.oi,points:x.oi_history.length,long_short:x.long_short,mark:x.mark,\n market:{status:x.market.status,contractType:x.market.contractType}})))\n .catch(e=>console.log('\"'\"'\"'\"'\"'\"'\"'\"'NATIVE_REST_BOOT_PROBE_ERROR'\"'\"'\"'\"'\"'\"'\"'\"',String(e)));\n'\"'\"' > /tmp/v41-futures-relay.ts && exec bun /tmp/v41-futures-relay.ts'",
+      "limitOverride": {
+        "containers": {
+          "cpu": 0.25,
+          "memoryBytes": 250000000
+        }
+      },
+      "useLegacyStacker": false,
+      "ipv6EgressEnabled": false,
+      "runtime": "V2",
+      "multiRegionConfig": {
+        "asia-southeast1-eqsg3a": {
+          "numReplicas": 1
+        }
+      }
+    },
+    "staged": null
+  },
+  "gate-trader": {
+    "id": "2f21f5a4-47e2-44e4-9392-4e09d3252c27",
+    "source": {
+      "repo": "hizbyavuz/-avci2-v2",
+      "branch": "gate-trader-single-motor-20261012",
+      "commitSha": "6900a0b47f54fb4eb9d6b6e6244e77a1c0340e87"
+    },
+    "deploy": {
+      "startCommand": "python -u -m gate_trader.daemon",
+      "useLegacyStacker": false,
+      "ipv6EgressEnabled": false,
+      "runtime": "V2",
+      "multiRegionConfig": {
+        "sfo": {
+          "numReplicas": 1
+        }
+      }
+    },
+    "volumeMounts": {
+      "622d88eb-640c-44e8-b607-e13aa603cc97": {
+        "mountPath": "/app/.gate-trader-state"
+      }
+    },
+    "staged": null
+  },
+  "binance-451-temporary-probe": {
+    "id": "6a6d2e5b-918b-4440-bfab-3032a38e26a2",
+    "source": {
+      "repo": "hizbyavuz/-avci2-v2",
+      "branch": "feature/451-observation-no-blind-veto",
+      "commitSha": "d6392f5cf124cf28b684cc958568be10701b27a3"
+    },
+    "deploy": {
+      "startCommand": "sh -c \"python -u -m unittest discover -s audits -p 'test_451*.py' -v && python -u audits/probe_451_http.py\"",
+      "restartPolicyType": "NEVER",
+      "useLegacyStacker": false,
+      "ipv6EgressEnabled": false,
+      "runtime": "V2",
+      "multiRegionConfig": {
+        "sfo": {
+          "numReplicas": 1
+        }
+      }
+    },
+    "staged": null
+  },
+  "binance-451-readonly-probe": {
+    "id": "50a9119d-fd85-4c2e-b23c-5c7a5e13ad47",
+    "source": {
+      "repo": "hizbyavuz/-avci2-v2",
+      "branch": "main",
+      "commitSha": "ab2d7bac1cc14c57feba9c976699495ab157e1b7"
+    },
+    "deploy": {
+      "startCommand": "python -u long_short_futures_kline_shadow.py",
+      "limitOverride": {
+        "containers": {
+          "cpu": 0.25,
+          "memoryBytes": 250000000
+        }
+      },
+      "restartPolicyType": "NEVER",
+      "useLegacyStacker": false,
+      "ipv6EgressEnabled": false,
+      "runtime": "V2",
+      "multiRegionConfig": {
+        "europe-west4-drams3a": {
+          "numReplicas": 1
+        }
+      }
+    },
+    "staged": null
+  },
+  "long-short-motor": {
+    "id": "caad3157-e67b-4d20-80d9-67aa5fe8778c",
+    "source": {
+      "repo": "hizbyavuz/-avci2-v2",
+      "branch": "release/chart-v42-quality-20261024",
+      "commitSha": "8ba6aa411c170ca482d885f4a5b01a4dc9e13d19",
+      "rootDirectory": "/"
+    },
+    "deploy": {
+      "startCommand": "python -u long_short_v42_stable.py",
+      "limitOverride": {
+        "containers": {
+          "cpu": 1,
+          "memoryBytes": 1000000000
+        }
+      },
+      "useLegacyStacker": false,
+      "ipv6EgressEnabled": false,
+      "runtime": "V2",
+      "multiRegionConfig": {
+        "asia-southeast1-eqsg3a": {
+          "numReplicas": 1
+        }
+      },
+      "drainingSeconds": 30,
+      "overlapSeconds": 0
+    },
+    "volumeMounts": {
+      "c20c1400-00b7-4778-9482-bb639954ed81": {
+        "mountPath": "/app/.long-short-state"
+      }
+    },
+    "staged": {
+      "patchId": "0c08073e-c411-40eb-9a14-ba25dc6580ce",
+      "patchStatus": "STAGED",
+      "changeCount": 5,
+      "config": {
+        "deploy": {
+          "startCommand": "python -u long_short_v43_stable.py"
+        },
+        "source": {
+          "repo": "hizbyavuz/-avci2-v2",
+          "image": null,
+          "branch": "release/chart-v43-discovery-20261024",
+          "commitSha": "89a05b9314e35a9ed8b2d0bef22454f0f7353083"
+        }
+      },
+      "variableNames": []
+    }
+  }
+}
