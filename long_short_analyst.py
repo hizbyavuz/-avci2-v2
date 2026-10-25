@@ -187,6 +187,8 @@ def spot_delta_proxy(symbol: str) -> dict[str, Any]:
     delta_share = sum(2*taker_buy_quote - quote_volume) / sum(quote_volume).
     Never uses normalized external candles, so missing Spot data stays missing.
     """
+    if os.getenv("LS_BINANCE_FUTURES_ONLY", "0") == "1":
+        return {"available": False, "provider": "DISABLED_FUTURES_ONLY", "delta_share": None, "error": None}
     last=None
     for base in SPOT_BASES:
         try:
@@ -362,8 +364,9 @@ def native_futures_shadow_klines(symbol, interval, limit):
     if any(r[7] not in ("BINANCE_UM_FUTURES_WEBSOCKET", "BINANCE_UM_FUTURES_ARCHIVE", "BINANCE_UM_FUTURES_REST") or any(v is None for v in r[8:11]) for r in rows):
         print(f"FUTURES_SHADOW_DIAG symbol={symbol} interval={interval} reason=invalid_source_or_fields", flush=True)
         return None
-    if any(b[0] - a[0] != period_ms for a, b in zip(rows, rows[1:])):
-        print(f"FUTURES_SHADOW_DIAG symbol={symbol} interval={interval} reason=gap first={rows[0][0]} last={rows[-1][0]}", flush=True)
+    gaps = [(a[0], b[0], b[0] - a[0]) for a, b in zip(rows, rows[1:]) if b[0] - a[0] != period_ms]
+    if gaps:
+        print(f"FUTURES_SHADOW_DIAG symbol={symbol} interval={interval} reason=gap count={len(gaps)} first_pair={gaps[0]} expected_step_ms={period_ms} first={rows[0][0]} last={rows[-1][0]}", flush=True)
         return None
     result = []
     for start, end, op, hi, lo, cl, vol, _, quote_vol, trades, taker_quote in rows:
@@ -2606,7 +2609,11 @@ def main():
     init_db()
     update_paper()
     ts=now_iso()
-    regime=btc_regime()
+    try:
+        regime=btc_regime()
+    except (RuntimeError, ValueError, KeyError, IndexError, TypeError) as exc:
+        print("DATA_NOT_READY BTC_REGIME " + type(exc).__name__, flush=True)
+        return 2  # fail closed: never infer a BTC regime from missing candles
     uni=universe()
 
     # Stage 1: cheap broad scan. Keep Binance coverage wide without doing
@@ -2940,7 +2947,6 @@ def main():
         try:
             with sqlite3.connect(DB, timeout=15) as con:
                 con.execute("CREATE TABLE IF NOT EXISTS watch_451_symbol_notices (symbol TEXT NOT NULL, direction TEXT NOT NULL, sent_at_utc TEXT NOT NULL, PRIMARY KEY(symbol,direction))")
-                con.execute("BEGIN IMMEDIATE")
                 now_ts = time.time()
                 rows = []
                 for analysis in results:
@@ -2960,21 +2966,21 @@ def main():
                     rows.append(analysis)
                     if len(rows) >= 5:
                         break
-                sent_count = 0
-                for analysis in rows:
-                    notice = format_watch_digest([analysis])
-                    if not notice:
-                        continue
-                    try:
-                        send_telegram(notice)
-                    except Exception as delivery_exc:
-                        print("WATCH_451_DELIVERY_ERROR", analysis.symbol, type(delivery_exc).__name__, str(delivery_exc)[:120], flush=True)
-                        continue
-                    con.execute("INSERT OR REPLACE INTO watch_451_symbol_notices VALUES (?,?,?)", (analysis.symbol, analysis.payload["direction_engine"]["direction"], now_iso()))
-                    con.commit()
-                    sent_count += 1
-                if sent_count:
-                    print("WATCH_451_TELEGRAM_SENT", sent_count, flush=True)
+            sent_count = 0
+            for analysis in rows:
+                notice = format_watch_digest([analysis])
+                if not notice:
+                    continue
+                try:
+                    send_telegram(notice)
+                except Exception as delivery_exc:
+                    print("WATCH_451_DELIVERY_ERROR", analysis.symbol, type(delivery_exc).__name__, str(delivery_exc)[:120], flush=True)
+                    continue
+                with sqlite3.connect(DB, timeout=30) as notice_db:
+                    notice_db.execute("INSERT OR REPLACE INTO watch_451_symbol_notices VALUES (?,?,?)", (analysis.symbol, analysis.payload["direction_engine"]["direction"], now_iso()))
+                sent_count += 1
+            if sent_count:
+                print("WATCH_451_TELEGRAM_SENT", sent_count, flush=True)
         except Exception as exc:
             print("WATCH_451_TELEGRAM_ERROR", type(exc).__name__, str(exc)[:160], flush=True)
     send_health_once(results)

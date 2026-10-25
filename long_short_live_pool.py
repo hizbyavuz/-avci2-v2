@@ -294,6 +294,14 @@ def fmtp(x):
     return f"{x:.8f}".rstrip("0")
 
 def init_db():
+    # WAL allows audit readers and the live writer to coexist.
+    try:
+        with sqlite3.connect(LIVE_DB, timeout=30) as setup:
+            mode = setup.execute('PRAGMA journal_mode=WAL').fetchone()[0]
+            setup.execute('PRAGMA synchronous=NORMAL')
+            print('LIVE_DB_JOURNAL_MODE ' + str(mode), flush=True)
+    except sqlite3.OperationalError as exc:
+        print('LIVE_DB_WAL_DEFERRED ' + str(exc)[:120], flush=True)
     with sqlite3.connect(LIVE_DB,timeout=30) as con:
         con.execute("""CREATE TABLE IF NOT EXISTS watch_state(
             symbol TEXT PRIMARY KEY,
@@ -488,6 +496,8 @@ def load_watchlist():
                     continue
                 deriv_source=str(p.get("derivatives_source") or p.get("data_mode") or "UNKNOWN")
                 provider=str(p.get("derivatives_selected_provider") or "")
+                if deriv_source == "BINANCE_FUTURES" and not provider:
+                    provider = "BINANCE_FUTURES"
                 quality=str(p.get("derivatives_quality") or "UNKNOWN")
                 # Binance-only production: reject cross-venue analyst candidates.
                 # Third-party vendors are acceptable only for Binance-specific
@@ -679,6 +689,19 @@ def _open_watch_episode(con,x):
 
 
 def sync_watchlist(items):
+    """Retry transient SQLite writer contention without dropping the live-pool cycle."""
+    for attempt in range(4):
+        try:
+            return _sync_watchlist_once(items)
+        except sqlite3.OperationalError as exc:
+            if "locked" not in str(exc).lower() or attempt == 3:
+                raise
+            wait_seconds = min(2.0 * (attempt + 1), 6.0)
+            print(f"LIVE_DB_LOCK_RETRY attempt={attempt + 1} wait={wait_seconds}s", flush=True)
+            time.sleep(wait_seconds)
+
+
+def _sync_watchlist_once(items):
     """Synchronize analyst observations without moving an active setup's goalposts.
 
     Core rule:
@@ -831,26 +854,157 @@ def _perp_stats(symbol):
     return (_PERP_STATS_CACHE.get("rows") or {}).get(symbol) or {}
 
 
+def native_futures_closed_bars(symbol, interval, count, max_age_seconds):
+    """Read authentic closed USD-M bars, fail closed on gaps or stale data.
+
+    This is a read-only integration primitive, not an execution approval.
+    """
+    db = os.getenv("LS_FUTURES_KLINE_DB") or os.path.join(
+        os.getenv("LS_STATE_DIR") or os.getenv("RAILWAY_VOLUME_MOUNT_PATH") or ".long-short-state",
+        "binance_futures_kline_shadow.db")
+    if interval not in ("1m", "5m", "1h") or count < 2:
+        raise ValueError("unsupported futures candle request")
+    step = {"1m": 60000, "5m": 300000, "1h": 3600000}[interval]
+    with sqlite3.connect(f"file:{os.path.abspath(db)}?mode=ro", uri=True, timeout=3) as con:
+        bars = con.execute("""SELECT open_ms,open,high,low,close,volume,close_ms,
+                          quote_volume,trade_count,taker_buy_quote,source
+                          FROM futures_closed_klines
+                          WHERE symbol=? AND interval=? ORDER BY open_ms DESC LIMIT ?""",
+                          (symbol.upper(), interval, count)).fetchall()
+    bars.reverse()
+    if len(bars) != count:
+        raise RuntimeError("FUTURES_CANDLES_INSUFFICIENT")
+    now_ms = int(time.time()*1000)
+    if not (0 <= now_ms - int(bars[-1][6]) <= max_age_seconds*1000):
+        raise RuntimeError("FUTURES_CANDLES_STALE")
+    if any(int(b[0])-int(a[0]) != step for a,b in zip(bars,bars[1:])):
+        raise RuntimeError("FUTURES_CANDLES_GAPPED")
+    allowed = {"BINANCE_UM_FUTURES_WEBSOCKET",
+               "BINANCE_UM_FUTURES_ARCHIVE","BINANCE_UM_FUTURES_REST"}
+    for b in bars:
+        if b[10] not in allowed or any(v is None or not math.isfinite(float(v))
+                                           for v in b[:10]):
+            raise RuntimeError("FUTURES_CANDLES_UNVERIFIED")
+        if (float(b[1]) <= 0 or float(b[3]) <= 0 or float(b[4]) <= 0
+                or float(b[5]) < 0 or float(b[7]) < 0 or float(b[8]) < 0
+                or float(b[9]) < 0 or float(b[9]) > float(b[7])):
+            raise RuntimeError("FUTURES_CANDLES_INVALID_VOLUME_OR_PRICE")
+        if float(b[2]) < max(float(b[1]),float(b[4])) or float(b[3]) > min(float(b[1]),float(b[4])):
+            raise RuntimeError("FUTURES_CANDLES_BAD_OHLC")
+    return bars
+
+
+def futures_closed_snapshot(symbol):
+    """Closed-bar-only Futures snapshot for parity testing; never invent live ticks.
+
+    Uses the same OHLCV layout as Binance klines. It intentionally does not
+    produce a live trade approval: last closed 1m close is not a live quote.
+    """
+    kl1 = native_futures_closed_bars(symbol, "1m", 30, 180)
+    kl5 = native_futures_closed_bars(symbol, "5m", 30, 600)
+    def as_kline(bar):
+        return [bar[0],bar[1],bar[2],bar[3],bar[4],bar[5],
+                bar[6],bar[7],bar[8],None,bar[9]]
+    return {"source":"BINANCE_FUTURES","price_is_live":False,
+            "kl1":[as_kline(b) for b in kl1],
+            "kl5":[as_kline(b) for b in kl5],
+            "last_closed_1m":float(kl1[-1][4]),
+            "last_closed_5m":float(kl5[-1][4]),
+            "last_closed_5m_at":datetime.fromtimestamp(
+                int(kl5[-1][6])/1000.0,tz=timezone.utc).isoformat()}
+
+
+def futures_24h_closed_stats(symbol):
+    """Fully closed 24h Futures candle aggregates; NOT exchange rolling ticker.
+
+    25 consecutive 1h closes provide 24h close-to-close change, while
+    the most recent 24 closed bars provide actual 24h quote turnover.
+    """
+    bars=native_futures_closed_bars(symbol,"1h",25,7200)
+    previous=float(bars[0][4])
+    current=float(bars[-1][4])
+    quote=sum(float(b[7]) for b in bars[-24:])
+    if previous<=0 or not math.isfinite(quote) or quote<0:
+        raise RuntimeError("FUTURES_24H_STATS_INVALID")
+    return {"quoteVolume":quote,"priceChangePercent":(current/previous-1.0)*100.0,
+            "source":"BINANCE_FUTURES_24_CLOSED_1H_BARS",
+            "rolling_ticker":False}
+
+
+def futures_signal_authorization(early, execution_check):
+    """Fail-closed authorization for experimental Futures observation.
+
+    Keep venue checks independent of book quality and four-factor checks.
+    Never turn a closed-candle or book-mid observation into trade approval.
+    """
+    result=dict(execution_check)
+    if str(early.get("live_price_source") or "") != "BINANCE_FUTURES":
+        return {"qualified":False,"reason":"live_price_venue_mismatch",
+                "live_price_source":str(early.get("live_price_source") or "UNKNOWN"),
+                "required_source":"BINANCE_FUTURES",
+                "prior_execution_check":result}
+    if early.get("native_futures_observation_only"):
+        return {"qualified":False,"reason":"native_futures_observation_only",
+                "prior_execution_check":result}
+    if not early.get("rolling_24h_stats_verified",False):
+        return {"qualified":False,"reason":"futures_24h_stats_unverified",
+                "prior_execution_check":result}
+    return result
+
+
+def futures_market_snapshot(symbol):
+    """Read-only Binance USD-M candle + executable-book snapshot.
+
+    Only genuine Futures observations are used. The book midpoint is a
+    contemporaneous indicative price, not a fill or trade execution.
+    """
+    snap = futures_closed_snapshot(symbol)
+    book = trigger_execution_proxy(symbol)
+    if book.get("source") != "BINANCE_FUTURES_BOOK" or not book.get("available"):
+        raise RuntimeError("FUTURES_LIVE_BOOK_UNAVAILABLE")
+    mid = float(book.get("mid") or 0.0)
+    if not math.isfinite(mid) or mid <= 0:
+        raise RuntimeError("FUTURES_LIVE_PRICE_INVALID")
+    return {"source":"BINANCE_FUTURES","price":mid,
+            "price_type":"futures_orderbook_mid_indicative",
+            "kl1":snap["kl1"],"kl5":snap["kl5"],
+            "closed_5m_at":snap["last_closed_5m_at"],
+            "book_source":book["source"]}
+
+
 def market_snapshot(symbol):
     # 1m data lets the observational layer see a breakout while it is forming.
     # The frozen continuation engine still uses the last completed 5m close below.
-    price_source="BINANCE_SPOT"
-    try:
-        kl5=spot_get("/api/v3/klines",{"symbol":symbol,"interval":"5m","limit":30})
-        kl1=spot_get("/api/v3/klines",{"symbol":symbol,"interval":"1m","limit":30})
-        ticker=spot_get("/api/v3/ticker/price",{"symbol":symbol})
-        stats=spot_get("/api/v3/ticker/24hr",{"symbol":symbol})
-        price=float(ticker["price"])
-    except Exception as exc:
-        # Binance-only mode: never replace a missing Binance price with
-        # Bybit/Gate/OKX candles. Record the missing Binance feed instead.
-        raise RuntimeError(f"{symbol}: Binance price unavailable; cross-venue fallback disabled") from exc
-    row=kl5[-2] if len(kl5)>=2 else kl5[-1]
+    # Shadow mode is opt-in until end-to-end forward validation is complete.
+    # A failed Futures read must NEVER fall back to Spot.
+    use_native=os.getenv("LS_NATIVE_FUTURES_SNAPSHOT","0").strip().lower() in ("1","true","yes","on")
+    if use_native:
+        native=futures_market_snapshot(symbol)
+        price_source="BINANCE_FUTURES"
+        kl5=native["kl5"]
+        kl1=native["kl1"]
+        price=native["price"]
+        # Closed-hour Futures statistics, explicitly NOT the exchange rolling ticker.
+        stats=futures_24h_closed_stats(symbol)
+        row=kl5[-1]  # Native store contains CLOSED candles only.
+    else:
+        price_source="BINANCE_SPOT"
+        try:
+            kl5=spot_get("/api/v3/klines",{"symbol":symbol,"interval":"5m","limit":30})
+            kl1=spot_get("/api/v3/klines",{"symbol":symbol,"interval":"1m","limit":30})
+            ticker=spot_get("/api/v3/ticker/price",{"symbol":symbol})
+            stats=spot_get("/api/v3/ticker/24hr",{"symbol":symbol})
+            price=float(ticker["price"])
+        except Exception as exc:
+            raise RuntimeError(f"{symbol}: Binance price unavailable; cross-venue fallback disabled") from exc
+        row=kl5[-2] if len(kl5)>=2 else kl5[-1]
     closed=float(row[4])
     close_ms=int(row[6])
     close_time=datetime.fromtimestamp(close_ms/1000.0,tz=timezone.utc).isoformat()
 
-    prev5=kl5[-7:-1] if len(kl5)>=7 else kl5[:-1]
+    # The breakout reference must exclude the candle being evaluated.
+    # Native data contains only closed candles, while Spot includes a forming one.
+    prev5=(kl5[-7:-1] if use_native else kl5[-7:-1]) if len(kl5)>=7 else kl5[:-1]
     highs=[float(x[2]) for x in prev5]
     lows=[float(x[3]) for x in prev5]
     local_high=max(highs) if highs else price
@@ -862,9 +1016,9 @@ def market_snapshot(symbol):
     ema7_prev=_ema(c1[-13:-1],7) if len(c1)>=13 else ema7_now
     ema7_slope=(ema7_now-ema7_prev)/price*100.0 if price else 0.0
 
-    forming=kl1[-1]
+    forming=kl1[-1]  # Native mode: most recent CLOSED 1m, not a forming bar.
     qvol=float(forming[7] or 0)
-    base=[float(x[7] or 0) for x in kl1[-12:-2]]
+    base=[float(x[7] or 0) for x in (kl1[-11:-1] if use_native else kl1[-12:-2])]
     vol_base=(sum(base)/len(base)) if base else 0.0
     vol_mult=qvol/vol_base if vol_base>0 else 1.0
     taker_buy=float(forming[10] or 0)
@@ -878,7 +1032,7 @@ def market_snapshot(symbol):
     cbody=abs(cc-co)/cr
     cclose_loc=(cc-cl)/cr
     cqvol=float(row[7] or 0.0)
-    cbase_rows=kl5[-22:-2] if len(kl5)>=22 else kl5[:-2]
+    cbase_rows=(kl5[-21:-1] if use_native else kl5[-22:-2]) if len(kl5)>=22 else kl5[:-2]
     cbase=(sum(float(x[7] or 0.0) for x in cbase_rows)/len(cbase_rows)) if cbase_rows else 0.0
     cvol_mult=cqvol/cbase if cbase>0 else 1.0
 
@@ -894,7 +1048,10 @@ def market_snapshot(symbol):
         "quote_volume_24h":float(stats.get("quoteVolume") or 0.0),
         "day_change_pct":float(stats.get("priceChangePercent") or 0.0),
         "short_range_pct":short_range_pct,
-        "recent_closed_5m_closes":[float(x[4]) for x in kl5[-4:-1]] if len(kl5)>=4 else [closed],
+        "recent_closed_5m_closes":[float(x[4]) for x in (kl5[-3:] if use_native else kl5[-4:-1])] if len(kl5)>=4 else [closed],
+        "native_futures_observation_only":use_native,
+        "rolling_24h_stats_verified":True,
+        "24h_stats_source":stats.get("source","BINANCE_SPOT_ROLLING_TICKER"),
     }
     return price,closed,close_time,early
 
@@ -1156,6 +1313,31 @@ def early_message(row,estate,price,metrics):
         return (f"🔴 BOZULDU | {sym}\nErken {d} gözlemi geçersizleşti.")
     return None
 
+def _telegram_data_brief(row, structure_quality=None):
+    """Display only verified snapshot fields; missing values are not inferred."""
+    sq=structure_quality or {}
+    if not sq:
+        try:
+            sq=json.loads(row["structure_gate_json"] or "{}")
+        except (KeyError, TypeError, ValueError, json.JSONDecodeError):
+            sq={}
+    def metric(key, suffix="", precision=2):
+        v=sq.get(key)
+        try:
+            return f"{float(v):.{precision}f}{suffix}" if v is not None else "veri yok"
+        except (TypeError, ValueError, OverflowError):
+            return "veri yok"
+    direction=str(row["direction"])
+    return ("📊 KISA VERİ ÖZETİ\n"
+            f"• Grafik seviyesi: {fmtp(row['trigger_level'])} ({'direnç' if direction=='LONG' else 'destek'})\n"
+            f"• Hacim / normal: {metric('volume_mult','x')}\n"
+            f"• Mum gövdesi: {metric('body_ratio')} | Kapanış konumu: {metric('close_location')}\n"
+            f"• Sahte kırılım: {'grafik filtresi geçti' if sq.get('qualified') else 'henüz teyit yok'}\n"
+            "• EMA / RSI: bu bildirimde doğrulanmadı\n"
+            "• OI / Funding: bu bildirimde doğrulanmadı\n"
+            "• Taker / Long-Short oranı: bu bildirimde doğrulanmadı\n"
+            "• BTC yönü: bu bildirimde doğrulanmadı\n")
+
 def queue_approaching_alert(row,price,structure_quality=None):
     """Queue one non-actionable watch message when price first approaches the trigger.
 
@@ -1207,11 +1389,12 @@ def queue_approaching_alert(row,price,structure_quality=None):
     full_gate=bool(sq.get("qualified"))
     status_line=("Yapı + hacim + fake-breakout kapısı geçti."
                  if full_gate else
-                 "Henüz işlem teyidi değil; yapı/alan/R ve kapanış teyidi bekleniyor.")
+                 "Henüz işlem teyidi değil: grafik yapısı, risk/ödül ve 5 dk kapanış teyidi henüz tamamlanmadı.")
     msg=(f"{side_ball} {d} İÇİN İZLE | {sym}\n"
          f"5 dk mum {fmtp(level)} {relation} kapanırsa {d} güçlenir.\n"
          f"Şu an fiyat: {fmtp(price)}\n"
-         f"Beklenen: {expectation}\n"
+         f"{_telegram_data_brief(row,sq)}"
+         f"Ne bekleniyor? {expectation}\n"
          f"Durum: 🟡 {status_line}\n"
          f"🛡️ SL: {fmtp(inv)}\n"
          f"🎯 TP1: {fmtp(t1)}\n"
@@ -1308,14 +1491,15 @@ def message_for(row,stage,price,closed):
         relation="üstünde" if d=="LONG" else "altında"
         next_step="seviyeyi koruması / retestten güç alması" if d=="LONG" else "seviyenin altında kalması / retestten reddedilmesi"
         return (f"{side_ball} {d} TEYİT GELDİ | {sym}\n"
-                f"5 dk mum {fmtp(trig)} {relation} kapandı.\n"
-                f"✅ Yapı filtresi geçti: destek/direnç + hacim/mum + fake breakout kontrolü.\n"
+                f"Ne oldu? 5 dk mum {fmtp(trig)} seviyesinin {relation} kapandı.\n"
+                "✅ Grafik kontrolü: önemli seviye kırılımı, mum/hacim uyumu ve sahte kırılım elemesi geçti.\n"
                 f"Kapanış: {fmtp(closed)} | Şu an: {fmtp(price)}\n"
-                f"Şimdi beklenen: {next_step}.\n"
+                f"{_telegram_data_brief(row)}"
+                f"Sıradaki koşul: fiyatın {next_step}.\n"
                 f"🛡️ SL: {fmtp(inv)}\n"
                 f"🎯 TP1: {fmtp(t1)}\n"
                 f"🎯 TP2: {fmtp(t2)}\n"
-                "⚠️ İlk mum teyidi; henüz işlem sinyali değil.")
+                "⛔ ŞİMDİ İŞLEM AÇMA: Bu sadece ilk grafik teyidi; henüz işlem sinyali değil. Güncel vadeli veri ve diğer işlem koşulları ayrıca doğrulanmalı.")
 
     if stage=="RETESTING":
         # Retest itself is recorded but not messaged; the next actionable state
@@ -1761,6 +1945,7 @@ def loop_once():
                                 except Exception as exc:
                                     trigger_proxy={"available":False,"error":type(exc).__name__+":"+str(exc)[:120]}
                                 execution_check=live_execution_gate(row,price,trigger_proxy)
+                                execution_check=futures_signal_authorization(early,execution_check)
                                 execution_check["four_factor_tier"]=four_factor_check["tier"]
                             if not execution_check.get("qualified"):
                                 blocked_payload=dict(row)
@@ -1957,6 +2142,20 @@ def loop_once():
                             event_payload["_telegram_delivery_policy"]=delivery_guard
                         if suppression_reason:
                             event_payload["_telegram_suppression_reason"]=suppression_reason
+                        if msg and new in ("CLOSE_CONFIRMED","TRIGGERED"):
+                            # Recheck at actual send time: DB writes or analysis
+                            # can delay an otherwise timely stage transition.
+                            send_guard=telegram_integrity_policy(
+                                new,now_iso(),closed_candle_time,prior_visible=prior_seen)
+                            if not send_guard["allowed"]:
+                                suppression_reason=send_guard["reason"]
+                                delivery_guard=send_guard
+                                event_payload["_telegram_delivery_policy"]=send_guard
+                                event_payload["_telegram_suppression_reason"]=suppression_reason
+                                telegram_status="SUPPRESSED"
+                                msg=None
+                                print("TELEGRAM_SUPPRESSED_AT_SEND",row["symbol"],
+                                      new,suppression_reason,flush=True)
                         if msg:
                             print(msg)
                             try:

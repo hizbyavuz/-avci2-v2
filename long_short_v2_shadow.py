@@ -214,13 +214,19 @@ def main():
         return
     acon=sqlite3.connect(f"file:{os.path.abspath(ANALYST_DB)}?mode=ro",uri=True)
     acon.row_factory=sqlite3.Row
-    rcon=sqlite3.connect(RESEARCH_DB)
+    rcon=sqlite3.connect(RESEARCH_DB, timeout=30)
+    rcon.execute("PRAGMA busy_timeout=30000")
+    rcon.execute("PRAGMA journal_mode=WAL")
     try:
         init_db(rcon)
+        # Only read scans not yet represented in the shadow table.
+        # Existing per-row primary-key check below remains the final idempotency guard.
+        watermark=rcon.execute("SELECT MAX(scan_time_utc) FROM v2_shadow_decisions").fetchone()[0]
         rows=acon.execute("""SELECT scan_time_utc,symbol,status,long_score,short_score,
                                    confidence,payload_json
                             FROM analyses
-                            ORDER BY scan_time_utc,symbol""").fetchall()
+                            WHERE (? IS NULL OR scan_time_utc >= ?)
+                            ORDER BY scan_time_utc,symbol""",(watermark,watermark)).fetchall()
         inserted=0
         counts={"QUALIFIED":0,"NEAR_MISS":0,"REJECT":0}
         for row in rows:

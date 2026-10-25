@@ -1,7 +1,9 @@
 """Read-only Coinalyze Binance USD-M funding probe; never sends orders."""
 import time
+import requests
+import sqlite3
 _CACHE = {}
-from long_short_coinalyze_adapter import _get, _market
+from long_short_coinalyze_adapter import _cached_request, _market
 
 def funding_snapshot(symbol, now=None):
     now = time.time() if now is None else float(now)
@@ -10,11 +12,15 @@ def funding_snapshot(symbol, now=None):
         return dict(cached[1])
     out = {"source": "COINALYZE_BINANCE_A", "symbol": symbol.upper(),
            "funding_pct": None, "funding_fresh": False, "funding_age_seconds": None}
-    market = _market(symbol)
-    if not market:
+    try:
+        market = _market(symbol)
+        if not market:
+            return out
+        key, _ = market
+        rows = _cached_request("/funding-rate", {"symbols": key}, ttl=600)
+    except (requests.RequestException, RuntimeError, ValueError, TypeError, KeyError, sqlite3.Error) as exc:
+        out["error_type"] = type(exc).__name__
         return out
-    key, _ = market
-    rows = _get("/funding-rate", {"symbols": key})
     if not isinstance(rows, list):
         return out
     row = next((x for x in rows if isinstance(x, dict) and x.get("symbol") == key), None)
