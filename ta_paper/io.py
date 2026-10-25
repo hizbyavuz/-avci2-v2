@@ -9,9 +9,11 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+import uuid
 import zlib
 
 from .core import CFG, MINUTE, finite
+from .rate_limit import CooldownError, RequestGate, request_weight, retry_deadline
 
 
 class DataUnavailable(RuntimeError):
@@ -28,10 +30,10 @@ class Binance:
                          '/fapi/v1/ticker/24hr', '/fapi/v1/klines',
                          '/fapi/v1/depth', '/fapi/v1/fundingRate'])
 
-    def __init__(self):
-        self.lock = threading.Lock()
-        self.next_request = 0.0
-        self.blocked_until = 0.0
+    def __init__(self, cooldown_path=None, legacy=None):
+        self.gate = RequestGate(cooldown_path, legacy)
+        self.cache_lock = threading.Lock()
+        self.candle_cache = {}
         self.offset_ms = 0
 
     def now(self):
@@ -40,13 +42,10 @@ class Binance:
     def get(self, endpoint, **params):
         if endpoint not in self.ALLOWED:
             raise ValueError("NON_PUBLIC_ENDPOINT_REFUSED")
-        with self.lock:
-            if time.monotonic() < self.blocked_until:
-                raise DataUnavailable("EXCHANGE_COOLDOWN")
-            delay = max(0, self.next_request-time.monotonic())
-            if delay:
-                time.sleep(delay)
-            self.next_request = time.monotonic()+0.17
+        try:
+            self.gate.acquire(request_weight(endpoint, params))
+        except CooldownError as exc:
+            raise DataUnavailable(str(exc)) from None
         # One official host, no proxy/venue fallback or region switching.
         url = 'https://fapi.binance.com'+endpoint+'?'+urllib.parse.urlencode(params)
         req = urllib.request.Request(url, headers={'User-Agent': 'TA-Paper-Research/1',
@@ -59,18 +58,16 @@ class Binance:
                 if resp.headers.get('Content-Encoding') == 'gzip':
                     raw = gzip.decompress(raw)
                 used = int(resp.headers.get('X-MBX-USED-WEIGHT-1M', 0))
-                if used > 1200:
-                    with self.lock:
-                        self.blocked_until = time.monotonic()+60
+                if used >= 1000:
+                    self.gate.block((self.now()//MINUTE+1)*MINUTE+2000,
+                                    'SHARED_IP_WEIGHT_HIGH', 'WEIGHT_HEADER')
                 return json.loads(raw)
         except urllib.error.HTTPError as exc:
             if exc.code in (418, 429, 451, 403):
-                with self.lock:
-                    try:
-                        delay = max(60, int(exc.headers.get('Retry-After', 60)))
-                    except (TypeError, ValueError):
-                        delay = 60
-                    self.blocked_until = time.monotonic()+(3600 if exc.code in (451, 403) else delay)
+                body = exc.read(8192).decode('utf-8', errors='replace')
+                until, source = retry_deadline(exc.code, exc.headers, body, int(time.time()*1000))
+                self.gate.block(until, 'BINANCE_HTTP_'+str(exc.code), source)
+                print('TA_PAPER_COOLDOWN '+encode(self.gate.state()), flush=True)
             raise DataUnavailable('BINANCE_HTTP_'+str(exc.code)) from None
         except (OSError, ValueError) as exc:
             raise DataUnavailable(type(exc).__name__) from None
@@ -86,9 +83,21 @@ class Binance:
             raise DataUnavailable("HOST_CLOCK_DRIFT")
 
     def candles(self, symbol, interval, limit=120, **params):
+        # A 4h context is identical across the eight 30m scans between closes.
+        period = {'30m': 30*MINUTE, '4h': 240*MINUTE}.get(interval)
+        key = (symbol, interval, limit)
+        slot = (self.now()-CFG.publication_delay_ms)//period if period else None
+        if period and not params:
+            with self.cache_lock:
+                cached = self.candle_cache.get(key)
+                if cached and cached[0] == slot:
+                    return cached[1]
         data = self.get('/fapi/v1/klines', symbol=symbol, interval=interval, limit=limit, **params)
         if not isinstance(data, list):
             raise DataUnavailable("INVALID_KLINES_RESPONSE")
+        if period and not params:
+            with self.cache_lock:
+                self.candle_cache[key] = (slot, data)
         return data
 
     def funding(self, symbol, start, end):
@@ -183,6 +192,11 @@ class Store:
           CREATE TABLE IF NOT EXISTS outbox(key TEXT PRIMARY KEY,ms INTEGER,text TEXT,state TEXT,message_id TEXT);
           CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY,value TEXT);
         ''')
+        columns = {r[1] for r in self.db.execute('PRAGMA table_info(outbox)')}
+        if 'photo' not in columns:
+            self.db.execute('ALTER TABLE outbox ADD COLUMN photo BLOB')
+        if 'retry_at_ms' not in columns:
+            self.db.execute('ALTER TABLE outbox ADD COLUMN retry_at_ms INTEGER NOT NULL DEFAULT 0')
         from dataclasses import asdict
         self.db.execute('INSERT OR IGNORE INTO manifests VALUES(?,?)', (cfg.fingerprint, encode(asdict(cfg))))
         hashes = [r[0] for r in self.db.execute('SELECT hash FROM manifests')]
@@ -241,8 +255,34 @@ class Store:
         row = self.db.execute('SELECT value FROM settings WHERE key=?', (key,)).fetchone()
         return row[0] if row else None
 
-    def queue(self, key, text, now):
-        self.db.execute('INSERT OR IGNORE INTO outbox VALUES(?,?,?,?,NULL)', (key, now, text, 'PENDING'))
+    def chart_bars(self, p):
+        rows = self.db.execute("SELECT payload FROM candles WHERE symbol=? AND tf='30m' "
+                               'AND open_ms<=? ORDER BY open_ms DESC LIMIT 60',
+                               (p['symbol'], p['candle_ms'])).fetchall()
+        return [json.loads(r[0]) for r in reversed(rows)]
+
+    def legacy_cooldown(self):
+        # The first release retained the ban event, but not Retry-After. Preserve
+        # the documented upper bound rather than resetting it on deployment.
+        latest = self.db.execute("SELECT id,ms,payload FROM events WHERE kind='DATA_HEALTH_INVALID' "
+                                 'ORDER BY id DESC LIMIT 1').fetchone()
+        if not latest or json.loads(latest['payload']).get('reason') not in ('BINANCE_HTTP_418','EXCHANGE_COOLDOWN'):
+            return None
+        success = self.db.execute("SELECT MAX(id) FROM events WHERE kind='SCAN_HEALTH'").fetchone()[0] or 0
+        if success > latest['id']:
+            return None
+        for row in self.db.execute("SELECT id,ms,payload FROM events WHERE kind='DATA_HEALTH_INVALID' "
+                                    'AND id>? ORDER BY id DESC', (success,)):
+            if json.loads(row['payload']).get('reason') == 'BINANCE_HTTP_418':
+                until = row['ms']+72*3600*1000
+                if until > int(time.time()*1000):
+                    return dict(until_ms=until, reason='BINANCE_HTTP_418', source='LEGACY_UNKNOWN_UPPER_BOUND')
+                break
+        return None
+
+    def queue(self, key, text, now, photo=None):
+        self.db.execute('INSERT OR IGNORE INTO outbox(key,ms,text,state,photo) VALUES(?,?,?,?,?)',
+                        (key, now, text, 'PENDING', photo))
         self.db.commit()
 
 
@@ -265,11 +305,14 @@ class Telegram:
     def ready(self):
         return bool(self.token and self.chat)
 
-    def flush(self, store, now):
+    def flush(self, store, now, signals_enabled=True):
         if not self.ready:
             return 0
+        if now < int(store.setting('telegram_retry_at_ms') or 0):
+            return 0
         delivered = 0
-        for row in store.db.execute("SELECT * FROM outbox WHERE state='PENDING' ORDER BY ms LIMIT 5").fetchall():
+        for row in store.db.execute("SELECT * FROM outbox WHERE state='PENDING' AND retry_at_ms<=? "
+                                    "AND (? OR key LIKE 'system:%') ORDER BY ms LIMIT 5", (now,signals_enabled)).fetchall():
             if now-row['ms'] > 10*MINUTE:
                 store.db.execute("UPDATE outbox SET state='STALE' WHERE key=?", (row['key'],))
                 store.db.commit()
@@ -278,19 +321,57 @@ class Telegram:
             # blindly, which prevents duplicate trade messages after restart.
             store.db.execute("UPDATE outbox SET state='DELIVERY_UNKNOWN' WHERE key=?", (row['key'],))
             store.db.commit()
-            body = encode({'chat_id': self.chat, 'text': row['text'], 'disable_web_page_preview': True}).encode()
-            req = urllib.request.Request('https://api.telegram.org/bot'+self.token+'/sendMessage',
-                                         data=body, headers={'Content-Type': 'application/json'}, method='POST')
+            method = 'sendPhoto' if row['photo'] else 'sendMessage'
+            if row['photo']:
+                caption = row['text'] if len(row['text']) <= 1024 else row['text'][:900]+'\nTEST: Gerçek emir yok. Başarı DOĞRULANMADI.'
+                body, content_type = photo_body(self.chat, caption, row['photo'])
+            else:
+                body = encode({'chat_id': self.chat, 'text': row['text'], 'disable_web_page_preview': True}).encode()
+                content_type = 'application/json'
+            req = urllib.request.Request('https://api.telegram.org/bot'+self.token+'/'+method,
+                                         data=body, headers={'Content-Type': content_type}, method='POST')
             try:
-                with urllib.request.build_opener(NoRedirect).open(req, timeout=12) as response:
+                with urllib.request.build_opener(NoRedirect).open(req, timeout=25) as response:
                     result = json.load(response)
                 if result.get('ok') and str(result['result']['chat']['id']) == self.chat:
                     store.db.execute("UPDATE outbox SET state='DELIVERED',message_id=? WHERE key=?",
                                      (str(result['result']['message_id']), row['key']))
                     store.db.commit()
                     store.event('TELEGRAM_ACK', row['key'], {'delivered': True})
+                    print('TA_PAPER_TELEGRAM_ACK '+encode({'key': row['key'], 'method': method, 'delivered': True}), flush=True)
                     delivered += 1
+                else:
+                    store.event('TELEGRAM_REJECTED', row['key'], {'method': method})
+                    print('TA_PAPER_TELEGRAM_REJECTED '+encode({'key': row['key'], 'method': method}), flush=True)
+            except urllib.error.HTTPError as exc:
+                # A documented 429 rejection is safe to retry after its deadline.
+                if exc.code == 429:
+                    try:
+                        seconds = max(1, int(json.loads(exc.read(8192)).get('parameters', {}).get('retry_after', 60)))
+                    except (ValueError, TypeError):
+                        seconds = 60
+                    until = now+seconds*1000+2000
+                    store.setting('telegram_retry_at_ms', until)
+                    store.db.execute("UPDATE outbox SET state='PENDING',retry_at_ms=? WHERE key=?", (until,row['key']))
+                    store.db.commit()
+                    print('TA_PAPER_TELEGRAM_RATE_LIMIT '+encode({'retry_at_ms': until}), flush=True)
+                    break
+                store.event('TELEGRAM_ERROR', row['key'], {'http_status': exc.code, 'method': method})
+                print('TA_PAPER_TELEGRAM_ERROR '+encode({'http_status': exc.code,'method':method}), flush=True)
             except Exception as exc:
                 # Exception text can contain the token-bearing URL.
                 store.event('TELEGRAM_ERROR', row['key'], {'type': type(exc).__name__})
+                print('TA_PAPER_TELEGRAM_ERROR '+encode({'type':type(exc).__name__,'method':method}), flush=True)
         return delivered
+
+
+def photo_body(chat, caption, photo):
+    boundary = 'ta-paper-'+uuid.uuid4().hex
+    parts = []
+    for name, value in [('chat_id', chat), ('caption', caption)]:
+        parts.append((f'--{boundary}\r\nContent-Disposition: form-data; name="{name}"\r\n\r\n'
+                      f'{value}\r\n').encode())
+    parts.append((f'--{boundary}\r\nContent-Disposition: form-data; name="photo"; filename="plan.png"\r\n'
+                  'Content-Type: image/png\r\n\r\n').encode()+photo+b'\r\n')
+    parts.append(f'--{boundary}--\r\n'.encode())
+    return b''.join(parts), 'multipart/form-data; boundary='+boundary

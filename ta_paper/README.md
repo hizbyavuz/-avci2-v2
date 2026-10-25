@@ -5,7 +5,8 @@ ve eski daemon'ları başlatmaz. Otomatik borsa emri, hesap erişimi, para trans
 ve gerçek kaldıraç ayarlama kodu yoktur. Telegram yalnız önceden yapılandırılmış
 kullanıcı adresine, `--telegram` açıkken gönderilir.
 
-**Durum: yazılım testleri geçti; kârlılık DOĞRULANMADI. Canlı kurulum tamamlanmadı.**
+**Durum: temel paper motor Railway’de çalışıyor; veri erişimi HTTP 418 nedeniyle bekliyor.
+Grafik ve kalıcı bekleme yükseltmesinin yerel testleri geçti. Kârlılık DOĞRULANMADI.**
 
 ## Sabit araştırma hipotezi
 
@@ -113,11 +114,13 @@ yoktur; yalnız o taramada alınan evren kaydedilir.
 
 ## Çalıştırma ve doğrulama
 
-Linux / Python 3.12, harici Python paketi gerekmez. Windows'ta WSL kullanılabilir
+Linux / Python 3.12, grafik için Pillow 12.3.0 ve DejaVu Sans yazı tipi gerekir.
+Dockerfile bunları kurar. Windows'ta WSL kullanılabilir
 (`fcntl` dosya kilidi Linux içindir).
 
 ```bash
-python3 -m unittest discover -s tests -p test_ta_paper.py -v
+python3 -m pip install -r requirements.ta-paper.txt
+python3 -m unittest discover -s tests -p 'test_ta_paper*.py' -v
 python3 -m ta_paper.benchmark --symbols 300
 python3 -m ta_paper.runner --once --state-root /tmp/ta-paper-smoke
 python3 -m ta_paper.runner --report --state-root /app/.long-short-state
@@ -130,24 +133,69 @@ süreci çalışır, dört sınırlı REST işçisi vardır. Resmi hosta yalnız
 GET çağrıları yapılır. 451/403 hatasında beklenir ve sinyal verilmez; farklı
 ülke, proxy, başka borsa veya alternatif domain ile kısıtlama aşılmaz.
 
-26 Ekim yerel yazılım doğrulaması: 23 test başarılı. Ağsız 300 sembol × iki
-zaman dilimi × 120 mum yük denemesinde ~33,1 MiB tepe RSS, ~1 saniye, ~8,1 MiB
-SQLite ana dosyası görüldü. Bu, gerçek ağ hızı/üretim RAM sınırı değildir.
-Gerçek REST denemesi bu çalışma ortamında `BINANCE_HTTP_451` verdi; sinyal
-üretilmedi ve performans N=0 kaldı. Canlı Telegram teslimi veya kârlılık testi
-yapılmadı.
+26 Ekim yerel yazılım doğrulaması: 34 test başarılı. Grafiklerin LONG/SHORT
+seviyeleri, gelecekteki mumun dışlanması, mevcut kuyruğun kayıpsız güncellenmesi,
+fotoğraf teslim teyidi, belirsiz teslimin tekrarlanmaması, 429 beklemesi ve
+418 sırasında Binance’e istek yapılmadan sistem bildirimlerinin gönderilmesi
+kapsandı. Bunlar kontrollü testlerdir; gerçek Telegram teslimi değildir.
+
+Önceki ağsız 300 sembol × iki zaman dilimi × 120 mum yük denemesinde ~33,1 MiB
+tepe RSS, ~1 saniye, ~8,1 MiB SQLite ana dosyası görüldü. Bu, grafik eklenmiş
+üretim sürümünün RAM ölçümü değildir. Canlı temel sürüm ilk veri isteğinde
+`BINANCE_HTTP_418` aldı; başarılı tarama veya piyasa kaynaklı test sonucu yoktur.
+
+## Grafikli Telegram bildirimleri
+
+`CHARTS_20261026_1` sürümü açılışta bir kez, belirgin şekilde YAPAY VERİ ve
+GERÇEK SİNYAL DEĞİL yazan örnek PNG gönderir. Bu kontrol Binance erişimine
+bağlı değildir ve sanal işlem kaydı oluşturmaz. Teslim ancak Telegram’ın
+`ok=true` yanıtı ve beklenen sohbet adresi eşleşince `TA_PAPER_TELEGRAM_ACK`
+olarak kaydedilir. Anahtar veya sohbet adresi günlüğe yazılmaz.
+
+Plan/durum kartında son 60 kayıtlı ve kapanmış 30 dakikalık mum; LONG/SHORT,
+giriş, SL, TP çizgileri ve fiyatları; pozisyon miktarı/tutarı; örnek 3x teminat;
+net ödül/risk; planlanan ve stres stop kaybı; hedefte net kazanç; zaman,
+geçerlilik ve doğrulanmamış test sayısı gösterilir. Kart, plan anındaki grafiktir;
+canlı fiyat veya fiyat tahmini değildir. Kapanışta sanal sonuç ayrıca yazılır.
+Fotoğraf üretilemezse durum mesajı metin olarak gönderilir.
+
+Kuyruk tablosuna `photo` ve `retry_at_ms` alanları eklenir; mevcut kayıtlar
+korunur. Telegram 429 yanıtında belirtilen süre dolana kadar beklenir. Veri
+sağlıksızken yalnız sistem/durum mesajları gönderilir, yeni işlem kartı verilmez.
+
+## HTTP 418 ve istek bütçesi
+
+Binance 418, IP seviyesinde engeldir. Kod engeli kaldırdığını iddia etmez.
+`Retry-After` veya yanıttaki `banned until` zamanı okunur; daha geç olan sınır
+artı iki saniye `binance_cooldown.json` içine kalıcı yazılır. Yeniden başlatma
+beklemeyi silmez. Bu süre içinde ağ isteği yapılmaz. Tüm işçiler ortak hız
+sınırını kullanır; yaklaşık 600 istek ağırlığı/dakika hedeflenir. Paylaşılan
+IP’nin yanıt başlığındaki kullanımı 1.000’e ulaşırsa sonraki dakika beklenir.
+4 saatlik mumlar kapanış değişene kadar önbellekte kullanılır.
+
+İlk sürümün 418 olayında kesin bitiş saati kaydedilmemişti. Böyle bir kayıt
+aktarılırken, son 418 olayından itibaren belgelenmiş azami 72 saat ihtiyatlı
+sınır kabul edilir (`LEGACY_UNKNOWN_UPPER_BOUND`). **Bu Binance’in verdiği
+kesin süre değildir; gerçek engelden daha uzun bekleyebilir.** Yeni yanıtta
+zaman bulunamaması da aynı ihtiyatlı beklemeyi kullanır. Bilinen sunucu zamanı
+varsa bu zaman esas alınır. Süre dolduğunda aynı resmi bağlantıda yeniden
+denenir; yeni hata yeniden bekletir. Proxy, farklı IP/bölge veya alternatif
+host ile engel aşılmaz. Sağlık mesajı, kesin sunucu zamanı ile ihtiyatlı
+sınırı açıkça ayırır. Engelin kalkması ancak geçerli piyasa verisiyle anlaşılır.
+
+Resmi kaynak: https://developers.binance.com/en/docs/products/derivatives-trading-usds-futures/general-info
 
 ## Kurulum durumu
 
-Railway eski motor ve veri servisini durdurma değişiklikleri hazırlandı, fakat
-`accept-deploy` otomatik onay aşamasında “kullanıcı onaylamadı” yanıtıyla
-reddedildi. Eski hizmetler durdurulmuş kabul edilmemelidir. Diğer üç Railway
-servisi inceleme anında Offline idi. ChatGPT'deki dokuz otomasyon kapalıydı.
-Ana GitHub reposunda otomatik çalışan eski motor workflow'ları zaten pasifti;
-diğer `hizbyavuz/Avci2-` reposunun 5 dakikalık cron'u aktif bulundu. Onu düzenleme
-isteği GitHub entegrasyonu tarafından 403 ile reddedildi; kapatıldığı söylenemez.
+26 Ekim TSİ kontrolünde temel sürüm `dd887aa1c3da138168a321eeb9240c5e96cc6502`,
+Railway `long-short-motor` hizmetinde SUCCESS / 1 çalışan kopya olarak doğrulandı.
+Eski yardımcı veri hizmetinin çalışan kopya sayısı 0, diğer üç hizmet Offline.
+ChatGPT’deki dokuz otomasyon kapalı. Eski motor workflow’ları pasif; kullanıcı
+`hizbyavuz/Avci2-` tarayıcısını da GitHub arayüzünde devre dışı bıraktı.
 
-Kullanıcı onayı için hazırlanacak tek Railway geçişi: `long-short-motor` yeni
-izole Dockerfile/komuta ve sabit yeni commit'e geçer; eski yardımcı veri servisi
-boş bir durdurma süreciyle sonlanır. Eski source/volume/kayıtlar silinmez.
-Eski kaynak yapılandırmasının anahtarsız kopyası `audits/ta_paper_previous_runtime_20261026.json`.
+Grafik/bekleme yükseltmesi aynı release dalında, aynı Dockerfile/başlatma
+komutu ve mevcut kalıcı volume ile uygulanır. Strateji kuralları ve config
+hash değişmez. Yükseltmenin yayına ve Telegram’a ulaştığı ancak dağıtım
+kayıtları ve teslim teyidiyle söylenebilir. Eski kaynak/volume/kayıtlar silinmez.
+Eski kaynak yapılandırmasının anahtarsız kopyası:
+`audits/ta_paper_previous_runtime_20261026.json`.

@@ -18,6 +18,7 @@ from .core import (CFG, MINUTE, assess, closed_bars, descriptive_stats, exit_on_
 from .io import Binance, DataUnavailable, Store, Telegram, book_check, tradable
 
 STOP = threading.Event()
+OPERATIONS_REVISION = 'CHARTS_20261026_1'
 
 
 def log(kind, **fields):
@@ -66,7 +67,40 @@ def notify(store, p, now):
     else:
         text = f"⚪ {p['symbol']} · TEST PLANI İPTAL\n{p.get('cancel_reason','Koşul bozuldu')}\nGerçek emir verilmedi."
     n = descriptive_stats(store.plans())['n']
-    store.queue(p['id']+':'+p['status'], text+f"\nKapanmış test sayısı: N={n}", now)
+    photo = None
+    try:
+        from .chart import render_plan
+        photo = render_plan(p, store.chart_bars(p), n=n)
+    except Exception as exc:
+        # A failed chart must not hide a cancellation or closure notification.
+        store.event('CHART_ERROR', p['id'], {'type': type(exc).__name__})
+        log('TA_PAPER_CHART_ERROR', type=type(exc).__name__)
+        text += '\nGrafik oluşturulamadı; seviyeler metinde.'
+    store.queue(p['id']+':'+p['status'], text+f"\nKapanmış test sayısı: N={n}", now, photo=photo)
+
+
+def health_message(reason, cooldown):
+    text = '⚪ TA PAPER · Veri bekleniyor\n'+reason+'\nYeni işlem planı üretilmiyor. Gerçek emir yok.'
+    if cooldown.get('remaining_seconds',0):
+        until = datetime.fromtimestamp(cooldown['until_ms']/1000,timezone.utc).astimezone(
+            __import__('zoneinfo').ZoneInfo('Europe/Istanbul')).strftime('%d.%m.%Y %H:%M:%S')
+        if cooldown['source'] in ('LEGACY_UNKNOWN_UPPER_BOUND','CONSERVATIVE_FALLBACK'):
+            text += '\nSunucunun kesin bitiş saati bilinmiyor; ihtiyatlı yeniden deneme sınırı: '+until+' TSİ.'
+        else:
+            text += '\nEn erken yeniden deneme: '+until+' TSİ.'
+    return text+'\nBaşarı: DOĞRULANMADI.'
+
+
+def update_health(store, reason, cooldown, now):
+    identity = reason+':'+str(cooldown.get('until_ms',0) if cooldown.get('remaining_seconds',0) else 0)
+    if store.setting('notification_health') == identity:
+        return
+    store.setting('notification_health',identity)
+    text = ('⚪ TA PAPER · Veri akışı doğrulandı\nGrafikli test bildirimleri açık. '
+            'Uygun koşul yoksa işlem planı gönderilmez.\nGerçek emir yok; başarı DOĞRULANMADI.'
+            if reason=='READY' else health_message(reason,cooldown))
+    store.queue('system:health:'+str(now),text,now)
+    store.event('RUNTIME_HEALTH',reason,dict(cooldown,reason=reason),now)
 
 
 def advance(store, client, cfg=CFG):
@@ -255,7 +289,6 @@ def run(args):
     with open(folder/'worker.lock', 'a') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         store = Store(folder/'research.sqlite3')
-        client = Binance()
         telegram = Telegram(root, enabled=args.telegram)
         if args.report:
             plans = store.plans()
@@ -263,11 +296,32 @@ def run(args):
                 long=descriptive_stats([p for p in plans if p['direction']=='LONG']),
                 short=descriptive_stats([p for p in plans if p['direction']=='SHORT']))
             return 0
+        client = Binance(folder/'binance_cooldown.json', legacy=store.legacy_cooldown())
         log('TA_PAPER_BOOT', version=CFG.version, config_hash=CFG.fingerprint,
             automatic_orders=False, telegram_ready=telegram.ready, legacy_motors_started=False,
-            account_basis='EXAMPLE_PAPER_ACCOUNT', initial_equity=CFG.paper_initial_equity)
+            account_basis='EXAMPLE_PAPER_ACCOUNT', initial_equity=CFG.paper_initial_equity,
+            operations_revision=OPERATIONS_REVISION, cooldown=client.gate.state())
+        boot_key='system:charts:'+OPERATIONS_REVISION
+        if not store.setting(boot_key):
+            n=descriptive_stats(store.plans())['n']
+            photo=None
+            try:
+                from .chart import preview
+                photo=preview(client.now(),n=n)
+            except Exception as exc:
+                log('TA_PAPER_CHART_ERROR',type=type(exc).__name__)
+            text=('⚪ TA PAPER · Grafikli bildirim sürümü açıldı.\n'
+                  'Bu görsel YAPAY VERİYLE hazırlanmış teslim testidir; gerçek coin önerisi değildir.\n'
+                  'Gerçek planlarda giriş, SL, TP, risk/ödül ve USDT tutarları yer alacak.\n'
+                  'Piyasa verisinin sağlıklı olduğu henüz doğrulanmadı. Gerçek emir yok. '
+                  f'Başarı DOĞRULANMADI (N={n}).')
+            store.queue(boot_key,text,client.now(),photo=photo)
+            store.setting(boot_key,'queued')
+        # Service/health messages must work even when Binance is unavailable.
+        telegram.flush(store,client.now(),signals_enabled=False)
         last_heartbeat = 0
         last_clock_sync = 0.0
+        last_data_error = None
         while not STOP.is_set():
             iteration_valid = False
             try:
@@ -282,24 +336,29 @@ def run(args):
                     if not health['assessed']:
                         raise DataUnavailable('NO_VALID_CANDLES')
                     store.setting('last_scan_slot', slot)
-                    if health['assessed'] and not store.setting('boot_notice'):
-                        store.queue('boot:'+CFG.fingerprint,
-                            '⚪ TA PAPER V1 test motoru\nİlk veri taraması tamamlandı. '
-                            '30 dk giriş / 4 saat yön.\nGerçek emir yok; 1.000 USDT örnek test hesabı. '
-                            'Başarı henüz doğrulanmadı.', client.now())
-                        store.setting('boot_notice', 'queued')
-                telegram.flush(store, client.now())
+                if client.gate.state()['remaining_seconds']:
+                    raise DataUnavailable('EXCHANGE_COOLDOWN')
+                update_health(store,'READY',client.gate.state(),client.now())
+                last_data_error = None
                 iteration_valid = True
             except (DataUnavailable, ValueError, KeyError, TypeError) as exc:
                 reason = str(exc)[:120] if isinstance(exc, (DataUnavailable, ValueError)) else type(exc).__name__
-                store.event('DATA_HEALTH_INVALID', 'runtime', {'reason': reason})
-                log('TA_PAPER_DATA_INVALID', reason=reason, no_new_signal=True)
+                cooldown=client.gate.state()
+                if reason=='EXCHANGE_COOLDOWN':
+                    reason=cooldown['reason']
+                if reason != last_data_error:
+                    store.event('DATA_HEALTH_INVALID', 'runtime', {'reason': reason, 'cooldown':cooldown})
+                    log('TA_PAPER_DATA_INVALID', reason=reason, no_new_signal=True, cooldown=cooldown)
+                    last_data_error=reason
+                update_health(store,reason,cooldown,client.now())
+            telegram.flush(store, client.now(), signals_enabled=iteration_valid)
             now = client.now()
             if now-last_heartbeat >= 5*MINUTE:
                 plans = store.plans()
                 log('TA_PAPER_HEARTBEAT', utc=datetime.now(timezone.utc).isoformat(),
                     states=dict(Counter(p['status'] for p in plans)), telegram_ready=telegram.ready,
                     performance=descriptive_stats(plans),
+                    cooldown=client.gate.state(),
                     peak_rss_mb=round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss/1024, 2))
                 last_heartbeat = now
             if args.once:

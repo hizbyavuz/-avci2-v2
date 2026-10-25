@@ -1,5 +1,8 @@
 FROM python:3.12-slim
 ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1
 WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends fonts-dejavu-core && rm -rf /var/lib/apt/lists/*
+COPY requirements.ta-paper.txt /app/requirements.ta-paper.txt
+RUN pip install --no-cache-dir -r /app/requirements.ta-paper.txt
 COPY ta_paper /app/ta_paper
 CMD ["python", "-u", "-m", "ta_paper.runner", "--telegram"]
