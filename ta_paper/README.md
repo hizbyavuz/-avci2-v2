@@ -6,7 +6,7 @@ ve gerçek kaldıraç ayarlama kodu yoktur. Telegram yalnız önceden yapıland�
 kullanıcı adresine, `--telegram` açıkken gönderilir.
 
 **Durum: temel paper motor Railway’de çalışıyor; veri erişimi HTTP 418 nedeniyle bekliyor.
-Grafik ve kalıcı bekleme yükseltmesinin yerel testleri geçti. Kârlılık DOĞRULANMADI.**
+Grafikli bildirim sürümü yayında; örnek fotoğraf ve durum mesajı Telegram tarafından teyit edildi. Kârlılık DOĞRULANMADI.**
 
 ## Sabit araştırma hipotezi
 
@@ -133,7 +133,7 @@ süreci çalışır, dört sınırlı REST işçisi vardır. Resmi hosta yalnız
 GET çağrıları yapılır. 451/403 hatasında beklenir ve sinyal verilmez; farklı
 ülke, proxy, başka borsa veya alternatif domain ile kısıtlama aşılmaz.
 
-26 Ekim yerel yazılım doğrulaması: 34 test başarılı. Grafiklerin LONG/SHORT
+26 Ekim yerel yazılım doğrulaması: 40 test başarılı. Grafiklerin LONG/SHORT
 seviyeleri, gelecekteki mumun dışlanması, mevcut kuyruğun kayıpsız güncellenmesi,
 fotoğraf teslim teyidi, belirsiz teslimin tekrarlanmaması, 429 beklemesi ve
 418 sırasında Binance’e istek yapılmadan sistem bildirimlerinin gönderilmesi
@@ -178,10 +178,24 @@ aktarılırken, son 418 olayından itibaren belgelenmiş azami 72 saat ihtiyatl�
 sınır kabul edilir (`LEGACY_UNKNOWN_UPPER_BOUND`). **Bu Binance’in verdiği
 kesin süre değildir; gerçek engelden daha uzun bekleyebilir.** Yeni yanıtta
 zaman bulunamaması da aynı ihtiyatlı beklemeyi kullanır. Bilinen sunucu zamanı
-varsa bu zaman esas alınır. Süre dolduğunda aynı resmi bağlantıda yeniden
+varsa bu zaman esas alınır ve önceki varsayımdan daha kısaysa varsayılan süreyi
+kısaltabilir. Aktif, doğrulanmış sunucu süresi varsayımla kısaltılamaz veya silinemez. Süre dolduğunda aynı resmi bağlantıda yeniden
 denenir; yeni hata yeniden bekletir. Proxy, farklı IP/bölge veya alternatif
 host ile engel aşılmaz. Sağlık mesajı, kesin sunucu zamanı ile ihtiyatlı
 sınırı açıkça ayırır. Engelin kalkması ancak geçerli piyasa verisiyle anlaşılır.
+
+Kullanıcının açık yeniden deneme talebi için `--recheck-unknown-cooldown`
+seçeneği eklendi. `USER_RECHECK_20261026_1` kontrolü yalnız kaynağı varsayım olan
+418 beklemesinde, aynı resmi `/fapi/v1/time` uç noktasına bir GET yapar. Bilinen
+sunucu süresini geçersiz kılmaz. Kontrol hakkı istekten önce kalıcı tüketilir;
+yeniden başlatma veya belirsiz teslim tekrar denemeye yol açmaz. İzin başka uç
+noktalarda veya ikinci defa kullanılamaz. Geçerli saat yanıtı varsayılan beklemeyi
+kaldırır; bunun ardından piyasa mumları ayrıca doğrulanır. Yeni 418 yanıtının
+`Retry-After`/`banned until` zamanı kaydedilir. Sıkıştırılmış hata yanıtı da
+çözümlenir. Zaman aşımı veya bozuk yanıt beklemeyi kaldırmaz. Sonuç Telegram'a
+durum mesajı olarak gider. Başka IP/bölge, vekil sunucu veya veri kaynağına
+geçiş bu kontrolde yapılmaz. Bu seçenek yeni sürümün başlatma komutuna açıkça
+eklenmedikçe kontrol gerçekleşmez.
 
 Resmi kaynak: https://developers.binance.com/en/docs/products/derivatives-trading-usds-futures/general-info
 
@@ -193,9 +207,11 @@ Eski yardımcı veri hizmetinin çalışan kopya sayısı 0, diğer üç hizmet 
 ChatGPT’deki dokuz otomasyon kapalı. Eski motor workflow’ları pasif; kullanıcı
 `hizbyavuz/Avci2-` tarayıcısını da GitHub arayüzünde devre dışı bıraktı.
 
-Grafik/bekleme yükseltmesi aynı release dalında, aynı Dockerfile/başlatma
-komutu ve mevcut kalıcı volume ile uygulanır. Strateji kuralları ve config
-hash değişmez. Yükseltmenin yayına ve Telegram’a ulaştığı ancak dağıtım
-kayıtları ve teslim teyidiyle söylenebilir. Eski kaynak/volume/kayıtlar silinmez.
+Grafik/bekleme sürümü 26 Ekim 02:23 TSİ’de SUCCESS olarak açıldı; sendPhoto ve
+sendMessage teslim teyitleri alındı. Tek seferlik yeniden kontrol düzeltmesi
+aynı release dalı, Dockerfile ve kalıcı volume ile hazırlanır; başlatma komutuna
+`--recheck-unknown-cooldown` eklenir. Strateji kuralları ve config
+hash değişmez. Yeniden kontrolün yapıldığı ve piyasa verisinin erişilebilir olduğu ancak yeni
+dağıtımın kontrol sonucu ve geçerli tarama kayıtlarıyla söylenebilir. Eski kaynak/volume/kayıtlar silinmez.
 Eski kaynak yapılandırmasının anahtarsız kopyası:
 `audits/ta_paper_previous_runtime_20261026.json`.

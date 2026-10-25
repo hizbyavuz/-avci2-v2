@@ -35,15 +35,18 @@ class Binance:
         self.cache_lock = threading.Lock()
         self.candle_cache = {}
         self.offset_ms = 0
+        self.observed_weight = 0
 
     def now(self):
         return int(time.time()*1000)+self.offset_ms
 
-    def get(self, endpoint, **params):
+    def get(self, endpoint, *, _unknown_recheck=False, **params):
         if endpoint not in self.ALLOWED:
             raise ValueError("NON_PUBLIC_ENDPOINT_REFUSED")
+        if _unknown_recheck and (endpoint != '/fapi/v1/time' or params):
+            raise ValueError('RECHECK_TIME_ENDPOINT_ONLY')
         try:
-            self.gate.acquire(request_weight(endpoint, params))
+            self.gate.acquire(request_weight(endpoint, params), unknown_recheck=_unknown_recheck)
         except CooldownError as exc:
             raise DataUnavailable(str(exc)) from None
         # One official host, no proxy/venue fallback or region switching.
@@ -58,13 +61,20 @@ class Binance:
                 if resp.headers.get('Content-Encoding') == 'gzip':
                     raw = gzip.decompress(raw)
                 used = int(resp.headers.get('X-MBX-USED-WEIGHT-1M', 0))
+                self.observed_weight = used
                 if used >= 1000:
                     self.gate.block((self.now()//MINUTE+1)*MINUTE+2000,
                                     'SHARED_IP_WEIGHT_HIGH', 'WEIGHT_HEADER')
                 return json.loads(raw)
         except urllib.error.HTTPError as exc:
             if exc.code in (418, 429, 451, 403):
-                body = exc.read(8192).decode('utf-8', errors='replace')
+                raw = exc.read(8192)
+                if exc.headers.get('Content-Encoding') == 'gzip':
+                    try:
+                        raw = zlib.decompressobj(16+zlib.MAX_WBITS).decompress(raw, 8192)
+                    except zlib.error:
+                        raw = b''
+                body = raw.decode('utf-8', errors='replace')
                 until, source = retry_deadline(exc.code, exc.headers, body, int(time.time()*1000))
                 self.gate.block(until, 'BINANCE_HTTP_'+str(exc.code), source)
                 print('TA_PAPER_COOLDOWN '+encode(self.gate.state()), flush=True)
@@ -81,6 +91,26 @@ class Binance:
         self.offset_ms = int(payload['serverTime'])-(begin+end)//2
         if abs(self.offset_ms) > 5000:
             raise DataUnavailable("HOST_CLOCK_DRIFT")
+
+    def recheck_unknown_cooldown(self, request_id):
+        """One user-requested GET on the same host; never override a server timer."""
+        if not self.gate.reserve_unknown_recheck(request_id):
+            return False
+        begin = int(time.time()*1000)
+        payload = self.get('/fapi/v1/time', _unknown_recheck=True)
+        end = int(time.time()*1000)
+        if not isinstance(payload, dict) or type(payload.get('serverTime')) is not int:
+            raise DataUnavailable('INVALID_TIME_RESPONSE')
+        if end-begin > 3000:
+            raise DataUnavailable('CLOCK_SYNC_LATENCY')
+        offset = payload['serverTime']-(begin+end)//2
+        if abs(offset) > 5000:
+            raise DataUnavailable('HOST_CLOCK_DRIFT')
+        self.gate.confirm_unknown_recheck()
+        self.offset_ms = offset
+        if self.observed_weight >= 1000:
+            self.gate.block((end//MINUTE+1)*MINUTE+2000, 'SHARED_IP_WEIGHT_HIGH', 'WEIGHT_HEADER')
+        return True
 
     def candles(self, symbol, interval, limit=120, **params):
         # A 4h context is identical across the eight 30m scans between closes.

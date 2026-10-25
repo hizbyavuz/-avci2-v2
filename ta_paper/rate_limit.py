@@ -7,6 +7,7 @@ import re
 import threading
 import time
 
+ASSUMED_SOURCES = frozenset(('LEGACY_UNKNOWN_UPPER_BOUND', 'CONSERVATIVE_FALLBACK'))
 
 class CooldownError(RuntimeError):
     pass
@@ -42,6 +43,7 @@ class RequestGate:
         self.path = Path(path) if path else None
         self.lock = threading.Lock()
         self.next_request = 0.0
+        self.recheck_permit = False
         self.data = {'until_ms': 0, 'reason': 'READY', 'source': 'NONE'}
         if self.path and self.path.exists():
             try:
@@ -49,7 +51,11 @@ class RequestGate:
                 until = int(value['until_ms'])
                 if until < 0:
                     raise ValueError('negative deadline')
-                self.data = dict(until_ms=until, reason=str(value['reason']), source=str(value['source']))
+                checks = value.get('recheck_ids', [])
+                if not isinstance(checks, list) or not all(isinstance(x, str) for x in checks):
+                    raise ValueError('invalid recheck history')
+                self.data = dict(until_ms=until, reason=str(value['reason']), source=str(value['source']),
+                                 recheck_ids=checks)
             except (OSError, ValueError, KeyError, TypeError):
                 raise CooldownError('RATE_LIMIT_STATE_INVALID') from None
         elif legacy:
@@ -69,19 +75,51 @@ class RequestGate:
 
     def block(self, until_ms, reason, source):
         with self.lock:
-            if until_ms >= self.data['until_ms']:
-                self.data = dict(until_ms=int(until_ms), reason=reason, source=source)
+            current_known = self.data['source'] == 'EXCHANGE_RETRY_TIME'
+            if current_known and self.data['until_ms'] > time.time()*1000 and source != 'EXCHANGE_RETRY_TIME':
+                return
+            server_replaces_assumption = source == 'EXCHANGE_RETRY_TIME' and self.data['source'] in ASSUMED_SOURCES
+            if server_replaces_assumption or until_ms >= self.data['until_ms']:
+                self.data = dict(until_ms=int(until_ms), reason=reason, source=source,
+                                 recheck_ids=self.data.get('recheck_ids', []))
                 self._persist()
 
-    def acquire(self, weight):
+    def reserve_unknown_recheck(self, request_id):
+        """Consume one explicit request durably, only for our assumed 418 timer."""
+        with self.lock:
+            checks = self.data.get('recheck_ids', [])
+            if (not request_id or request_id in checks or self.data['source'] not in ASSUMED_SOURCES
+                    or self.data['reason'] != 'BINANCE_HTTP_418'
+                    or self.data['until_ms'] <= time.time()*1000):
+                return False
+            self.data['recheck_ids'] = checks+[request_id]
+            self._persist()
+            self.recheck_permit = True
+            return True
+
+    def confirm_unknown_recheck(self):
+        with self.lock:
+            if self.data['source'] not in ASSUMED_SOURCES or self.data['reason'] != 'BINANCE_HTTP_418':
+                raise CooldownError('RECHECK_STATE_CHANGED')
+            self.data.update(until_ms=0, reason='READY', source='VERIFIED_TIME_RESPONSE')
+            self._persist()
+
+    def acquire(self, weight, unknown_recheck=False):
         while True:
             with self.lock:
-                if time.time()*1000 < self.data['until_ms']:
+                permitted = (unknown_recheck and self.recheck_permit
+                             and self.data['source'] in ASSUMED_SOURCES
+                             and self.data['reason'] == 'BINANCE_HTTP_418')
+                if unknown_recheck and not permitted:
+                    raise CooldownError('RECHECK_NOT_AUTHORIZED')
+                if time.time()*1000 < self.data['until_ms'] and not permitted:
                     raise CooldownError('EXCHANGE_COOLDOWN')
                 wait = self.next_request-time.monotonic()
                 if wait <= 0:
                     # At most 600 estimated weight/minute; one shared budget.
                     self.next_request = time.monotonic()+max(.12, weight*.1)
+                    if permitted:
+                        self.recheck_permit = False
                     return
             # Recheck both the shared deadline and budget after sleeping.
             time.sleep(min(wait, .25))

@@ -19,6 +19,7 @@ from .io import Binance, DataUnavailable, Store, Telegram, book_check, tradable
 
 STOP = threading.Event()
 OPERATIONS_REVISION = 'CHARTS_20261026_1'
+RECHECK_REQUEST = 'USER_RECHECK_20261026_1'
 
 
 def log(kind, **fields):
@@ -319,6 +320,21 @@ def run(args):
             store.setting(boot_key,'queued')
         # Service/health messages must work even when Binance is unavailable.
         telegram.flush(store,client.now(),signals_enabled=False)
+        if getattr(args, 'recheck_unknown_cooldown', False):
+            try:
+                checked = client.recheck_unknown_cooldown(RECHECK_REQUEST)
+                outcome = 'TIME_ENDPOINT_OK' if checked else 'SKIPPED_KNOWN_OR_ALREADY_CHECKED'
+            except (DataUnavailable, ValueError, KeyError, TypeError) as exc:
+                outcome = str(exc) if isinstance(exc, DataUnavailable) else type(exc).__name__
+            cooldown = client.gate.state()
+            log('TA_PAPER_USER_RECHECK', request_id=RECHECK_REQUEST, outcome=outcome, cooldown=cooldown)
+            if outcome != 'SKIPPED_KNOWN_OR_ALREADY_CHECKED':
+                store.event('USER_RECHECK', RECHECK_REQUEST, dict(outcome=outcome, cooldown=cooldown))
+                text = ('⚪ Tek seferlik bağlantı kontrolü başarılı.\nBinance saat servisi yanıt verdi; '
+                        'varsayılan 72 saat bekleme kaldırıldı. Piyasa verisi ayrıca doğrulanacak. Gerçek emir yok.'
+                        if outcome == 'TIME_ENDPOINT_OK' else health_message(outcome, cooldown))
+                store.queue('system:recheck:'+RECHECK_REQUEST, text, client.now())
+                telegram.flush(store, client.now(), signals_enabled=False)
         last_heartbeat = 0
         last_clock_sync = 0.0
         last_data_error = None
@@ -373,6 +389,8 @@ def main():
     parser.add_argument('--report', action='store_true')
     parser.add_argument('--telegram', action='store_true', help='Use only the existing configured destination')
     parser.add_argument('--state-root')
+    parser.add_argument('--recheck-unknown-cooldown', action='store_true',
+                        help='One explicitly requested check of an assumed timer; known exchange deadlines are respected')
     args = parser.parse_args()
     for sig in (signal.SIGTERM, signal.SIGINT):
         signal.signal(sig, lambda *_: STOP.set())
