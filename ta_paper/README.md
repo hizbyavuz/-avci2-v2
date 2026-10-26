@@ -299,3 +299,20 @@ Telegram'a bir araştırma özeti yollar. Hata veya eksik veri başarı diye sun
 
 Tek sembollü yazılım denemesi, tüm evren doğrulaması değildir. Dağıtım/log
 teyidi olmadan bu arka plan işinin sunucuda çalıştığı söylenemez.
+
+
+
+## Operations revision SCAN_RESUME_20261026_2
+
+Fixes the incident where a 21/314 scan was marked as processed and a later successful clock request produced a misleading recovery notification. Strategy Config and its fingerprint remain unchanged; the running source hash and an OPERATIONS_REVISION event identify this intervention. Existing paper state, observations, bans and archived failures are retained.
+
+- Each 30-minute slot keeps a durable universe and per-symbol progress in `scan_progress_v2`. Successful symbols and the universe are reused across retry/restart. Pausing stops the work queue immediately; untouched symbols are pending, not hundreds of fictitious request failures.
+- Requests are serial and paced by the same gate. A work slice is bounded by 64 symbols or 45 seconds (a request timeout may finish after that soft bound), so position management can run between slices.
+- Failed symbols retry no sooner than one minute or the exchange deadline, whichever is later. Estimated next-request weight is checked against the existing protective 1000 threshold; the 600-weight/minute local pacing and all exchange deadlines remain in force. No alternate host, IP, region, proxy or trading endpoint is introduced.
+- All universe assessments must be present before portfolio admission and READY. Book/data failures during admission remain retryable. This is an operational data-health gate; EMA, setup, sizing, stop, target and entry-delay parameters are unchanged.
+- The existing five-minute entry window is preserved. Unfinished work expires explicitly, preserving partial evidence and observational setups; stale signals are never backfilled as live entries. A new candle starts a new universe. COMPLETE and EXPIRED are separate terminal results.
+- SCAN_PROGRESS is append-only retry evidence; only terminal SCAN_HEALTH records count as new scan outcomes. Old historical partial records remain untouched. The old last_scan_slot field is no longer trusted as evidence of completeness.
+- Telegram recovery requires a complete scan, not merely a successful time response. Waiting notifications include coverage and are coalesced to at most one per 15 minutes within a health class; genuine class changes still notify. Exact timers and causes remain in events/logs. Existing sample-chart delivery is not replayed.
+- Logs distinguish reported IP usage from this process's own request totals. A high IP counter alone does not identify another tenant or prove who caused it.
+
+Validation: 64 offline unit/integration tests, including interrupted scans, durable restart, untouched-symbol accounting, five-minute expiry, new-slot recovery, bounded slices, deferred book retry, no duplicate plans, no false READY, notification coalescing and pre-request quota protection. Existing 54 tests and frozen-parameter check remain included. Live exchange availability and profitability are not established by these tests.

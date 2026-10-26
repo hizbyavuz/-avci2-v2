@@ -37,21 +37,38 @@ class Binance:
         self.candle_cache = {}
         self.offset_ms = 0
         self.observed_weight = 0
+        self.observed_weight_window = None
+        self.local_requests = 0
+        self.local_estimated_weight = 0
 
     def now(self):
         return int(time.time()*1000)+self.offset_ms
+
+    def usage(self):
+        return dict(reported_ip_weight_1m=self.observed_weight,
+                    reported_minute=self.observed_weight_window,
+                    local_requests_since_start=self.local_requests,
+                    local_estimated_weight_since_start=self.local_estimated_weight,
+                    protective_threshold=1000)
 
     def get(self, endpoint, *, _unknown_recheck=False, **params):
         if endpoint not in self.ALLOWED:
             raise ValueError("NON_PUBLIC_ENDPOINT_REFUSED")
         if _unknown_recheck and (endpoint != '/fapi/v1/time' or params):
             raise ValueError('RECHECK_TIME_ENDPOINT_ONLY')
+        weight=request_weight(endpoint,params)
+        if (not _unknown_recheck and self.observed_weight_window==self.now()//MINUTE and
+                self.observed_weight+weight>1000):
+            self.gate.block((self.now()//MINUTE+1)*MINUTE+2000-self.offset_ms,
+                            'SHARED_IP_WEIGHT_HIGH','WEIGHT_HEADER')
         try:
-            self.gate.acquire(request_weight(endpoint, params), unknown_recheck=_unknown_recheck)
+            self.gate.acquire(weight, unknown_recheck=_unknown_recheck)
         except CooldownError as exc:
             raise DataUnavailable(str(exc)) from None
         # One official host, no proxy/venue fallback or region switching.
         url = 'https://fapi.binance.com'+endpoint+'?'+urllib.parse.urlencode(params)
+        self.local_requests+=1
+        self.local_estimated_weight+=weight
         req = urllib.request.Request(url, headers={'User-Agent': 'TA-Paper-Research/1',
                                                   'Accept-Encoding': 'gzip'}, method='GET')
         try:
@@ -63,9 +80,11 @@ class Binance:
                     raw = gzip.decompress(raw)
                 used = int(resp.headers.get('X-MBX-USED-WEIGHT-1M', 0))
                 self.observed_weight = used
+                self.observed_weight_window = self.now()//MINUTE
                 if used >= 1000:
-                    self.gate.block((self.now()//MINUTE+1)*MINUTE+2000,
+                    self.gate.block((self.now()//MINUTE+1)*MINUTE+2000-self.offset_ms,
                                     'SHARED_IP_WEIGHT_HIGH', 'WEIGHT_HEADER')
+                    print('TA_PAPER_REQUEST_USAGE '+encode(self.usage()),flush=True)
                 return json.loads(raw)
         except urllib.error.HTTPError as exc:
             if exc.code in (418, 429, 451, 403):
@@ -416,3 +435,4 @@ def photo_body(chat, caption, photo):
                   'Content-Type: image/png\r\n\r\n').encode()+photo+b'\r\n')
     parts.append(f'--{boundary}--\r\n'.encode())
     return b''.join(parts), 'multipart/form-data; boundary='+boundary
+
