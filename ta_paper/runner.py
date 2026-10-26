@@ -22,9 +22,10 @@ from .core import (CFG, MINUTE, assess, closed_bars, descriptive_stats, exit_on_
 from .io import Binance, DataUnavailable, Store, Telegram, book_check, book_quote, tradable
 from .observations import (collect, context_fields, funnel_report, record_setup, setup_id,
                            GAP_GRACE, GAP_RETRY)
+from .watch import publish_watches
 
 STOP = threading.Event()
-OPERATIONS_REVISION = 'ADMISSION_DELIVERY_20261026_4'
+OPERATIONS_REVISION = 'TECHNICAL_WATCH_20261026_5'
 CHART_REVISION = 'CHARTS_20261026_1'
 SCAN_STATE_KEY = 'scan_progress_v2'
 SCAN_BATCH_SECONDS = 15
@@ -434,6 +435,7 @@ def _admit_candidates(store, client, state, cfg=CFG, on_plan=None):
             else:
                 state['handled'][symbol] = reason
             details = dict(reason=reason,setup=p,book=getattr(exc,'evidence',None))
+            state.setdefault('admission_notes',{})[symbol] = dict(reason=reason,book=details['book'])
             store.event('ADMISSION_REJECTED', p['symbol'], details, stamp)
             log('TA_PAPER_ADMISSION',symbol=symbol,direction=p['direction'],outcome='REJECTED',
                 reason=reason,book=details['book'],operations_revision=OPERATIONS_REVISION)
@@ -443,6 +445,8 @@ def _admit_candidates(store, client, state, cfg=CFG, on_plan=None):
             on_plan()
         if _cooldown(client)['remaining_seconds']:
             break
+    if publish_watches(store,client,state,cfg) and on_plan is not None:
+        on_plan()
     return admitted
 
 

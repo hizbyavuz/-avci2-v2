@@ -5,10 +5,36 @@ ve eski daemon'ları başlatmaz. Otomatik borsa emri, hesap erişimi, para trans
 ve gerçek kaldıraç ayarlama kodu yoktur. Telegram yalnız önceden yapılandırılmış
 kullanıcı adresine, `--telegram` açıkken gönderilir.
 
-**Durum: 26 Ekim 2026 20:33 TSİ'de `8d0b0f6` canlı sürümünde 320/320
-coin tarandı; iki teknik aday emir defteri etkisinden elendi, kabul edilen
-plan yoktu. Aşağıdaki `ADMISSION_DELIVERY_20261026_4` düzeltmesinin yayına
-alındığı bu dosyada varsayılmaz. V1.1 kârlılık iddiası taşımaz.**
+**Durum: `89f6256`, 26 Ekim 2026 21:13 TSİ'de
+`ADMISSION_DELIVERY_20261026_4` kimliğiyle canlıda doğrulandı.
+Aşağıdaki yeni teknik aday bildirimlerinin yayına alındığı bu dosyada
+varsayılmaz. V1.1 kârlılık iddiası taşımaz.**
+
+## Teknik aday bildirimleri — TECHNICAL_WATCH_20261026_1
+
+Kullanıcının isteğiyle teknik aday görünürlüğü, örnek paper hesabın işlem
+kabulünden ayrıldı. Mevcut ve değişmeyen `assess` fonksiyonunun SETUP ürettiği
+coin; örnek hesap kapasitesi, risk bütçesi, aynı coin beklemesi, masraf veya
+emir defteri etkisi nedeniyle portföye alınamasa da grafikli **LONG/SHORT
+İÇİN İZLE** kartı üretir. Defter alınamamışsa doğrulanamadığı açıkça yazılır.
+Kart sinyal kapanışını, teknik stop/hedefi, kovalama sınırını ve ret/bekleme
+gerekçesini gösterir; işlem onayı, uygulanabilir fiyat veya gerçekleşmiş
+giriş iddiası taşımaz. Giriş ve büyüklük kararı kullanıcıya aittir.
+
+Bu gözlem katmanı `watch_candidates` tablosunda ayrı tutulur. Paper pozisyon,
+kabul, kâr/zarar ve başarı istatistiği yaratmaz; çekirdek eşikleri değiştirmez.
+Teknik koşulu oluşmayan veya karar mumları doğrulanamayan coin aday yapılmaz.
+Kapanıştan sonraki değişmeyen beş dakikalık pencerede bir setup için tek
+izleme bildirimi vardır. Süresi geçmiş eski adaylar deploy sonrası yollanmaz.
+Aynı setup portföye kabul edilirse mevcut plan kartı kullanılır; bekleyen
+izleme kartı iptal edilir. Daha önce teslim edilmiş izleme kartı tekrarlanmaz.
+Sadece gözlem uyarısı için ek Binance isteği yapılmaz.
+
+`TECHNICAL_WATCH_20261026_5` operasyon sürümü: 95 çevrimdışı test; defter reddi,
+dolu portföy ve geçici veri beklemesindeki görünürlük, eksik mumda aday
+üretmeme, restart/tekrar koruması, geçerlilik süresi, LONG/SHORT kartları ve
+paper istatistiğinin değişmemesi kapsandı. Yayın ve canlı teslim ayrıca
+doğrulanmalıdır.
 
 ## ADMISSION_DELIVERY_20261026_4 düzeltmesi
 

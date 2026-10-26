@@ -333,6 +333,8 @@ class Store:
           CREATE TABLE IF NOT EXISTS observations(id TEXT PRIMARY KEY,symbol TEXT,start_ms INTEGER,
             end_ms INTEGER,cursor_ms INTEGER,status TEXT,next_fetch_ms INTEGER,attempts INTEGER,
             repairs INTEGER,payload TEXT);
+          CREATE TABLE IF NOT EXISTS watch_candidates(id TEXT PRIMARY KEY,symbol TEXT,
+            created_ms INTEGER,valid_until_ms INTEGER,status TEXT,payload TEXT);
           CREATE INDEX IF NOT EXISTS events_kind ON events(kind);
           CREATE INDEX IF NOT EXISTS observation_fetch ON observations(status,next_fetch_ms);
         ''')
@@ -468,13 +470,21 @@ class Telegram:
                                     "AND (? OR key LIKE 'system:%') "
                                     "AND (key LIKE 'system:%' OR EXISTS (SELECT 1 FROM plans WHERE "
                                     "outbox.key IN (plans.id||':PENDING',plans.id||':OPEN',"
-                                    "plans.id||':CLOSED',plans.id||':CANCELLED'))) "
-                                    "ORDER BY (key LIKE 'system:%'),ms LIMIT 5", (now,signals_enabled)).fetchall():
+                                    "plans.id||':CLOSED',plans.id||':CANCELLED')) OR "
+                                    "EXISTS (SELECT 1 FROM watch_candidates WHERE outbox.key='watch:'||watch_candidates.id)) "
+                                    "ORDER BY CASE WHEN key LIKE 'system:%' THEN 2 "
+                                    "WHEN key LIKE 'watch:%' THEN 1 ELSE 0 END,ms LIMIT 5", (now,signals_enabled)).fetchall():
             # Earlier deliveries can block for seconds; don't send a plan that
             # expired while waiting behind another notification.
             if clock is not None:
                 now = clock()
-            if not row['key'].startswith('system:'):
+            if row['key'].startswith('watch:'):
+                candidate=store.db.execute('SELECT * FROM watch_candidates WHERE id=?',(row['key'][6:],)).fetchone()
+                has_plan=store.db.execute('SELECT 1 FROM plans WHERE id=?',(row['key'][6:],)).fetchone()
+                if not candidate or candidate['status']!='ACTIVE' or now>candidate['valid_until_ms'] or has_plan:
+                    store.db.execute("UPDATE outbox SET state='STALE' WHERE key=?",(row['key'],))
+                    store.db.commit();continue
+            elif not row['key'].startswith('system:'):
                 plan_id,_,notice_status=row['key'].rpartition(':')
                 saved=store.db.execute('SELECT payload FROM plans WHERE id=?',(plan_id,)).fetchone()
                 if not saved:

@@ -35,6 +35,7 @@ def local_time(ms):
 
 
 def render_plan(p, rows, n=0, demo=False):
+    watch=p.get('status')=='WATCH'
     rows = [r for r in rows if int(r[0]) <= p['candle_ms']][-60:]
     if not rows:
         raise ValueError('CHART_HAS_NO_SAVED_CANDLES')
@@ -65,7 +66,7 @@ def render_plan(p, rows, n=0, demo=False):
     text(88,115,'30 dk mum  /  4 saat yön filtresi',27,MUTED)
     draw.rounded_rectangle((1130,56,1380,126),radius=18,fill=sign_color)
     text(1172,68,direction,38,BG,True)
-    status = {'PENDING':'TEST PLANI','OPEN':'SANAL GİRİŞ','CLOSED':'KAPANAN TEST','CANCELLED':'İPTAL EDİLDİ'}.get(p['status'],'TEST')
+    status = {'WATCH':'TEKNİK ADAY / İZLE','PENDING':'TEST PLANI','OPEN':'SANAL GİRİŞ','CLOSED':'KAPANAN TEST','CANCELLED':'İPTAL EDİLDİ'}.get(p['status'],'TEST')
     text(60,187,status,32,AMBER,True)
     text(1365-draw.textlength(local_time(p['observed_ms'])+'  TSİ',font=font(26)),193,
          local_time(p['observed_ms'])+'  TSİ',26,MUTED)
@@ -73,7 +74,7 @@ def render_plan(p, rows, n=0, demo=False):
         draw.rounded_rectangle((56,243,1384,301),radius=12,fill='#40341e')
         text(81,253,'ÖRNEK GÖRSEL • YAPAY VERİ • GERÇEK SİNYAL DEĞİL',27,AMBER,True)
     else:
-        text(60,253,'Plan anında kaydedilen kapanmış mumlar • Canlı fiyat değildir',25,MUTED)
+        text(60,253,'Sinyal anında kaydedilen kapanmış mumlar • Canlı fiyat değildir',25,MUTED)
 
     left, right, top, bottom = 82, 1060, 347, 885
     all_values = [sl,tp,entry]+[float(r[i]) for r in rows for i in (2,3)]
@@ -98,7 +99,8 @@ def render_plan(p, rows, n=0, demo=False):
         draw.line((x,y(h),x,y(l)),fill=color,width=2)
         half=max(2,min(7,step*.3))
         draw.rectangle((x-half,min(y(o),y(c)),x+half,max(y(o),y(c))+1),fill=color)
-    levels=[('TP / Take-profit',tp,GREEN),('Giriş / Entry',entry,BLUE),('SL / Stop-loss',sl,RED)]
+    levels=[('Teknik hedef' if watch else 'TP / Take-profit',tp,GREEN),
+            ('Sinyal kapanışı' if watch else 'Giriş / Entry',entry,BLUE),('SL / Stop-loss',sl,RED)]
     positions=[]
     for label,value,color in sorted(levels,key=lambda item:y(item[1])):
         yy=max(top+35,min(bottom-35,y(value)))
@@ -124,8 +126,30 @@ def render_plan(p, rows, n=0, demo=False):
         text(x+20,y0+14,label,23,MUTED,width=385)
         text(x+20,y0+48,value,34,color,True,width=385)
 
-    for x,label,value,color in [(56,'GİRİŞ / ENTRY',price(entry),BLUE),(506,'STOP-LOSS / SL',price(sl),RED),(956,'TAKE-PROFIT / TP',price(tp),GREEN)]:
+    for x,label,value,color in [(56,'SİNYAL KAPANIŞI' if watch else 'GİRİŞ / ENTRY',price(entry),BLUE),
+                              (506,'TEKNİK STOP' if watch else 'STOP-LOSS / SL',price(sl),RED),
+                              (956,'TEKNİK HEDEF' if watch else 'TAKE-PROFIT / TP',price(tp),GREEN)]:
         card(x,980,label,value,color)
+    if watch:
+        for x,label,value in [(56,'STOPA UZAKLIK',f'%{100*abs(entry-sl)/entry:.2f}'),
+                              (506,'HEDEFE UZAKLIK',f'%{100*abs(tp-entry)/entry:.2f}'),
+                              (956,'BRÜT ÖDÜL / RİSK',f'{abs(tp-entry)/abs(entry-sl):.2f} R')]:
+            card(x,1108,label,value)
+        draw.rounded_rectangle((56,1236,1384,1510),radius=14,fill=PANEL)
+        text(76,1254,'SANAL HESAP UYARISI',26,AMBER,True)
+        words=(p['risk_note']+' İşlem büyüklüğü ve giriş kararı sana ait.').split()
+        lines=[];line=''
+        for word in words:
+            trial=(line+' '+word).strip()
+            if draw.textlength(trial,font=font(25))>1255:
+                lines.append(line);line=word
+            else:line=trial
+        if line:lines.append(line)
+        for i,line in enumerate(lines[:5]):text(76,1302+i*34,line,25)
+        text(60,1543,'İZLEME ADAYI • İŞLEM ONAYI DEĞİL • GERÇEK EMİR YOK',26,AMBER,True,width=1320)
+        text(60,1588,'Brüt seviyeler: masraflar hariç. Güncel fiyat/likidite ayrıca kontrol edilmeli.',22,MUTED,width=1320)
+        out=BytesIO();image.save(out,format='PNG',optimize=False)
+        return out.getvalue()
     for x,label,value in [(56,'POZİSYON TUTARI',f"{p['notional']:.2f} USDT"),(506,f"ÖRNEK {CFG.indicative_leverage}x TEMİNAT",f"{p['indicative_margin']:.2f} USDT"),(956,'NET ÖDÜL / RİSK',f"{p['net_rr']:.2f} R")]:
         card(x,1108,label,value)
     for x,label,value,color in [(56,'PLANLANAN SL KAYBI',f"{p['planned_loss']:.2f} USDT",RED),(506,'KÖTÜ KAYMA KAYBI',f"{p['stress_loss']:.2f} USDT",AMBER),(956,'TP NET KAZANÇ*',f"{p['target_net']:.2f} USDT",GREEN)]:
