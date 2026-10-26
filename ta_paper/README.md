@@ -304,6 +304,8 @@ teyidi olmadan bu arka plan işinin sunucuda çalıştığı söylenemez.
 
 ## Operations revision SCAN_RESUME_20261026_2
 
+Historical revision: the all-universe admission gate below was found to be too restrictive in production and is superseded by SCAN_FLOW_20261026_3. Its incident evidence is retained.
+
 Fixes the incident where a 21/314 scan was marked as processed and a later successful clock request produced a misleading recovery notification. Strategy Config and its fingerprint remain unchanged; the running source hash and an OPERATIONS_REVISION event identify this intervention. Existing paper state, observations, bans and archived failures are retained.
 
 - Each 30-minute slot keeps a durable universe and per-symbol progress in `scan_progress_v2`. Successful symbols and the universe are reused across retry/restart. Pausing stops the work queue immediately; untouched symbols are pending, not hundreds of fictitious request failures.
@@ -316,3 +318,16 @@ Fixes the incident where a 21/314 scan was marked as processed and a later succe
 - Logs distinguish reported IP usage from this process's own request totals. A high IP counter alone does not identify another tenant or prove who caused it.
 
 Validation: 64 offline unit/integration tests, including interrupted scans, durable restart, untouched-symbol accounting, five-minute expiry, new-slot recovery, bounded slices, deferred book retry, no duplicate plans, no false READY, notification coalescing and pre-request quota protection. Existing 54 tests and frozen-parameter check remain included. Live exchange availability and profitability are not established by these tests.
+
+## Operations revision SCAN_FLOW_20261026_3
+
+The 19:30 Istanbul scan on 26 October assessed 217/318 symbols and found 55 observational setups, but expired at 19:35 with no admissions. The previous operations patch incorrectly coupled every plan to complete universe coverage. The original research protocol treats coverage as a reported metric, not an extra strategy threshold.
+
+- Restore individual admission: each symbol still needs valid current closed 30m/4h bars, an in-window decision, a fresh executable order book, and unchanged sizing/risk/cooldown checks. Missing data on another symbol cannot veto it. Incomplete coverage remains PENDING/EXPIRED and is never called a complete scan or zero opportunities.
+- Evaluate in descending snapshot quote-volume order, with symbol as tie-break, and handle setups promptly. Unavailable symbols remain explicit retryable data issues; a failed book cannot become a fabricated fill. Work slices are at most 32 symbols/15 seconds, with one-second yields during unblocked scans; all HTTP calls retain the same 600-weight/minute pacing and protective 1000 IP threshold.
+- Reuse validated closed candles from the durable evidence database after restart. Current 4h context needs no new request. At the next close fetch the changed tail and one overlapping closed candle; reject changed overlaps, gaps and stale responses. Merge into the same latest-120 response window, excluding open candles from assessment. Keep only bounded per-symbol memory windows.
+- Prepare missing candle history in small background slices outside the five-minute admission window. Pause warming before the next candle close and during exchange cooldowns. Observation collection yields before that close as well. No new host, proxy, region, API key, order endpoint or quota increase.
+- Valid partial-scan plans can reach Telegram when the exchange cooldown is clear. Late PENDING and superseded PENDING/OPEN messages are marked STALE. Existing exchange-outage suppression remains. Expired-scan notices explicitly show the next fresh scan, rather than suggesting the old scan will resume after a minute-level retry timer.
+- Config hash remains `f4485acc0340fb6352cde17558ada6f53459bafa486793423792c3b4e2ccdedd`. Operational revision/source identity distinguishes this intervention and changed admission timing; aggregate different revisions cautiously. Previous observations, failures, paper positions and exchange deadlines are retained.
+
+Offline validation includes individual admission with a missing peer, liquidity ordering, deadline crossed during book retrieval, partial-scan notification eligibility without false READY, expiration notices, stale-notice suppression, restart reuse, 4h rollover, conflicting/gapped data rejection and a 318-symbol full-versus-incremental equality check. With warm 4h context that fixture uses 318 candle-request weight instead of 1272 for cold full histories; this excludes universe, position, book and observation requests and does not guarantee live completion or profitability.

@@ -88,7 +88,7 @@ class ScanRecoveryTests(unittest.TestCase):
         self.assertEqual(h['attempted'],0)
 
     def test_deadline_expires_without_network_no_stale_signal_or_false_complete(self):
-        c=FakeClient(fail_symbol='S001USDT',setups=True)
+        c=FakeClient(n=1,setups=True);c.book_fail=True
         scan(self.store,c);self.assertEqual(len(self.store.plans()),0)
         prior=c.calls.copy();c.stamp+=4*MINUTE
         h=scan(self.store,c)

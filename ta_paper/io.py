@@ -12,7 +12,7 @@ import urllib.request
 import uuid
 import zlib
 
-from .core import CFG, MINUTE, finite
+from .core import CFG, MINUTE, finite, closed_bars
 from .rate_limit import CooldownError, RequestGate, request_weight, retry_deadline
 from .provenance import identity
 
@@ -31,10 +31,14 @@ class Binance:
                          '/fapi/v1/ticker/24hr', '/fapi/v1/klines',
                          '/fapi/v1/depth', '/fapi/v1/fundingRate'])
 
-    def __init__(self, cooldown_path=None, legacy=None):
+    def __init__(self, cooldown_path=None, legacy=None, candle_store=None):
         self.gate = RequestGate(cooldown_path, legacy)
         self.cache_lock = threading.Lock()
         self.candle_cache = {}
+        self.candle_store = candle_store
+        self.cache_hits = 0
+        self.incremental_fetches = 0
+        self.full_fetches = 0
         self.offset_ms = 0
         self.observed_weight = 0
         self.observed_weight_window = None
@@ -49,7 +53,9 @@ class Binance:
                     reported_minute=self.observed_weight_window,
                     local_requests_since_start=self.local_requests,
                     local_estimated_weight_since_start=self.local_estimated_weight,
-                    protective_threshold=1000)
+                    protective_threshold=1000, candle_cache_hits=self.cache_hits,
+                    incremental_candle_fetches=self.incremental_fetches,
+                    full_candle_fetches=self.full_fetches)
 
     def get(self, endpoint, *, _unknown_recheck=False, **params):
         if endpoint not in self.ALLOWED:
@@ -133,21 +139,61 @@ class Binance:
         return True
 
     def candles(self, symbol, interval, limit=120, **params):
-        # A 4h context is identical across the eight 30m scans between closes.
+        # Reuse only verified, immutable closed bars. The decision window and
+        # EMA warmup length remain the same as the full latest-N response.
         period = {'30m': 30*MINUTE, '4h': 240*MINUTE}.get(interval)
         key = (symbol, interval, limit)
-        slot = (self.now()-CFG.publication_delay_ms)//period if period else None
-        if period and not params:
+        now = self.now()
+        slot = (now-CFG.publication_delay_ms)//period if period else None
+        cached = None
+        use_cache = period and not params and limit == CFG.history_bars
+        if use_cache:
             with self.cache_lock:
                 cached = self.candle_cache.get(key)
-                if cached and cached[0] == slot:
-                    return cached[1]
-        data = self.get('/fapi/v1/klines', symbol=symbol, interval=interval, limit=limit, **params)
+            if not cached and self.candle_store:
+                # These are already append-only evidence, retained across deploys.
+                rows = self.candle_store.recent_candles(symbol, interval, limit-1)
+                if rows:
+                    try:
+                        closed_bars(rows,period,now,require_current=False)
+                        cached = (int(rows[-1][0])//period+1, rows)
+                    except ValueError:
+                        cached = None
+            if cached and cached[0] == slot:
+                closed_bars(cached[1],period,now)
+                self.cache_hits += 1
+                with self.cache_lock:
+                    self.candle_cache[key] = cached
+                return cached[1]
+        incremental = bool(use_cache and cached and 0 < slot-cached[0] < 98)
+        if incremental:
+            # Include one closed overlap to detect revisions, and the open bar
+            # to retain exactly the original latest-N window after merging.
+            count = slot-cached[0]+2
+            data = self.get('/fapi/v1/klines',symbol=symbol,interval=interval,
+                            limit=count,startTime=(cached[0]-1)*period)
+            self.incremental_fetches += 1
+        else:
+            data = self.get('/fapi/v1/klines', symbol=symbol, interval=interval, limit=limit, **params)
+            if use_cache:self.full_fetches += 1
         if not isinstance(data, list):
             raise DataUnavailable("INVALID_KLINES_RESPONSE")
-        if period and not params:
+        if use_cache:
+            if incremental:
+                incoming = closed_bars(data,period,now,minimum=1)
+                old = {int(row[0]): row for row in cached[1]}
+                for row in incoming:
+                    if row[0] in old and closed_bars([old[row[0]]],period,now,minimum=1,require_current=False)[0] != row:
+                        raise DataUnavailable('CLOSED_CANDLE_CHANGED')
+                # Never join around a missing new candle or fabricate a bar.
+                combined = dict(old)
+                combined.update({int(row[0]):row for row in data})
+                data = [combined[k] for k in sorted(combined)][-limit:]
+            verified = closed_bars(data,period,now)
+            if self.candle_store:self.candle_store.candles(symbol,interval,verified)
             with self.cache_lock:
-                self.candle_cache[key] = (slot, data)
+                self.candle_cache[key] = (slot, verified)
+            return verified
         return data
 
     def funding(self, symbol, start, end):
@@ -321,6 +367,11 @@ class Store:
                                (p['symbol'], p['candle_ms'])).fetchall()
         return [json.loads(r[0]) for r in reversed(rows)]
 
+    def recent_candles(self, symbol, tf, limit):
+        rows = self.db.execute('SELECT payload FROM candles WHERE symbol=? AND tf=? '
+                               'ORDER BY open_ms DESC LIMIT ?', (symbol,tf,limit)).fetchall()
+        return [json.loads(r[0]) for r in reversed(rows)]
+
     def legacy_cooldown(self):
         # The first release retained the ban event, but not Retry-After. Preserve
         # the documented upper bound rather than resetting it on deployment.
@@ -373,6 +424,17 @@ class Telegram:
         delivered = 0
         for row in store.db.execute("SELECT * FROM outbox WHERE state='PENDING' AND retry_at_ms<=? "
                                     "AND (? OR key LIKE 'system:%') ORDER BY ms LIMIT 5", (now,signals_enabled)).fetchall():
+            if not row['key'].startswith('system:'):
+                plan_id,_,notice_status=row['key'].rpartition(':')
+                saved=store.db.execute('SELECT payload FROM plans WHERE id=?',(plan_id,)).fetchone()
+                if saved:
+                    plan=json.loads(saved[0])
+                    superseded=(notice_status in ('PENDING','OPEN') and plan['status']!=notice_status)
+                    late_entry=(notice_status=='PENDING' and now>=plan['entry_ms'])
+                    if superseded or late_entry:
+                        store.db.execute("UPDATE outbox SET state='STALE' WHERE key=?",(row['key'],))
+                        store.db.commit()
+                        continue
             if now-row['ms'] > 10*MINUTE:
                 store.db.execute("UPDATE outbox SET state='STALE' WHERE key=?", (row['key'],))
                 store.db.commit()

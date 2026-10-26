@@ -150,7 +150,9 @@ class RateLimitTests(unittest.TestCase):
             client.candles('TESTUSDT','4h')
             self.assertEqual(get.call_count,1)
             clock.return_value=NOW+CFG.context_ms
-            client.candles('TESTUSDT','4h')
+            # A response from the old close must now be rejected, not cached.
+            with self.assertRaisesRegex(ValueError,'STALE_CANDLES'):
+                client.candles('TESTUSDT','4h')
             self.assertEqual(get.call_count,2)
 
     def test_legacy_migration_does_not_reactivate_a_known_banned_ip(self):
@@ -277,3 +279,4 @@ class ChartAndDeliveryTests(unittest.TestCase):
 
 
 if __name__=='__main__': unittest.main()
+
