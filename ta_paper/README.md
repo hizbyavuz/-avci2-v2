@@ -391,3 +391,65 @@ The 19:30 Istanbul scan on 26 October assessed 217/318 symbols and found 55 obse
 - Config hash remains `f4485acc0340fb6352cde17558ada6f53459bafa486793423792c3b4e2ccdedd`. Operational revision/source identity distinguishes this intervention and changed admission timing; aggregate different revisions cautiously. Previous observations, failures, paper positions and exchange deadlines are retained.
 
 Offline validation includes individual admission with a missing peer, liquidity ordering, deadline crossed during book retrieval, partial-scan notification eligibility without false READY, expiration notices, stale-notice suppression, restart reuse, 4h rollover, conflicting/gapped data rejection and a 318-symbol full-versus-incremental equality check. With warm 4h context that fixture uses 318 candle-request weight instead of 1272 for cold full histories; this excludes universe, position, book and observation requests and does not guarantee live completion or profitability.
+
+## Operations revision MARKET_STREAM_20261026_6
+
+Repeated shared-IP REST protection previously stopped both fresh candle collection
+and technical WATCH cards. Enable `--market-streams` to maintain native Binance
+USD-M 1m/30m/4h closed candles and 24-hour quote-volume updates in the existing
+Railway service. No additional server or data subscription is provisioned.
+
+```bash
+python -u -m ta_paper.runner --telegram --historical-research --market-streams
+```
+
+- The official routed endpoint is `wss://fstream.binance.com/market/stream`.
+  Market-eligible symbols are split into shards of 240 (720 candle streams;
+  the first connection also carries all-market tickers and contract changes).
+  There is no top-N universe cut or substitution of spot/another exchange.
+- Connections use subscription acknowledgements, server ping handling, a
+  30-second freshness limit, event/local-clock tolerance of 5 seconds, scheduled
+  rotation before 24 hours, and bounded reconnect backoff. New connections wait
+  for the existing exchange cooldown, including after deployment; this release
+  cannot erase an active 418 deadline. An already-open healthy stream can keep
+  collecting during a subsequent REST cooldown. Handshake blocks are persisted.
+- Only final exchange candles enter a durable SQLite cache under the existing
+  state volume. Readers still enforce the original 2-second publication delay,
+  continuous 119-closed-bar decision window, and changed-overlap rejection.
+  Existing engine evidence is reused after restart. Missing bars are never
+  manufactured, interpolated, or treated as zero opportunities.
+- A serial background worker fills missing completed UTC days from checksummed
+  `data.binance.vision` daily files, including while new connections are waiting.
+  Current-day gaps need normal guarded REST repair or subsequent live bars;
+  an archive is not a real-time source. Files may be published late or absent.
+  Cache writes retain original evidence; disk space remains an operational limit.
+- WATCH scanning can use fresh stream tickers (at most 120 seconds old) and
+  contract metadata cached for at most 6 hours. Contract-change events invalidate
+  the affected symbol until metadata is fetched again. A restart never refreshes
+  a cached timestamp. Initial/expired metadata and unrepaired gaps still depend
+  on guarded REST access. No claim of complete REST independence is made.
+- A valid technical SETUP can produce the existing **LONG/SHORT İÇİN İZLE** card
+  even when the example paper account cannot verify an executable book. Such a
+  card explicitly says the current book/entry is unverified, creates no paper
+  position, and contributes no fabricated trade result. Incomplete peers cannot
+  veto a valid candidate; expired cards and duplicate notifications remain blocked.
+- Paper admission separately re-fetches current trading status/lot filters and
+  the original 100-level REST book. No 20-level stream is presented as equivalent.
+  Funding and gap repair keep their existing public REST gate. All cooldowns,
+  rate limits, strategy thresholds, sizing and risk checks remain in force.
+- `core.py` and `rate_limit.py` are unchanged. Config hash remains
+  `f4485acc0340fb6352cde17558ada6f53459bafa486793423792c3b4e2ccdedd`.
+  Source identity and the operations event identify the new data path; earlier
+  evidence and research results are retained. No authenticated/order API is used.
+
+Validation: 111 offline unit/integration tests, including a real local WebSocket
+handshake with the pinned `websockets==17.3` dependency, subscription sharding,
+closed-only ingestion, checksum failures, immutable-bar conflicts, restart
+reuse, metadata expiry/invalidation, fresh paper-market revalidation, gap
+isolation, archive prewarming and a technical WATCH during a durable REST ban
+with zero HTTP calls. These tests do not prove live connectivity or profitability.
+
+Official protocol references:
+- https://developers.binance.com/en/docs/products/derivatives-trading-usds-futures/websocket-market-streams/Connect
+- https://developers.binance.com/en/docs/catalog/core-trading-derivatives-trading-usd-s-m-futures/api/ws-streams/market
+- https://github.com/binance/binance-public-data
