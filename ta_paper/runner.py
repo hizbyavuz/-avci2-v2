@@ -25,7 +25,7 @@ from .observations import (collect, context_fields, funnel_report, record_setup,
 from .watch import publish_watches
 
 STOP = threading.Event()
-OPERATIONS_REVISION = 'TECHNICAL_WATCH_20261026_5'
+OPERATIONS_REVISION = 'MARKET_STREAM_20261026_6'
 CHART_REVISION = 'CHARTS_20261026_1'
 SCAN_STATE_KEY = 'scan_progress_v2'
 SCAN_BATCH_SECONDS = 15
@@ -135,7 +135,8 @@ def update_health(store, reason, cooldown, now, progress=None):
                'INSUFFICIENT_BOOK_DEPTH':'Yetersiz emir defteri',
                'SPREAD_TOO_WIDE':'Alış-satış farkı',
                'LATE_ENTRY':'Giriş fiyatı uzaklaştı',
-               'SYMBOL_COOLDOWN':'Aynı coin bekleme süresi'}
+               'SYMBOL_COOLDOWN':'Aynı coin bekleme süresi',
+               'BOOK_NOT_VERIFIED':'Güncel emir defteri doğrulanamadı'}
         rejects=[f"{names.get(k[10:],'Diğer risk/giriş kontrolü')}: {v}"
                  for k,v in sorted(reasons.items()) if k.startswith('ADMISSION:')]
         text=(f'⚪ TA PAPER · Tarama tamamlandı\nDeğerlendirilen: {assessed}/{universe} coin.\n'
@@ -321,6 +322,11 @@ def _cooldown(client):
     return client.gate.state() if hasattr(client,'gate') else {'remaining_seconds':0}
 
 
+def _scan_blocked(client):
+    return bool(_cooldown(client)['remaining_seconds'] and
+                not getattr(client,'stream_ready',lambda:False)())
+
+
 def _save_scan(store,state):
     store.setting(SCAN_STATE_KEY,json.dumps(state,sort_keys=True,allow_nan=False))
 
@@ -346,6 +352,8 @@ def _scan_health(store,client,state,started,admitted=0):
                 reasons=dict(counts),data_errors=state['errors'],
                 deadline_ms=state['deadline_ms'],elapsed_seconds=round(time.monotonic()-started,2),
                 config_hash=CFG.fingerprint,automatic_orders=False,
+                stream_ready=getattr(client,'stream_ready',lambda:False)(),
+                rest_cooldown=_cooldown(client),
                 operations_revision=OPERATIONS_REVISION)
     terminal=state['status'] in ('COMPLETE','EXPIRED')
     if not terminal or not state.get('terminal_logged'):
@@ -372,6 +380,13 @@ def _admit_candidates(store, client, state, cfg=CFG, on_plan=None):
         if symbol in state['handled']:
             continue
         if _cooldown(client)['remaining_seconds'] or client.now() > state['deadline_ms']:
+            if _cooldown(client).get('until_ms',0) > state['deadline_ms']:
+                for pending in candidates:
+                    s = pending['symbol']
+                    if s not in state['handled']:
+                        state['handled'][s] = 'BOOK_NOT_VERIFIED'
+                        record_setup(store,dict(pending),client.now(),markets[s],'BOOK_NOT_VERIFIED')
+                _save_scan(store,state)
             break
         # A crash after saving a plan must never duplicate or re-size that plan.
         if any(x['id'] == setup_id(original) for x in store.plans()):
@@ -390,6 +405,14 @@ def _admit_candidates(store, client, state, cfg=CFG, on_plan=None):
         try:
             if stamp-p['candle_ms']-cfg.entry_ms > cfg.max_scan_delay_ms:
                 raise ValueError('SCAN_FINISHED_TOO_LATE')
+            if getattr(client,'streams',None):
+                # WATCH can use bounded cached metadata, but a paper entry must
+                # revalidate current trading status and lot filters via REST.
+                meta = client.get('/fapi/v1/exchangeInfo',_fresh=True)
+                market = next((m for m in meta['symbols'] if m['symbol']==symbol),None)
+                if market is None or not tradable(market,by_symbol[symbol],stamp,cfg):
+                    raise DataUnavailable('CURRENT_MARKET_NOT_VERIFIED')
+                markets[symbol] = market
             plans = store.plans()
             if any(x['symbol'] == p['symbol'] and stamp-x['observed_ms'] < cfg.cooldown_ms for x in plans):
                 raise ValueError('SYMBOL_COOLDOWN')
@@ -469,7 +492,7 @@ def scan(store, client, cfg=CFG, on_plan=None):
     if now>state['deadline_ms']:
         state['status']='EXPIRED'
         return _scan_health(store,client,state,started)
-    if _cooldown(client)['remaining_seconds']:
+    if _scan_blocked(client):
         return _scan_health(store,client,state,started)
     if not state['initialized']:
         client.sync_time()
@@ -493,7 +516,7 @@ def scan(store, client, cfg=CFG, on_plan=None):
     for symbol in sorted(markets,key=lambda x:(-float(by_symbol[x]['quoteVolume']),x)):
         if symbol in state['done'] or client.now()<state['retry_at'].get(symbol,0):
             continue
-        if (STOP.is_set() or _cooldown(client)['remaining_seconds'] or
+        if (STOP.is_set() or _scan_blocked(client) or
                 client.now()>state['deadline_ms'] or time.monotonic()-started>=SCAN_BATCH_SECONDS or
                 batch>=SCAN_BATCH_SYMBOLS):
             break
@@ -644,6 +667,11 @@ def run(args):
         if not (folder/'binance_cooldown.json').exists() and previous_cooldown.exists():
             shutil.copyfile(previous_cooldown,folder/'binance_cooldown.json')
         client = Binance(folder/'binance_cooldown.json', legacy=store.legacy_cooldown(), candle_store=store)
+        if getattr(args,'market_streams',False):
+            from .streams import LiveFeed
+            client.streams = LiveFeed(folder/'streams',client.gate,store)
+            client.streams.start()
+            locks.callback(client.streams.close)
         log('TA_PAPER_BOOT', version=CFG.version, config_hash=CFG.fingerprint,
             automatic_orders=False, telegram_ready=telegram.ready, legacy_motors_started=False,
             account_basis='EXAMPLE_PAPER_ACCOUNT', initial_equity=CFG.paper_initial_equity,
@@ -653,7 +681,7 @@ def run(args):
         if previous_ops!=OPERATIONS_REVISION:
             store.event('OPERATIONS_REVISION',OPERATIONS_REVISION,
                         dict(previous=previous_ops,config_hash=CFG.fingerprint,
-                             provenance=store.provenance,change='individual_admission_durable_incremental_cache_and_expiry_health'))
+                             provenance=store.provenance,change='official_market_streams_durable_archive_cache_and_guarded_rest'))
             store.setting('operations_revision',OPERATIONS_REVISION)
         boot_key='system:charts:'+CHART_REVISION
         if not store.setting(boot_key):
@@ -714,7 +742,7 @@ def run(args):
                 advance(store, client)
                 health = scan(store, client, on_plan=lambda: telegram.flush(
                     store,client.now(),signals_enabled=True,clock=client.now))
-                if client.gate.state()['remaining_seconds']:
+                if _scan_blocked(client):
                     raise DataUnavailable('EXCHANGE_COOLDOWN')
                 if not health['complete']:
                     raise DataUnavailable('SCAN_EXPIRED' if health['status']=='EXPIRED' else 'SCAN_INCOMPLETE')
@@ -746,9 +774,9 @@ def run(args):
             # universe coverage cannot suppress that plan or position updates.
             telegram.flush(store, client.now(), signals_enabled=True, clock=client.now)
             progress=json.loads(store.setting(SCAN_STATE_KEY) or '{}')
-            if progress.get('status') in ('COMPLETE','EXPIRED') and not client.gate.state()['remaining_seconds']:
+            if progress.get('status') in ('COMPLETE','EXPIRED') and not _scan_blocked(client):
                 warm_scan_cache(store,client)
-                if not client.gate.state()['remaining_seconds']:
+                if not _scan_blocked(client):
                     next_close=(client.now()//CFG.entry_ms+1)*CFG.entry_ms
                     collect(store,client,stop_before_ms=next_close-15_000)
             now = client.now()
@@ -766,7 +794,7 @@ def run(args):
             if args.once:
                 return 0 if iteration_valid else 2
             active_progress=json.loads(store.setting(SCAN_STATE_KEY) or '{}')
-            STOP.wait(1 if active_progress.get('status')=='PENDING' and not client.gate.state()['remaining_seconds'] else 15)
+            STOP.wait(1 if active_progress.get('status')=='PENDING' and not _scan_blocked(client) else 15)
         return 0
 
 
@@ -777,6 +805,7 @@ def main():
     parser.add_argument('--telegram', action='store_true', help='Use only the existing configured destination')
     parser.add_argument('--state-root')
     parser.add_argument('--historical-research',action='store_true',help='Run resumable, bounded archive validation alongside paper observation')
+    parser.add_argument('--market-streams',action='store_true',help='Official Binance market streams and durable archive/cache before guarded REST')
     parser.add_argument('--recheck-unknown-cooldown', action='store_true',
                         help='One explicitly requested check of an assumed timer; known exchange deadlines are respected')
     args = parser.parse_args()

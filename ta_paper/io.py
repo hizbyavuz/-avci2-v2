@@ -54,12 +54,17 @@ class Binance:
         self.local_minute_requests = 0
         self.local_minute_weight = 0
         self.endpoint_usage = {}
+        self.streams = None
+
+    def stream_ready(self):
+        return self.streams is not None and self.streams.ready(self.now())
 
     def now(self):
         return int(time.time()*1000)+self.offset_ms
 
     def usage(self):
-        return dict(reported_ip_weight_1m=self.observed_weight,
+        return dict(stream=self.streams.status(self.now()) if self.streams else None,
+                    reported_ip_weight_1m=self.observed_weight,
                     reported_minute=self.observed_weight_window,
                     local_requests_since_start=self.local_requests,
                     local_estimated_weight_since_start=self.local_estimated_weight,
@@ -71,9 +76,18 @@ class Binance:
                     incremental_candle_fetches=self.incremental_fetches,
                     full_candle_fetches=self.full_fetches)
 
-    def get(self, endpoint, *, _unknown_recheck=False, **params):
+    def get(self, endpoint, *, _unknown_recheck=False, _fresh=False, **params):
         if endpoint not in self.ALLOWED:
             raise ValueError("NON_PUBLIC_ENDPOINT_REFUSED")
+        if self.streams and not _unknown_recheck and not _fresh and not params:
+            from .streams import StreamMissing
+            try:
+                if endpoint == '/fapi/v1/exchangeInfo':
+                    return self.streams.cached_metadata(self.now())
+                if endpoint == '/fapi/v1/ticker/24hr':
+                    return self.streams.cached_tickers(self.now())
+            except StreamMissing:
+                pass  # REST fallback must still pass the durable gate.
         if _unknown_recheck and (endpoint != '/fapi/v1/time' or params):
             raise ValueError('RECHECK_TIME_ENDPOINT_ONLY')
         weight=request_weight(endpoint,params)
@@ -112,7 +126,10 @@ class Binance:
                     self.gate.block((self.now()//MINUTE+1)*MINUTE+2000-self.offset_ms,
                                     'SHARED_IP_WEIGHT_HIGH', 'WEIGHT_HEADER')
                     print('TA_PAPER_REQUEST_USAGE '+encode(self.usage()),flush=True)
-                return json.loads(raw)
+                data = json.loads(raw)
+                if self.streams and endpoint == '/fapi/v1/exchangeInfo':
+                    self.streams.set_metadata(data,self.now())
+                return data
         except urllib.error.HTTPError as exc:
             if exc.code in (418, 429, 451, 403):
                 raw = exc.read(8192)
@@ -130,6 +147,10 @@ class Binance:
             raise DataUnavailable(type(exc).__name__) from None
 
     def sync_time(self):
+        if self.stream_ready():
+            # Fresh exchange events constrain clock/latency to the same 5s
+            # bound. Never turn one-way network delay into a clock offset.
+            return
         begin = int(time.time()*1000)
         payload = self.get('/fapi/v1/time')
         end = int(time.time()*1000)
@@ -160,6 +181,15 @@ class Binance:
         return True
 
     def candles(self, symbol, interval, limit=120, **params):
+        if self.streams:
+            from .streams import StreamMissing
+            try:
+                return self.streams.candles(symbol,interval,self.now(),limit,**params)
+            except StreamMissing as exc:
+                if str(exc) == 'CLOSED_CANDLE_CHANGED':
+                    raise DataUnavailable(str(exc)) from None
+                # Yesterday's archive cannot fabricate today's missing bars.
+                # Bootstrap and gap repair below still obey the REST gate.
         # Reuse only verified, immutable closed bars. The decision window and
         # EMA warmup length remain the same as the full latest-N response.
         period = {'30m': 30*MINUTE, '4h': 240*MINUTE}.get(interval)
@@ -234,7 +264,7 @@ class Binance:
         return rows
 
 
-def tradable(market, ticker, now, cfg=CFG):
+def market_eligible(market, now, cfg=CFG):
     if any(market.get(k) != v for k, v in dict(status='TRADING', contractType='PERPETUAL',
                                               quoteAsset='USDT', marginAsset='USDT',
                                               underlyingType='COIN').items()):
@@ -248,6 +278,12 @@ def tradable(market, ticker, now, cfg=CFG):
         return False
     onboard = int(market.get('onboardDate', 0))
     if onboard <= 0 or now-onboard < cfg.min_listing_days*86_400_000:
+        return False
+    return True
+
+
+def tradable(market, ticker, now, cfg=CFG):
+    if not market_eligible(market,now,cfg):
         return False
     if not ticker or ticker.get('symbol') != market.get('symbol'):
         return False
