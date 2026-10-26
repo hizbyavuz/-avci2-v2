@@ -12,13 +12,19 @@ import urllib.request
 import uuid
 import zlib
 
-from .core import CFG, MINUTE, finite
+from .core import CFG, MINUTE, finite, closed_bars
 from .rate_limit import CooldownError, RequestGate, request_weight, retry_deadline
 from .provenance import identity
 
 
 class DataUnavailable(RuntimeError):
     pass
+
+
+class BookRejected(ValueError):
+    def __init__(self, reason, evidence):
+        super().__init__(reason)
+        self.evidence = evidence
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -31,27 +37,65 @@ class Binance:
                          '/fapi/v1/ticker/24hr', '/fapi/v1/klines',
                          '/fapi/v1/depth', '/fapi/v1/fundingRate'])
 
-    def __init__(self, cooldown_path=None, legacy=None):
+    def __init__(self, cooldown_path=None, legacy=None, candle_store=None):
         self.gate = RequestGate(cooldown_path, legacy)
         self.cache_lock = threading.Lock()
         self.candle_cache = {}
+        self.candle_store = candle_store
+        self.cache_hits = 0
+        self.incremental_fetches = 0
+        self.full_fetches = 0
         self.offset_ms = 0
         self.observed_weight = 0
+        self.observed_weight_window = None
+        self.local_requests = 0
+        self.local_estimated_weight = 0
+        self.local_minute = None
+        self.local_minute_requests = 0
+        self.local_minute_weight = 0
+        self.endpoint_usage = {}
 
     def now(self):
         return int(time.time()*1000)+self.offset_ms
+
+    def usage(self):
+        return dict(reported_ip_weight_1m=self.observed_weight,
+                    reported_minute=self.observed_weight_window,
+                    local_requests_since_start=self.local_requests,
+                    local_estimated_weight_since_start=self.local_estimated_weight,
+                    local_request_minute=self.local_minute,
+                    local_requests_1m=self.local_minute_requests,
+                    local_estimated_weight_1m=self.local_minute_weight,
+                    endpoint_usage=self.endpoint_usage.copy(),
+                    protective_threshold=1000, candle_cache_hits=self.cache_hits,
+                    incremental_candle_fetches=self.incremental_fetches,
+                    full_candle_fetches=self.full_fetches)
 
     def get(self, endpoint, *, _unknown_recheck=False, **params):
         if endpoint not in self.ALLOWED:
             raise ValueError("NON_PUBLIC_ENDPOINT_REFUSED")
         if _unknown_recheck and (endpoint != '/fapi/v1/time' or params):
             raise ValueError('RECHECK_TIME_ENDPOINT_ONLY')
+        weight=request_weight(endpoint,params)
+        if (not _unknown_recheck and self.observed_weight_window==self.now()//MINUTE and
+                self.observed_weight+weight>1000):
+            self.gate.block((self.now()//MINUTE+1)*MINUTE+2000-self.offset_ms,
+                            'SHARED_IP_WEIGHT_HIGH','WEIGHT_HEADER')
         try:
-            self.gate.acquire(request_weight(endpoint, params), unknown_recheck=_unknown_recheck)
+            self.gate.acquire(weight, unknown_recheck=_unknown_recheck)
         except CooldownError as exc:
             raise DataUnavailable(str(exc)) from None
         # One official host, no proxy/venue fallback or region switching.
         url = 'https://fapi.binance.com'+endpoint+'?'+urllib.parse.urlencode(params)
+        self.local_requests+=1
+        self.local_estimated_weight+=weight
+        minute = self.now()//MINUTE
+        if minute != self.local_minute:
+            self.local_minute = minute
+            self.local_minute_requests = self.local_minute_weight = 0
+        self.local_minute_requests += 1
+        self.local_minute_weight += weight
+        self.endpoint_usage[endpoint] = self.endpoint_usage.get(endpoint, 0)+weight
         req = urllib.request.Request(url, headers={'User-Agent': 'TA-Paper-Research/1',
                                                   'Accept-Encoding': 'gzip'}, method='GET')
         try:
@@ -63,9 +107,11 @@ class Binance:
                     raw = gzip.decompress(raw)
                 used = int(resp.headers.get('X-MBX-USED-WEIGHT-1M', 0))
                 self.observed_weight = used
+                self.observed_weight_window = self.now()//MINUTE
                 if used >= 1000:
-                    self.gate.block((self.now()//MINUTE+1)*MINUTE+2000,
+                    self.gate.block((self.now()//MINUTE+1)*MINUTE+2000-self.offset_ms,
                                     'SHARED_IP_WEIGHT_HIGH', 'WEIGHT_HEADER')
+                    print('TA_PAPER_REQUEST_USAGE '+encode(self.usage()),flush=True)
                 return json.loads(raw)
         except urllib.error.HTTPError as exc:
             if exc.code in (418, 429, 451, 403):
@@ -114,21 +160,61 @@ class Binance:
         return True
 
     def candles(self, symbol, interval, limit=120, **params):
-        # A 4h context is identical across the eight 30m scans between closes.
+        # Reuse only verified, immutable closed bars. The decision window and
+        # EMA warmup length remain the same as the full latest-N response.
         period = {'30m': 30*MINUTE, '4h': 240*MINUTE}.get(interval)
         key = (symbol, interval, limit)
-        slot = (self.now()-CFG.publication_delay_ms)//period if period else None
-        if period and not params:
+        now = self.now()
+        slot = (now-CFG.publication_delay_ms)//period if period else None
+        cached = None
+        use_cache = period and not params and limit == CFG.history_bars
+        if use_cache:
             with self.cache_lock:
                 cached = self.candle_cache.get(key)
-                if cached and cached[0] == slot:
-                    return cached[1]
-        data = self.get('/fapi/v1/klines', symbol=symbol, interval=interval, limit=limit, **params)
+            if not cached and self.candle_store:
+                # These are already append-only evidence, retained across deploys.
+                rows = self.candle_store.recent_candles(symbol, interval, limit-1)
+                if rows:
+                    try:
+                        closed_bars(rows,period,now,require_current=False)
+                        cached = (int(rows[-1][0])//period+1, rows)
+                    except ValueError:
+                        cached = None
+            if cached and cached[0] == slot:
+                closed_bars(cached[1],period,now)
+                self.cache_hits += 1
+                with self.cache_lock:
+                    self.candle_cache[key] = cached
+                return cached[1]
+        incremental = bool(use_cache and cached and 0 < slot-cached[0] < 98)
+        if incremental:
+            # Include one closed overlap to detect revisions, and the open bar
+            # to retain exactly the original latest-N window after merging.
+            count = slot-cached[0]+2
+            data = self.get('/fapi/v1/klines',symbol=symbol,interval=interval,
+                            limit=count,startTime=(cached[0]-1)*period)
+            self.incremental_fetches += 1
+        else:
+            data = self.get('/fapi/v1/klines', symbol=symbol, interval=interval, limit=limit, **params)
+            if use_cache:self.full_fetches += 1
         if not isinstance(data, list):
             raise DataUnavailable("INVALID_KLINES_RESPONSE")
-        if period and not params:
+        if use_cache:
+            if incremental:
+                incoming = closed_bars(data,period,now,minimum=1)
+                old = {int(row[0]): row for row in cached[1]}
+                for row in incoming:
+                    if row[0] in old and closed_bars([old[row[0]]],period,now,minimum=1,require_current=False)[0] != row:
+                        raise DataUnavailable('CLOSED_CANDLE_CHANGED')
+                # Never join around a missing new candle or fabricate a bar.
+                combined = dict(old)
+                combined.update({int(row[0]):row for row in data})
+                data = [combined[k] for k in sorted(combined)][-limit:]
+            verified = closed_bars(data,period,now)
+            if self.candle_store:self.candle_store.candles(symbol,interval,verified)
             with self.cache_lock:
-                self.candle_cache[key] = (slot, data)
+                self.candle_cache[key] = (slot, verified)
+            return verified
         return data
 
     def funding(self, symbol, start, end):
@@ -169,35 +255,56 @@ def tradable(market, ticker, now, cfg=CFG):
     return 0 <= age <= 120_000 and finite(ticker.get('quoteVolume', 0)) >= cfg.min_quote_volume
 
 
-def book_check(book, now, direction, notional, cfg=CFG):
+def book_quote(book, now, cfg=CFG):
+    """Validate the quote before it is used to size a proposed position."""
     if not 0 <= now-int(book.get('E', 0)) <= cfg.max_book_age_ms:
         raise ValueError("STALE_BOOK")
     bids, asks = book['bids'], book['asks']
+    if not bids or not asks:
+        raise ValueError('EMPTY_BOOK')
     bid, ask = finite(bids[0][0], True), finite(asks[0][0], True)
     if ask < bid or (ask-bid)/((ask+bid)/2) > cfg.max_spread_fraction:
         raise ValueError("SPREAD_TOO_WIDE")
+    return dict(bid=bid, ask=ask, spread=(ask-bid)/((ask+bid)/2),
+                observed_ms=now, event_ms=int(book['E']))
+
+
+def book_check(book, now, direction, notional, cfg=CFG, *, quantity=None):
+    evidence = book_quote(book, now, cfg)
+    bids, asks = book['bids'], book['asks']
+    bid, ask = evidence['bid'], evidence['ask']
+    if direction not in ('LONG', 'SHORT'):
+        raise ValueError('INVALID_DIRECTION')
     levels = asks if direction == 'LONG' else bids
-    remaining, quantity = notional, 0.0
+    by_quantity = quantity is not None
+    requested = finite(quantity if by_quantity else notional, True)
+    tolerance = max(1e-14,requested*1e-12) if by_quantity else 1e-8
+    remaining, filled_quantity, filled_notional = requested, 0.0, 0.0
+    evidence.update(planned_notional=finite(notional, True),
+                    requested_quantity=quantity, impact_limit=cfg.entry_slippage)
     last_price = None
     for raw_price, raw_qty in levels:
         price, qty = finite(raw_price, True), finite(raw_qty, True)
         if last_price is not None and ((direction == 'LONG' and price < last_price) or
                                       (direction == 'SHORT' and price > last_price)):
             raise ValueError("UNSORTED_BOOK")
-        take = min(remaining, price*qty)
-        quantity += take/price
+        take = min(remaining, qty if by_quantity else price*qty)
+        units = take if by_quantity else take/price
+        filled_quantity += units
+        filled_notional += units*price
         remaining -= take
         last_price = price
-        if remaining <= 1e-8:
+        if remaining <= tolerance:
             break
-    if remaining > 1e-8:
-        raise ValueError("INSUFFICIENT_BOOK_DEPTH")
-    vwap = notional/quantity
+    if remaining > tolerance:
+        raise BookRejected("INSUFFICIENT_BOOK_DEPTH",dict(evidence,remaining=remaining))
+    vwap = filled_notional/filled_quantity
     best = ask if direction == 'LONG' else bid
-    if abs(vwap/best-1) > cfg.entry_slippage:
-        raise ValueError("BOOK_IMPACT_EXCEEDS_MODEL")
-    return dict(bid=bid, ask=ask, spread=(ask-bid)/((ask+bid)/2), vwap=vwap,
-                observed_ms=now, event_ms=int(book['E']))
+    evidence.update(vwap=vwap, impact_fraction=abs(vwap/best-1),
+                    checked_quantity=filled_quantity, checked_notional=filled_notional)
+    if evidence['impact_fraction'] > cfg.entry_slippage:
+        raise BookRejected("BOOK_IMPACT_EXCEEDS_MODEL", evidence)
+    return evidence
 
 
 def encode(value):
@@ -226,6 +333,8 @@ class Store:
           CREATE TABLE IF NOT EXISTS observations(id TEXT PRIMARY KEY,symbol TEXT,start_ms INTEGER,
             end_ms INTEGER,cursor_ms INTEGER,status TEXT,next_fetch_ms INTEGER,attempts INTEGER,
             repairs INTEGER,payload TEXT);
+          CREATE TABLE IF NOT EXISTS watch_candidates(id TEXT PRIMARY KEY,symbol TEXT,
+            created_ms INTEGER,valid_until_ms INTEGER,status TEXT,payload TEXT);
           CREATE INDEX IF NOT EXISTS events_kind ON events(kind);
           CREATE INDEX IF NOT EXISTS observation_fetch ON observations(status,next_fetch_ms);
         ''')
@@ -302,6 +411,11 @@ class Store:
                                (p['symbol'], p['candle_ms'])).fetchall()
         return [json.loads(r[0]) for r in reversed(rows)]
 
+    def recent_candles(self, symbol, tf, limit):
+        rows = self.db.execute('SELECT payload FROM candles WHERE symbol=? AND tf=? '
+                               'ORDER BY open_ms DESC LIMIT ?', (symbol,tf,limit)).fetchall()
+        return [json.loads(r[0]) for r in reversed(rows)]
+
     def legacy_cooldown(self):
         # The first release retained the ban event, but not Retry-After. Preserve
         # the documented upper bound rather than resetting it on deployment.
@@ -346,14 +460,45 @@ class Telegram:
     def ready(self):
         return bool(self.token and self.chat)
 
-    def flush(self, store, now, signals_enabled=True):
+    def flush(self, store, now, signals_enabled=True, clock=None):
         if not self.ready:
             return 0
         if now < int(store.setting('telegram_retry_at_ms') or 0):
             return 0
         delivered = 0
         for row in store.db.execute("SELECT * FROM outbox WHERE state='PENDING' AND retry_at_ms<=? "
-                                    "AND (? OR key LIKE 'system:%') ORDER BY ms LIMIT 5", (now,signals_enabled)).fetchall():
+                                    "AND (? OR key LIKE 'system:%') "
+                                    "AND (key LIKE 'system:%' OR EXISTS (SELECT 1 FROM plans WHERE "
+                                    "outbox.key IN (plans.id||':PENDING',plans.id||':OPEN',"
+                                    "plans.id||':CLOSED',plans.id||':CANCELLED')) OR "
+                                    "EXISTS (SELECT 1 FROM watch_candidates WHERE outbox.key='watch:'||watch_candidates.id)) "
+                                    "ORDER BY CASE WHEN key LIKE 'system:%' THEN 2 "
+                                    "WHEN key LIKE 'watch:%' THEN 1 ELSE 0 END,ms LIMIT 5", (now,signals_enabled)).fetchall():
+            # Earlier deliveries can block for seconds; don't send a plan that
+            # expired while waiting behind another notification.
+            if clock is not None:
+                now = clock()
+            if row['key'].startswith('watch:'):
+                candidate=store.db.execute('SELECT * FROM watch_candidates WHERE id=?',(row['key'][6:],)).fetchone()
+                has_plan=store.db.execute('SELECT 1 FROM plans WHERE id=?',(row['key'][6:],)).fetchone()
+                if not candidate or candidate['status']!='ACTIVE' or now>candidate['valid_until_ms'] or has_plan:
+                    store.db.execute("UPDATE outbox SET state='STALE' WHERE key=?",(row['key'],))
+                    store.db.commit();continue
+            elif not row['key'].startswith('system:'):
+                plan_id,_,notice_status=row['key'].rpartition(':')
+                saved=store.db.execute('SELECT payload FROM plans WHERE id=?',(plan_id,)).fetchone()
+                if not saved:
+                    # Only durable, individually admitted plans can be delivered
+                    # independently of the global Binance request guard.
+                    continue
+                if saved:
+                    plan=json.loads(saved[0])
+                    superseded=(notice_status in ('PENDING','OPEN') and plan['status']!=notice_status)
+                    late_entry=(notice_status=='PENDING' and now>=plan['entry_ms'])
+                    if superseded or late_entry:
+                        store.db.execute("UPDATE outbox SET state='STALE' WHERE key=?",(row['key'],))
+                        store.db.commit()
+                        continue
             if now-row['ms'] > 10*MINUTE:
                 store.db.execute("UPDATE outbox SET state='STALE' WHERE key=?", (row['key'],))
                 store.db.commit()
@@ -416,3 +561,4 @@ def photo_body(chat, caption, photo):
                   'Content-Type: image/png\r\n\r\n').encode()+photo+b'\r\n')
     parts.append(f'--{boundary}--\r\n'.encode())
     return b''.join(parts), 'multipart/form-data; boundary='+boundary
+

@@ -5,9 +5,69 @@ ve eski daemon'ları başlatmaz. Otomatik borsa emri, hesap erişimi, para trans
 ve gerçek kaldıraç ayarlama kodu yoktur. Telegram yalnız önceden yapılandırılmış
 kullanıcı adresine, `--telegram` açıkken gönderilir.
 
-**Durum: V1.1 kodu test ediliyor; dağıtım teyidi bu dosyada varsayılmaz.
-Son doğrulanan canlı sürüm 138b545, N=0 ve Binance HTTP 418 beklemesindedir.
-V1.1 kârlılık iddiası taşımaz.**
+**Durum: `89f6256`, 26 Ekim 2026 21:13 TSİ'de
+`ADMISSION_DELIVERY_20261026_4` kimliğiyle canlıda doğrulandı.
+Aşağıdaki yeni teknik aday bildirimlerinin yayına alındığı bu dosyada
+varsayılmaz. V1.1 kârlılık iddiası taşımaz.**
+
+## Teknik aday bildirimleri — TECHNICAL_WATCH_20261026_1
+
+Kullanıcının isteğiyle teknik aday görünürlüğü, örnek paper hesabın işlem
+kabulünden ayrıldı. Mevcut ve değişmeyen `assess` fonksiyonunun SETUP ürettiği
+coin; örnek hesap kapasitesi, risk bütçesi, aynı coin beklemesi, masraf veya
+emir defteri etkisi nedeniyle portföye alınamasa da grafikli **LONG/SHORT
+İÇİN İZLE** kartı üretir. Defter alınamamışsa doğrulanamadığı açıkça yazılır.
+Kart sinyal kapanışını, teknik stop/hedefi, kovalama sınırını ve ret/bekleme
+gerekçesini gösterir; işlem onayı, uygulanabilir fiyat veya gerçekleşmiş
+giriş iddiası taşımaz. Giriş ve büyüklük kararı kullanıcıya aittir.
+
+Bu gözlem katmanı `watch_candidates` tablosunda ayrı tutulur. Paper pozisyon,
+kabul, kâr/zarar ve başarı istatistiği yaratmaz; çekirdek eşikleri değiştirmez.
+Teknik koşulu oluşmayan veya karar mumları doğrulanamayan coin aday yapılmaz.
+Kapanıştan sonraki değişmeyen beş dakikalık pencerede bir setup için tek
+izleme bildirimi vardır. Süresi geçmiş eski adaylar deploy sonrası yollanmaz.
+Aynı setup portföye kabul edilirse mevcut plan kartı kullanılır; bekleyen
+izleme kartı iptal edilir. Daha önce teslim edilmiş izleme kartı tekrarlanmaz.
+Sadece gözlem uyarısı için ek Binance isteği yapılmaz.
+
+`TECHNICAL_WATCH_20261026_5` operasyon sürümü: 95 çevrimdışı test; defter reddi,
+dolu portföy ve geçici veri beklemesindeki görünürlük, eksik mumda aday
+üretmeme, restart/tekrar koruması, geçerlilik süresi, LONG/SHORT kartları ve
+paper istatistiğinin değişmemesi kapsandı. Yayın ve canlı teslim ayrıca
+doğrulanmalıdır.
+
+## ADMISSION_DELIVERY_20261026_4 düzeltmesi
+
+Emir defteri etkisi, yarım spread eklenmeden hesaplanmış geçici tutar yerine
+nihai risk hesabındaki miktarla kontrol edilir. LONG ve SHORT için aynı
+defterde geçici tutarın reddedilip nihai miktarın geçtiği regresyon örnekleri
+vardır. %0,02 etki ve %0,10 spread sınırları korunur; geçebilmek için sonradan
+miktar küçültülmez. Kabul ve retlerde kullanılan defter saklanır; sembol,
+miktar, VWAP, ölçülen etki ve sınır loglara yazılır. Önceki iki canlı reddin
+defterleri saklanmadığından bunların yanlış ret olduğu iddia edilmez.
+
+Kalıcı kaydı ve kendi veri/defter/risk doğrulaması olan plan, giriş zamanı
+gelmeden taramanın diğer sembollerini beklemeden Telegram'a gönderilir.
+Sonraki Binance koruma beklemesi bu bildirimi engellemez. Plan bildirimi
+sağlık mesajlarından önce işlenir; her gönderim öncesi saat yeniden kontrol
+edilir. Süresi geçen, geçersizleşen veya kaydı olmayan plan gönderilmez.
+Telegram 429 beklemesi ve belirsiz teslimi tekrar etmeme davranışı korunur.
+
+Tamamlanmış tarama, arka plandaki gözlem toplama beklemesi nedeniyle tekrar
+"veri bekleniyor/tarama tamamlandı" döngüsüne girmez. Her tamamlanan turda
+teknik aday, kabul edilen plan ve eleme gerekçeleri bildirilir. Gerçek 418
+beklemesinin kesin zamanı ayrıca bildirilir. Bu bölüm, aşağıdaki önceki
+bildirim davranışına ilişkin tarihsel notların güncel karşılığıdır.
+
+1 dakikalık gözlem ve pozisyon takibinde istek limiti gereken mum sayısına
+indirilir. Örneğin üç mumluk istek ağırlığı 5 yerine 1 olur. Karar verisi,
+gözlem ufku, risk/strateji eşikleri ve 418/429 korumaları değişmez. Yerel
+dakikalık kullanım ve uç nokta toplamları IP başlığından ayrı raporlanır;
+başka IP kullanıcılarının kimliği bu sayaçlardan çıkarılamaz.
+
+Doğrulama: 87 çevrimdışı test. Çekirdek config hash
+`f4485acc0340fb6352cde17558ada6f53459bafa486793423792c3b4e2ccdedd`
+değişmez. Bu düzeltme Ağustos keşif testinin negatif sonucunu değiştirmez.
 
 V1.1 strateji eşiklerini değiştirmez. Canlı bid/ask referansındaki ikinci yarım
 spread eklemesi kaldırıldı. Yapılandırma kimliği sürüm nedeniyle değişti;
@@ -299,3 +359,35 @@ Telegram'a bir araştırma özeti yollar. Hata veya eksik veri başarı diye sun
 
 Tek sembollü yazılım denemesi, tüm evren doğrulaması değildir. Dağıtım/log
 teyidi olmadan bu arka plan işinin sunucuda çalıştığı söylenemez.
+
+
+
+## Operations revision SCAN_RESUME_20261026_2
+
+Historical revision: the all-universe admission gate below was found to be too restrictive in production and is superseded by SCAN_FLOW_20261026_3. Its incident evidence is retained.
+
+Fixes the incident where a 21/314 scan was marked as processed and a later successful clock request produced a misleading recovery notification. Strategy Config and its fingerprint remain unchanged; the running source hash and an OPERATIONS_REVISION event identify this intervention. Existing paper state, observations, bans and archived failures are retained.
+
+- Each 30-minute slot keeps a durable universe and per-symbol progress in `scan_progress_v2`. Successful symbols and the universe are reused across retry/restart. Pausing stops the work queue immediately; untouched symbols are pending, not hundreds of fictitious request failures.
+- Requests are serial and paced by the same gate. A work slice is bounded by 64 symbols or 45 seconds (a request timeout may finish after that soft bound), so position management can run between slices.
+- Failed symbols retry no sooner than one minute or the exchange deadline, whichever is later. Estimated next-request weight is checked against the existing protective 1000 threshold; the 600-weight/minute local pacing and all exchange deadlines remain in force. No alternate host, IP, region, proxy or trading endpoint is introduced.
+- All universe assessments must be present before portfolio admission and READY. Book/data failures during admission remain retryable. This is an operational data-health gate; EMA, setup, sizing, stop, target and entry-delay parameters are unchanged.
+- The existing five-minute entry window is preserved. Unfinished work expires explicitly, preserving partial evidence and observational setups; stale signals are never backfilled as live entries. A new candle starts a new universe. COMPLETE and EXPIRED are separate terminal results.
+- SCAN_PROGRESS is append-only retry evidence; only terminal SCAN_HEALTH records count as new scan outcomes. Old historical partial records remain untouched. The old last_scan_slot field is no longer trusted as evidence of completeness.
+- Telegram recovery requires a complete scan, not merely a successful time response. Waiting notifications include coverage and are coalesced to at most one per 15 minutes within a health class; genuine class changes still notify. Exact timers and causes remain in events/logs. Existing sample-chart delivery is not replayed.
+- Logs distinguish reported IP usage from this process's own request totals. A high IP counter alone does not identify another tenant or prove who caused it.
+
+Validation: 64 offline unit/integration tests, including interrupted scans, durable restart, untouched-symbol accounting, five-minute expiry, new-slot recovery, bounded slices, deferred book retry, no duplicate plans, no false READY, notification coalescing and pre-request quota protection. Existing 54 tests and frozen-parameter check remain included. Live exchange availability and profitability are not established by these tests.
+
+## Operations revision SCAN_FLOW_20261026_3
+
+The 19:30 Istanbul scan on 26 October assessed 217/318 symbols and found 55 observational setups, but expired at 19:35 with no admissions. The previous operations patch incorrectly coupled every plan to complete universe coverage. The original research protocol treats coverage as a reported metric, not an extra strategy threshold.
+
+- Restore individual admission: each symbol still needs valid current closed 30m/4h bars, an in-window decision, a fresh executable order book, and unchanged sizing/risk/cooldown checks. Missing data on another symbol cannot veto it. Incomplete coverage remains PENDING/EXPIRED and is never called a complete scan or zero opportunities.
+- Evaluate in descending snapshot quote-volume order, with symbol as tie-break, and handle setups promptly. Unavailable symbols remain explicit retryable data issues; a failed book cannot become a fabricated fill. Work slices are at most 32 symbols/15 seconds, with one-second yields during unblocked scans; all HTTP calls retain the same 600-weight/minute pacing and protective 1000 IP threshold.
+- Reuse validated closed candles from the durable evidence database after restart. Current 4h context needs no new request. At the next close fetch the changed tail and one overlapping closed candle; reject changed overlaps, gaps and stale responses. Merge into the same latest-120 response window, excluding open candles from assessment. Keep only bounded per-symbol memory windows.
+- Prepare missing candle history in small background slices outside the five-minute admission window. Pause warming before the next candle close and during exchange cooldowns. Observation collection yields before that close as well. No new host, proxy, region, API key, order endpoint or quota increase.
+- Valid partial-scan plans can reach Telegram when the exchange cooldown is clear. Late PENDING and superseded PENDING/OPEN messages are marked STALE. Existing exchange-outage suppression remains. Expired-scan notices explicitly show the next fresh scan, rather than suggesting the old scan will resume after a minute-level retry timer.
+- Config hash remains `f4485acc0340fb6352cde17558ada6f53459bafa486793423792c3b4e2ccdedd`. Operational revision/source identity distinguishes this intervention and changed admission timing; aggregate different revisions cautiously. Previous observations, failures, paper positions and exchange deadlines are retained.
+
+Offline validation includes individual admission with a missing peer, liquidity ordering, deadline crossed during book retrieval, partial-scan notification eligibility without false READY, expiration notices, stale-notice suppression, restart reuse, 4h rollover, conflicting/gapped data rejection and a 318-symbol full-versus-incremental equality check. With warm 4h context that fixture uses 318 candle-request weight instead of 1272 for cold full histories; this excludes universe, position, book and observation requests and does not guarantee live completion or profitability.

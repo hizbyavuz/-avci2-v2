@@ -150,7 +150,9 @@ class RateLimitTests(unittest.TestCase):
             client.candles('TESTUSDT','4h')
             self.assertEqual(get.call_count,1)
             clock.return_value=NOW+CFG.context_ms
-            client.candles('TESTUSDT','4h')
+            # A response from the old close must now be rejected, not cached.
+            with self.assertRaisesRegex(ValueError,'STALE_CANDLES'):
+                client.candles('TESTUSDT','4h')
             self.assertEqual(get.call_count,2)
 
     def test_legacy_migration_does_not_reactivate_a_known_banned_ip(self):
@@ -241,18 +243,18 @@ class ChartAndDeliveryTests(unittest.TestCase):
     def test_ambiguous_delivery_is_not_resent_and_429_wait_is_respected(self):
         with tempfile.TemporaryDirectory() as d:
             now=int(time.time()*1000)
-            store=Store(Path(d)/'s.db');store.queue('one','test',now)
+            store=Store(Path(d)/'s.db');store.queue('system:one','test',now)
             telegram=Telegram(d);telegram.token='TEST';telegram.chat='123'
             with patch('urllib.request.build_opener') as make,redirect_stdout(StringIO()):
                 make.return_value.open.side_effect=TimeoutError('sensitive url must not print')
                 telegram.flush(store,now);telegram.flush(store,now+1)
                 self.assertEqual(make.return_value.open.call_count,1)
                 self.assertEqual(store.db.execute('SELECT state FROM outbox').fetchone()[0],'DELIVERY_UNKNOWN')
-                store.queue('two','test',now)
+                store.queue('system:two','test',now)
                 make.return_value.open.side_effect=urllib.error.HTTPError('https://api.telegram.org',429,'rate',{},BytesIO(b'{"parameters":{"retry_after":120}}'))
                 telegram.flush(store,now);telegram.flush(store,now+60_000)
                 self.assertEqual(make.return_value.open.call_count,2)
-                self.assertEqual(store.db.execute("SELECT state FROM outbox WHERE key='two'").fetchone()[0],'PENDING')
+                self.assertEqual(store.db.execute("SELECT state FROM outbox WHERE key='system:two'").fetchone()[0],'PENDING')
 
     def test_system_photo_and_health_are_sent_while_exchange_is_blocked(self):
         with tempfile.TemporaryDirectory() as d:
@@ -277,3 +279,4 @@ class ChartAndDeliveryTests(unittest.TestCase):
 
 
 if __name__=='__main__': unittest.main()
+
