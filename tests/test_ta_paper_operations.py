@@ -170,7 +170,7 @@ class ChartAndDeliveryTests(unittest.TestCase):
     def test_runner_recheck_reports_real_deadline_and_never_repeats_on_restart(self):
         with tempfile.TemporaryDirectory() as d:
             now=int(time.time()*1000)
-            folder=Path(d)/'ta_paper_v1_20261026';folder.mkdir()
+            folder=Path(d)/CFG.version.lower();folder.mkdir()
             store=Store(folder/'research.sqlite3')
             store.event('DATA_HEALTH_INVALID','runtime',{'reason':'BINANCE_HTTP_418'},now)
             store.setting('system:charts:CHARTS_20261026_1','queued')
@@ -257,7 +257,7 @@ class ChartAndDeliveryTests(unittest.TestCase):
     def test_system_photo_and_health_are_sent_while_exchange_is_blocked(self):
         with tempfile.TemporaryDirectory() as d:
             now=int(time.time()*1000)
-            folder=Path(d)/'ta_paper_v1_20261026';folder.mkdir()
+            folder=Path(d)/CFG.version.lower();folder.mkdir()
             store=Store(folder/'research.sqlite3')
             store.event('DATA_HEALTH_INVALID','runtime',{'reason':'BINANCE_HTTP_418'},now)
             store.queue('a-trade-plan','DO NOT SEND DURING OUTAGE',now)

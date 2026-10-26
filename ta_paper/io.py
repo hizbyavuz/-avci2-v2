@@ -14,6 +14,7 @@ import zlib
 
 from .core import CFG, MINUTE, finite
 from .rate_limit import CooldownError, RequestGate, request_weight, retry_deadline
+from .provenance import identity
 
 
 class DataUnavailable(RuntimeError):
@@ -208,6 +209,7 @@ class Store:
         Path(path).parent.mkdir(parents=True, exist_ok=True)
         self.db = sqlite3.connect(path, timeout=10)
         self.db.row_factory = sqlite3.Row
+        self.provenance = identity()
         self.db.executescript('''
           PRAGMA journal_mode=WAL;
           PRAGMA synchronous=FULL;
@@ -221,6 +223,11 @@ class Store:
             direction TEXT,created_ms INTEGER,payload TEXT);
           CREATE TABLE IF NOT EXISTS outbox(key TEXT PRIMARY KEY,ms INTEGER,text TEXT,state TEXT,message_id TEXT);
           CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY,value TEXT);
+          CREATE TABLE IF NOT EXISTS observations(id TEXT PRIMARY KEY,symbol TEXT,start_ms INTEGER,
+            end_ms INTEGER,cursor_ms INTEGER,status TEXT,next_fetch_ms INTEGER,attempts INTEGER,
+            repairs INTEGER,payload TEXT);
+          CREATE INDEX IF NOT EXISTS events_kind ON events(kind);
+          CREATE INDEX IF NOT EXISTS observation_fetch ON observations(status,next_fetch_ms);
         ''')
         columns = {r[1] for r in self.db.execute('PRAGMA table_info(outbox)')}
         if 'photo' not in columns:
@@ -256,6 +263,8 @@ class Store:
         self.db.commit()
 
     def assessment(self, p):
+        for k,v in self.provenance.items():
+            p.setdefault(k,v)
         key = f"{p['symbol']}:{p['candle_ms']}:{p['config_hash']}"
         cur = self.db.execute('INSERT OR IGNORE INTO assessments VALUES(?,?,?,?)',
                               (key, p['observed_ms'], p['symbol'], encode(p)))
@@ -263,6 +272,8 @@ class Store:
         return cur.rowcount == 1
 
     def save(self, p):
+        for k,v in self.provenance.items():
+            p.setdefault(k,v)
         self.db.execute('INSERT INTO plans VALUES(?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET '
                         'status=excluded.status,payload=excluded.payload',
                         (p['id'], p['config_hash'], p['status'], p['symbol'], p['direction'],
@@ -274,7 +285,7 @@ class Store:
     def plans(self, active=False):
         sql = 'SELECT payload FROM plans'
         if active:
-            sql += " WHERE status IN ('PENDING','OPEN','FUNDING_PENDING','DATA_HOLD')"
+            sql += " WHERE status IN ('PENDING','OPEN','FUNDING_PENDING','DATA_HOLD','UNRESOLVED_DATA')"
         return [json.loads(r[0]) for r in self.db.execute(sql)]
 
     def setting(self, key, value=None):

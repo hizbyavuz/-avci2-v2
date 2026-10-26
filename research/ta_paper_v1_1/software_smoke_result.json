@@ -1,0 +1,1253 @@
+{
+  "classification": "SINGLE_SYMBOL_SOFTWARE_SMOKE_TEST_NOT_FULL_VALIDATION",
+  "symbol": "1000SHIBUSDT",
+  "period": "2026-08",
+  "source": {
+    "git_commit": "138b5450040e4d46a112ec5d411b7dc0d5fa05fe",
+    "source_sha256": "8d7881ca7a92bec05df7e61ce0cb39979a8a9deca75f9e67802f294e0fc8489a",
+    "working_tree_dirty": true
+  },
+  "full_universe_complete": false,
+  "peak_rss_mib": 121.8359375,
+  "elapsed_seconds": 2.1370024229981937,
+  "base_results": {
+    "strategy": {
+      "all_setups": {
+        "all": {
+          "status_counts": {
+            "ADMISSION_REJECTED": 7,
+            "CLOSED": 14,
+            "CANCELLED": 1
+          },
+          "n_closed": 14,
+          "n_entry_days": 11,
+          "mean_net_r": -0.08349161959110687,
+          "win_rate": 0.35714285714285715,
+          "mean_funding_usdt": 0.0024210550581430083,
+          "day_block_ci90": {
+            "lo90": -0.5383671056546794,
+            "hi90": 0.38572607152604166,
+            "blocks": 11,
+            "warning": "Few calendar blocks; exploratory interval, not independent trade count."
+          },
+          "week_block_ci90": {
+            "lo90": -0.9931503377856425,
+            "hi90": 0.3886054922683559,
+            "blocks": 4,
+            "warning": "Few calendar blocks; exploratory interval, not independent trade count."
+          },
+          "without_top3_coins_mean_r": null,
+          "removed_top3": [
+            "1000SHIBUSDT"
+          ],
+          "without_best5_days_mean_r": -0.9972285372185598,
+          "removed_best5": [
+            20677,
+            20685,
+            20688,
+            20689,
+            20690
+          ],
+          "btc_comparator_count": 14,
+          "mean_coin_net_minus_gross_btc": -0.012415169288317532,
+          "btc_comparator_note": "Directional gross BTC return over same entry/exit-minute window; no beta or volatility matching, not an alpha estimate.",
+          "incomplete_outcomes": 0
+        },
+        "long": {
+          "status_counts": {
+            "CLOSED": 9
+          },
+          "n_closed": 9,
+          "n_entry_days": 6,
+          "mean_net_r": 0.1314519051848306,
+          "win_rate": 0.4444444444444444,
+          "mean_funding_usdt": 0.020222100250155004,
+          "day_block_ci90": {
+            "lo90": -0.373068256209276,
+            "hi90": 0.7372175239303159,
+            "blocks": 6,
+            "warning": "Few calendar blocks; exploratory interval, not independent trade count."
+          },
+          "week_block_ci90": {
+            "lo90": -1.0063649885730026,
+            "hi90": 0.4565424462584972,
+            "blocks": 2,
+            "warning": "Few calendar blocks; exploratory interval, not independent trade count."
+          },
+          "without_top3_coins_mean_r": null,
+          "removed_top3": [
+            "1000SHIBUSDT"
+          ],
+          "without_best5_days_mean_r": -1.0127299771460052,
+          "removed_best5": [
+            20667,
+            20685,
+            20688,
+            20689,
+            20690
+          ],
+          "btc_comparator_count": 9,
+          "mean_coin_net_minus_gross_btc": -0.013928024135053008,
+          "btc_comparator_note": "Directional gross BTC return over same entry/exit-minute window; no beta or volatility matching, not an alpha estimate.",
+          "incomplete_outcomes": 0
+        },
+        "short": {
+          "status_counts": {
+            "ADMISSION_REJECTED": 7,
+            "CLOSED": 5,
+            "CANCELLED": 1
+          },
+          "n_closed": 5,
+          "n_entry_days": 5,
+          "mean_net_r": -0.47038996418779433,
+          "win_rate": 0.2,
+          "mean_funding_usdt": -0.029620826287478585,
+          "day_block_ci90": {
+            "lo90": -0.9955691256478787,
+            "hi90": 0.5723817857622018,
+            "blocks": 5,
+            "warning": "Few calendar blocks; exploratory interval, not independent trade count."
+          },
+          "week_block_ci90": {
+            "lo90": -0.9902137487217847,
+            "hi90": 0.309345712613191,
+            "blocks": 2,
+            "warning": "Few calendar blocks; exploratory interval, not independent trade count."
+          },
+          "without_top3_coins_mean_r": null,
+          "removed_top3": [
+            "1000SHIBUSDT"
+          ],
+          "without_best5_days_mean_r": null,
+          "removed_best5": [
+            20673,
+            20677,
+            20678,
+            20679,
+            20683
+          ],
+          "btc_comparator_count": 5,
+          "mean_coin_net_minus_gross_btc": -0.009692030564193679,
+          "btc_comparator_note": "Directional gross BTC return over same entry/exit-minute window; no beta or volatility matching, not an alpha estimate.",
+          "incomplete_outcomes": 0
+        }
+      },
+      "portfolio_approximation": {
+        "all": {
+          "status_counts": {
+            "CLOSED": 8,
+            "CANCELLED": 1
+          },
+          "n_closed": 8,
+          "n_entry_days": 8,
+          "mean_net_r": -0.35830176856333695,
+          "win_rate": 0.25,
+          "mean_funding_usdt": 0.005732287109434895,
+          "day_block_ci90": {
+            "lo90": -1.0006520671265084,
+            "hi90": 0.29669712130651277,
+            "blocks": 8,
+            "warning": "Few calendar blocks; exploratory interval, not independent trade count."
+          },
+          "week_block_ci90": {
+            "lo90": -0.9964729702452182,
+            "hi90": 0.027238823999867677,
+            "blocks": 4,
+            "warning": "Few calendar blocks; exploratory interval, not independent trade count."
+          },
+          "without_top3_coins_mean_r": null,
+          "removed_top3": [
+            "1000SHIBUSDT"
+          ],
+          "without_best5_days_mean_r": -1.004938875682563,
+          "removed_best5": [
+            20667,
+            20677,
+            20679,
+            20685,
+            20688
+          ],
+          "btc_comparator_count": 8,
+          "mean_coin_net_minus_gross_btc": -0.015642983739500103,
+          "btc_comparator_note": "Directional gross BTC return over same entry/exit-minute window; no beta or volatility matching, not an alpha estimate.",
+          "incomplete_outcomes": 0
+        },
+        "long": {
+          "status_counts": {
+            "CLOSED": 5
+          },
+          "n_closed": 5,
+          "n_entry_days": 5,
+          "mean_net_r": -0.49904545647460974,
+          "win_rate": 0.2,
+          "mean_funding_usdt": 0.019610156260897692,
+          "day_block_ci90": {
+            "lo90": -1.0059266508190756,
+            "hi90": 0.5092076113755828,
+            "blocks": 5,
+            "warning": "Few calendar blocks; exploratory interval, not independent trade count."
+          },
+          "week_block_ci90": {
+            "lo90": -1.0063649885730026,
+            "hi90": -0.1608324350756812,
+            "blocks": 2,
+            "warning": "Few calendar blocks; exploratory interval, not independent trade count."
+          },
+          "without_top3_coins_mean_r": null,
+          "removed_top3": [
+            "1000SHIBUSDT"
+          ],
+          "without_best5_days_mean_r": null,
+          "removed_best5": [
+            20667,
+            20669,
+            20685,
+            20688,
+            20689
+          ],
+          "btc_comparator_count": 5,
+          "mean_coin_net_minus_gross_btc": -0.023841349987671394,
+          "btc_comparator_note": "Directional gross BTC return over same entry/exit-minute window; no beta or volatility matching, not an alpha estimate.",
+          "incomplete_outcomes": 0
+        },
+        "short": {
+          "status_counts": {
+            "CLOSED": 3,
+            "CANCELLED": 1
+          },
+          "n_closed": 3,
+          "n_entry_days": 3,
+          "mean_net_r": -0.12372895537788224,
+          "win_rate": 0.3333333333333333,
+          "mean_funding_usdt": -0.01739749480966977,
+          "day_block_ci90": {
+            "lo90": -0.9966260971200095,
+            "hi90": 0.7491681863642451,
+            "blocks": 3,
+            "warning": "Few calendar blocks; exploratory interval, not independent trade count."
+          },
+          "week_block_ci90": {
+            "lo90": -0.9898782913600287,
+            "hi90": 0.309345712613191,
+            "blocks": 2,
+            "warning": "Few calendar blocks; exploratory interval, not independent trade count."
+          },
+          "without_top3_coins_mean_r": null,
+          "removed_top3": [
+            "1000SHIBUSDT"
+          ],
+          "without_best5_days_mean_r": null,
+          "removed_best5": [
+            20673,
+            20677,
+            20679
+          ],
+          "btc_comparator_count": 3,
+          "mean_coin_net_minus_gross_btc": -0.001979039992547955,
+          "btc_comparator_note": "Directional gross BTC return over same entry/exit-minute window; no beta or volatility matching, not an alpha estimate.",
+          "incomplete_outcomes": 0
+        }
+      },
+      "portfolio_admission_rejections": {
+        "COST_ADJUSTED_REWARD_TOO_SMALL": 6,
+        "SYMBOL_COOLDOWN": 6,
+        "LATE_ENTRY": 1
+      },
+      "portfolio_realized_equity": 986.2583553648894
+    },
+    "random_direction": {
+      "all_setups": {
+        "all": {
+          "status_counts": {
+            "ADMISSION_REJECTED": 8,
+            "CLOSED": 13,
+            "CANCELLED": 1
+          },
+          "n_closed": 13,
+          "n_entry_days": 9,
+          "mean_net_r": -0.790982892360942,
+          "win_rate": 0.07692307692307693,
+          "mean_funding_usdt": -0.008121697874945672,
+          "day_block_ci90": {
+            "lo90": -0.9996999174855608,
+            "hi90": -0.45825756233543397,
+            "blocks": 9,
+            "warning": "Few calendar blocks; exploratory interval, not independent trade count."
+          },
+          "week_block_ci90": {
+            "lo90": -1.0010191607325063,
+            "hi90": -0.6607325384231016,
+            "blocks": 4,
+            "warning": "Few calendar blocks; exploratory interval, not independent trade count."
+          },
+          "without_top3_coins_mean_r": null,
+          "removed_top3": [
+            "1000SHIBUSDT"
+          ],
+          "without_best5_days_mean_r": -1.0001588327302124,
+          "removed_best5": [
+            20667,
+            20678,
+            20685,
+            20688,
+            20690
+          ],
+          "btc_comparator_count": 13,
+          "mean_coin_net_minus_gross_btc": -0.00590131281610984,
+          "btc_comparator_note": "Directional gross BTC return over same entry/exit-minute window; no beta or volatility matching, not an alpha estimate.",
+          "incomplete_outcomes": 0
+        },
+        "long": {
+          "status_counts": {
+            "ADMISSION_REJECTED": 2,
+            "CLOSED": 5,
+            "CANCELLED": 1
+          },
+          "n_closed": 5,
+          "n_entry_days": 4,
+          "mean_net_r": -1.0018295513517255,
+          "win_rate": 0.0,
+          "mean_funding_usdt": 0.008980571785451582,
+          "day_block_ci90": {
+            "lo90": -1.0031283525442933,
+            "hi90": -1.0006935002026047,
+            "blocks": 4,
+            "warning": "Few calendar blocks; exploratory interval, not independent trade count."
+          },
+          "week_block_ci90": {
+            "lo90": -1.0023739267368597,
+            "hi90": -1.0010129882740242,
+            "blocks": 3,
+            "warning": "Few calendar blocks; exploratory interval, not independent trade count."
+          },
+          "without_top3_coins_mean_r": null,
+          "removed_top3": [
+            "1000SHIBUSDT"
+          ],
+          "without_best5_days_mean_r": null,
+          "removed_best5": [
+            20667,
+            20673,
+            20677,
+            20683
+          ],
+          "btc_comparator_count": 5,
+          "mean_coin_net_minus_gross_btc": -0.015015379798834397,
+          "btc_comparator_note": "Directional gross BTC return over same entry/exit-minute window; no beta or volatility matching, not an alpha estimate.",
+          "incomplete_outcomes": 0
+        },
+        "short": {
+          "status_counts": {
+            "ADMISSION_REJECTED": 6,
+            "CLOSED": 8
+          },
+          "n_closed": 8,
+          "n_entry_days": 5,
+          "mean_net_r": -0.6592037304917023,
+          "win_rate": 0.125,
+          "mean_funding_usdt": -0.018810616412693958,
+          "day_block_ci90": {
+            "lo90": -0.996840989468879,
+            "hi90": -0.19044594022100786,
+            "blocks": 5,
+            "warning": "Few calendar blocks; exploratory interval, not independent trade count."
+          },
+          "week_block_ci90": {
+            "lo90": -0.9836802813712568,
+            "hi90": -0.6128499375089088,
+            "blocks": 2,
+            "warning": "Few calendar blocks; exploratory interval, not independent trade count."
+          },
+          "without_top3_coins_mean_r": null,
+          "removed_top3": [
+            "1000SHIBUSDT"
+          ],
+          "without_best5_days_mean_r": null,
+          "removed_best5": [
+            20678,
+            20685,
+            20688,
+            20689,
+            20690
+          ],
+          "btc_comparator_count": 8,
+          "mean_coin_net_minus_gross_btc": -0.00020502095190699397,
+          "btc_comparator_note": "Directional gross BTC return over same entry/exit-minute window; no beta or volatility matching, not an alpha estimate.",
+          "incomplete_outcomes": 0
+        }
+      },
+      "portfolio_approximation": {
+        "all": {
+          "status_counts": {
+            "CLOSED": 7,
+            "CANCELLED": 1
+          },
+          "n_closed": 7,
+          "n_entry_days": 7,
+          "mean_net_r": -0.6153047495668756,
+          "win_rate": 0.14285714285714285,
+          "mean_funding_usdt": 0.0020551987321350247,
+          "day_block_ci90": {
+            "lo90": -1.001902699069193,
+            "hi90": 0.15445298281550154,
+            "blocks": 7,
+            "warning": "Few calendar blocks; exploratory interval, not independent trade count."
+          },
+          "week_block_ci90": {
+            "lo90": -1.0030389648220726,
+            "hi90": -0.3244963725523757,
+            "blocks": 4,
+            "warning": "Few calendar blocks; exploratory interval, not independent trade count."
+          },
+          "without_top3_coins_mean_r": null,
+          "removed_top3": [
+            "1000SHIBUSDT"
+          ],
+          "without_best5_days_mean_r": -1.0041115449109106,
+          "removed_best5": [
+            20667,
+            20677,
+            20685,
+            20688,
+            20689
+          ],
+          "btc_comparator_count": 7,
+          "mean_coin_net_minus_gross_btc": -0.0015913401099272794,
+          "btc_comparator_note": "Directional gross BTC return over same entry/exit-minute window; no beta or volatility matching, not an alpha estimate.",
+          "incomplete_outcomes": 0
+        },
+        "long": {
+          "status_counts": {
+            "CLOSED": 4,
+            "CANCELLED": 1
+          },
+          "n_closed": 4,
+          "n_entry_days": 4,
+          "mean_net_r": -1.002286939189657,
+          "win_rate": 0.0,
+          "mean_funding_usdt": 0.011225714731814478,
+          "day_block_ci90": {
+            "lo90": -1.0040817490035037,
+            "hi90": -1.0006935002026047,
+            "blocks": 4,
+            "warning": "Few calendar blocks; exploratory interval, not independent trade count."
+          },
+          "week_block_ci90": {
+            "lo90": -1.0032999274636811,
+            "hi90": -1.0012739509156328,
+            "blocks": 3,
+            "warning": "Few calendar blocks; exploratory interval, not independent trade count."
+          },
+          "without_top3_coins_mean_r": null,
+          "removed_top3": [
+            "1000SHIBUSDT"
+          ],
+          "without_best5_days_mean_r": null,
+          "removed_best5": [
+            20667,
+            20673,
+            20677,
+            20683
+          ],
+          "btc_comparator_count": 4,
+          "mean_coin_net_minus_gross_btc": -0.015896980741750485,
+          "btc_comparator_note": "Directional gross BTC return over same entry/exit-minute window; no beta or volatility matching, not an alpha estimate.",
+          "incomplete_outcomes": 0
+        },
+        "short": {
+          "status_counts": {
+            "CLOSED": 3
+          },
+          "n_closed": 3,
+          "n_entry_days": 3,
+          "mean_net_r": -0.0993284967365009,
+          "win_rate": 0.3333333333333333,
+          "mean_funding_usdt": -0.010172155934104246,
+          "day_block_ci90": {
+            "lo90": -0.9979401267523654,
+            "hi90": 0.7992831332793635,
+            "blocks": 3,
+            "warning": "Few calendar blocks; exploratory interval, not independent trade count."
+          },
+          "week_block_ci90": null,
+          "without_top3_coins_mean_r": null,
+          "removed_top3": [
+            "1000SHIBUSDT"
+          ],
+          "without_best5_days_mean_r": null,
+          "removed_best5": [
+            20685,
+            20688,
+            20689
+          ],
+          "btc_comparator_count": 3,
+          "mean_coin_net_minus_gross_btc": 0.01748284739917033,
+          "btc_comparator_note": "Directional gross BTC return over same entry/exit-minute window; no beta or volatility matching, not an alpha estimate.",
+          "incomplete_outcomes": 0
+        }
+      },
+      "portfolio_admission_rejections": {
+        "LATE_ENTRY": 2,
+        "COST_ADJUSTED_REWARD_TOO_SMALL": 6,
+        "SYMBOL_COOLDOWN": 6
+      },
+      "portfolio_realized_equity": 978.9356083316475
+    },
+    "random_timing": {
+      "all_setups": {
+        "all": {
+          "status_counts": {
+            "ADMISSION_REJECTED": 10,
+            "OPEN_AT_HORIZON": 1,
+            "CLOSED": 13,
+            "CANCELLED": 1
+          },
+          "n_closed": 13,
+          "n_entry_days": 8,
+          "mean_net_r": 0.9122164392091354,
+          "win_rate": 0.6923076923076923,
+          "mean_funding_usdt": 0.01907110369601938,
+          "day_block_ci90": {
+            "lo90": 0.15974322301355218,
+            "hi90": 1.425289161337799,
+            "blocks": 8,
+            "warning": "Few calendar blocks; exploratory interval, not independent trade count."
+          },
+          "week_block_ci90": {
+            "lo90": -1.0,
+            "hi90": 1.3112493578761955,
+            "blocks": 4,
+            "warning": "Few calendar blocks; exploratory interval, not independent trade count."
+          },
+          "without_top3_coins_mean_r": null,
+          "removed_top3": [
+            "1000SHIBUSDT"
+          ],
+          "without_best5_days_mean_r": -1.0033160655642293,
+          "removed_best5": [
+            20676,
+            20685,
+            20686,
+            20688,
+            20689
+          ],
+          "btc_comparator_count": 13,
+          "mean_coin_net_minus_gross_btc": 0.005664947209107773,
+          "btc_comparator_note": "Directional gross BTC return over same entry/exit-minute window; no beta or volatility matching, not an alpha estimate.",
+          "incomplete_outcomes": 1
+        },
+        "long": {
+          "status_counts": {
+            "CLOSED": 9,
+            "ADMISSION_REJECTED": 4
+          },
+          "n_closed": 9,
+          "n_entry_days": 6,
+          "mean_net_r": 1.1400457017372176,
+          "win_rate": 0.7777777777777778,
+          "mean_funding_usdt": 0.027745163669113435,
+          "day_block_ci90": {
+            "lo90": 0.16302505860697702,
+            "hi90": 1.7431431315961863,
+            "blocks": 6,
+            "warning": "Few calendar blocks; exploratory interval, not independent trade count."
+          },
+          "week_block_ci90": {
+            "lo90": -1.0000000000000002,
+            "hi90": 1.4075514144543702,
+            "blocks": 2,
+            "warning": "Few calendar blocks; exploratory interval, not independent trade count."
+          },
+          "without_top3_coins_mean_r": null,
+          "removed_top3": [
+            "1000SHIBUSDT"
+          ],
+          "without_best5_days_mean_r": -1.0099481966926873,
+          "removed_best5": [
+            20666,
+            20685,
+            20686,
+            20688,
+            20689
+          ],
+          "btc_comparator_count": 9,
+          "mean_coin_net_minus_gross_btc": 0.007451652820058877,
+          "btc_comparator_note": "Directional gross BTC return over same entry/exit-minute window; no beta or volatility matching, not an alpha estimate.",
+          "incomplete_outcomes": 0
+        },
+        "short": {
+          "status_counts": {
+            "ADMISSION_REJECTED": 6,
+            "OPEN_AT_HORIZON": 1,
+            "CLOSED": 4,
+            "CANCELLED": 1
+          },
+          "n_closed": 4,
+          "n_entry_days": 2,
+          "mean_net_r": 0.39960059852095,
+          "win_rate": 0.5,
+          "mean_funding_usdt": -0.0004455312434422583,
+          "day_block_ci90": {
+            "lo90": -1.0,
+            "hi90": 0.8661341313612666,
+            "blocks": 2,
+            "warning": "Few calendar blocks; exploratory interval, not independent trade count."
+          },
+          "week_block_ci90": {
+            "lo90": -1.0,
+            "hi90": 0.8661341313612666,
+            "blocks": 2,
+            "warning": "Few calendar blocks; exploratory interval, not independent trade count."
+          },
+          "without_top3_coins_mean_r": null,
+          "removed_top3": [
+            "1000SHIBUSDT"
+          ],
+          "without_best5_days_mean_r": null,
+          "removed_best5": [
+            20676,
+            20695
+          ],
+          "btc_comparator_count": 4,
+          "mean_coin_net_minus_gross_btc": 0.0016448595844677908,
+          "btc_comparator_note": "Directional gross BTC return over same entry/exit-minute window; no beta or volatility matching, not an alpha estimate.",
+          "incomplete_outcomes": 1
+        }
+      },
+      "portfolio_approximation": {
+        "all": {
+          "status_counts": {
+            "CLOSED": 5,
+            "CANCELLED": 1,
+            "OPEN_AT_HORIZON": 1
+          },
+          "n_closed": 5,
+          "n_entry_days": 5,
+          "mean_net_r": 1.2435024193274768,
+          "win_rate": 0.8,
+          "mean_funding_usdt": 0.014848624270349794,
+          "day_block_ci90": {
+            "lo90": 0.17782444080045035,
+            "hi90": 1.8773157731558534,
+            "blocks": 5,
+            "warning": "Few calendar blocks; exploratory interval, not independent trade count."
+          },
+          "week_block_ci90": {
+            "lo90": -1.0000000000000002,
+            "hi90": 1.8043780241593461,
+            "blocks": 2,
+            "warning": "Few calendar blocks; exploratory interval, not independent trade count."
+          },
+          "without_top3_coins_mean_r": null,
+          "removed_top3": [
+            "1000SHIBUSDT"
+          ],
+          "without_best5_days_mean_r": null,
+          "removed_best5": [
+            20666,
+            20685,
+            20686,
+            20688,
+            20689
+          ],
+          "btc_comparator_count": 5,
+          "mean_coin_net_minus_gross_btc": 0.015103796514772247,
+          "btc_comparator_note": "Directional gross BTC return over same entry/exit-minute window; no beta or volatility matching, not an alpha estimate.",
+          "incomplete_outcomes": 1
+        },
+        "long": {
+          "status_counts": {
+            "CLOSED": 5
+          },
+          "n_closed": 5,
+          "n_entry_days": 5,
+          "mean_net_r": 1.2435024193274768,
+          "win_rate": 0.8,
+          "mean_funding_usdt": 0.014848624270349794,
+          "day_block_ci90": {
+            "lo90": 0.17782444080045035,
+            "hi90": 1.8773157731558534,
+            "blocks": 5,
+            "warning": "Few calendar blocks; exploratory interval, not independent trade count."
+          },
+          "week_block_ci90": {
+            "lo90": -1.0000000000000002,
+            "hi90": 1.8043780241593461,
+            "blocks": 2,
+            "warning": "Few calendar blocks; exploratory interval, not independent trade count."
+          },
+          "without_top3_coins_mean_r": null,
+          "removed_top3": [
+            "1000SHIBUSDT"
+          ],
+          "without_best5_days_mean_r": null,
+          "removed_best5": [
+            20666,
+            20685,
+            20686,
+            20688,
+            20689
+          ],
+          "btc_comparator_count": 5,
+          "mean_coin_net_minus_gross_btc": 0.015103796514772247,
+          "btc_comparator_note": "Directional gross BTC return over same entry/exit-minute window; no beta or volatility matching, not an alpha estimate.",
+          "incomplete_outcomes": 0
+        },
+        "short": {
+          "status_counts": {
+            "CANCELLED": 1,
+            "OPEN_AT_HORIZON": 1
+          },
+          "n_closed": 0,
+          "n_entry_days": 0,
+          "mean_net_r": null,
+          "win_rate": null,
+          "mean_funding_usdt": null,
+          "day_block_ci90": null,
+          "week_block_ci90": null,
+          "without_top3_coins_mean_r": null,
+          "removed_top3": [],
+          "without_best5_days_mean_r": null,
+          "removed_best5": [],
+          "btc_comparator_count": 0,
+          "mean_coin_net_minus_gross_btc": null,
+          "btc_comparator_note": "Directional gross BTC return over same entry/exit-minute window; no beta or volatility matching, not an alpha estimate.",
+          "incomplete_outcomes": 1
+        }
+      },
+      "portfolio_admission_rejections": {
+        "COST_ADJUSTED_REWARD_TOO_SMALL": 8,
+        "LATE_ENTRY": 2,
+        "SYMBOL_COOLDOWN": 7,
+        "SAME_DIRECTION_CLUSTER_LIMIT": 1
+      },
+      "portfolio_realized_equity": 1030.7527805201228
+    },
+    "control_comparisons_all_setups": {
+      "LONG": {
+        "random_direction": {
+          "day": {
+            "mean_difference_r": 1.133281456536556,
+            "lo90": 0.6222811620192812,
+            "hi90": 1.7968757077001052,
+            "blocks": 9,
+            "conditional_on_resolved_and_filled": true
+          },
+          "week": {
+            "mean_difference_r": 1.133281456536556,
+            "lo90": -0.0050143375409703594,
+            "hi90": 1.4590903480897626,
+            "blocks": 4,
+            "conditional_on_resolved_and_filled": true
+          }
+        },
+        "random_timing": {
+          "day": {
+            "mean_difference_r": -1.008593796552387,
+            "lo90": -1.8726412122723346,
+            "hi90": 0.23004628744614145,
+            "blocks": 8,
+            "conditional_on_resolved_and_filled": true
+          },
+          "week": {
+            "mean_difference_r": -1.008593796552387,
+            "lo90": -1.0085937965523872,
+            "hi90": -0.006364988573002384,
+            "blocks": 2,
+            "conditional_on_resolved_and_filled": true
+          }
+        }
+      },
+      "SHORT": {
+        "random_direction": {
+          "day": {
+            "mean_difference_r": 0.188813766303908,
+            "lo90": -0.6718717916303414,
+            "hi90": 1.3076334695310283,
+            "blocks": 9,
+            "conditional_on_resolved_and_filled": true
+          },
+          "week": {
+            "mean_difference_r": 0.188813766303908,
+            "lo90": -0.3526417882887193,
+            "hi90": 0.9221956501220998,
+            "blocks": 3,
+            "conditional_on_resolved_and_filled": true
+          }
+        },
+        "random_timing": {
+          "day": {
+            "mean_difference_r": -0.8699905627087443,
+            "lo90": -1.8569984368685888,
+            "hi90": 1.0486435007169255,
+            "blocks": 7,
+            "conditional_on_resolved_and_filled": true
+          },
+          "week": {
+            "mean_difference_r": -0.8699905627087443,
+            "lo90": -1.5314580147493073,
+            "hi90": 0.18966523379643102,
+            "blocks": 3,
+            "conditional_on_resolved_and_filled": true
+          }
+        }
+      },
+      "ALL": {
+        "random_direction": {
+          "day": {
+            "mean_difference_r": 0.7074912727698351,
+            "lo90": 0.20306701591510545,
+            "hi90": 1.207533533547188,
+            "blocks": 11,
+            "conditional_on_resolved_and_filled": true
+          },
+          "week": {
+            "mean_difference_r": 0.7074912727698351,
+            "lo90": 0.00316933255456342,
+            "hi90": 1.090479447304541,
+            "blocks": 4,
+            "conditional_on_resolved_and_filled": true
+          }
+        },
+        "random_timing": {
+          "day": {
+            "mean_difference_r": -0.9957080588002423,
+            "lo90": -1.6847233931745342,
+            "hi90": -0.05951624522026622,
+            "blocks": 15,
+            "conditional_on_resolved_and_filled": true
+          },
+          "week": {
+            "mean_difference_r": -0.9957080588002423,
+            "lo90": -1.315069216227986,
+            "hi90": 0.0033257553377284976,
+            "blocks": 5,
+            "conditional_on_resolved_and_filled": true
+          }
+        }
+      }
+    }
+  },
+  "cost_1_5_strategy": {
+    "all_setups": {
+      "all": {
+        "status_counts": {
+          "ADMISSION_REJECTED": 13,
+          "CLOSED": 9
+        },
+        "n_closed": 9,
+        "n_entry_days": 7,
+        "mean_net_r": 0.0710060711075143,
+        "win_rate": 0.4444444444444444,
+        "mean_funding_usdt": 0.016302881682213048,
+        "day_block_ci90": {
+          "lo90": -0.4683046852537625,
+          "hi90": 0.7298003403554166,
+          "blocks": 7,
+          "warning": "Few calendar blocks; exploratory interval, not independent trade count."
+        },
+        "week_block_ci90": {
+          "lo90": -0.52210469423369,
+          "hi90": 0.5078909857824164,
+          "blocks": 3,
+          "warning": "Few calendar blocks; exploratory interval, not independent trade count."
+        },
+        "without_top3_coins_mean_r": null,
+        "removed_top3": [
+          "1000SHIBUSDT"
+        ],
+        "without_best5_days_mean_r": -1.0057661195766923,
+        "removed_best5": [
+          20667,
+          20677,
+          20685,
+          20689,
+          20690
+        ],
+        "btc_comparator_count": 9,
+        "mean_coin_net_minus_gross_btc": -0.01524984508096141,
+        "btc_comparator_note": "Directional gross BTC return over same entry/exit-minute window; no beta or volatility matching, not an alpha estimate.",
+        "incomplete_outcomes": 0
+      },
+      "long": {
+        "status_counts": {
+          "CLOSED": 8,
+          "ADMISSION_REJECTED": 1
+        },
+        "n_closed": 8,
+        "n_entry_days": 6,
+        "mean_net_r": -0.09668579589633625,
+        "win_rate": 0.375,
+        "mean_funding_usdt": 0.01889240380269589,
+        "day_block_ci90": {
+          "lo90": -0.6116946111462608,
+          "hi90": 0.5932650716849831,
+          "blocks": 6,
+          "warning": "Few calendar blocks; exploratory interval, not independent trade count."
+        },
+        "week_block_ci90": {
+          "lo90": -1.005766119576692,
+          "hi90": 0.2063409786637824,
+          "blocks": 2,
+          "warning": "Few calendar blocks; exploratory interval, not independent trade count."
+        },
+        "without_top3_coins_mean_r": null,
+        "removed_top3": [
+          "1000SHIBUSDT"
+        ],
+        "without_best5_days_mean_r": -1.0115322391533843,
+        "removed_best5": [
+          20667,
+          20685,
+          20688,
+          20689,
+          20690
+        ],
+        "btc_comparator_count": 8,
+        "mean_coin_net_minus_gross_btc": -0.019504446261905863,
+        "btc_comparator_note": "Directional gross BTC return over same entry/exit-minute window; no beta or volatility matching, not an alpha estimate.",
+        "incomplete_outcomes": 0
+      },
+      "short": {
+        "status_counts": {
+          "ADMISSION_REJECTED": 12,
+          "CLOSED": 1
+        },
+        "n_closed": 1,
+        "n_entry_days": 1,
+        "mean_net_r": 1.4125410071383186,
+        "win_rate": 1.0,
+        "mean_funding_usdt": -0.004413295281649686,
+        "day_block_ci90": null,
+        "week_block_ci90": null,
+        "without_top3_coins_mean_r": null,
+        "removed_top3": [
+          "1000SHIBUSDT"
+        ],
+        "without_best5_days_mean_r": null,
+        "removed_best5": [
+          20677
+        ],
+        "btc_comparator_count": 1,
+        "mean_coin_net_minus_gross_btc": 0.01878696436659421,
+        "btc_comparator_note": "Directional gross BTC return over same entry/exit-minute window; no beta or volatility matching, not an alpha estimate.",
+        "incomplete_outcomes": 0
+      }
+    },
+    "portfolio_approximation": {
+      "all": {
+        "status_counts": {
+          "CLOSED": 6
+        },
+        "n_closed": 6,
+        "n_entry_days": 6,
+        "mean_net_r": -0.20800973835681455,
+        "win_rate": 0.3333333333333333,
+        "mean_funding_usdt": 0.014308888455883647,
+        "day_block_ci90": {
+          "lo90": -1.0025767097105727,
+          "hi90": 0.5881519379300033,
+          "blocks": 6,
+          "warning": "Few calendar blocks; exploratory interval, not independent trade count."
+        },
+        "week_block_ci90": {
+          "lo90": -0.6674473823475129,
+          "hi90": 0.43520296323016316,
+          "blocks": 3,
+          "warning": "Few calendar blocks; exploratory interval, not independent trade count."
+        },
+        "without_top3_coins_mean_r": null,
+        "removed_top3": [
+          "1000SHIBUSDT"
+        ],
+        "without_best5_days_mean_r": -1.0115322391533843,
+        "removed_best5": [
+          20667,
+          20677,
+          20685,
+          20688,
+          20689
+        ],
+        "btc_comparator_count": 6,
+        "mean_coin_net_minus_gross_btc": -0.017782749179402604,
+        "btc_comparator_note": "Directional gross BTC return over same entry/exit-minute window; no beta or volatility matching, not an alpha estimate.",
+        "incomplete_outcomes": 0
+      },
+      "long": {
+        "status_counts": {
+          "CLOSED": 5
+        },
+        "n_closed": 5,
+        "n_entry_days": 5,
+        "mean_net_r": -0.5321198874558413,
+        "win_rate": 0.2,
+        "mean_funding_usdt": 0.018053325203390314,
+        "day_block_ci90": {
+          "lo90": -1.005398499483364,
+          "hi90": 0.4094316390268455,
+          "blocks": 5,
+          "warning": "Few calendar blocks; exploratory interval, not independent trade count."
+        },
+        "week_block_ci90": {
+          "lo90": -1.005766119576692,
+          "hi90": -0.2163557327086072,
+          "blocks": 2,
+          "warning": "Few calendar blocks; exploratory interval, not independent trade count."
+        },
+        "without_top3_coins_mean_r": null,
+        "removed_top3": [
+          "1000SHIBUSDT"
+        ],
+        "without_best5_days_mean_r": null,
+        "removed_best5": [
+          20667,
+          20669,
+          20685,
+          20688,
+          20689
+        ],
+        "btc_comparator_count": 5,
+        "mean_coin_net_minus_gross_btc": -0.025096691888601967,
+        "btc_comparator_note": "Directional gross BTC return over same entry/exit-minute window; no beta or volatility matching, not an alpha estimate.",
+        "incomplete_outcomes": 0
+      },
+      "short": {
+        "status_counts": {
+          "CLOSED": 1
+        },
+        "n_closed": 1,
+        "n_entry_days": 1,
+        "mean_net_r": 1.4125410071383186,
+        "win_rate": 1.0,
+        "mean_funding_usdt": -0.004413295281649686,
+        "day_block_ci90": null,
+        "week_block_ci90": null,
+        "without_top3_coins_mean_r": null,
+        "removed_top3": [
+          "1000SHIBUSDT"
+        ],
+        "without_best5_days_mean_r": null,
+        "removed_best5": [
+          20677
+        ],
+        "btc_comparator_count": 1,
+        "mean_coin_net_minus_gross_btc": 0.01878696436659421,
+        "btc_comparator_note": "Directional gross BTC return over same entry/exit-minute window; no beta or volatility matching, not an alpha estimate.",
+        "incomplete_outcomes": 0
+      }
+    },
+    "portfolio_admission_rejections": {
+      "COST_ADJUSTED_REWARD_TOO_SMALL": 5,
+      "LATE_ENTRY": 8,
+      "SYMBOL_COOLDOWN": 3
+    },
+    "portfolio_realized_equity": 993.93202323396
+  },
+  "cost_2_strategy": {
+    "all_setups": {
+      "all": {
+        "status_counts": {
+          "ADMISSION_REJECTED": 17,
+          "CLOSED": 5
+        },
+        "n_closed": 5,
+        "n_entry_days": 3,
+        "mean_net_r": -0.5466041839041818,
+        "win_rate": 0.2,
+        "mean_funding_usdt": 0.013525587757007648,
+        "day_block_ci90": {
+          "lo90": -1.0,
+          "hi90": -0.3522916912916882,
+          "blocks": 3,
+          "warning": "Few calendar blocks; exploratory interval, not independent trade count."
+        },
+        "week_block_ci90": {
+          "lo90": -1.0,
+          "hi90": -0.4332552298802272,
+          "blocks": 2,
+          "warning": "Few calendar blocks; exploratory interval, not independent trade count."
+        },
+        "without_top3_coins_mean_r": null,
+        "removed_top3": [
+          "1000SHIBUSDT"
+        ],
+        "without_best5_days_mean_r": null,
+        "removed_best5": [
+          20667,
+          20688,
+          20689
+        ],
+        "btc_comparator_count": 5,
+        "mean_coin_net_minus_gross_btc": -0.024879068392895425,
+        "btc_comparator_note": "Directional gross BTC return over same entry/exit-minute window; no beta or volatility matching, not an alpha estimate.",
+        "incomplete_outcomes": 0
+      },
+      "long": {
+        "status_counts": {
+          "ADMISSION_REJECTED": 4,
+          "CLOSED": 5
+        },
+        "n_closed": 5,
+        "n_entry_days": 3,
+        "mean_net_r": -0.5466041839041818,
+        "win_rate": 0.2,
+        "mean_funding_usdt": 0.013525587757007648,
+        "day_block_ci90": {
+          "lo90": -1.0,
+          "hi90": -0.3522916912916882,
+          "blocks": 3,
+          "warning": "Few calendar blocks; exploratory interval, not independent trade count."
+        },
+        "week_block_ci90": {
+          "lo90": -1.0,
+          "hi90": -0.4332552298802272,
+          "blocks": 2,
+          "warning": "Few calendar blocks; exploratory interval, not independent trade count."
+        },
+        "without_top3_coins_mean_r": null,
+        "removed_top3": [
+          "1000SHIBUSDT"
+        ],
+        "without_best5_days_mean_r": null,
+        "removed_best5": [
+          20667,
+          20688,
+          20689
+        ],
+        "btc_comparator_count": 5,
+        "mean_coin_net_minus_gross_btc": -0.024879068392895425,
+        "btc_comparator_note": "Directional gross BTC return over same entry/exit-minute window; no beta or volatility matching, not an alpha estimate.",
+        "incomplete_outcomes": 0
+      },
+      "short": {
+        "status_counts": {
+          "ADMISSION_REJECTED": 13
+        },
+        "n_closed": 0,
+        "n_entry_days": 0,
+        "mean_net_r": null,
+        "win_rate": null,
+        "mean_funding_usdt": null,
+        "day_block_ci90": null,
+        "week_block_ci90": null,
+        "without_top3_coins_mean_r": null,
+        "removed_top3": [],
+        "without_best5_days_mean_r": null,
+        "removed_best5": [],
+        "btc_comparator_count": 0,
+        "mean_coin_net_minus_gross_btc": null,
+        "btc_comparator_note": "Directional gross BTC return over same entry/exit-minute window; no beta or volatility matching, not an alpha estimate.",
+        "incomplete_outcomes": 0
+      }
+    },
+    "portfolio_approximation": {
+      "all": {
+        "status_counts": {
+          "CLOSED": 3
+        },
+        "n_closed": 3,
+        "n_entry_days": 3,
+        "mean_net_r": -1.0006183301513742,
+        "win_rate": 0.0,
+        "mean_funding_usdt": 0.0030916507568706183,
+        "day_block_ci90": {
+          "lo90": -1.0012366603027487,
+          "hi90": -1.0,
+          "blocks": 3,
+          "warning": "Few calendar blocks; exploratory interval, not independent trade count."
+        },
+        "week_block_ci90": {
+          "lo90": -1.0009274952270615,
+          "hi90": -1.0,
+          "blocks": 2,
+          "warning": "Few calendar blocks; exploratory interval, not independent trade count."
+        },
+        "without_top3_coins_mean_r": null,
+        "removed_top3": [
+          "1000SHIBUSDT"
+        ],
+        "without_best5_days_mean_r": null,
+        "removed_best5": [
+          20667,
+          20688,
+          20689
+        ],
+        "btc_comparator_count": 3,
+        "mean_coin_net_minus_gross_btc": -0.031051641030323828,
+        "btc_comparator_note": "Directional gross BTC return over same entry/exit-minute window; no beta or volatility matching, not an alpha estimate.",
+        "incomplete_outcomes": 0
+      },
+      "long": {
+        "status_counts": {
+          "CLOSED": 3
+        },
+        "n_closed": 3,
+        "n_entry_days": 3,
+        "mean_net_r": -1.0006183301513742,
+        "win_rate": 0.0,
+        "mean_funding_usdt": 0.0030916507568706183,
+        "day_block_ci90": {
+          "lo90": -1.0012366603027487,
+          "hi90": -1.0,
+          "blocks": 3,
+          "warning": "Few calendar blocks; exploratory interval, not independent trade count."
+        },
+        "week_block_ci90": {
+          "lo90": -1.0009274952270615,
+          "hi90": -1.0,
+          "blocks": 2,
+          "warning": "Few calendar blocks; exploratory interval, not independent trade count."
+        },
+        "without_top3_coins_mean_r": null,
+        "removed_top3": [
+          "1000SHIBUSDT"
+        ],
+        "without_best5_days_mean_r": null,
+        "removed_best5": [
+          20667,
+          20688,
+          20689
+        ],
+        "btc_comparator_count": 3,
+        "mean_coin_net_minus_gross_btc": -0.031051641030323828,
+        "btc_comparator_note": "Directional gross BTC return over same entry/exit-minute window; no beta or volatility matching, not an alpha estimate.",
+        "incomplete_outcomes": 0
+      },
+      "short": {
+        "status_counts": {},
+        "n_closed": 0,
+        "n_entry_days": 0,
+        "mean_net_r": null,
+        "win_rate": null,
+        "mean_funding_usdt": null,
+        "day_block_ci90": null,
+        "week_block_ci90": null,
+        "without_top3_coins_mean_r": null,
+        "removed_top3": [],
+        "without_best5_days_mean_r": null,
+        "removed_best5": [],
+        "btc_comparator_count": 0,
+        "mean_coin_net_minus_gross_btc": null,
+        "btc_comparator_note": "Directional gross BTC return over same entry/exit-minute window; no beta or volatility matching, not an alpha estimate.",
+        "incomplete_outcomes": 0
+      }
+    },
+    "portfolio_admission_rejections": {
+      "COST_ADJUSTED_REWARD_TOO_SMALL": 4,
+      "LATE_ENTRY": 13,
+      "SYMBOL_COOLDOWN": 2
+    },
+    "portfolio_realized_equity": 985.1512456743286
+  },
+  "assumptions": {
+    "spread_fraction": 0.001,
+    "latency_seconds": 60,
+    "funding_mark": "30m mark candle OPEN at scheduled funding, <=1s timestamp offset",
+    "historical_filters": "near-continuous tick/step, min notional 5 USDT; unverified historical exchange rules",
+    "universe": "archive names; first available July bar is a conservative age proxy, not historical listing metadata",
+    "72h": "right censoring, NOT an exit or a zero/loss assignment",
+    "portfolio": "chronological risk/capacity approximation; not identical live order book/lot/latency replay"
+  },
+  "tests_passed": 54,
+  "note": "One-symbol pilot cannot establish profitability; primary/controls visible, no threshold tuning."
+}

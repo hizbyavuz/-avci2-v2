@@ -1,0 +1,47 @@
+{
+  "version": "TA_PAPER_V1_1_20261026",
+  "strategy_parent": "138b5450040e4d46a112ec5d411b7dc0d5fa05fe",
+  "created_utc": "2026-10-26",
+  "status": "EXPLORATORY_NOT_HOLDOUT",
+  "entry_rules": "unchanged 30m / 4h v1",
+  "historical_window": [
+    "2026-08-01T00:00:00Z",
+    "2026-09-01T00:00:00Z"
+  ],
+  "warmup_start": "2026-07-01T00:00:00Z",
+  "outcome_horizon_hours": 72,
+  "note_horizon": "Observational censoring at 72h; no time exit added to primary live strategy.",
+  "historical_universe": "All archived USDT UM symbols with data in window; known non-crypto/stable bases excluded; point-in-time metadata limitations reported, not silently assumed solved.",
+  "decision_latency_seconds": 60,
+  "spread_fraction_assumed": 0.001,
+  "cost_multipliers": [
+    1,
+    1.5,
+    2
+  ],
+  "stop_stress_fraction": 0.01,
+  "controls": [
+    "same-event hashed random direction preserving initial stop distance",
+    "4h-trend aligned hashed random timing, fixed selection rate 0.05"
+  ],
+  "seed": "ta-paper-v1-1-20261026-fixed",
+  "modes": [
+    "unconstrained observational setups",
+    "portfolio constraints and liquidity priority"
+  ],
+  "uncertainty": "UTC-entry-day and week block bootstrap; long/short separately; no guaranteed sample size",
+  "robustness": [
+    "exclude top 3 symbols by total net R",
+    "exclude best 5 entry days"
+  ],
+  "claim_gate": "No live-profitability or holdout claim from this exploratory archive run.",
+  "gap_policy": "Targeted repair; after 30 minutes keep missing path explicitly unresolved. No invented stop, no automatic -1R for cancellations. Portfolio entries remain paused if capital unresolved; independent observation lane continues.",
+  "coverage": "Count universe, attempted, valid, setups, admitted, entered, cancelled, closed, unresolved separately. Flag coverage <0.95 without changing strategy admission threshold.",
+  "auxiliary_fields": [
+    "4h extension in ATR units",
+    "60x30m room to prior extreme",
+    "BTC 4h trend agreement; all observational only"
+  ],
+  "funding": "Historical rate with contemporaneous archived mark-price bar estimate; missing rate/price is unresolved, never zero-filled.",
+  "archive_checks": "Checksum verify every zip, explicit missing files and continuity issues. No REST requests while known cooldown active."
+}
