@@ -27,7 +27,8 @@ REVISION = 'EXTERNAL_BYBIT_WATCH_20261026_1'
 PERIODS = {'30m': CFG.entry_ms, '4h': CFG.context_ms}
 HOST = 'https://api.bybit.com'
 ALLOWED = frozenset(('/v5/market/time', '/v5/market/instruments-info',
-                     '/v5/market/tickers', '/v5/market/kline'))
+                     '/v5/market/tickers', '/v5/market/kline', '/v5/market/open-interest',
+                     '/v5/market/funding/history', '/v5/market/orderbook', '/v5/market/mark-price-kline'))
 
 
 def log(kind, **fields):
@@ -46,7 +47,9 @@ def contract(raw, reference, now):
         return None
     market=dict(symbol=symbol,baseAsset=raw['baseCoin'],quoteAsset='USDT',marginAsset='USDT',
                 underlyingType='COIN',underlyingSubType=[],status='TRADING',contractType='PERPETUAL',
-                onboardDate=int(raw['launchTime']),source_venue='BYBIT')
+                onboardDate=int(raw['launchTime']),source_venue='BYBIT',
+                funding_interval_minutes=raw.get('fundingInterval'),
+                bybit_price_filter=raw.get('priceFilter'),bybit_lot_filter=raw.get('lotSizeFilter'))
     return market if market_eligible(market,now) else None
 
 
@@ -137,7 +140,17 @@ class BybitPublic:
         if not markets:raise DataUnavailable('BYBIT_NO_VERIFIED_COMMON_UNIVERSE')
         return markets,{s:tickers[s] for s in markets},dict(bybit_contracts=len(records),binance_reference=len(reference))
 
-    def candles(self, symbol, tf):
+    def candles(self, symbol, tf, limit=1000, **params):
+        if tf=='1m':
+            payload=self.request('/v5/market/kline',category='linear',symbol=symbol,interval='1',
+                                 start=params['startTime'],end=params['endTime'],limit=limit)
+            result=payload['result']
+            if result.get('category')!='linear' or result.get('symbol')!=symbol:
+                raise DataUnavailable('BYBIT_CANDLE_MARKET_MISMATCH')
+            rows=[[int(r[0]),*r[1:6],int(r[0])+MINUTE-1,r[6]] for r in reversed(result['list'])]
+            from .features import capture_klines
+            capture_klines(self.store.db,symbol,tf,rows,self.now(),'BYBIT_REST')
+            return rows
         period=PERIODS[tf];now=self.now()
         latest=((now-CFG.publication_delay_ms)//period-1)*period
         old=self.store.recent_candles(symbol,tf,CFG.history_bars-1)
@@ -157,10 +170,12 @@ class BybitPublic:
             if len(raw)!=7:raise DataUnavailable('BYBIT_CANDLE_FORMAT')
             start=int(raw[0])
             # Bybit field 6 is quote turnover, NOT a closing timestamp.
-            rows.append([start,*raw[1:6],start+period-1])
+            rows.append([start,*raw[1:6],start+period-1,raw[6]])
         verified=closed_bars(rows,period,self.now(),minimum=count)
         if len(verified)!=count:raise DataUnavailable('BYBIT_INCOMPLETE_CANDLES')
         self.store.candles(symbol,tf,verified)  # Refuses immutable overlaps that changed.
+        from .features import capture_klines
+        capture_klines(self.store.db,symbol,tf,rows,self.now(),'BYBIT_REST')
         combined=self.store.recent_candles(symbol,tf,CFG.history_bars-1)
         return closed_bars(combined,period,self.now(),minimum=CFG.history_bars-1)
 
@@ -215,9 +230,13 @@ class WatchScanner:
                          watch_revision=REVISION,binance_entry_verified=False,
                          binance_reference_ms=state['reference_ms'])
                 self.store.assessment(p);state['done'][symbol]=p
+                from .features import record_context
+                record_context(self.store,p,bars,context,'BYBIT')
                 if p['status']=='SETUP':
                     state['handled'][symbol]='EXTERNAL_VENUE_WATCH_ONLY'
                     publish_watches(self.store,self.client,state)
+                    from .shadow import enqueue
+                    enqueue(self.store,p,state['markets'][symbol])
                 state['retry_at'].pop(symbol,None)
             except (DataUnavailable,ValueError,KeyError,TypeError) as exc:
                 reason=str(exc)[:100] if isinstance(exc,(DataUnavailable,ValueError)) else type(exc).__name__
@@ -288,6 +307,15 @@ class ExternalWatch:
             while not self.stop.is_set():
                 try:
                     scanner.step();last_error=None
+                    if scanner.state.get('status') in ('COMPLETE','EXPIRED'):
+                        from .shadow import tick as shadow_tick
+                        from .features import tick as feature_tick
+                        from .observations import collect
+                        next_close=(client.now()//CFG.entry_ms+1)*CFG.entry_ms
+                        if next_close-client.now()>30_000 and not client.gate.state()['remaining_seconds']:
+                            shadow_tick(store,client,next_close-30_000)
+                            collect(store,client,max_requests=2,stop_before_ms=next_close-30_000)
+                            feature_tick(store,client,'BYBIT',next_close-30_000)
                 except (DataUnavailable,ValueError,KeyError,TypeError,sqlite3.Error) as exc:
                     reason=str(exc)[:100] if isinstance(exc,(DataUnavailable,ValueError)) else type(exc).__name__
                     if reason!=last_error:
@@ -297,10 +325,11 @@ class ExternalWatch:
                     self.stop.wait(15)
                 self.offset_ms=client.offset_ms
                 if client.now()-heartbeat>=5*MINUTE:
+                    from .shadow import health
                     log('TA_EXTERNAL_HEARTBEAT',requests=client.requests,cache_hits=client.cache_hits,
                         status=scanner.state.get('status','PREPARING'),
                         assessed=len(scanner.state.get('done',{})),universe=len(scanner.state.get('markets',{})),
-                        cooldown=client.gate.state())
+                        cooldown=client.gate.state(),observations=health(store))
                     heartbeat=client.now()
                 self.stop.wait(1 if scanner.state.get('status')=='PENDING' else 5)
         finally:store.db.close()

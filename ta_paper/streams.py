@@ -58,6 +58,8 @@ class LiveFeed:
           CREATE TABLE IF NOT EXISTS issues(symbol TEXT,tf TEXT,ms INTEGER,reason TEXT);
           CREATE TABLE IF NOT EXISTS state(key TEXT PRIMARY KEY,payload TEXT);
         ''')
+        from .features import init
+        init(self.db)
         row = self.db.execute("SELECT payload FROM state WHERE key='invalid_contracts'").fetchone()
         if row: self.invalid_contracts = json.loads(row[0])
         row = self.db.execute("SELECT payload FROM state WHERE key='metadata'").fetchone()
@@ -131,6 +133,11 @@ class LiveFeed:
 
     def put_bars(self, symbol, tf, rows, source, now):
         with self.lock:
+            from .features import capture_klines
+            # Trigger/context factors need 30m/4h. Keep the existing full 1m
+            # price path without duplicating every universe minute's aux data.
+            if tf!='1m':
+                capture_klines(self.db,symbol,tf,rows,now,source)
             for raw in rows:
                 # Validate geometry/closure but not sequence: gaps remain gaps.
                 row = closed_bars([raw], PERIODS[tf], now, minimum=1, require_current=False)[0]
@@ -144,6 +151,21 @@ class LiveFeed:
                     raise StreamMissing('CLOSED_CANDLE_CHANGED')
                 self.db.execute('INSERT OR IGNORE INTO bars VALUES(?,?,?,?,?)', (symbol,tf,row[0],payload,source))
             self.db.commit()
+
+    def copy_aux(self, destination, symbol, tf, rows):
+        """Copy optional fields on the caller's SQLite thread; core bars stay 7-wide."""
+        with self.lock:
+            for row in rows:
+                aux = self.db.execute('SELECT * FROM candle_aux WHERE symbol=? AND tf=? AND ms=?',
+                                      (symbol,tf,row[0])).fetchone()
+                if aux:
+                    old=destination.execute('SELECT payload FROM candle_aux WHERE symbol=? AND tf=? AND ms=?',
+                                            (symbol,tf,row[0])).fetchone()
+                    if old and old[0]!=aux[3]:
+                        destination.execute('INSERT INTO aux_issues(ms,symbol,reason) VALUES(?,?,?)',
+                                            (aux[4],symbol,'REST_STREAM_AUX_CONFLICT'))
+                    destination.execute('INSERT OR IGNORE INTO candle_aux VALUES(?,?,?,?,?,?)',tuple(aux))
+            destination.commit()
 
     def ingest(self, group, payload, now):
         data = payload.get('data', payload) if isinstance(payload, dict) else payload
@@ -185,6 +207,8 @@ class LiveFeed:
                     start, end = int(bar['t']), int(bar['T'])
                     if end > now+1000: raise StreamMissing('STREAM_FUTURE_BAR')
                     row = [start,bar['o'],bar['h'],bar['l'],bar['c'],bar['v'],end]
+                    if all(k in bar for k in ('q','n','V','Q')):
+                        row += [bar['q'],bar['n'],bar['V'],bar['Q']]
                     # Save final exchange bars immediately; readers still enforce
                     # the frozen 2s publication delay before using them.
                     self.put_bars(symbol,tf,[row],'BINANCE_WS',max(now,end+CFG.publication_delay_ms+1))
@@ -359,6 +383,8 @@ def daily_rows(archive, symbol, tf, day):
             for rawrow in csv.reader(io.TextIOWrapper(file,encoding='utf-8-sig')):
                 if not rawrow or not rawrow[0].isdigit(): continue
                 row = [int(rawrow[0]),*map(float,rawrow[1:6]),int(rawrow[6])]
+                if len(rawrow)>=11:
+                    row += [float(rawrow[7]),int(rawrow[8]),float(rawrow[9]),float(rawrow[10])]
                 if row[0]//86400000 != day: raise ValueError('ARCHIVE_DATE_MISMATCH')
                 result.append(row)
     return result

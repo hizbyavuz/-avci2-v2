@@ -37,9 +37,10 @@ def market(symbol,price):
 
 
 def window(rows,times,decision,period):
-    # Same 120 closed bars as assess expects. Future bar values are never read.
+    # Match the live latest-120 response: 119 closed bars plus the open bar
+    # that is excluded. Preserve core.py and its EMA seed/strategy rules.
     last=bisect_right(times,decision-CFG.publication_delay_ms-period)
-    return rows[max(0,last-CFG.history_bars):last]
+    return rows[max(0,last-(CFG.history_bars-1)):last]
 
 
 def controls(p,bars):

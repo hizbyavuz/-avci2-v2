@@ -2,6 +2,7 @@
 import argparse
 from concurrent.futures import ThreadPoolExecutor,as_completed
 import csv
+from datetime import datetime, timezone
 import hashlib
 import io
 import json
@@ -80,6 +81,9 @@ class Archive:
 
     def file(self,symbol,interval,month,kind='klines'):
         key=self.key(symbol,interval,month,kind)
+        return self.checked_file(key)
+
+    def checked_file(self,key):
         path=self.cache/key
         missing=path.with_suffix('.missing')
         checksum=path.with_suffix('.sha256')
@@ -119,10 +123,50 @@ class Archive:
                             if len(row)<8:raise ValueError('SHORT_ARCHIVE_ROW')
                             stamp=int(row[0]);end=int(row[6])
                             if stamp>100_000_000_000_000:raise ValueError('UNEXPECTED_FUTURES_TIME_UNIT')
-                            rows.append([stamp,*map(float,row[1:6]),end,float(row[7])])
+                            value=[stamp,*map(float,row[1:6]),end,float(row[7])]
+                            if kind=='klines' and len(row)>=11:
+                                value += [int(row[8]),float(row[9]),float(row[10])]
+                            rows.append(value)
         rows.sort(key=lambda r:r[0])
         if len({r[0] for r in rows})!=len(rows):raise ValueError('ARCHIVE_DUPLICATE_TIMESTAMP')
         return rows
+
+    def metrics(self,symbol,dates):
+        """Daily checksummed 5m files; identical duplicates reported, conflicts fail."""
+        from .core import finite, MINUTE
+        if not re.fullmatch(r'[A-Z0-9]+USDT',symbol):raise ValueError('INVALID_METRICS_SYMBOL')
+        unique={};duplicates=0;missing=[]
+        fields=('sum_open_interest','sum_open_interest_value','count_toptrader_long_short_ratio',
+                'sum_toptrader_long_short_ratio','count_long_short_ratio','sum_taker_long_short_vol_ratio')
+        for date in dates:
+            day=datetime.strptime(date,'%Y-%m-%d').replace(tzinfo=timezone.utc)
+            key=f'data/futures/um/daily/metrics/{symbol}/{symbol}-metrics-{date}.zip'
+            try:path=self.checked_file(key)
+            except ArchiveMissing:missing.append(date);continue
+            with zipfile.ZipFile(path) as z:
+                if len(z.infolist())!=1 or z.infolist()[0].file_size>30_000_000:
+                    raise ValueError('METRICS_ARCHIVE_CONTENT')
+                with z.open(z.namelist()[0]) as source:
+                    reader=csv.DictReader(io.TextIOWrapper(source,encoding='utf-8-sig'))
+                    if not set(('create_time','symbol',*fields))<=set(reader.fieldnames or []):
+                        raise ValueError('METRICS_COLUMNS_MISSING')
+                    for raw in reader:
+                        stamp=int(datetime.fromisoformat(raw['create_time']).replace(tzinfo=timezone.utc).timestamp()*1000)
+                        if raw['symbol']!=symbol or stamp//86400000!=int(day.timestamp())//86400 or stamp%(5*MINUTE):
+                            raise ValueError('METRICS_TIME_OR_SYMBOL')
+                        value={k:finite(raw[k]) for k in fields}
+                        if value['sum_open_interest']<=0 or any(v<0 for v in value.values()):
+                            raise ValueError('METRICS_INVALID_VALUE')
+                        if stamp in unique:
+                            if unique[stamp]!=value:raise ValueError('METRICS_CONFLICTING_DUPLICATE')
+                            duplicates+=1
+                        else:unique[stamp]=value
+        times=sorted(unique)
+        gaps=[dict(after_ms=a,before_ms=b) for a,b in zip(times,times[1:]) if b-a!=5*60_000]
+        return [dict(timestamp=t,symbol=symbol,**unique[t]) for t in times],dict(
+            identical_duplicates=duplicates,missing_dates=missing,gaps=gaps,
+            expected_rows=288*len(dates),actual_rows=len(times),resolution_ms=300000,
+            archive_publication_time_known=False)
 
     def coarse(self,month='2026-08',warmup='2026-07',workers=4):
         symbols=self.symbols()
