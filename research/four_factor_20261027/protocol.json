@@ -1,5 +1,5 @@
 {
-  "version": "FOUR_FACTOR_RESEARCH_20261027_1",
+  "version": "FOUR_FACTOR_RESEARCH_20261027_2",
   "parent_live_commit": "7f80c3d7189a8c4e100314a814533900b78626c0",
   "strategy_hash": "f4485acc0340fb6352cde17558ada6f53459bafa486793423792c3b4e2ccdedd",
   "signal_window_utc": [
@@ -42,7 +42,8 @@
         1,
         4,
         8
-      ]
+      ],
+      "archive_timestamp_tolerance_ms": 1000
     },
     "relative": {
       "history_days": 3,
@@ -101,5 +102,13 @@
     "matched timing control",
     "calendar block inference",
     "Research-only instrument taxonomy correction from official launch announcements; live universe unchanged"
+  ],
+  "interventions": [
+    {
+      "type": "DATA_ADAPTER_BUGFIX",
+      "frozen_v1_commit": "58398c4ff9bfdc286e4516832d30453318975427",
+      "finding": "Initial coverage audit: all funding ranks unknown because raw settlement timestamps vary by milliseconds. Observed 39875 raw records had 0\u201326ms offset. No aggregate returns inspected or thresholds tuned.",
+      "correction": "Exclude raw timestamps after cutoff first; normalize funding-feature slots only when offset is <=1000ms and declared cadence agrees. Preserve raw timestamps for execution costs. Discard and retain separate v1 outcomes; rerun all symbols in new directory."
+    }
   ]
 }

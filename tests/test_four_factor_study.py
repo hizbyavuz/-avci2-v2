@@ -17,7 +17,7 @@ from ta_paper.features import hypothesis_results, funding_percentile
 from ta_paper.replay import execute
 from research.four_factor_20261027.data import (START,DAY,Discovery,MinutePath,screen_reclaims,weights,read_rows)
 from research.four_factor_20261027.download import Download, key, excluded_symbols
-from research.four_factor_20261027.study import stress_same_event,oi_at,needed_files,process_symbol,write_gzip,read_gzip,identity
+from research.four_factor_20261027.study import stress_same_event,oi_at,needed_files,process_symbol,write_gzip,read_gzip,identity,archived_funding_percentile
 from research.four_factor_20261027.report import summary,comparison,sensitivity,top_removed
 from test_ta_paper import setup,series,candle,NOW
 
@@ -142,6 +142,25 @@ class StudyTests(unittest.TestCase):
         a=funding_percentile(rows,cutoff);self.assertEqual(a['percentile'],.5)
         rows[-1]['fundingRate']=100;self.assertEqual(a,funding_percentile(rows,cutoff))
         self.assertIsNone(funding_percentile(rows[-10:],cutoff)['percentile'])
+
+    def test_archive_funding_jitter_is_not_a_gap_and_never_moves_future_into_past(self):
+        rows=[[START+i*480*MINUTE+(i%27),.0001,8] for i in range(100)]
+        cutoff=START+95*480*MINUTE+60*MINUTE
+        rank=archived_funding_percentile(rows,cutoff)
+        self.assertEqual(rank['status'],'OK');self.assertEqual(rank['percentile'],.5)
+        rows[96][1]=1.;self.assertEqual(rank,archived_funding_percentile(rows,cutoff))
+        # The raw event 9ms after this boundary is unavailable, despite its slot.
+        raw_boundary=START+90*480*MINUTE
+        self.assertLess(archived_funding_percentile(rows,raw_boundary)['latest_ms'],raw_boundary)
+        rows[80][0]+=2000
+        self.assertIsNone(archived_funding_percentile(rows,cutoff)['percentile'])
+
+    def test_archive_funding_true_gap_and_declared_interval_change_stay_unknown(self):
+        rows=[[START+i*480*MINUTE,.0001,8] for i in range(100)]
+        cutoff=START+95*480*MINUTE+60*MINUTE
+        self.assertEqual(archived_funding_percentile(rows[:70]+rows[71:],cutoff)['status'],'INTERVAL_CHANGE_OR_GAP')
+        rows[70][2]=4
+        self.assertEqual(archived_funding_percentile(rows,cutoff)['status'],'INTERVAL_CHANGE_OR_GAP')
 
     def test_four_thresholds_separate_and_missing_stays_unknown(self):
         fields=dict(taker_buy_share=.56,oi_change_4h=.1,price_change_4h=-.01,funding_percentile_30d=.95,btc_relative_3d=.02)

@@ -84,6 +84,27 @@ def oi_at(records,times,cutoff):
     return records[last]/records[start]-1,'OK'
 
 
+def archived_funding_percentile(rows,cutoff):
+    """Preserve availability time; tolerate <=1s archive settlement jitter.
+
+    The declared 1/4/8h interval and rounded hourly slots must both be constant.
+    Future raw timestamps are excluded BEFORE slot normalization. Execution
+    funding continues to use the original timestamps without any rounding.
+    """
+    sample=[];intervals=set()
+    for t,rate,interval in rows:
+        if t>cutoff or t<cutoff-30*DAY-8*60*MINUTE:continue
+        offset=t%(60*MINUTE)
+        if offset>1000 or interval not in (1,4,8):
+            return dict(status='UNSUPPORTED_SETTLEMENT_TIMESTAMP_OR_INTERVAL',percentile=None)
+        intervals.add(interval);sample.append(dict(fundingTime=t-offset,fundingRate=rate))
+    if len(intervals)>1:return dict(status='INTERVAL_CHANGE_OR_GAP',percentile=None)
+    result=funding_percentile(sample,cutoff)
+    if result['status']=='OK' and result['interval_ms']!=next(iter(intervals))*60*MINUTE:
+        return dict(status='DECLARED_INTERVAL_MISMATCH',percentile=None)
+    return result
+
+
 def stress_same_event(result,path,multiplier=1.5):
     """Reprice costs only: no new sizing, rejection, path or risk denominator."""
     if result['status']!='CLOSED':return None
@@ -121,8 +142,7 @@ def process_symbol(args):
             fields=dict(p['features']);cutoff=now-5*MINUTE
             fields['oi_change_4h'],fields['oi_status']=oi_at(oi,ot,cutoff)
             left=bisect_right(rt,cutoff-30*DAY-8*60*MINUTE-1);right=bisect_right(rt,cutoff)
-            sample=[dict(fundingTime=t,fundingRate=r) for t,r,_ in rate_rows[left:right]]
-            rank=funding_percentile(sample,cutoff)
+            rank=archived_funding_percentile(rate_rows[left:right],cutoff)
             fields.update(funding_percentile_30d=rank['percentile'],funding_status=rank['status'])
             features_cache[now]=fields
         fields=dict(features_cache[now])

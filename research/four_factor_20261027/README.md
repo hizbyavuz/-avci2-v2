@@ -78,3 +78,16 @@ PYTHONPATH=tests:. python -m unittest discover -s tests -p 'test_four_factor_stu
 Tests cover causal windows, EMA parity, matched controls, gaps, checksums,
 missing features, immutable live core, equal-day statistics and same-event cost
 stress. Synthetic tests establish software behavior, not a profitable edge.
+
+## Recorded intervention
+
+The first run was stopped during a feature-coverage audit: 39,875 raw funding
+records had 0–26ms settlement offsets, causing the live helper's exact cadence
+check to reject every funding rank. Version 2 adds an archive-only adapter with
+a maximum 1,000ms offset and an independently checked declared cadence. It
+excludes future raw timestamps before normalizing slots. Raw execution funding
+times are unchanged. No aggregate returns were inspected or thresholds tuned.
+Version 1 outcomes remain in a separate audit directory; all outcomes are
+recomputed under version 2. Coarse candidates are reused because their code and
+input bytes are unchanged, with hashes recorded. Genuine mark-price gaps remain
+unknown outcomes. Live observational code is unchanged by this research patch.
