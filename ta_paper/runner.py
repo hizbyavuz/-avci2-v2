@@ -25,7 +25,7 @@ from .observations import (collect, context_fields, funnel_report, record_setup,
 from .watch import publish_watches
 
 STOP = threading.Event()
-OPERATIONS_REVISION = 'TECHNICAL_WATCH_20261026_5'
+OPERATIONS_REVISION = 'PRIVATE_EGRESS_READY_20261026_6'
 CHART_REVISION = 'CHARTS_20261026_1'
 SCAN_STATE_KEY = 'scan_progress_v2'
 SCAN_BATCH_SECONDS = 15

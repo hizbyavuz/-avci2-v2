@@ -1,0 +1,27 @@
+services:
+  egress:
+    build:
+      context: .
+      dockerfile: Dockerfile.ta-egress
+    restart: unless-stopped
+    ports:
+      - "443:8443"
+    env_file:
+      - /opt/ta-egress/egress.env
+    volumes:
+      - /opt/ta-egress/state:/state
+      - /opt/ta-egress/tls:/tls:ro
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 256m
+    cpus: 0.5
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

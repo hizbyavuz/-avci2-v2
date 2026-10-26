@@ -15,6 +15,7 @@ import zlib
 from .core import CFG, MINUTE, finite, closed_bars
 from .rate_limit import CooldownError, RequestGate, request_weight, retry_deadline
 from .provenance import identity
+from .transport import MarketTransport
 
 
 class DataUnavailable(RuntimeError):
@@ -37,8 +38,9 @@ class Binance:
                          '/fapi/v1/ticker/24hr', '/fapi/v1/klines',
                          '/fapi/v1/depth', '/fapi/v1/fundingRate'])
 
-    def __init__(self, cooldown_path=None, legacy=None, candle_store=None):
+    def __init__(self, cooldown_path=None, legacy=None, candle_store=None, *, direct=False):
         self.gate = RequestGate(cooldown_path, legacy)
+        self.transport = MarketTransport(direct=direct)
         self.cache_lock = threading.Lock()
         self.candle_cache = {}
         self.candle_store = candle_store
@@ -59,7 +61,7 @@ class Binance:
         return int(time.time()*1000)+self.offset_ms
 
     def usage(self):
-        return dict(reported_ip_weight_1m=self.observed_weight,
+        return dict(transport=self.transport.mode, reported_ip_weight_1m=self.observed_weight,
                     reported_minute=self.observed_weight_window,
                     local_requests_since_start=self.local_requests,
                     local_estimated_weight_since_start=self.local_estimated_weight,
@@ -85,8 +87,6 @@ class Binance:
             self.gate.acquire(weight, unknown_recheck=_unknown_recheck)
         except CooldownError as exc:
             raise DataUnavailable(str(exc)) from None
-        # One official host, no proxy/venue fallback or region switching.
-        url = 'https://fapi.binance.com'+endpoint+'?'+urllib.parse.urlencode(params)
         self.local_requests+=1
         self.local_estimated_weight+=weight
         minute = self.now()//MINUTE
@@ -96,10 +96,9 @@ class Binance:
         self.local_minute_requests += 1
         self.local_minute_weight += weight
         self.endpoint_usage[endpoint] = self.endpoint_usage.get(endpoint, 0)+weight
-        req = urllib.request.Request(url, headers={'User-Agent': 'TA-Paper-Research/1',
-                                                  'Accept-Encoding': 'gzip'}, method='GET')
+        req = self.transport.request(endpoint, params)
         try:
-            with urllib.request.build_opener(NoRedirect).open(req, timeout=12) as resp:
+            with urllib.request.build_opener(NoRedirect, *self.transport.handlers()).open(req, timeout=12) as resp:
                 raw = resp.read(8_000_001)
                 if len(raw) > 8_000_000:
                     raise DataUnavailable("OVERSIZED_RESPONSE")

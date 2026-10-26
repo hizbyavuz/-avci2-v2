@@ -5,10 +5,20 @@ ve eski daemon'ları başlatmaz. Otomatik borsa emri, hesap erişimi, para trans
 ve gerçek kaldıraç ayarlama kodu yoktur. Telegram yalnız önceden yapılandırılmış
 kullanıcı adresine, `--telegram` açıkken gönderilir.
 
-**Durum: `89f6256`, 26 Ekim 2026 21:13 TSİ'de
-`ADMISSION_DELIVERY_20261026_4` kimliğiyle canlıda doğrulandı.
-Aşağıdaki yeni teknik aday bildirimlerinin yayına alındığı bu dosyada
-varsayılmaz. V1.1 kârlılık iddiası taşımaz.**
+**Durum: `a0ef35f`, 26 Ekim 2026 21:26 TSİ'de
+`TECHNICAL_WATCH_20261026_5` kimliğiyle canlıda doğrulandı; bilinen 418
+beklemesinde olduğundan yeni aday teslimi henüz doğrulanmadı.
+Bu daldaki `PRIVATE_EGRESS_READY_20261026_6` bağlantı değişikliği henüz
+yayımlanmadı. V1.1 kârlılık iddiası taşımaz.**
+
+## Hazırlanan özel veri çıkışı
+
+Railway motoru ve durum dosyaları korunarak tek kullanıcıya ait sunucu
+üzerinden mevcut kamuya açık Binance GET istekleri iletilebilir. TLS,
+token, endpoint sınırı ve iki tarafta kalıcı cooldown vardır; bağlantı
+başarısızsa otomatik ortak IP'ye dönüş yapılmaz. Ayrıntı ve maliyet/onay
+adımı: [TA_EGRESS_DEPLOYMENT.md](../TA_EGRESS_DEPLOYMENT.md).
+Bu dosyaların varlığı yeni sunucu alındığı veya engelin kalktığı anlamına gelmez.
 
 ## Teknik aday bildirimleri — TECHNICAL_WATCH_20261026_1
 
