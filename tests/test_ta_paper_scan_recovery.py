@@ -161,6 +161,43 @@ class ScanRecoveryTests(unittest.TestCase):
             network.assert_not_called()
         self.assertEqual(c.gate.state()['until_ms'],until)
 
+    def test_waiting_notice_does_not_repeat_after_fifteen_minutes_or_restart(self):
+        state=dict(remaining_seconds=24*3600,until_ms=NOW+24*60*MINUTE,
+                   reason='BINANCE_HTTP_418',source='EXCHANGE_RETRY_TIME')
+        update_health(self.store,'USER_REQUESTED_RETRY_DELAY',state,NOW)
+        self.store.db.close();self.store=Store(self.path)
+        with patch('urllib.request.build_opener') as network:
+            for elapsed in (15*MINUTE,30*MINUTE,2*60*MINUTE,23*60*MINUTE):
+                update_health(self.store,'USER_REQUESTED_RETRY_DELAY',state,NOW+elapsed)
+            network.assert_not_called()
+        self.assertEqual(self.store.db.execute('SELECT count(*) FROM outbox').fetchone()[0],1)
+
+    def test_waiting_details_still_recorded_without_repeated_messages(self):
+        state=dict(remaining_seconds=24*3600,until_ms=NOW+24*60*MINUTE,
+                   reason='BINANCE_HTTP_418',source='EXCHANGE_RETRY_TIME')
+        update_health(self.store,'BINANCE_HTTP_418',state,NOW)
+        later=dict(state,until_ms=NOW+25*60*MINUTE)
+        update_health(self.store,'BINANCE_HTTP_418',later,NOW+20*MINUTE,
+                      {'assessed':17,'universe':319})
+        self.assertEqual(self.store.db.execute('SELECT count(*) FROM outbox').fetchone()[0],1)
+        events=self.store.db.execute("SELECT payload FROM events WHERE kind='RUNTIME_HEALTH' ORDER BY id").fetchall()
+        self.assertEqual(len(events),2)
+        last=json.loads(events[-1][0])
+        self.assertEqual(last['until_ms'],later['until_ms'])
+        self.assertEqual(last['assessed'],17)
+
+    def test_recovery_and_a_new_waiting_episode_each_notify_once(self):
+        state=dict(remaining_seconds=60,until_ms=NOW+MINUTE,source='WEIGHT_HEADER')
+        update_health(self.store,'SHARED_IP_WEIGHT_HIGH',state,NOW)
+        update_health(self.store,'READY',dict(state,remaining_seconds=0),NOW+MINUTE,
+                      {'status':'COMPLETE','slot':4,'assessed':134,'universe':134})
+        update_health(self.store,'BINANCE_HTTP_418',dict(state,until_ms=NOW+24*60*MINUTE),NOW+2*MINUTE)
+        update_health(self.store,'BINANCE_HTTP_418',dict(state,until_ms=NOW+24*60*MINUTE),NOW+30*MINUTE)
+        messages=[row[0] for row in self.store.db.execute('SELECT text FROM outbox ORDER BY ms')]
+        self.assertEqual(len(messages),3)
+        self.assertIn('Tarama tamamlandı',messages[1])
+        self.assertIn('Binance verisi bekleniyor',messages[2])
+
     def test_usage_counters_are_distinct_from_shared_ip_header(self):
         c=Binance();resp=market_response({'serverTime':int(time.time()*1000)})
         resp.__enter__.return_value.headers['X-MBX-USED-WEIGHT-1M']='999'
