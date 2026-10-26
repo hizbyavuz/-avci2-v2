@@ -32,6 +32,7 @@ def risk_note(reason, evidence=None):
         'LATE_ENTRY':'Güncel fiyat teknik kovalama sınırını geçmiş; yeni giriş için geç olabilir.',
         'INVALID_PLAN_GEOMETRY':'Güncel giriş fiyatıyla stop/hedef düzeni uygun değil.',
         'BOOK_NOT_VERIFIED':'Güncel emir defteri ve işlem uygunluğu henüz doğrulanmadı.',
+        'EXTERNAL_VENUE_WATCH_ONLY':'Seviyeler Bybit verisinden hesaplandı. Binance fiyatı, emir defteri ve giriş uygunluğu doğrulanmadı.',
     }
     text=names.get(reason,'Sanal işlem kabulü doğrulanamadı; güncel likidite ve giriş ayrıca kontrol edilmeli.')
     if evidence and evidence.get('impact_fraction') is not None:
@@ -42,9 +43,11 @@ def risk_note(reason, evidence=None):
 
 def watch_message(p):
     long=p['direction']=='LONG'
+    external=p.get('source_venue')=='BYBIT'
     at=datetime.fromtimestamp(p['observed_ms']/1000,timezone.utc).astimezone(
         ZoneInfo('Europe/Istanbul')).strftime('%d.%m %H:%M')
     return (f"{'🟢' if long else '🔴'} {'LONG' if long else 'SHORT'} İÇİN İZLE | {p['symbol']}\n"
+            +('Kaynak: BYBIT USDT vadeli · Binance girişi doğrulanmadı.\n' if external else '')+
             '30 dk dönüş koşulu oluştu · 4 saat yönü uyumlu.\n'
             f"Sinyal kapanışı: {p['reference_entry']:.8g}\n"
             f"Teknik stop: {p['stop']:.8g} · Teknik hedef: {p['target']:.8g}\n"
@@ -64,7 +67,8 @@ def publish_watches(store, client, state, cfg=CFG):
     now=client.now(); queued=0
     for symbol,original in state.get('done',{}).items():
         if original.get('status')!='SETUP':continue
-        key=setup_id(original);outbox_key='watch:'+key
+        key=('BYBIT:' if original.get('source_venue')=='BYBIT' else '')+setup_id(original)
+        outbox_key='watch:'+key
         accepted=state.get('handled',{}).get(symbol)=='ACCEPTED'
         if accepted or store.db.execute('SELECT 1 FROM plans WHERE id=?',(key,)).fetchone():
             store.db.execute("UPDATE watch_candidates SET status='SUPERSEDED' WHERE id=?",(key,))
@@ -79,7 +83,7 @@ def publish_watches(store, client, state, cfg=CFG):
         reason=state.get('handled',{}).get(symbol,note.get('reason','BOOK_NOT_VERIFIED'))
         if reason=='SCAN_FINISHED_TOO_LATE':continue
         p=dict(original,id=key,status='WATCH',entry=original['reference_entry'],
-               watch_revision=WATCH_REVISION,valid_until_ms=deadline,
+               watch_revision=original.get('watch_revision',WATCH_REVISION),valid_until_ms=deadline,
                risk_reason=reason,risk_note=risk_note(reason,note.get('book')),
                watch_git_commit=store.provenance['git_commit'],
                watch_source_sha256=store.provenance['source_sha256'])
@@ -102,6 +106,7 @@ def publish_watches(store, client, state, cfg=CFG):
         store.db.commit()
         store.event('WATCH_CANDIDATE',key,p,now)
         print('TA_PAPER_WATCH '+encode(dict(symbol=symbol,direction=p['direction'],
-              reason=reason,watch_revision=WATCH_REVISION,valid_until_ms=deadline)),flush=True)
+              reason=reason,watch_revision=p['watch_revision'],source_venue=p.get('source_venue','BINANCE'),
+              valid_until_ms=deadline)),flush=True)
         queued+=1
     return queued

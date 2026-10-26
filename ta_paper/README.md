@@ -453,3 +453,82 @@ Official protocol references:
 - https://developers.binance.com/en/docs/products/derivatives-trading-usds-futures/websocket-market-streams/Connect
 - https://developers.binance.com/en/docs/catalog/core-trading-derivatives-trading-usd-s-m-futures/api/ws-streams/market
 - https://github.com/binance/binance-public-data
+
+## Independent Bybit WATCH — EXTERNAL_BYBIT_WATCH_20261026_7
+
+The Binance market-stream release above did not provide an independent source:
+new Binance connections still wait for Binance's known 418 deadline. The optional
+`--external-watch bybit` collector supplies a separate source of technical WATCH
+cards from **Bybit's own USDT linear perpetual market**, without waiting for
+Binance recovery. It is an observational venue variant, not a substitute Binance
+fill or an assertion that the two exchanges have identical candles/liquidity.
+
+```bash
+python -u -m ta_paper.runner --telegram --historical-research --market-streams --external-watch bybit
+```
+
+- Runs inside the existing service with a separate collector thread, SQLite
+  database (`external_bybit_v1/research.sqlite3`) and durable Bybit cooldown.
+  No new server, subscription, API key, account endpoint or order endpoint.
+- Only public GETs to `api.bybit.com/v5/market/{time,instruments-info,tickers,kline}`
+  are allowed. One serial budget permits at most roughly 3.34 requests/sec.
+  HTTP/return-code blocks persist across restart; 403 waits at least 10 minutes,
+  explicit Retry-After deadlines are respected. There is no host/IP rotation.
+- Paginates the full Bybit instrument response. Eligible coins must match both
+  symbol and base asset in the last saved Binance contract list, be currently
+  trading Bybit USDT perpetuals, have at least 30 days of Bybit history and at
+  least 2 million USDT of Bybit 24h quote turnover. Prelisting, ST, TradFi,
+  unsupported or unmatched contracts are excluded and coverage counts are logged.
+  The cached Binance list is only a reference, not current Binance tradability.
+- Native Bybit 30m/4h closed candles use the same immutable 119-bar windows and
+  unchanged `core.assess`. Bybit turnover is correctly distinguished from a
+  closing timestamp. The five-minute window, publication delay, trend/reclaim,
+  chase, ATR, stop-distance and target conditions remain unchanged. A cold start
+  outside the decision window prepares history for the next 30m close.
+- Stores raw public responses, all assessments including rejected cases, data
+  issues and candidates separately. Restart-safe progress and a cached 4h context
+  reduce repeated requests. A missing peer cannot veto an otherwise valid WATCH;
+  incomplete scans are explicitly incomplete, never claimed as zero opportunities.
+- Cards and chart banners say **BYBIT USDT vadeli — Binance girişi doğrulanmadı**.
+  Prices/stops/targets are Bybit technical reference levels. Candidate IDs include
+  the venue, duplicates and expired cards remain blocked, and the existing
+  configured Telegram destination delivers the independent outbox even while
+  Binance remains blocked. No paper positions or fabricated performance results
+  are created; these observations are not pooled into Binance test performance.
+- Existing Binance evidence, exchange deadlines, strategy `core.py` and
+  `rate_limit.py` are unchanged. Binance status notices now name their source so
+  a Binance wait is not mistaken for an external-source failure.
+
+Validation: 131 offline unit/integration tests, including independent LONG and
+SHORT cards while Binance is banned, unchanged Binance state, pagination beyond
+1,000 records, precise contract matching, timestamp/format validation, immutable
+overlap rejection, gap isolation, cold/expired windows, duplicate/expiry protection,
+durable Bybit cooldown and delivery via the existing Telegram outbox. Real service
+reachability and qualifying live SETUPs require separate deployment/log verification.
+
+Protocol references:
+- https://bybit-exchange.github.io/docs/v5/market/kline
+- https://bybit-exchange.github.io/docs/v5/market/instrument
+- https://bybit-exchange.github.io/docs/v5/market/tickers
+- https://bybit-exchange.github.io/docs/v5/rate-limit
+
+## User-requested Binance retry delay — BINANCE_RETRY_DELAY_20261026_8
+
+`--binance-not-before-ms 1793121840264` delays Binance REST requests and new
+market-stream connections until **27 October 2026 20:24:00.264 Europe/Istanbul**,
+ten minutes after the currently recorded Binance retry boundary
+(`1793121240264`, 20:14:00.264). This is one absolute floor, not another ten
+minutes added on each restart or every future ban. A later exchange deadline
+still takes precedence.
+
+The user floor persists separately in `binance_cooldown.json`; the original
+exchange deadline, reason, source and recheck history remain intact. Restarts,
+shorter floor values and assumed-timer rechecks cannot bypass it. The runtime
+logs both the exchange boundary and the effective earliest retry. Bybit uses
+its separate unchanged gate, collector, cache and outbox. Strategy thresholds
+and the frozen configuration hash remain unchanged.
+
+Validation: 138 offline tests passed. Added checks cover the exact retry boundary,
+restart idempotence, unmodified exchange evidence, longer subsequent exchange
+blocks, recheck/stream bypass prevention, invalid state handling, and independent
+Bybit delivery while the primary Binance runner remains deferred.
