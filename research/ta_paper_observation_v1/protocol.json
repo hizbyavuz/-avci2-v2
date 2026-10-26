@@ -1,0 +1,134 @@
+{
+  "version": "FROZEN_OBSERVATIONS_20261027_1",
+  "status": "OBSERVATION_ONLY_NO_FILTER_PROMOTION",
+  "baseline_commit": "99dea67466e16e79652e9208779f6073a5040f35",
+  "config_hash": "f4485acc0340fb6352cde17558ada6f53459bafa486793423792c3b4e2ccdedd",
+  "frozen_files_sha256": {
+    "core.py": "271853954efb872b0ef3121f077a0417fbe286a6c3bf794b6e3e600bd4406218",
+    "rate_limit.py": "57d97c1a27caeae0a4909e5bdc4a4ec2dca1505a2a86a308a159b8fa275b42ef",
+    "watch.py": "0dc075f43719bd17d4dd8517420c6bed9ed148bec9ee407f8c193f79c696cd62",
+    "chart.py": "4a45908f52223c7200dc725733266e8a7029d938932ab0ed9751b31816c17e3e",
+    "archive.py": "77bc128002601a4f3bea6c4c742073f262a4a4ae8d81dad83da0a6b05f51c927",
+    "replay.py": "e8a77e6191bc99f2da972729eb887feaa2641b793127a74bdac3df7bc96730e0",
+    "observations.py": "d481c826d641a21a82199aeff813de2ebd86cb59ecf1a2dd7c2e780c6382b5a9"
+  },
+  "live_scope": {
+    "primary_venue": "BYBIT_USDT_LINEAR_PERPETUAL",
+    "signal_rules_unchanged": true,
+    "orders": false,
+    "binance_api_requests_from_observer": false,
+    "max_public_websocket_connections": 1,
+    "max_observed_symbols": 200,
+    "symbol_cap_policy": "BTC_then_frozen_scan_liquidity_priority; all missing coverage explicit; candidate selection uncapped by observer",
+    "funding_history_rest": "one request per 5 minutes for closed observations; same Bybit scanner cooldown; only outside scan window with 30 second guard",
+    "network_failure": "signal worker continues; observation gaps explicit",
+    "memory_limit_mib": 512,
+    "disk_free_guard_mib": 512,
+    "funding_live_distribution": "indicative hourly samples, not settled history; historical parity unverified"
+  },
+  "cohort": {
+    "start": "first post-release Telegram ACK with persistent delivered_at_ms",
+    "old_messages": "retained in source, excluded from prospective results without ACK timestamp",
+    "anchor": "first full minute strictly after ACK+2 seconds",
+    "horizon_hours": [
+      1,
+      4,
+      24,
+      72
+    ],
+    "no_forced_core_exit": true,
+    "same_minute_barriers": "stop_first",
+    "gap_stop": "first available open beyond stop",
+    "missing_path": "UNRESOLVED_DATA, never normal win/loss; pessimistic sensitivity separate",
+    "repeated_notifications": "one candidate id per venue/config/symbol/signal candle; account and candidate counts separate",
+    "controls": "all assessed rejected peers preserved; descriptive, not randomized or matched efficacy controls"
+  },
+  "costs": {
+    "fee_each_side": 0.0005,
+    "entry_slippage": 0.0002,
+    "target_slippage": 0.0002,
+    "stop_slippage": 0.001,
+    "stress_multiplier": 1.5,
+    "funding": "settled Bybit rate times preceding observed mark max90s; missing mark/rate => model net absent",
+    "liquidity": "best quotes recorded, full-size historical depth unverified",
+    "performance_label": "technical path and counterfactual cost model, never executed fills or verified profitability",
+    "funding_timing": "entry/exiting-minute settlement ambiguity leaves model net unresolved"
+  },
+  "hypotheses": {
+    "H1": {
+      "feature": "closed trigger candle taker buy quote / total quote",
+      "long": ">0.55",
+      "short": "<0.45"
+    },
+    "H2": {
+      "feature": "4h OI unit change >0 AND directional 4h price return >0",
+      "meaning": "OI is outstanding contracts, not proof of net money inflow or long direction"
+    },
+    "H3": {
+      "feature": "latest available settled funding rank vs previous 30 calendar days, excluding current",
+      "long": "rank<0.90",
+      "short": "rank>0.10",
+      "warmup": "complete expected settlement history; live indicative ranks cannot substitute"
+    },
+    "H4": {
+      "feature": "coin 72h return minus BTC 72h return on same closed 4h grid",
+      "long": ">0",
+      "short": "<0"
+    }
+  },
+  "historical_plan": {
+    "execution_status": "NOT_RUN",
+    "candidate_window": [
+      "2025-10-01",
+      "2026-07-31"
+    ],
+    "holdout_status": "PRIOR_EXPOSURE_NOT_VERIFIED; do not claim untouched",
+    "excluded_from_confirmation": [
+      "2026-08"
+    ],
+    "metrics_publication_lag_assumption_ms": 360000,
+    "metrics_publication_time_verified": false,
+    "arms": [
+      "frozen_base",
+      "H1_only",
+      "H2_only",
+      "H3_only",
+      "H4_only",
+      "random_direction",
+      "random_timing"
+    ],
+    "no_combined_filter_search": true,
+    "control_matching": "same venue,time eligibility,liquidity and missing-data mask; explicit matched and native coverage reports",
+    "cost_stress": "same admitted events at base and 1.5x fees/slippage; funding unchanged",
+    "pass_conditions": [
+      "positive mean net R at 1.5x costs",
+      "positive mean net R after removing three symbols with highest total net R in that arm",
+      "paired day-mean advantage over BOTH random controls with 95% day-block confidence interval lower bound >0; Holm correction across 8 comparisons",
+      "at least 60 observed entry-day clusters; otherwise INCONCLUSIVE; no sample count guarantees power"
+    ],
+    "reporting": [
+      "LONG and SHORT separately",
+      "BTC up/sideways/down with preregistered regime definitions before replay",
+      "unresolved counts and pessimistic stop sensitivity",
+      "number of trials and prior exposures",
+      "fixed-seed controls and secondary seed sensitivity"
+    ],
+    "promotion": "separate version after independent review; never auto-enable filters",
+    "btc_regime_definition": "closed 4h BTC return >+0.5% up, <-0.5% down, otherwise sideways; observational segmentation only"
+  },
+  "archive_probe": {
+    "symbol": "BTCUSDT",
+    "day": "2025-10-01",
+    "rows": 288,
+    "interval_minutes": 5,
+    "earliest_catalog_key_for_BTC": "2020-09-01",
+    "sha256": "7871182d6a7a07acb6d7ac504ade286ef7371eb509d1d05690b4a00af9af45c4",
+    "other_symbols_coverage": "not inferred"
+  },
+  "no_claims": [
+    "more data guarantees edge",
+    "OI up proves new longs",
+    "positive funding proves everyone is long",
+    "same August replay is independent evidence"
+  ]
+}
