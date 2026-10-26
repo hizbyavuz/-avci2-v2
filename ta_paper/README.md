@@ -1,5 +1,70 @@
 # TA PAPER V1.1 — Ölçüm ve arşiv araştırması
 
+## 27 Ekim son gözlem sürümü — OBSERVATIONS_20261027_1
+
+Bu bölüm aşağıdaki tarihsel operasyon notlarından yenidir. Strateji çekirdeği
+`core.py`, `99dea67466e16e79652e9208779f6073a5040f35` ile byte düzeyinde aynıdır;
+config hash `f4485acc0340fb6352cde17558ada6f53459bafa486793423792c3b4e2ccdedd`
+korunur. Yeni ölçümler sinyal, sıralama, stop, hedef veya portföy kabulüne girmez.
+Yeni sürümün canlı olduğu ancak deployment SUCCESS ve açılış loguyla doğrulanır.
+
+- Binance REST, WebSocket ve arşivden quote hacim / işlem sayısı / taker alış
+  hacimleri ayrı `candle_aux` tablosuna yazılır. Çekirdek mum formatı değişmez.
+  Bybit mumundaki quote hacim saklanır; bulunmayan taker verisi uydurulmaz.
+- Her değerlendirme için `feature_events`: aynı zamana hizalı 3 günlük BTC
+  göreli getirisi, BTC 4h rejimi, göreli hacim; setup için 4h/24h sinyal öncesi
+  hareket, uzama ve önceki 60 mum ekstremine mesafe. Ekstrem gerçek bir
+  destek/direnç garantisi değildir; kırılmışsa yeni alan `null` kalır.
+- Setup sonrasında en çok iki ek metrik isteği/dakika; OI baz miktarının 4h
+  değişimi ve yalnız gerçekleşmiş funding'in 30 günlük yüzdeliği. Bu REST
+  zenginleştirmesi sinyalden sonra gelir: event/receipt zamanları ayrıdır ve
+  karar anında biliniyormuş gibi sunulmaz. Boşluk, değişen funding sıklığı,
+  kaynak uyuşmazlığı ve başarısız istekler açıkça kaydedilir. Binance beklemesi
+  veya yeni kapanışa yaklaşma halinde bu istekler yapılmaz.
+- Yeni Bybit setup'ları ayrı `shadow_trials` ve 72h `observations` kayıtlarına
+  girer. 200 USDT varsayımsal büyüklük, yerel miktar adımı/minimum/maksimum,
+  güncel 100 seviye defter VWAP'ı ve ölçülen giriş gecikmesi saklanır. Bu bir
+  gerçekleşme iddiası veya gerçek/sanal Binance portföy pozisyonu değildir.
+- Bybit modeli: taraf başına varsayılan %0,06 ücret, girişte VWAP üzerine %0,02
+  artık kayma; çıkışta hedef %0,02 / stop %0,10 kayma ve giriş yarım-spread'inin
+  çıkış için vekili. Gerçekleşmiş funding oranı, yerel mark 1m açılış vekiliyle
+  hesaplanır. Bütün bu varsayımlar `protocol.json` içinde sabittir.
+- Eksik yol/funding kayıp veya sıfır getiri sayılmaz. Gecikmiş giriş için eski
+  fiyatla fill uydurulmaz. Girişten önce seviye görülmesi iptal; kısmi giriş
+  dakikasındaki sıra belirsizliği bilinmeyen sonuçtur. Sonraki dakikalarda
+  stop önce, fiyat boşluğunda mum açılışı geçerlidir.
+- 4h/24h/72h yol gözlemi; ham MFE/MAE ve %3/5/7/10/15 erişim aralıkları ayrı
+  kaydedilir. Bunlar yürütülebilir net kâr değildir. Geçerli model girişi
+  olmayan gözlemler erişim oranının birincil paydasına girmez. 72h pozisyon
+  kapatma kuralı değildir. Binance ve Bybit sonuçları birleştirilmez.
+- Replay penceresi canlıdaki 119 kapalı mumla eşitlendi. Önceki 120 mumlu
+  Ağustos çıktıları korunur; yeni sürümün sonuçlarıyla havuzlanmaz.
+- Günlük OI arşivinde checksum, başlık, sembol/zaman, boşluk ve tekrar
+  kontrolü vardır. Aynı tekrar raporlanır; çelişen tekrar reddedilir. Arşiv
+  kayıt zamanı, canlı yayımlanma zamanının kanıtı değildir.
+
+Araştırma kuralları: `research/ta_paper_final_20261027/protocol.json`.
+Dört hipotez tek tek sınanacaktır; otomatik filtre açma yoktur. Ekim 2025–
+Temmuz 2026 döneminin daha önce görülmediği doğrulanmış değildir; bu nedenle
+holdout veya başarı sonucu iddiası yoktur. Mevcut Ağustos sonucu negatiftir.
+Bu sürüm veri ve ölçüm altyapısını tamamlar; dört hipotezin bütün evrendeki
+tarihsel başarı testinin tamamlandığı anlamına gelmez.
+
+Üretim komutu (aynı Binance mutlak bekleme sınırı, arşiv işini tekrarlamadan):
+```
+python -u -m ta_paper.runner --telegram --market-streams --external-watch bybit --binance-not-before-ms 1793121840264
+```
+
+Salt okunur rapor:
+```
+python -m ta_paper.measurement_report --database /app/.long-short-state/ta_paper_v1_1_20261026/external_bybit_v1/research.sqlite3 --venue BYBIT
+python -m ta_paper.measurement_report --database /app/.long-short-state/ta_paper_v1_1_20261026/research.sqlite3 --venue BINANCE
+```
+
+Bu sürümden sonra eşik değiştirilmeyecek. Veri kesintisi veya yazılım hatası
+giderilirse ayrı operasyon revizyonu ve müdahale kaydı gerekir. Yeni strateji
+fikri ayrı sürümdür. Eski adaylar, kötü sonuçlar ve çözülemeyen olaylar korunur.
+
 Bu, ayrı bir araştırma sürümüdür. Eski Avcı/V4.2/V4.3 karar kodunu değiştirmez
 ve eski daemon'ları başlatmaz. Otomatik borsa emri, hesap erişimi, para transferi
 ve gerçek kaldıraç ayarlama kodu yoktur. Telegram yalnız önceden yapılandırılmış

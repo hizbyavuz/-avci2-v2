@@ -1,0 +1,49 @@
+{
+  "version": "OBSERVATIONS_20261027_1",
+  "created_local_date": "2026-10-27",
+  "timezone": "Europe/Istanbul",
+  "parent_commit": "99dea67466e16e79652e9208779f6073a5040f35",
+  "frozen_strategy_hash": "f4485acc0340fb6352cde17558ada6f53459bafa486793423792c3b4e2ccdedd",
+  "live_use": "OBSERVATION_ONLY_NO_SCORE_NO_FILTER_NO_AUTOMATIC_ORDERS",
+  "hypotheses": {
+    "taker": {"long_gt": 0.55, "short_lt": 0.45, "definition": "trigger candle taker buy quote volume / total quote volume; zero total is unavailable"},
+    "oi": {"lookback_hours": 4, "oi_change_gt": 0, "require_directional_price_change_gt": 0, "unit": "base asset, not USD notional", "lag_minutes": 5, "require_continuous_5m": true},
+    "funding": {"lookback_days": 30, "long_percentile_lt": 0.9, "short_percentile_gt": 0.1, "ties": "midrank", "history": "settled rates only, earlier than signal; constant verified cadence; interval changes/gaps unavailable"},
+    "relative": {"lookback_days": 3, "long_excess_return_gt": 0, "short_excess_return_lt": 0, "endpoint": "same venue, identical closed 4h endpoints and continuous windows"}
+  },
+  "secondary_observations": ["4h EMA distance / ATR", "60x30m prior extreme room / stop distance", "relative volume", "24h and 4h pre-signal gain", "actual sampled entry delay", "observed book spread/depth/VWAP", "post-entry raw MFE/MAE and 3/5/7/10/15 percent reach intervals"],
+  "candidate_research_window_utc": ["2025-10-01T00:00:00Z", "2026-08-01T00:00:00Z"],
+  "holdout_status": "PRIOR_EXPOSURE_NOT_VERIFIED; DO_NOT_CLAIM_UNSEEN_HOLDOUT",
+  "known_exploratory_window": "2026-08, never a holdout; old outputs retained",
+  "replay_parity": "119 closed bars, unchanged live core; earlier 120-bar research outputs cannot be pooled",
+  "causality": "Never join future rows. Historical OI event timestamps do not prove publication time. Live retrospective enrichment retains receipt time and cannot be called available at signal.",
+  "comparison_design": "Four separate one-filter arms; never stack them. Each compared with unchanged strategy, same-event random direction and random timing. Preserve all failed/unfilled/unresolved records. Report common-support and full-universe coverage separately.",
+  "controls_seed": "ta-paper-final-20261027-fixed",
+  "outcome": "existing structural stop and 2R target; 1m stop-first after entry, gap open used; ambiguous partial entry minute unresolved; 4/24/72h observations, 72h is censoring not forced exit",
+  "pass_requirements": {
+    "cost_multiplier": 1.5,
+    "net_expectancy_gt": 0,
+    "net_expectancy_without_top3_symbols_gt": 0,
+    "minimum_closed_per_side": 100,
+    "minimum_entry_days_per_side": 60,
+    "insufficient_data": "INCONCLUSIVE, not proof of failure or success",
+    "primary_unit": "equal-weight UTC entry-day mean net R; paired calendar day/block comparisons",
+    "multiple_testing": "4 hypotheses x 2 directions x 3 comparators = 24 predeclared comparisons; family alpha 0.05, Bonferroni one-sided lower bound alpha 0.05/24 must exceed zero",
+    "resampling": "fixed-seed 20000 calendar-week block resamples, preserve empty/unknown days and report effective paired days; no trade-level iid inference",
+    "missing_sensitivity": "primary resolved results plus unresolved count and pessimistic loss sensitivity; cancellations remain cancellations",
+    "automatic_promotion": false
+  },
+  "bybit_shadow": {
+    "cohort": "separate from Binance plans and outcomes",
+    "notional_usdt": 200,
+    "fee_each_side_assumed": 0.0006,
+    "entry": "native 100-level sampled book VWAP, exchange quantity minimum/step; additional 0.0002 residual slippage; no fill claim",
+    "exit": "1m path; stop slippage 0.001, target slippage 0.0002, plus entry half-spread proxy for future exit spread",
+    "funding": "actual settled rate with native mark-minute-open proxy; unavailable/changed cadence unresolved",
+    "coverage": "all new setups tracked, delivery state separate; old candidates never retroactively filled",
+    "missing_taker": "Bybit candle API lacks taker flow; explicitly missing, never infer from candle colour or substitute Binance",
+    "limits": "book displayed liquidity is not a real fill; unknown intraminute path and future depth remain modelling limits"
+  },
+  "freeze": "No changes to live thresholds, weights, target, stop or filters during collection. Future hypotheses need a new version. No automatic profitability claim or promotion. Keep existing Binance absolute retry floor and venue separation.",
+  "deployment_research_policy": "Completed August outputs retained. Do not automatically repeat August solely due to an observational code change. New historical hypothesis evaluation is separate from the production scan process."
+}

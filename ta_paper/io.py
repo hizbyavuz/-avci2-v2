@@ -35,7 +35,8 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
 class Binance:
     ALLOWED = frozenset(['/fapi/v1/time', '/fapi/v1/exchangeInfo',
                          '/fapi/v1/ticker/24hr', '/fapi/v1/klines',
-                         '/fapi/v1/depth', '/fapi/v1/fundingRate'])
+                         '/fapi/v1/depth', '/fapi/v1/fundingRate',
+                         '/futures/data/openInterestHist'])
 
     def __init__(self, cooldown_path=None, legacy=None, candle_store=None):
         self.gate = RequestGate(cooldown_path, legacy)
@@ -184,7 +185,10 @@ class Binance:
         if self.streams:
             from .streams import StreamMissing
             try:
-                return self.streams.candles(symbol,interval,self.now(),limit,**params)
+                result = self.streams.candles(symbol,interval,self.now(),limit,**params)
+                if self.candle_store:
+                    self.streams.copy_aux(self.candle_store.db,symbol,interval,result)
+                return result
             except StreamMissing as exc:
                 if str(exc) == 'CLOSED_CANDLE_CHANGED':
                     raise DataUnavailable(str(exc)) from None
@@ -229,6 +233,9 @@ class Binance:
             if use_cache:self.full_fetches += 1
         if not isinstance(data, list):
             raise DataUnavailable("INVALID_KLINES_RESPONSE")
+        if self.candle_store:
+            from .features import capture_klines
+            capture_klines(self.candle_store.db,symbol,interval,data,self.now(),'BINANCE_REST')
         if use_cache:
             if incremental:
                 incoming = closed_bars(data,period,now,minimum=1)
@@ -385,6 +392,9 @@ class Store:
         if hashes != [cfg.fingerprint]:
             raise RuntimeError("CONFIG_CHANGED_USE_NEW_DATABASE")
         self.db.commit()
+
+        from .features import init
+        init(self.db)
 
     def event(self, kind, key, payload, now=None):
         self.db.execute('INSERT INTO events(ms,kind,key,payload) VALUES(?,?,?,?)',

@@ -25,7 +25,7 @@ from .observations import (collect, context_fields, funnel_report, record_setup,
 from .watch import publish_watches
 
 STOP = threading.Event()
-OPERATIONS_REVISION = 'HEALTH_STATE_CHANGES_20261027_9'
+OPERATIONS_REVISION = 'FINAL_OBSERVATION_FREEZE_20261027_10'
 CHART_REVISION = 'CHARTS_20261026_1'
 SCAN_STATE_KEY = 'scan_progress_v2'
 SCAN_BATCH_SECONDS = 15
@@ -538,6 +538,9 @@ def scan(store, client, cfg=CFG, on_plan=None):
                                         closed_bars(c,cfg.context_ms,stamp,cfg=cfg)))
             store.candles(symbol,'30m',closed_bars(b,cfg.entry_ms,stamp,cfg=cfg))
             store.candles(symbol,'4h',closed_bars(c,cfg.context_ms,stamp,cfg=cfg))
+            from .features import record_context
+            record_context(store,p,closed_bars(b,cfg.entry_ms,stamp,cfg=cfg),
+                           closed_bars(c,cfg.context_ms,stamp,cfg=cfg),'BINANCE')
             # Reuse immutable evidence when a crash occurred between assessment and checkpoint.
             key=f"{symbol}:{p['candle_ms']}:{cfg.fingerprint}"
             saved=store.db.execute('SELECT payload FROM assessments WHERE key=?',(key,)).fetchone()
@@ -686,11 +689,13 @@ def run(args):
             account_basis='EXAMPLE_PAPER_ACCOUNT', initial_equity=CFG.paper_initial_equity,
             operations_revision=OPERATIONS_REVISION, cooldown=client.gate.state(),
             provenance=store.provenance)
+        from .features import health as feature_health
+        log('TA_OBSERVATION_BOOT',**feature_health(store))
         previous_ops=store.setting('operations_revision')
         if previous_ops!=OPERATIONS_REVISION:
             store.event('OPERATIONS_REVISION',OPERATIONS_REVISION,
                         dict(previous=previous_ops,config_hash=CFG.fingerprint,
-                             provenance=store.provenance,change='notify_once_per_waiting_episode_preserving_retry_floor_and_bybit'))
+                             provenance=store.provenance,change='observation_only_features_and_bybit_outcomes_core_and_retry_floor_unchanged'))
             store.setting('operations_revision',OPERATIONS_REVISION)
         boot_key='system:charts:'+CHART_REVISION
         if not store.setting(boot_key):
@@ -796,6 +801,8 @@ def run(args):
                 if not _scan_blocked(client):
                     next_close=(client.now()//CFG.entry_ms+1)*CFG.entry_ms
                     collect(store,client,stop_before_ms=next_close-15_000)
+                    from .features import tick as feature_tick
+                    feature_tick(store,client,'BINANCE',next_close-30_000)
             now = client.now()
             if now-last_heartbeat >= 5*MINUTE:
                 plans = store.plans()
@@ -803,6 +810,8 @@ def run(args):
                     states=dict(Counter(p['status'] for p in plans)), telegram_ready=telegram.ready,
                     performance=descriptive_stats(plans),
                     funnel=funnel_report(store,include_coverage=False),
+                    observations=feature_health(store),
+                    disk_free_bytes=shutil.disk_usage(folder).free,
                     cooldown=client.gate.state(),
                     request_usage=client.usage() if hasattr(client,'usage') else {},
                     scan_progress=json.loads(store.setting(SCAN_STATE_KEY) or '{}').get('status','NOT_STARTED'),

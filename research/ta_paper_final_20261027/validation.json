@@ -1,0 +1,27 @@
+{
+  "status": "OFFLINE_VALIDATED_NOT_PROFITABILITY_PROOF",
+  "tests": 165,
+  "strategy_hash": "f4485acc0340fb6352cde17558ada6f53459bafa486793423792c3b4e2ccdedd",
+  "core_byte_identical_to_parent": true,
+  "core_sha256": "271853954efb872b0ef3121f077a0417fbe286a6c3bf794b6e3e600bd4406218",
+  "source_sha256": "4773d10a8a5209547286045a44f30f5ae92cb815238afbce071a55df2b01ea56",
+  "protocol_sha256": "3a3095741d43ebff0af25af0a44754f30e758653e90081c64ed14d6a073a174d",
+  "real_archive_probe": {
+    "dataset": "BTCUSDT daily metrics 2025-10-01",
+    "checksummed": true,
+    "rows": 288,
+    "resolution_seconds": 300,
+    "gaps": 0
+  },
+  "production_deployment": "VERIFY_SEPARATELY",
+  "live_new_candidate_outcome": "NOT_YET_ESTABLISHED",
+  "full_historical_four_hypothesis_study": "NOT_COMPLETED",
+  "parent_commit": "99dea67466e16e79652e9208779f6073a5040f35",
+  "synthetic_load": {
+    "symbols": 300,
+    "assessed": 300,
+    "seconds": 3.082,
+    "network_calls": 0,
+    "zero_forced_candidates": true
+  }
+}
