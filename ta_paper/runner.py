@@ -1,6 +1,7 @@
 """One paper engine; never imports or starts a legacy motor."""
 import argparse
 from collections import Counter
+from contextlib import ExitStack
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 import fcntl
@@ -9,17 +10,24 @@ import json
 import os
 from pathlib import Path
 import resource
+import shutil
 import signal
+import sqlite3
+import subprocess
+import sys
 import threading
 import time
 
 from .core import (CFG, MINUTE, assess, closed_bars, descriptive_stats, exit_on_bar,
                    funding_cost, risk_room, sizing)
 from .io import Binance, DataUnavailable, Store, Telegram, book_check, tradable
+from .observations import (collect, context_fields, funnel_report, record_setup, setup_id,
+                           GAP_GRACE, GAP_RETRY)
 
 STOP = threading.Event()
 OPERATIONS_REVISION = 'CHARTS_20261026_1'
 RECHECK_REQUEST = 'USER_RECHECK_20261026_1'
+STATE_FOLDER = CFG.version.lower()
 
 
 def log(kind, **fields):
@@ -104,11 +112,62 @@ def update_health(store, reason, cooldown, now):
     store.event('RUNTIME_HEALTH',reason,dict(cooldown,reason=reason),now)
 
 
+def continuous_path(client, symbol, start, now, cfg=CFG):
+    """Use a verified prefix, repair a missing start once; never jump a hole."""
+    raw=client.candles(symbol,'1m',limit=1000,startTime=start,endTime=now-cfg.publication_delay_ms)
+    rows=[]
+    for row in raw:
+        if int(row[6])+cfg.publication_delay_ms>=now:
+            continue
+        rows.extend(closed_bars([row],MINUTE,now,minimum=1,require_current=False,cfg=cfg))
+    if not rows or rows[0][0]>start:
+        end=min(now-cfg.publication_delay_ms,rows[0][0]-1 if rows else start+1000*MINUTE-1)
+        patch=client.candles(symbol,'1m',limit=1000,startTime=start,endTime=end)
+        for row in patch:
+            if int(row[6])+cfg.publication_delay_ms<now:
+                rows.extend(closed_bars([row],MINUTE,now,minimum=1,require_current=False,cfg=cfg))
+    by_time={}
+    for row in rows:
+        if row[0]<start:
+            raise DataUnavailable('PATH_RESPONSE_BEFORE_REQUEST')
+        if row[0] in by_time and by_time[row[0]]!=row:
+            raise DataUnavailable('CONFLICTING_PATH_CANDLE')
+        by_time[row[0]]=row
+    out=[];cursor=start
+    while cursor in by_time:
+        out.append(by_time[cursor]);cursor+=MINUTE
+    if not out:
+        raise DataUnavailable('ENTRY_OR_OUTCOME_PATH_GAP')
+    return out
+
+
+def hold_data(store,p,reason,now):
+    previous=p.get('status')
+    resume=p.get('resume_status','OPEN') if previous in ('DATA_HOLD','UNRESOLVED_DATA') else previous
+    since=p.get('data_hold_since_ms',now)
+    unresolved=now-since>=GAP_GRACE
+    p.update(resume_status=resume,status='UNRESOLVED_DATA' if unresolved else 'DATA_HOLD',
+             data_issue=reason,data_hold_since_ms=since,
+             next_recovery_ms=now+(15*MINUTE if unresolved else GAP_RETRY))
+    store.save(p)
+    store.event('DATA_ISSUE',p['id'],{'reason':reason,'status':p['status'],'since_ms':since},now)
+    if unresolved and not p.get('unresolved_notice_sent'):
+        store.queue('system:data:'+p['id'],
+                    f"⚪ {p['symbol']} · Sanal işlem sonucu belirsiz\n"
+                    "Eksik veri tamamlanamadı; kâr/zarar veya stop sonucu uydurulmadı. "
+                    "Yeni portföy riski bekletiliyor; bağımsız aday kaydı ve 72 saatlik gözlem sürüyor. "
+                    "Gerçek emir yok; başarı DOĞRULANMADI.",now)
+        p['unresolved_notice_sent']=True
+        store.save(p)
+
+
 def advance(store, client, cfg=CFG):
     now = client.now()
     for p in store.plans(active=True):
         try:
-            if p['status'] == 'DATA_HOLD':
+            if p['status'] in ('DATA_HOLD','UNRESOLVED_DATA'):
+                if now<p.get('next_recovery_ms',0):
+                    continue
                 # A missing path cannot be silently resumed beyond the gap.
                 p['status'] = p.get('resume_status', 'OPEN')
             if p['status'] == 'FUNDING_PENDING':
@@ -134,11 +193,7 @@ def advance(store, client, cfg=CFG):
                      else p.get('checked_through_ms', p['entry_ms']-1)+1)
             if now < start+MINUTE+cfg.publication_delay_ms:
                 continue
-            raw = client.candles(p['symbol'], '1m', limit=1000, startTime=start,
-                                 endTime=now-cfg.publication_delay_ms)
-            bars = closed_bars(raw, MINUTE, now, minimum=1, require_current=False, cfg=cfg)
-            if bars[0][0] != start:
-                raise DataUnavailable('ENTRY_OR_OUTCOME_PATH_GAP')
+            bars = continuous_path(client,p['symbol'],start,now,cfg)
             store.candles(p['symbol'], '1m', bars)
             if p['status'] == 'PENDING':
                 before = [b for b in bars if b[0] < p['entry_ms']]
@@ -186,12 +241,17 @@ def advance(store, client, cfg=CFG):
                          mfe_fraction=max(p.get('mfe_fraction', 0), favorable),
                          mae_fraction=min(p.get('mae_fraction', 0), adverse),
                          unrealized=sign*p['quantity']*(bar[4]-p['entry']))
-            store.save(p)
+            expected_end=((now-cfg.publication_delay_ms)//MINUTE)*MINUTE-1
+            if p['status']=='OPEN' and p.get('checked_through_ms',0)<expected_end:
+                hold_data(store,p,'PATH_NOT_CAUGHT_UP',now)
+            else:
+                if p.pop('data_hold_since_ms',None) is not None:
+                    store.event('DATA_RECOVERED',p['id'],{'status':p['status']},now)
+                p.pop('next_recovery_ms',None)
+                store.save(p)
         except (DataUnavailable, ValueError, KeyError, TypeError) as exc:
             reason = str(exc)[:120] if isinstance(exc, (ValueError, DataUnavailable)) else type(exc).__name__
-            p.update(resume_status=p['status'], status='DATA_HOLD', data_issue=reason)
-            store.save(p)
-            store.event('DATA_ISSUE', p['id'], {'reason': reason}, now)
+            hold_data(store,p,reason,now)
 
 
 def scan(store, client, cfg=CFG):
@@ -209,6 +269,8 @@ def scan(store, client, cfg=CFG):
     if not markets:
         raise DataUnavailable('EMPTY_OR_STALE_UNIVERSE')
     counts, candidates = Counter(), []
+    attempted=0
+    btc_trend=None
     def fetch(m):
         symbol = m['symbol']
         return (symbol, client.candles(symbol, '30m', cfg.history_bars),
@@ -222,9 +284,15 @@ def scan(store, client, cfg=CFG):
                     pending.cancel()
                 break
             try:
+                attempted+=1
                 symbol, b, c = future.result()
                 stamp = client.now()
                 p = assess(symbol, b, c, stamp, cfg)
+                if symbol=='BTCUSDT':
+                    btc_trend=p.get('trend')
+                if p['status']=='SETUP':
+                    p.update(context_fields(p,closed_bars(b,cfg.entry_ms,stamp,cfg=cfg),
+                                            closed_bars(c,cfg.context_ms,stamp,cfg=cfg)))
                 store.candles(symbol, '30m', closed_bars(b, cfg.entry_ms, stamp, cfg=cfg))
                 store.candles(symbol, '4h', closed_bars(c, cfg.context_ms, stamp, cfg=cfg))
                 fresh = store.assessment(p)
@@ -240,6 +308,11 @@ def scan(store, client, cfg=CFG):
     admitted = 0
     for p in candidates:
         stamp = client.now()
+        p.update(id=setup_id(p),entry_ms=((stamp+cfg.entry_delay_ms)//MINUTE+1)*MINUTE,
+                 expires_ms=stamp+cfg.max_pending_ms)
+        sign=1 if p['direction']=='LONG' else -1
+        p['btc_agreement']=None if btc_trend is None else 'NEUTRAL' if btc_trend==0 else 'SAME' if btc_trend==sign else 'OPPOSITE'
+        record_setup(store,p,stamp,markets[p['symbol']])
         try:
             if stamp-p['candle_ms']-cfg.entry_ms > cfg.max_scan_delay_ms:
                 raise ValueError('SCAN_FINISHED_TOO_LATE')
@@ -247,7 +320,7 @@ def scan(store, client, cfg=CFG):
             if any(x['symbol'] == p['symbol'] and stamp-x['observed_ms'] < cfg.cooldown_ms for x in plans):
                 raise ValueError('SYMBOL_COOLDOWN')
             active = store.plans(active=True)
-            if any(x['status'] in ('DATA_HOLD', 'FUNDING_PENDING') for x in active):
+            if any(x['status'] in ('DATA_HOLD', 'FUNDING_PENDING','UNRESOLVED_DATA') for x in active):
                 raise ValueError('UNRESOLVED_OPEN_RISK')
             eq, day_start, day_pnl = account(store, stamp, cfg)
             room = risk_room(eq, day_start, day_pnl, active, p['direction'], cfg)
@@ -258,22 +331,27 @@ def scan(store, client, cfg=CFG):
             p['entry_half_spread'] = evidence['spread']/2
             size = sizing(p, markets[p['symbol']], eq, room, cfg=cfg)
             spot_ref = evidence['ask'] if p['direction'] == 'LONG' else evidence['bid']
-            sizing(p, markets[p['symbol']], eq, room, spot_ref, cfg)  # current anti-chase gate
+            sizing(p, markets[p['symbol']], eq, room, spot_ref, cfg, reference_is_quote=True)
             store.snapshot('BOOK:'+p['symbol'], book, stamp)
             p.update(size, book=evidence, market=markets[p['symbol']], status='PENDING',
                      observed_ms=stamp, entry_ms=((stamp+cfg.entry_delay_ms)//MINUTE+1)*MINUTE,
                      expires_ms=stamp+cfg.max_pending_ms)
             p['id'] = hashlib.sha256(f"{cfg.fingerprint}:{p['symbol']}:{p['candle_ms']}".encode()).hexdigest()
             store.save(p)
+            record_setup(store,p,stamp,markets[p['symbol']],'ACCEPTED')
             notify(store, p, stamp)
             admitted += 1
         except (ValueError, DataUnavailable, KeyError, TypeError) as exc:
             reason = str(exc)[:120] if isinstance(exc, (ValueError, DataUnavailable)) else type(exc).__name__
             counts['ADMISSION:'+reason] += 1
             store.event('ADMISSION_REJECTED', p['symbol'], {'reason': reason, 'setup': p}, stamp)
+            record_setup(store,p,stamp,markets[p['symbol']],reason)
     elapsed = round(time.monotonic()-started, 2)
     healthy = sum(v for k,v in counts.items() if not k.startswith(('DATA:', 'ADMISSION:')))
-    health = dict(universe=len(markets), assessed=healthy, admitted=admitted, reasons=dict(counts),
+    health = dict(scan_slot=(now-cfg.publication_delay_ms)//cfg.entry_ms,
+                  universe=len(markets),attempted=attempted,assessed=healthy,
+                  coverage_fraction=healthy/len(markets),coverage_below_95=healthy/len(markets)<.95,
+                  setups=len(candidates),admitted=admitted, reasons=dict(counts),
                   elapsed_seconds=elapsed, peak_rss_mb=round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss/1024, 2),
                   config_hash=cfg.fingerprint, automatic_orders=False)
     store.event('SCAN_HEALTH', cfg.fingerprint, health, client.now())
@@ -281,27 +359,86 @@ def scan(store, client, cfg=CFG):
     return health
 
 
+def stop_research(child):
+    if child and child.poll() is None:
+        try:
+            os.killpg(child.pid,signal.SIGTERM)
+            child.wait(timeout=10)
+        except (OSError,subprocess.TimeoutExpired):
+            try:os.killpg(child.pid,signal.SIGKILL)
+            except OSError:pass
+
+
+def research_notice(store,root,now):
+    folder=Path(root)/'research'/store.provenance['source_sha256'][:16]
+    status_path=folder/'job_status.json'
+    if not status_path.exists():return
+    state=json.loads(status_path.read_text());phase=state['status']
+    if phase=='RUNNING':return
+    key='system:research:'+store.provenance['source_sha256']+':'+phase
+    if store.setting(key):return
+    if phase.startswith('COMPLETE'):
+        report=json.loads((folder/'report.json').read_text())
+        result=report['results']['base']['strategy']['all_setups']['all']
+        value='—' if result['mean_net_r'] is None else f"{result['mean_net_r']:+.3f}R"
+        text=("⚪ TA PAPER · İlk arşiv araştırması tamamlandı\n"
+              f"Ağustos 2026 · {report['completed_symbols']} sembol işlendi.\n"
+              f"Portföy sınırı olmayan model: {result['n_closed']} kapanan, ortalama {value}.\n"
+              f"Tamamlanmamış sonuç: {result['incomplete_outcomes']}.\n"
+              "Bu keşif testi; daha önce görülmemiş dönem doğrulaması veya kazanç garantisi değil. "
+              "Emir defteri, geçmiş lot bilgisi ve gecikme varsayımları içerir. "
+              "Maliyet stresi, kontroller ve LONG/SHORT ayrımı ayrıntılı raporda. Başarı DOĞRULANMADI.")
+        if state.get('error_symbols'):text+=f"\nVerisi işlenemeyen sembol: {state['error_symbols']}."
+    else:
+        text=("⚪ TA PAPER · Arşiv araştırması tamamlanamadı\n"
+              f"Aşama/neden: {state.get('phase','—')} / {state.get('reason','UNKNOWN')}\n"
+              "Sonuç kârlılık kanıtı olarak kullanılmıyor. Canlı paper motoru ayrı çalışır.")
+    store.queue(key,text,now);store.setting(key,'queued')
+
+
+def previous_version_safe(root):
+    """Do not silently abandon pending risk when starting a new research cohort."""
+    path=Path(root)/'ta_paper_v1_20261026'/'research.sqlite3'
+    if not path.exists():return
+    with sqlite3.connect(path.as_uri()+'?mode=ro',uri=True) as db:
+        n=db.execute("SELECT COUNT(*) FROM plans WHERE status NOT IN ('CLOSED','CANCELLED')").fetchone()[0]
+    if n:
+        raise RuntimeError('PREVIOUS_VERSION_HAS_UNRESOLVED_PLANS_KEEP_OLD_WORKER')
+
+
 def run(args):
     root = Path(args.state_root or os.getenv('RAILWAY_VOLUME_MOUNT_PATH', '.long-short-state'))
     root.mkdir(parents=True, exist_ok=True)
-    folder = root/'ta_paper_v1_20261026'
+    folder = root/STATE_FOLDER
     folder.mkdir(exist_ok=True)
     # Durable per-version lock prevents duplicate workers on the same volume.
-    with open(folder/'worker.lock', 'a') as lock:
-        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    with ExitStack() as locks:
+        paths=[root/'ta_paper_worker.lock',folder/'worker.lock']
+        previous=root/'ta_paper_v1_20261026'/'worker.lock'
+        if previous.exists():paths.append(previous)
+        for path in paths:
+            lock=locks.enter_context(open(path,'a'))
+            fcntl.flock(lock,fcntl.LOCK_EX | fcntl.LOCK_NB)
+        if not args.report:previous_version_safe(root.resolve())
         store = Store(folder/'research.sqlite3')
         telegram = Telegram(root, enabled=args.telegram)
         if args.report:
             plans = store.plans()
             log('TA_PAPER_REPORT', all=descriptive_stats(plans),
                 long=descriptive_stats([p for p in plans if p['direction']=='LONG']),
-                short=descriptive_stats([p for p in plans if p['direction']=='SHORT']))
+                short=descriptive_stats([p for p in plans if p['direction']=='SHORT']),
+                funnel=funnel_report(store),provenance=store.provenance)
             return 0
+        # A research-version change must not erase a known IP deadline.
+        previous_cooldown=root/'ta_paper_v1_20261026'/'binance_cooldown.json'
+        if not (folder/'binance_cooldown.json').exists() and previous_cooldown.exists():
+            shutil.copyfile(previous_cooldown,folder/'binance_cooldown.json')
         client = Binance(folder/'binance_cooldown.json', legacy=store.legacy_cooldown())
         log('TA_PAPER_BOOT', version=CFG.version, config_hash=CFG.fingerprint,
             automatic_orders=False, telegram_ready=telegram.ready, legacy_motors_started=False,
             account_basis='EXAMPLE_PAPER_ACCOUNT', initial_equity=CFG.paper_initial_equity,
-            operations_revision=OPERATIONS_REVISION, cooldown=client.gate.state())
+            operations_revision=OPERATIONS_REVISION, cooldown=client.gate.state(),
+            provenance=store.provenance)
         boot_key='system:charts:'+OPERATIONS_REVISION
         if not store.setting(boot_key):
             n=descriptive_stats(store.plans())['n']
@@ -335,6 +472,15 @@ def run(args):
                         if outcome == 'TIME_ENDPOINT_OK' else health_message(outcome, cooldown))
                 store.queue('system:recheck:'+RECHECK_REQUEST, text, client.now())
                 telegram.flush(store, client.now(), signals_enabled=False)
+        child=None
+        if getattr(args,'historical_research',False):
+            root_job=folder/'research'
+            status_path=root_job/store.provenance['source_sha256'][:16]/'job_status.json'
+            status=json.loads(status_path.read_text()).get('status') if status_path.exists() else None
+            if status not in ('COMPLETE','COMPLETE_WITH_GAPS','FAILED'):
+                child=subprocess.Popen([sys.executable,'-u','-m','ta_paper.research_job','--root',str(root_job)],start_new_session=True)
+                locks.callback(stop_research,child)
+                log('TA_RESEARCH_STARTED',pid=child.pid,source_sha256=store.provenance['source_sha256'])
         last_heartbeat = 0
         last_clock_sync = 0.0
         last_data_error = None
@@ -367,13 +513,26 @@ def run(args):
                     log('TA_PAPER_DATA_INVALID', reason=reason, no_new_signal=True, cooldown=cooldown)
                     last_data_error=reason
                 update_health(store,reason,cooldown,client.now())
+            if getattr(args,'historical_research',False):
+                if child and child.poll() is not None:
+                    status_path=folder/'research'/store.provenance['source_sha256'][:16]/'job_status.json'
+                    state=json.loads(status_path.read_text()) if status_path.exists() else {}
+                    if state.get('status') not in ('COMPLETE','COMPLETE_WITH_GAPS','FAILED'):
+                        from .research_job import atomic_json
+                        status_path.parent.mkdir(parents=True,exist_ok=True)
+                        atomic_json(status_path,dict(state,status='FAILED',reason='RESEARCH_PROCESS_EXIT',returncode=child.returncode))
+                    child=None
+                research_notice(store,folder,client.now())
             telegram.flush(store, client.now(), signals_enabled=iteration_valid)
+            if not client.gate.state()['remaining_seconds']:
+                collect(store,client)
             now = client.now()
             if now-last_heartbeat >= 5*MINUTE:
                 plans = store.plans()
                 log('TA_PAPER_HEARTBEAT', utc=datetime.now(timezone.utc).isoformat(),
                     states=dict(Counter(p['status'] for p in plans)), telegram_ready=telegram.ready,
                     performance=descriptive_stats(plans),
+                    funnel=funnel_report(store,include_coverage=False),
                     cooldown=client.gate.state(),
                     peak_rss_mb=round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss/1024, 2))
                 last_heartbeat = now
@@ -389,6 +548,7 @@ def main():
     parser.add_argument('--report', action='store_true')
     parser.add_argument('--telegram', action='store_true', help='Use only the existing configured destination')
     parser.add_argument('--state-root')
+    parser.add_argument('--historical-research',action='store_true',help='Run resumable, bounded archive validation alongside paper observation')
     parser.add_argument('--recheck-unknown-cooldown', action='store_true',
                         help='One explicitly requested check of an assumed timer; known exchange deadlines are respected')
     args = parser.parse_args()

@@ -1,12 +1,20 @@
-# TA PAPER V1 — 26 Ekim 2026
+# TA PAPER V1.1 — Ölçüm ve arşiv araştırması
 
 Bu, ayrı bir araştırma sürümüdür. Eski Avcı/V4.2/V4.3 karar kodunu değiştirmez
 ve eski daemon'ları başlatmaz. Otomatik borsa emri, hesap erişimi, para transferi
 ve gerçek kaldıraç ayarlama kodu yoktur. Telegram yalnız önceden yapılandırılmış
 kullanıcı adresine, `--telegram` açıkken gönderilir.
 
-**Durum: temel paper motor Railway’de çalışıyor; veri erişimi HTTP 418 nedeniyle bekliyor.
-Grafikli bildirim sürümü yayında; örnek fotoğraf ve durum mesajı Telegram tarafından teyit edildi. Kârlılık DOĞRULANMADI.**
+**Durum: V1.1 kodu test ediliyor; dağıtım teyidi bu dosyada varsayılmaz.
+Son doğrulanan canlı sürüm 138b545, N=0 ve Binance HTTP 418 beklemesindedir.
+V1.1 kârlılık iddiası taşımaz.**
+
+V1.1 strateji eşiklerini değiştirmez. Canlı bid/ask referansındaki ikinci yarım
+spread eklemesi kaldırıldı. Yapılandırma kimliği sürüm nedeniyle değişti;
+her plan/değerlendirme ayrıca git commit ve Python kaynak SHA-256 taşır.
+Yeni sürüm ayrı veritabanı kullanır, eski bekleme süresini kopyalar ve eski
+veritabanında çözülmemiş plan varsa başlamayı reddeder. Anahtarlar okunmaz
+ve mevcut Telegram alıcısı korunur.
 
 ## Sabit araştırma hipotezi
 
@@ -31,7 +39,7 @@ Grafikli bildirim sürümü yayında; örnek fotoğraf ve durum mesajı Telegram
   Funding yalnız gerçekleşmiş taşıma maliyetini hesaplamak için kullanılır.
 
 Bu eşikler en iyi sonucu verdiği için seçilmedi. Parametre optimizasyonu ve
-geçmiş kârlılık testi yapılmadı. `Config.fingerprint`, tüm sayısal kuralları
+geçmiş sonuçlara göre eşik seçimi yapılmadı. Arşiv keşif testi aşağıda açıklanır. `Config.fingerprint`, tüm sayısal kuralları
 SHA-256 ile tanımlar; bir veritabanında farklı config açılması reddedilir.
 
 ## Paper hesap ve kaldıraç
@@ -86,7 +94,7 @@ sayılmaz. Eksik sonuçlar varken yeni portföy riski açılmaz.
 
 ## Kayıt, bildirim ve sınırlamalar
 
-`ta_paper_v1_20261026/research.sqlite3` yeni ve ayrı WAL veritabanıdır. Eski
+`ta_paper_v1_1_20261026/research.sqlite3` yeni ve ayrı WAL veritabanıdır. Eski
 veritabanları değiştirilmez. Tarama evreni, metadata/ticker anlık görüntüsü,
 karar verilen mumlar, bütün değerlendirmeler ve ret gerekçeleri, plan geçişleri,
 giriş emir defteri ve funding yanıtı korunur. Geçişler olay tablosuna eklenir;
@@ -133,7 +141,7 @@ süreci çalışır, dört sınırlı REST işçisi vardır. Resmi hosta yalnız
 GET çağrıları yapılır. 451/403 hatasında beklenir ve sinyal verilmez; farklı
 ülke, proxy, başka borsa veya alternatif domain ile kısıtlama aşılmaz.
 
-26 Ekim yerel yazılım doğrulaması: 40 test başarılı. Grafiklerin LONG/SHORT
+26 Ekim V1.1 yazılım doğrulaması: 54 kontrollü test başarılı. Grafiklerin LONG/SHORT
 seviyeleri, gelecekteki mumun dışlanması, mevcut kuyruğun kayıpsız güncellenmesi,
 fotoğraf teslim teyidi, belirsiz teslimin tekrarlanmaması, 429 beklemesi ve
 418 sırasında Binance’e istek yapılmadan sistem bildirimlerinin gönderilmesi
@@ -215,3 +223,79 @@ hash değişmez. Yeniden kontrolün yapıldığı ve piyasa verisinin erişilebi
 dağıtımın kontrol sonucu ve geçerli tarama kayıtlarıyla söylenebilir. Eski kaynak/volume/kayıtlar silinmez.
 Eski kaynak yapılandırmasının anahtarsız kopyası:
 `audits/ta_paper_previous_runtime_20261026.json`.
+
+
+## V1.1 ölçüm değişiklikleri
+
+- `reference_is_quote=True`, güncel ask/bid kontrolünde spread'i ikinci kez eklemez.
+  Mum açılışındaki sanal giriş yarım spread + kayma modelini korur.
+- Açık yolun eksik başlangıcı bir kez hedefli istekle aranır. Yalnız kesintisiz
+  doğrulanmış önek işlenir; boşluğun sonrasına atlanmaz. 30 dakika sonra
+  `UNRESOLVED_DATA`, 15 dakika arayla yeniden onarım ve bir durum mesajı vardır.
+  Bilinmeyen sermaye çözülene kadar portföy girişi durur; bağımsız aday gözlemi
+  devam eder. Eksik mumdan stop, kapanış veya −1R uydurulmaz.
+- Geçerli bütün SETUP'lar, kapasite/cooldown nedeniyle elenenler dahil, amaçlanan
+  girişten 72 saat sonraya kadar gözlenir. Kabul/iptal/gerçek giriş ayrıdır.
+  Dakikada en fazla altı 1000-mum isteği ortak hız bütçesini kullanır. Ortak
+  sembol/dakika verisi tekrar indirilmez. Boşluklara en fazla üç ek onarım;
+  sonrasında PARTIAL/INVALID_DATA. 72 saat canlı pozisyonu kapatma kuralı değildir.
+- Huni: değerlendirilen → setup → kabul → giriş → kapanış; iptal, açık veri
+  belirsizliği, funding beklemesi ve gözlem tamamlığı ayrı raporlanır.
+  Tarama kapsaması %95 altındaysa işaretlenir; bu yeni bir giriş filtresi değildir.
+- 4h EMA uzaklığı/ATR, önceki 60 mumdaki alan/R ve BTC yön uyumu gözlem alanıdır.
+  Eşik veya işlem puanı olarak kullanılmaz.
+
+4h/30m karar mumlarında süreklilik şartı korunur. Borsa kaynaklı uzun bir boşluk
+bu sembolü yeterli kesintisiz geçmiş oluşana kadar geçersiz bırakabilir; bu
+sürüm eksik fiyatları doldurmaz veya bu sınırlamayı çözülmüş saymaz.
+
+## İlk arşiv araştırması
+
+Protokol: `research/ta_paper_v1_1/protocol.json`. Dönem Ağustos 2026,
+ısınma Temmuz, 72 saatlik sonuç takibi için Eylül başlangıcı. Bu dönem eski
+çalışmalarda görülmüştür: **EXPLORATORY_NOT_HOLDOUT**. Son 12 aylık görülmemiş
+veri doğrulamasının yerine geçmez. Eşik optimizasyonu yapılmaz.
+
+Resmi `data.binance.vision` arşivinden SHA-256 doğrulamalı ZIP'ler okunur;
+canlı `fapi` engelini kaldırma, IP/ülke değişimi veya hesap API'si yoktur.
+Arşiv dizinindeki USDT sembolleri taranır; eksik/delist dosyaları ve hatalar
+ayrı kalır. İsim tabanlı emtia/stablecoin dışlaması tarihsel COIN metadata'sını
+birebir yeniden kurmaz; hayatta kalan yanlılığının tamamen çözüldüğü iddia edilmez.
+
+Canlı `assess`, `sizing`, `exit_on_bar`, `funding_cost` kullanılır. Sabit karar
+gecikmesi 60 saniye, spread varsayımı %0,10'dur. Tarihsel order book/tick/lot
+bilgisi yoktur: miktar/fiyat adımları yaklaşık sürekli, minimum tutar 5 USDT.
+Funding oranı arşivden, mark fiyatı ödeme zamanındaki 30m mark mumunun açılışından
+alınır (en fazla 1 saniye zaman farkı). Eksik oran, fiyat veya ödeme aralığı
+belirsizliktir; sıfır funding varsayılmaz.
+
+İki karşılaştırma: aynı setup zamanında sabit hash ile rastgele yön ve 4h yönü
+korunarak %5 sabit seçim olasılıklı rastgele 30m giriş zamanı. Normal, 1,5× ve
+2× komisyon/kayma/spread; ayrıca %1 stop kayması senaryosu vardır. Tam 0,60%
+gidiş-dönüş maliyet senaryosu bu ilk protokole eklenmemiştir. BTC karşılaştırması
+aynı süreye ait yönlü brüt getiridir; beta/oynaklık eşlenmiş alfa ölçümü değildir.
+
+Bütün setup'lar ile kronolojik kapasite/risk sınırlarını uygulayan portföy
+**yaklaşımı** ayrı raporlanır. Portföy geçmiş lot/defter ve gerçek ağ gecikmesini
+birebir canlandırmaz. Kapanmayan 72 saatlik işlem OPEN_AT_HORIZON'dur; stop veya
+sıfır kazanç yazılmaz ve portföy slotu serbest bırakılmaz. Kapananların ortalama
+R'si yalnız tamamlanmış işlemlere koşulludur; eksik sonuç sayısı yanında görünür.
+Gün/hafta blok bootstrap, LONG/SHORT ayrımı, ilk üç coin/en iyi beş gün çıkarma
+kontrolleri vardır. Bunlar görülmemiş veri kanıtı veya garanti başarı eşiği değildir.
+
+```bash
+python3 -u -m ta_paper.research_job --root /data/ta-paper-research
+# Ana motorla kalıcı, kaynakları sınırlı araştırma işi:
+python3 -u -m ta_paper.runner --telegram --historical-research
+```
+
+Araştırma işi düşük CPU önceliği ve 650 MiB sanal adres alanı sınırıyla ayrı
+alt süreçte çalışır; canlı motor bu bellek sınırını miras almaz. Arşivde dört,
+replay'de iki işçi; raporlamada bir grup belleğe alınır. Tamamlanmış sembol
+sonuçları ve checksum listeleri kalıcıdır; yeniden üretilebilen 1m ZIP önbelleği
+her sembolden sonra temizlenir. Kaynak kimliği değişirse farklı çıktı dizini
+kullanılır. En az 500 MiB boş alan aranır. İş bitince süreç durur; ana motor
+Telegram'a bir araştırma özeti yollar. Hata veya eksik veri başarı diye sunulmaz.
+
+Tek sembollü yazılım denemesi, tüm evren doğrulaması değildir. Dağıtım/log
+teyidi olmadan bu arka plan işinin sunucuda çalıştığı söylenemez.

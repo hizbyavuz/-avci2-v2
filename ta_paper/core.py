@@ -14,7 +14,7 @@ MINUTE = 60_000
 
 @dataclass(frozen=True)
 class Config:
-    version: str = "TA_PAPER_V1_20261026"
+    version: str = "TA_PAPER_V1_1_20261026"
     entry_ms: int = 30 * MINUTE
     context_ms: int = 240 * MINUTE
     history_bars: int = 120
@@ -172,13 +172,14 @@ def market_rules(market):
                 min_notional=finite(notional.get('notional', notional.get('minNotional', 0))))
 
 
-def sizing(p, market, equity, available_risk, opening_price=None, cfg=CFG):
+def sizing(p, market, equity, available_risk, opening_price=None, cfg=CFG, *, reference_is_quote=False):
     sign = 1 if p['direction'] == 'LONG' else -1
     ref = finite(opening_price if opening_price is not None else p['reference_entry'], True)
     rules = market_rules(market)
     # Entry is modelled market execution, exits are also conservatively charged
     # taker fees. No assertion that an unsubmitted limit order would fill.
-    entry = ref*(1+sign*(cfg.entry_slippage+p.get('entry_half_spread', 0.0)))
+    half_spread = 0.0 if reference_is_quote else p.get('entry_half_spread', 0.0)
+    entry = ref*(1+sign*(cfg.entry_slippage+half_spread))
     stop = quantize(p['stop'], rules['tick'], upward=sign == -1)
     target = quantize(p['target'], rules['tick'], upward=sign == -1)
     if sign*(entry-p['entry_limit']) > 1e-12:
