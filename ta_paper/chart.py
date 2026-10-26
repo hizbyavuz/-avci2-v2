@@ -73,6 +73,8 @@ def render_plan(p, rows, n=0, demo=False):
     if demo:
         draw.rounded_rectangle((56,243,1384,301),radius=12,fill='#40341e')
         text(81,253,'ÖRNEK GÖRSEL • YAPAY VERİ • GERÇEK SİNYAL DEĞİL',27,AMBER,True)
+    elif p.get('source_venue')=='BYBIT':
+        text(60,253,'BYBIT USDT VADELİ • BINANCE GİRİŞİ DOĞRULANMADI',25,AMBER,True,width=1320)
     else:
         text(60,253,'Sinyal anında kaydedilen kapanmış mumlar • Canlı fiyat değildir',25,MUTED)
 
@@ -136,7 +138,7 @@ def render_plan(p, rows, n=0, demo=False):
                               (956,'BRÜT ÖDÜL / RİSK',f'{abs(tp-entry)/abs(entry-sl):.2f} R')]:
             card(x,1108,label,value)
         draw.rounded_rectangle((56,1236,1384,1510),radius=14,fill=PANEL)
-        text(76,1254,'SANAL HESAP UYARISI',26,AMBER,True)
+        text(76,1254,'VERİ KAYNAĞI UYARISI' if p.get('source_venue')=='BYBIT' else 'SANAL HESAP UYARISI',26,AMBER,True)
         words=(p['risk_note']+' İşlem büyüklüğü ve giriş kararı sana ait.').split()
         lines=[];line=''
         for word in words:

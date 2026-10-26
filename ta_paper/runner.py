@@ -25,7 +25,7 @@ from .observations import (collect, context_fields, funnel_report, record_setup,
 from .watch import publish_watches
 
 STOP = threading.Event()
-OPERATIONS_REVISION = 'MARKET_STREAM_20261026_6'
+OPERATIONS_REVISION = 'EXTERNAL_BYBIT_WATCH_20261026_7'
 CHART_REVISION = 'CHARTS_20261026_1'
 SCAN_STATE_KEY = 'scan_progress_v2'
 SCAN_BATCH_SECONDS = 15
@@ -93,7 +93,7 @@ def notify(store, p, now):
 
 
 def health_message(reason, cooldown):
-    text = '⚪ TA PAPER · Veri bekleniyor\n'+reason+'\nYeni işlem planı üretilmiyor. Gerçek emir yok.'
+    text = '⚪ TA PAPER · Binance verisi bekleniyor\n'+reason+'\nYeni Binance işlem planı üretilmiyor. Gerçek emir yok.'
     if cooldown.get('remaining_seconds',0):
         until = datetime.fromtimestamp(cooldown['until_ms']/1000,timezone.utc).astimezone(
             __import__('zoneinfo').ZoneInfo('Europe/Istanbul')).strftime('%d.%m.%Y %H:%M:%S')
@@ -139,7 +139,7 @@ def update_health(store, reason, cooldown, now, progress=None):
                'BOOK_NOT_VERIFIED':'Güncel emir defteri doğrulanamadı'}
         rejects=[f"{names.get(k[10:],'Diğer risk/giriş kontrolü')}: {v}"
                  for k,v in sorted(reasons.items()) if k.startswith('ADMISSION:')]
-        text=(f'⚪ TA PAPER · Tarama tamamlandı\nDeğerlendirilen: {assessed}/{universe} coin.\n'
+        text=(f'⚪ TA PAPER · Tarama tamamlandı (Binance)\nDeğerlendirilen: {assessed}/{universe} coin.\n'
               f'Teknik aday: {setups} · Kabul edilen test planı: {admitted}.\n'
               +('Eleme: '+'; '.join(rejects)+'.\n' if rejects else '')+
               ('Teknik giriş koşulu oluşmadı.\n' if not setups else '')+
@@ -681,7 +681,7 @@ def run(args):
         if previous_ops!=OPERATIONS_REVISION:
             store.event('OPERATIONS_REVISION',OPERATIONS_REVISION,
                         dict(previous=previous_ops,config_hash=CFG.fingerprint,
-                             provenance=store.provenance,change='official_market_streams_durable_archive_cache_and_guarded_rest'))
+                             provenance=store.provenance,change='independent_bybit_watch_with_venue_provenance_and_separate_state'))
             store.setting('operations_revision',OPERATIONS_REVISION)
         boot_key='system:charts:'+CHART_REVISION
         if not store.setting(boot_key):
@@ -725,6 +725,11 @@ def run(args):
                 child=subprocess.Popen([sys.executable,'-u','-m','ta_paper.research_job','--root',str(root_job)],start_new_session=True)
                 locks.callback(stop_research,child)
                 log('TA_RESEARCH_STARTED',pid=child.pid,source_sha256=store.provenance['source_sha256'])
+        external=None
+        if getattr(args,'external_watch',None)=='bybit':
+            from .external_watch import ExternalWatch
+            external=ExternalWatch(folder/'external_bybit_v1',folder/'research.sqlite3').start()
+            locks.callback(external.close)
         last_heartbeat = 0
         last_clock_sync = 0.0
         last_data_error = None
@@ -773,6 +778,9 @@ def run(args):
             # Each plan passed its own data/book/risk checks at admission. Partial
             # universe coverage cannot suppress that plan or position updates.
             telegram.flush(store, client.now(), signals_enabled=True, clock=client.now)
+            if external:
+                # Independent source outbox is never gated by Binance's timer.
+                telegram.flush(external.delivery,external.now(),signals_enabled=True,clock=external.now)
             progress=json.loads(store.setting(SCAN_STATE_KEY) or '{}')
             if progress.get('status') in ('COMPLETE','EXPIRED') and not _scan_blocked(client):
                 warm_scan_cache(store,client)
@@ -806,6 +814,7 @@ def main():
     parser.add_argument('--state-root')
     parser.add_argument('--historical-research',action='store_true',help='Run resumable, bounded archive validation alongside paper observation')
     parser.add_argument('--market-streams',action='store_true',help='Official Binance market streams and durable archive/cache before guarded REST')
+    parser.add_argument('--external-watch',choices=['bybit'],help='Independent Bybit WATCH observations; no Binance verification or paper trades')
     parser.add_argument('--recheck-unknown-cooldown', action='store_true',
                         help='One explicitly requested check of an assumed timer; known exchange deadlines are respected')
     args = parser.parse_args()
