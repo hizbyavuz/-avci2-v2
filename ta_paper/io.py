@@ -21,6 +21,12 @@ class DataUnavailable(RuntimeError):
     pass
 
 
+class BookRejected(ValueError):
+    def __init__(self, reason, evidence):
+        super().__init__(reason)
+        self.evidence = evidence
+
+
 class NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         raise DataUnavailable("REDIRECT_REFUSED")
@@ -44,6 +50,10 @@ class Binance:
         self.observed_weight_window = None
         self.local_requests = 0
         self.local_estimated_weight = 0
+        self.local_minute = None
+        self.local_minute_requests = 0
+        self.local_minute_weight = 0
+        self.endpoint_usage = {}
 
     def now(self):
         return int(time.time()*1000)+self.offset_ms
@@ -53,6 +63,10 @@ class Binance:
                     reported_minute=self.observed_weight_window,
                     local_requests_since_start=self.local_requests,
                     local_estimated_weight_since_start=self.local_estimated_weight,
+                    local_request_minute=self.local_minute,
+                    local_requests_1m=self.local_minute_requests,
+                    local_estimated_weight_1m=self.local_minute_weight,
+                    endpoint_usage=self.endpoint_usage.copy(),
                     protective_threshold=1000, candle_cache_hits=self.cache_hits,
                     incremental_candle_fetches=self.incremental_fetches,
                     full_candle_fetches=self.full_fetches)
@@ -75,6 +89,13 @@ class Binance:
         url = 'https://fapi.binance.com'+endpoint+'?'+urllib.parse.urlencode(params)
         self.local_requests+=1
         self.local_estimated_weight+=weight
+        minute = self.now()//MINUTE
+        if minute != self.local_minute:
+            self.local_minute = minute
+            self.local_minute_requests = self.local_minute_weight = 0
+        self.local_minute_requests += 1
+        self.local_minute_weight += weight
+        self.endpoint_usage[endpoint] = self.endpoint_usage.get(endpoint, 0)+weight
         req = urllib.request.Request(url, headers={'User-Agent': 'TA-Paper-Research/1',
                                                   'Accept-Encoding': 'gzip'}, method='GET')
         try:
@@ -234,35 +255,56 @@ def tradable(market, ticker, now, cfg=CFG):
     return 0 <= age <= 120_000 and finite(ticker.get('quoteVolume', 0)) >= cfg.min_quote_volume
 
 
-def book_check(book, now, direction, notional, cfg=CFG):
+def book_quote(book, now, cfg=CFG):
+    """Validate the quote before it is used to size a proposed position."""
     if not 0 <= now-int(book.get('E', 0)) <= cfg.max_book_age_ms:
         raise ValueError("STALE_BOOK")
     bids, asks = book['bids'], book['asks']
+    if not bids or not asks:
+        raise ValueError('EMPTY_BOOK')
     bid, ask = finite(bids[0][0], True), finite(asks[0][0], True)
     if ask < bid or (ask-bid)/((ask+bid)/2) > cfg.max_spread_fraction:
         raise ValueError("SPREAD_TOO_WIDE")
+    return dict(bid=bid, ask=ask, spread=(ask-bid)/((ask+bid)/2),
+                observed_ms=now, event_ms=int(book['E']))
+
+
+def book_check(book, now, direction, notional, cfg=CFG, *, quantity=None):
+    evidence = book_quote(book, now, cfg)
+    bids, asks = book['bids'], book['asks']
+    bid, ask = evidence['bid'], evidence['ask']
+    if direction not in ('LONG', 'SHORT'):
+        raise ValueError('INVALID_DIRECTION')
     levels = asks if direction == 'LONG' else bids
-    remaining, quantity = notional, 0.0
+    by_quantity = quantity is not None
+    requested = finite(quantity if by_quantity else notional, True)
+    tolerance = max(1e-14,requested*1e-12) if by_quantity else 1e-8
+    remaining, filled_quantity, filled_notional = requested, 0.0, 0.0
+    evidence.update(planned_notional=finite(notional, True),
+                    requested_quantity=quantity, impact_limit=cfg.entry_slippage)
     last_price = None
     for raw_price, raw_qty in levels:
         price, qty = finite(raw_price, True), finite(raw_qty, True)
         if last_price is not None and ((direction == 'LONG' and price < last_price) or
                                       (direction == 'SHORT' and price > last_price)):
             raise ValueError("UNSORTED_BOOK")
-        take = min(remaining, price*qty)
-        quantity += take/price
+        take = min(remaining, qty if by_quantity else price*qty)
+        units = take if by_quantity else take/price
+        filled_quantity += units
+        filled_notional += units*price
         remaining -= take
         last_price = price
-        if remaining <= 1e-8:
+        if remaining <= tolerance:
             break
-    if remaining > 1e-8:
-        raise ValueError("INSUFFICIENT_BOOK_DEPTH")
-    vwap = notional/quantity
+    if remaining > tolerance:
+        raise BookRejected("INSUFFICIENT_BOOK_DEPTH",dict(evidence,remaining=remaining))
+    vwap = filled_notional/filled_quantity
     best = ask if direction == 'LONG' else bid
-    if abs(vwap/best-1) > cfg.entry_slippage:
-        raise ValueError("BOOK_IMPACT_EXCEEDS_MODEL")
-    return dict(bid=bid, ask=ask, spread=(ask-bid)/((ask+bid)/2), vwap=vwap,
-                observed_ms=now, event_ms=int(book['E']))
+    evidence.update(vwap=vwap, impact_fraction=abs(vwap/best-1),
+                    checked_quantity=filled_quantity, checked_notional=filled_notional)
+    if evidence['impact_fraction'] > cfg.entry_slippage:
+        raise BookRejected("BOOK_IMPACT_EXCEEDS_MODEL", evidence)
+    return evidence
 
 
 def encode(value):
@@ -416,17 +458,29 @@ class Telegram:
     def ready(self):
         return bool(self.token and self.chat)
 
-    def flush(self, store, now, signals_enabled=True):
+    def flush(self, store, now, signals_enabled=True, clock=None):
         if not self.ready:
             return 0
         if now < int(store.setting('telegram_retry_at_ms') or 0):
             return 0
         delivered = 0
         for row in store.db.execute("SELECT * FROM outbox WHERE state='PENDING' AND retry_at_ms<=? "
-                                    "AND (? OR key LIKE 'system:%') ORDER BY ms LIMIT 5", (now,signals_enabled)).fetchall():
+                                    "AND (? OR key LIKE 'system:%') "
+                                    "AND (key LIKE 'system:%' OR EXISTS (SELECT 1 FROM plans WHERE "
+                                    "outbox.key IN (plans.id||':PENDING',plans.id||':OPEN',"
+                                    "plans.id||':CLOSED',plans.id||':CANCELLED'))) "
+                                    "ORDER BY (key LIKE 'system:%'),ms LIMIT 5", (now,signals_enabled)).fetchall():
+            # Earlier deliveries can block for seconds; don't send a plan that
+            # expired while waiting behind another notification.
+            if clock is not None:
+                now = clock()
             if not row['key'].startswith('system:'):
                 plan_id,_,notice_status=row['key'].rpartition(':')
                 saved=store.db.execute('SELECT payload FROM plans WHERE id=?',(plan_id,)).fetchone()
+                if not saved:
+                    # Only durable, individually admitted plans can be delivered
+                    # independently of the global Binance request guard.
+                    continue
                 if saved:
                     plan=json.loads(saved[0])
                     superseded=(notice_status in ('PENDING','OPEN') and plan['status']!=notice_status)

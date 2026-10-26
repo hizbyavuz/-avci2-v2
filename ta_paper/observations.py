@@ -53,7 +53,7 @@ def first_missing(store,symbol,start,end):
 
 
 def collect(store,client,max_requests=6,stop_before_ms=None):
-    """At most six 1000-bar requests per minute, sharing the normal rate gate.
+    """At most six bounded requests per minute, sharing the normal rate gate.
 
     Sparse returned bars are archived; holes remain explicit and get three
     bounded repair attempts after the horizon. No fabricated zero-volume bars.
@@ -92,7 +92,8 @@ def collect(store,client,max_requests=6,stop_before_ms=None):
         try:
             if missing is not None:
                 used+=1
-                raw=client.candles(job['symbol'],'1m',limit=1000,startTime=start,endTime=end-1)
+                count=max(1,min(1000,(end-start+MINUTE-1)//MINUTE))
+                raw=client.candles(job['symbol'],'1m',limit=count,startTime=start,endTime=end-1)
                 rows=[]
                 seen=set(); invalid=0
                 for row in raw:

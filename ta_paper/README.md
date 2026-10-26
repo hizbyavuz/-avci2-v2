@@ -5,9 +5,43 @@ ve eski daemon'ları başlatmaz. Otomatik borsa emri, hesap erişimi, para trans
 ve gerçek kaldıraç ayarlama kodu yoktur. Telegram yalnız önceden yapılandırılmış
 kullanıcı adresine, `--telegram` açıkken gönderilir.
 
-**Durum: V1.1 kodu test ediliyor; dağıtım teyidi bu dosyada varsayılmaz.
-Son doğrulanan canlı sürüm 138b545, N=0 ve Binance HTTP 418 beklemesindedir.
-V1.1 kârlılık iddiası taşımaz.**
+**Durum: 26 Ekim 2026 20:33 TSİ'de `8d0b0f6` canlı sürümünde 320/320
+coin tarandı; iki teknik aday emir defteri etkisinden elendi, kabul edilen
+plan yoktu. Aşağıdaki `ADMISSION_DELIVERY_20261026_4` düzeltmesinin yayına
+alındığı bu dosyada varsayılmaz. V1.1 kârlılık iddiası taşımaz.**
+
+## ADMISSION_DELIVERY_20261026_4 düzeltmesi
+
+Emir defteri etkisi, yarım spread eklenmeden hesaplanmış geçici tutar yerine
+nihai risk hesabındaki miktarla kontrol edilir. LONG ve SHORT için aynı
+defterde geçici tutarın reddedilip nihai miktarın geçtiği regresyon örnekleri
+vardır. %0,02 etki ve %0,10 spread sınırları korunur; geçebilmek için sonradan
+miktar küçültülmez. Kabul ve retlerde kullanılan defter saklanır; sembol,
+miktar, VWAP, ölçülen etki ve sınır loglara yazılır. Önceki iki canlı reddin
+defterleri saklanmadığından bunların yanlış ret olduğu iddia edilmez.
+
+Kalıcı kaydı ve kendi veri/defter/risk doğrulaması olan plan, giriş zamanı
+gelmeden taramanın diğer sembollerini beklemeden Telegram'a gönderilir.
+Sonraki Binance koruma beklemesi bu bildirimi engellemez. Plan bildirimi
+sağlık mesajlarından önce işlenir; her gönderim öncesi saat yeniden kontrol
+edilir. Süresi geçen, geçersizleşen veya kaydı olmayan plan gönderilmez.
+Telegram 429 beklemesi ve belirsiz teslimi tekrar etmeme davranışı korunur.
+
+Tamamlanmış tarama, arka plandaki gözlem toplama beklemesi nedeniyle tekrar
+"veri bekleniyor/tarama tamamlandı" döngüsüne girmez. Her tamamlanan turda
+teknik aday, kabul edilen plan ve eleme gerekçeleri bildirilir. Gerçek 418
+beklemesinin kesin zamanı ayrıca bildirilir. Bu bölüm, aşağıdaki önceki
+bildirim davranışına ilişkin tarihsel notların güncel karşılığıdır.
+
+1 dakikalık gözlem ve pozisyon takibinde istek limiti gereken mum sayısına
+indirilir. Örneğin üç mumluk istek ağırlığı 5 yerine 1 olur. Karar verisi,
+gözlem ufku, risk/strateji eşikleri ve 418/429 korumaları değişmez. Yerel
+dakikalık kullanım ve uç nokta toplamları IP başlığından ayrı raporlanır;
+başka IP kullanıcılarının kimliği bu sayaçlardan çıkarılamaz.
+
+Doğrulama: 87 çevrimdışı test. Çekirdek config hash
+`f4485acc0340fb6352cde17558ada6f53459bafa486793423792c3b4e2ccdedd`
+değişmez. Bu düzeltme Ağustos keşif testinin negatif sonucunu değiştirmez.
 
 V1.1 strateji eşiklerini değiştirmez. Canlı bid/ask referansındaki ikinci yarım
 spread eklemesi kaldırıldı. Yapılandırma kimliği sürüm nedeniyle değişti;

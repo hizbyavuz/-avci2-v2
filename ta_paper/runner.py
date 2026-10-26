@@ -19,12 +19,12 @@ import time
 
 from .core import (CFG, MINUTE, assess, closed_bars, descriptive_stats, exit_on_bar,
                    funding_cost, risk_room, sizing)
-from .io import Binance, DataUnavailable, Store, Telegram, book_check, tradable
+from .io import Binance, DataUnavailable, Store, Telegram, book_check, book_quote, tradable
 from .observations import (collect, context_fields, funnel_report, record_setup, setup_id,
                            GAP_GRACE, GAP_RETRY)
 
 STOP = threading.Event()
-OPERATIONS_REVISION = 'SCAN_FLOW_20261026_3'
+OPERATIONS_REVISION = 'ADMISSION_DELIVERY_20261026_4'
 CHART_REVISION = 'CHARTS_20261026_1'
 SCAN_STATE_KEY = 'scan_progress_v2'
 SCAN_BATCH_SECONDS = 15
@@ -106,7 +106,11 @@ def health_message(reason, cooldown):
 def update_health(store, reason, cooldown, now, progress=None):
     progress=progress or {}
     expired=progress.get('status')=='EXPIRED'
-    status='EXPIRED' if expired else 'READY' if reason=='READY' else 'WAITING'
+    completed=progress.get('status')=='COMPLETE'
+    # Background evidence collection can hit the REST guard after the scan has
+    # finished. It cannot undo that result or turn it into a new failed scan.
+    status=('EXPIRED' if expired else 'READY' if reason=='READY' or
+            (completed and reason=='SHARED_IP_WEIGHT_HIGH') else 'WAITING')
     universe=progress.get('universe',len(progress.get('markets',{})))
     assessed=progress.get('assessed',len(progress.get('done',{})))
     identity=status+':'+reason+':'+str(cooldown.get('until_ms',0))+':'+str(assessed)
@@ -115,12 +119,28 @@ def update_health(store, reason, cooldown, now, progress=None):
         store.setting('runtime_health_identity_v2',identity)
     previous=store.setting('notification_health_class_v2')
     last=int(store.setting('notification_health_sent_ms_v2') or 0)
+    slot=progress.get('scan_slot',progress.get('slot','unknown'))
+    terminal_key=f'{status}:{slot}' if status in ('READY','EXPIRED') else None
+    already_reported=terminal_key is not None and terminal_key==store.setting('notification_terminal_v3')
     # Exact timer changes remain in logs; a busy IP must not generate minute-by-minute alerts.
-    if previous==status and (status in ('READY','EXPIRED') or now-last<15*MINUTE):
+    if (already_reported and previous==status) or (previous==status and status=='WAITING' and now-last<15*MINUTE):
         return
     if status=='READY':
+        handled=Counter(progress.get('handled',{}).values())
+        setups=progress.get('setups',sum(p.get('status')=='SETUP' for p in progress.get('done',{}).values()))
+        admitted=progress.get('admitted_total',handled.get('ACCEPTED',0))
+        reasons=progress.get('reasons',{'ADMISSION:'+k:v for k,v in handled.items() if k!='ACCEPTED'})
+        names={'BOOK_IMPACT_EXCEEDS_MODEL':'Fiyat kayması sınırı',
+               'INSUFFICIENT_BOOK_DEPTH':'Yetersiz emir defteri',
+               'SPREAD_TOO_WIDE':'Alış-satış farkı',
+               'LATE_ENTRY':'Giriş fiyatı uzaklaştı',
+               'SYMBOL_COOLDOWN':'Aynı coin bekleme süresi'}
+        rejects=[f"{names.get(k[10:],'Diğer risk/giriş kontrolü')}: {v}"
+                 for k,v in sorted(reasons.items()) if k.startswith('ADMISSION:')]
         text=(f'⚪ TA PAPER · Tarama tamamlandı\nDeğerlendirilen: {assessed}/{universe} coin.\n'
-              'Grafikli test bildirimleri açık. Uygun koşul yoksa işlem planı gönderilmez.\n'
+              f'Teknik aday: {setups} · Kabul edilen test planı: {admitted}.\n'
+              +('Eleme: '+'; '.join(rejects)+'.\n' if rejects else '')+
+              ('Teknik giriş koşulu oluşmadı.\n' if not setups else '')+
               'Gerçek emir yok; başarı DOĞRULANMADI.')
     elif expired:
         next_slot=(progress.get('scan_slot',progress.get('slot',now//CFG.entry_ms))+1)*CFG.entry_ms
@@ -147,11 +167,15 @@ def update_health(store, reason, cooldown, now, progress=None):
     store.queue('system:health:'+str(now),text,now)
     store.setting('notification_health_class_v2',status)
     store.setting('notification_health_sent_ms_v2',now)
+    if terminal_key:
+        store.setting('notification_terminal_v3',terminal_key)
 
 
 def continuous_path(client, symbol, start, now, cfg=CFG):
     """Use a verified prefix, repair a missing start once; never jump a hole."""
-    raw=client.candles(symbol,'1m',limit=1000,startTime=start,endTime=now-cfg.publication_delay_ms)
+    end=now-cfg.publication_delay_ms
+    count=max(1,min(1000,(end-start)//MINUTE+1))
+    raw=client.candles(symbol,'1m',limit=count,startTime=start,endTime=end)
     rows=[]
     for row in raw:
         if int(row[6])+cfg.publication_delay_ms>=now:
@@ -159,7 +183,8 @@ def continuous_path(client, symbol, start, now, cfg=CFG):
         rows.extend(closed_bars([row],MINUTE,now,minimum=1,require_current=False,cfg=cfg))
     if not rows or rows[0][0]>start:
         end=min(now-cfg.publication_delay_ms,rows[0][0]-1 if rows else start+1000*MINUTE-1)
-        patch=client.candles(symbol,'1m',limit=1000,startTime=start,endTime=end)
+        count=max(1,min(1000,(end-start)//MINUTE+1))
+        patch=client.candles(symbol,'1m',limit=count,startTime=start,endTime=end)
         for row in patch:
             if int(row[6])+cfg.publication_delay_ms<now:
                 rows.extend(closed_bars([row],MINUTE,now,minimum=1,require_current=False,cfg=cfg))
@@ -334,7 +359,7 @@ def _scan_health(store,client,state,started,admitted=0):
     return health
 
 
-def _admit_candidates(store, client, state, cfg=CFG):
+def _admit_candidates(store, client, state, cfg=CFG, on_plan=None):
     """Admit only individually verified setups; coverage is a separate metric."""
     markets=state['markets']; by_symbol=state['tickers']
     candidates=[p for p in state['done'].values() if p['status']=='SETUP']
@@ -372,17 +397,24 @@ def _admit_candidates(store, client, state, cfg=CFG):
                 raise ValueError('UNRESOLVED_OPEN_RISK')
             eq, day_start, day_pnl = account(store, stamp, cfg)
             room = risk_room(eq, day_start, day_pnl, active, p['direction'], cfg)
-            size = sizing(p, markets[p['symbol']], eq, room, cfg=cfg)
+            sizing(p, markets[p['symbol']], eq, room, cfg=cfg)
             book = client.get('/fapi/v1/depth', symbol=p['symbol'], limit=100)
             stamp = client.now()
             if stamp>state['deadline_ms']:
                 raise ValueError('SCAN_FINISHED_TOO_LATE')
-            evidence = book_check(book, stamp, p['direction'], size['notional'], cfg)
-            p['entry_half_spread'] = evidence['spread']/2
-            size = sizing(p, markets[p['symbol']], eq, room, cfg=cfg)
-            spot_ref = evidence['ask'] if p['direction'] == 'LONG' else evidence['bid']
-            sizing(p, markets[p['symbol']], eq, room, spot_ref, cfg, reference_is_quote=True)
+            # Preserve rejected books too: the reason must be independently
+            # auditable, not just a string without the sizes/prices behind it.
             store.snapshot('BOOK:'+p['symbol'], book, stamp)
+            quote = book_quote(book, stamp, cfg)
+            p['entry_half_spread'] = quote['spread']/2
+            size = sizing(p, markets[p['symbol']], eq, room, cfg=cfg)
+            spot_ref = quote['ask'] if p['direction'] == 'LONG' else quote['bid']
+            sizing(p, markets[p['symbol']], eq, room, spot_ref, cfg, reference_is_quote=True)
+            # Check the final base quantity, after spread-adjusted risk sizing.
+            # Never reject against a larger provisional notional or shrink the
+            # position merely to force an illiquid book through the same limit.
+            evidence = book_check(book, stamp, p['direction'], size['notional'], cfg,
+                                  quantity=size['quantity'])
             p.update(size, book=evidence, market=markets[p['symbol']], status='PENDING',
                      observed_ms=stamp, entry_ms=((stamp+cfg.entry_delay_ms)//MINUTE+1)*MINUTE,
                      expires_ms=stamp+cfg.max_pending_ms)
@@ -392,6 +424,8 @@ def _admit_candidates(store, client, state, cfg=CFG):
             notify(store, p, stamp)
             admitted += 1
             state['handled'][symbol] = 'ACCEPTED'
+            log('TA_PAPER_ADMISSION',symbol=symbol,direction=p['direction'],outcome='ACCEPTED',
+                book=evidence,operations_revision=OPERATIONS_REVISION)
         except (ValueError, DataUnavailable, KeyError, TypeError) as exc:
             reason = str(exc)[:120] if isinstance(exc, (ValueError, DataUnavailable)) else type(exc).__name__
             if isinstance(exc,DataUnavailable):
@@ -399,15 +433,20 @@ def _admit_candidates(store, client, state, cfg=CFG):
                 state['retry_at'][symbol] = max(stamp+MINUTE,_cooldown(client).get('until_ms',0))
             else:
                 state['handled'][symbol] = reason
-            store.event('ADMISSION_REJECTED', p['symbol'], {'reason': reason, 'setup': p}, stamp)
+            details = dict(reason=reason,setup=p,book=getattr(exc,'evidence',None))
+            store.event('ADMISSION_REJECTED', p['symbol'], details, stamp)
+            log('TA_PAPER_ADMISSION',symbol=symbol,direction=p['direction'],outcome='REJECTED',
+                reason=reason,book=details['book'],operations_revision=OPERATIONS_REVISION)
             record_setup(store,p,stamp,markets[p['symbol']],reason)
         _save_scan(store,state)
+        if state['handled'].get(symbol)=='ACCEPTED' and on_plan is not None:
+            on_plan()
         if _cooldown(client)['remaining_seconds']:
             break
     return admitted
 
 
-def scan(store, client, cfg=CFG):
+def scan(store, client, cfg=CFG, on_plan=None):
     """Resume one frozen universe; never turn a partial scan into a completed slot."""
     started=time.monotonic(); now=client.now()
     slot=(now-cfg.publication_delay_ms)//cfg.entry_ms
@@ -444,7 +483,7 @@ def scan(store, client, cfg=CFG):
         state.update(markets=markets,tickers={k:by_symbol[k] for k in markets},initialized=True)
         _save_scan(store,state)
     markets=state['markets']; by_symbol=state['tickers']
-    admitted=_admit_candidates(store,client,state,cfg)
+    admitted=_admit_candidates(store,client,state,cfg,on_plan)
     batch=0
     # Fixed liquidity priority from this slot's universe, not API listing order.
     for symbol in sorted(markets,key=lambda x:(-float(by_symbol[x]['quoteVolume']),x)):
@@ -484,7 +523,7 @@ def scan(store, client, cfg=CFG):
             store.event('DATA_ISSUE',symbol,{'reason':reason,'scan_slot':slot},client.now())
         _save_scan(store,state)
         if state['done'].get(symbol,{}).get('status')=='SETUP':
-            admitted+=_admit_candidates(store,client,state,cfg)
+            admitted+=_admit_candidates(store,client,state,cfg,on_plan)
     candidates=[p for p in state['done'].values() if p['status']=='SETUP']
     if client.now()>state['deadline_ms']:
         state['status']='EXPIRED'
@@ -669,7 +708,8 @@ def run(args):
                     last_clock_sync = time.monotonic()
                 now = client.now()
                 advance(store, client)
-                health = scan(store, client)
+                health = scan(store, client, on_plan=lambda: telegram.flush(
+                    store,client.now(),signals_enabled=True,clock=client.now))
                 if client.gate.state()['remaining_seconds']:
                     raise DataUnavailable('EXCHANGE_COOLDOWN')
                 if not health['complete']:
@@ -700,7 +740,7 @@ def run(args):
                 research_notice(store,folder,client.now())
             # Each plan passed its own data/book/risk checks at admission. Partial
             # universe coverage cannot suppress that plan or position updates.
-            telegram.flush(store, client.now(), signals_enabled=not client.gate.state()['remaining_seconds'])
+            telegram.flush(store, client.now(), signals_enabled=True, clock=client.now)
             progress=json.loads(store.setting(SCAN_STATE_KEY) or '{}')
             if progress.get('status') in ('COMPLETE','EXPIRED') and not client.gate.state()['remaining_seconds']:
                 warm_scan_cache(store,client)
