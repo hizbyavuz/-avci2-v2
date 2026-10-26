@@ -56,6 +56,11 @@ class RequestGate:
                     raise ValueError('invalid recheck history')
                 self.data = dict(until_ms=until, reason=str(value['reason']), source=str(value['source']),
                                  recheck_ids=checks)
+                if 'user_not_before_ms' in value:
+                    floor = value['user_not_before_ms']
+                    if type(floor) is not int or floor < 0:
+                        raise ValueError('invalid user retry deadline')
+                    self.data['user_not_before_ms'] = floor
             except (OSError, ValueError, KeyError, TypeError):
                 raise CooldownError('RATE_LIMIT_STATE_INVALID') from None
         elif legacy:
@@ -71,7 +76,21 @@ class RequestGate:
 
     def state(self):
         with self.lock:
-            return dict(self.data, remaining_seconds=max(0, math.ceil((self.data['until_ms']-time.time()*1000)/1000)))
+            until = max(self.data['until_ms'], self.data.get('user_not_before_ms', 0))
+            return dict(self.data, until_ms=until, exchange_until_ms=self.data['until_ms'],
+                        remaining_seconds=max(0, math.ceil((until-time.time()*1000)/1000)))
+
+    def defer_until(self, until_ms):
+        """Persist a user-requested absolute retry floor without changing exchange evidence."""
+        if type(until_ms) is not int or until_ms <= 0:
+            raise ValueError('INVALID_USER_RETRY_DEADLINE')
+        with self.lock:
+            if until_ms <= self.data.get('user_not_before_ms', 0):
+                return False
+            self.data['user_not_before_ms'] = until_ms
+            self.recheck_permit = False
+            self._persist()
+            return True
 
     def block(self, until_ms, reason, source):
         with self.lock:
@@ -80,7 +99,7 @@ class RequestGate:
                 return
             server_replaces_assumption = source == 'EXCHANGE_RETRY_TIME' and self.data['source'] in ASSUMED_SOURCES
             if server_replaces_assumption or until_ms >= self.data['until_ms']:
-                self.data = dict(until_ms=int(until_ms), reason=reason, source=source,
+                self.data = dict(self.data, until_ms=int(until_ms), reason=reason, source=source,
                                  recheck_ids=self.data.get('recheck_ids', []))
                 self._persist()
 
@@ -88,7 +107,8 @@ class RequestGate:
         """Consume one explicit request durably, only for our assumed 418 timer."""
         with self.lock:
             checks = self.data.get('recheck_ids', [])
-            if (not request_id or request_id in checks or self.data['source'] not in ASSUMED_SOURCES
+            if (self.data.get('user_not_before_ms', 0) > time.time()*1000
+                    or not request_id or request_id in checks or self.data['source'] not in ASSUMED_SOURCES
                     or self.data['reason'] != 'BINANCE_HTTP_418'
                     or self.data['until_ms'] <= time.time()*1000):
                 return False
@@ -107,6 +127,8 @@ class RequestGate:
     def acquire(self, weight, unknown_recheck=False):
         while True:
             with self.lock:
+                if time.time()*1000 < self.data.get('user_not_before_ms', 0):
+                    raise CooldownError('USER_REQUESTED_RETRY_DELAY')
                 permitted = (unknown_recheck and self.recheck_permit
                              and self.data['source'] in ASSUMED_SOURCES
                              and self.data['reason'] == 'BINANCE_HTTP_418')

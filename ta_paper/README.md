@@ -511,3 +511,24 @@ Protocol references:
 - https://bybit-exchange.github.io/docs/v5/market/instrument
 - https://bybit-exchange.github.io/docs/v5/market/tickers
 - https://bybit-exchange.github.io/docs/v5/rate-limit
+
+## User-requested Binance retry delay — BINANCE_RETRY_DELAY_20261026_8
+
+`--binance-not-before-ms 1793121840264` delays Binance REST requests and new
+market-stream connections until **27 October 2026 20:24:00.264 Europe/Istanbul**,
+ten minutes after the currently recorded Binance retry boundary
+(`1793121240264`, 20:14:00.264). This is one absolute floor, not another ten
+minutes added on each restart or every future ban. A later exchange deadline
+still takes precedence.
+
+The user floor persists separately in `binance_cooldown.json`; the original
+exchange deadline, reason, source and recheck history remain intact. Restarts,
+shorter floor values and assumed-timer rechecks cannot bypass it. The runtime
+logs both the exchange boundary and the effective earliest retry. Bybit uses
+its separate unchanged gate, collector, cache and outbox. Strategy thresholds
+and the frozen configuration hash remain unchanged.
+
+Validation: 138 offline tests passed. Added checks cover the exact retry boundary,
+restart idempotence, unmodified exchange evidence, longer subsequent exchange
+blocks, recheck/stream bypass prevention, invalid state handling, and independent
+Bybit delivery while the primary Binance runner remains deferred.

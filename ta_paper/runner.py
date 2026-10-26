@@ -25,7 +25,7 @@ from .observations import (collect, context_fields, funnel_report, record_setup,
 from .watch import publish_watches
 
 STOP = threading.Event()
-OPERATIONS_REVISION = 'EXTERNAL_BYBIT_WATCH_20261026_7'
+OPERATIONS_REVISION = 'BINANCE_RETRY_DELAY_20261026_8'
 CHART_REVISION = 'CHARTS_20261026_1'
 SCAN_STATE_KEY = 'scan_progress_v2'
 SCAN_BATCH_SECONDS = 15
@@ -101,6 +101,8 @@ def health_message(reason, cooldown):
             text += '\nSunucunun kesin bitiş saati bilinmiyor; ihtiyatlı yeniden deneme sınırı: '+until+' TSİ.'
         else:
             text += '\nEn erken yeniden deneme: '+until+' TSİ.'
+        if cooldown.get('user_not_before_ms',0) > cooldown.get('exchange_until_ms',cooldown['until_ms']):
+            text += '\nİsteğin üzerine ek bekleme uygulanıyor; bu saat Binance engelinin uzadığı anlamına gelmez.'
     return text+'\nBaşarı: DOĞRULANMADI.'
 
 
@@ -155,6 +157,7 @@ def update_health(store, reason, cooldown, now, progress=None):
               'Eksik veri, fırsat yok anlamına gelmez. Gerçek emir yok; başarı DOĞRULANMADI.')
     else:
         explanations={
+            'USER_REQUESTED_RETRY_DELAY':'Binance yeniden denemesi isteğin üzerine ertelendi.',
             'SHARED_IP_WEIGHT_HIGH':'IP istek yükü yüksek; koruma beklemesi uygulanıyor.',
             'BINANCE_HTTP_418':'Binance geçici IP erişim engeli sürüyor.',
             'BINANCE_HTTP_429':'Binance istek sınırı nedeniyle bekleniyor.',
@@ -667,6 +670,11 @@ def run(args):
         if not (folder/'binance_cooldown.json').exists() and previous_cooldown.exists():
             shutil.copyfile(previous_cooldown,folder/'binance_cooldown.json')
         client = Binance(folder/'binance_cooldown.json', legacy=store.legacy_cooldown(), candle_store=store)
+        not_before = getattr(args,'binance_not_before_ms',0)
+        if not_before and client.gate.defer_until(not_before):
+            delay = client.gate.state()
+            store.event('USER_RETRY_DELAY','BINANCE:'+str(not_before),delay)
+            log('TA_PAPER_RETRY_DELAY',venue='BINANCE',cooldown=delay)
         if getattr(args,'market_streams',False):
             from .streams import LiveFeed
             client.streams = LiveFeed(folder/'streams',client.gate,store)
@@ -681,7 +689,7 @@ def run(args):
         if previous_ops!=OPERATIONS_REVISION:
             store.event('OPERATIONS_REVISION',OPERATIONS_REVISION,
                         dict(previous=previous_ops,config_hash=CFG.fingerprint,
-                             provenance=store.provenance,change='independent_bybit_watch_with_venue_provenance_and_separate_state'))
+                             provenance=store.provenance,change='durable_user_binance_retry_floor_without_delaying_bybit'))
             store.setting('operations_revision',OPERATIONS_REVISION)
         boot_key='system:charts:'+CHART_REVISION
         if not store.setting(boot_key):
@@ -815,6 +823,8 @@ def main():
     parser.add_argument('--historical-research',action='store_true',help='Run resumable, bounded archive validation alongside paper observation')
     parser.add_argument('--market-streams',action='store_true',help='Official Binance market streams and durable archive/cache before guarded REST')
     parser.add_argument('--external-watch',choices=['bybit'],help='Independent Bybit WATCH observations; no Binance verification or paper trades')
+    parser.add_argument('--binance-not-before-ms',type=int,default=0,
+                        help='Persist an absolute UTC epoch-ms floor for Binance REST/new stream retries; Bybit remains independent')
     parser.add_argument('--recheck-unknown-cooldown', action='store_true',
                         help='One explicitly requested check of an assumed timer; known exchange deadlines are respected')
     args = parser.parse_args()
