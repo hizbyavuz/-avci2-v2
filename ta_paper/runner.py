@@ -25,7 +25,7 @@ from .observations import (collect, context_fields, funnel_report, record_setup,
 from .watch import publish_watches
 
 STOP = threading.Event()
-OPERATIONS_REVISION = 'BINANCE_RETRY_DELAY_20261026_8'
+OPERATIONS_REVISION = 'HEALTH_STATE_CHANGES_20261027_9'
 CHART_REVISION = 'CHARTS_20261026_1'
 SCAN_STATE_KEY = 'scan_progress_v2'
 SCAN_BATCH_SECONDS = 15
@@ -121,12 +121,13 @@ def update_health(store, reason, cooldown, now, progress=None):
         store.event('RUNTIME_HEALTH',reason,dict(cooldown,reason=reason,assessed=assessed,universe=universe),now)
         store.setting('runtime_health_identity_v2',identity)
     previous=store.setting('notification_health_class_v2')
-    last=int(store.setting('notification_health_sent_ms_v2') or 0)
     slot=progress.get('scan_slot',progress.get('slot','unknown'))
     terminal_key=f'{status}:{slot}' if status in ('READY','EXPIRED') else None
     already_reported=terminal_key is not None and terminal_key==store.setting('notification_terminal_v3')
-    # Exact timer changes remain in logs; a busy IP must not generate minute-by-minute alerts.
-    if (already_reported and previous==status) or (previous==status and status=='WAITING' and now-last<15*MINUTE):
+    # One notification per continuous waiting episode, including across restarts.
+    # Timer/reason/progress updates remain in RUNTIME_HEALTH evidence above;
+    # elapsed wall time alone must never enqueue another waiting reminder.
+    if (already_reported and previous==status) or (previous==status and status=='WAITING'):
         return
     if status=='READY':
         handled=Counter(progress.get('handled',{}).values())
@@ -689,7 +690,7 @@ def run(args):
         if previous_ops!=OPERATIONS_REVISION:
             store.event('OPERATIONS_REVISION',OPERATIONS_REVISION,
                         dict(previous=previous_ops,config_hash=CFG.fingerprint,
-                             provenance=store.provenance,change='durable_user_binance_retry_floor_without_delaying_bybit'))
+                             provenance=store.provenance,change='notify_once_per_waiting_episode_preserving_retry_floor_and_bybit'))
             store.setting('operations_revision',OPERATIONS_REVISION)
         boot_key='system:charts:'+CHART_REVISION
         if not store.setting(boot_key):
