@@ -607,12 +607,14 @@ def stop_research(child):
 
 
 def research_notice(store,root,now):
-    folder=Path(root)/'research'/store.provenance['source_sha256'][:16]
+    from .research_cache import completed_folder
+    folder=completed_folder(Path(root)/'research',store.provenance['source_sha256'],CFG.fingerprint)
     status_path=folder/'job_status.json'
     if not status_path.exists():return
     state=json.loads(status_path.read_text());phase=state['status']
     if phase=='RUNNING':return
-    key='system:research:'+store.provenance['source_sha256']+':'+phase
+    report_source=state.get('provenance',{}).get('source_sha256',store.provenance['source_sha256'])
+    key='system:research:'+report_source+':'+phase
     if store.setting(key):return
     if phase.startswith('COMPLETE'):
         report=json.loads((folder/'report.json').read_text())
@@ -727,9 +729,13 @@ def run(args):
                 telegram.flush(store, client.now(), signals_enabled=False)
         child=None
         if getattr(args,'historical_research',False):
+            from .research_cache import completed_folder
             root_job=folder/'research'
-            status_path=root_job/store.provenance['source_sha256'][:16]/'job_status.json'
+            prior=completed_folder(root_job,store.provenance['source_sha256'],CFG.fingerprint)
+            status_path=prior/'job_status.json'
             status=json.loads(status_path.read_text()).get('status') if status_path.exists() else None
+            if status in ('COMPLETE','COMPLETE_WITH_GAPS'):
+                log('TA_RESEARCH_REUSED',folder=prior.name,reason='VERIFIED_IDENTICAL_RESEARCH_RULES',new_independent_evidence=False)
             if status not in ('COMPLETE','COMPLETE_WITH_GAPS','FAILED'):
                 child=subprocess.Popen([sys.executable,'-u','-m','ta_paper.research_job','--root',str(root_job)],start_new_session=True)
                 locks.callback(stop_research,child)

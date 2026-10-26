@@ -6,4 +6,5 @@ COPY requirements.ta-paper.txt /app/requirements.ta-paper.txt
 RUN pip install --no-cache-dir -r /app/requirements.ta-paper.txt
 COPY ta_paper /app/ta_paper
 COPY research/ta_paper_v1_1/protocol.json /app/research/ta_paper_v1_1/protocol.json
+COPY research/ta_paper_observation_v1/protocol.json /app/research/ta_paper_observation_v1/protocol.json
 CMD ["python", "-u", "-m", "ta_paper.runner", "--telegram"]

@@ -532,3 +532,71 @@ Validation: 138 offline tests passed. Added checks cover the exact retry boundar
 restart idempotence, unmodified exchange evidence, longer subsequent exchange
 blocks, recheck/stream bypass prevention, invalid state handling, and independent
 Bybit delivery while the primary Binance runner remains deferred.
+
+## Frozen observation release — 27 October 2026
+
+The core strategy, thresholds, stops, targets, candidate message/card format and
+Binance retry deadline are unchanged. This release does **not** establish a
+profitable strategy or enable any research filter.
+
+`research/ta_paper_observation_v1/protocol.json` freezes four separate hypotheses
+(taker flow, OI plus price, funding rank, BTC-relative return), their example
+thresholds and a proposed evaluation protocol. The historical filter comparisons
+have **not been run**. Prior exposure of October 2025–July 2026 is unverified;
+that interval must not be advertised as untouched holdout. The already completed
+August report is reused only when its source, original protocol, configuration
+and relevant research source files match an explicitly verified baseline. Its
+original provenance is preserved; it is not new independent evidence.
+
+An independent, low-priority process observes the Bybit universe using one public
+WebSocket and writes `external_bybit_v1/observations.sqlite3`. It reads the signal
+database read-only, never calls Binance, and never creates a plan, order or
+Telegram message. At most 200 symbols are observed (BTC then scan liquidity
+priority); observation coverage is explicit and never caps candidate selection.
+It records one-minute closed candles, deduplicated taker quote-flow aggregates,
+OI/funding/mark/index/best-quote samples, all available scan assessments including
+rejected peers, and 1/4/24/72-hour candidate outcomes. Signals and Binance cooldown
+handling remain in their original workers. Binance taker columns from already
+received REST/WS candles are retained separately, without extra Binance requests.
+
+Prospective candidate measurement starts from the first full minute after a
+persisted Telegram delivery acknowledgment plus two seconds. Old messages without
+an ACK timestamp remain archived and are excluded from this new cohort. Repeated
+candidate IDs do not become new observations. Gaps, stale data, subscription
+failures and unknown outcomes remain explicit; no missing feature is filled with
+zero. At least four hours of valid samples are needed for live OI change; the
+indicative funding rank requires 30 days of adequate hourly history. Live
+indicative funding ranks are not interchangeable with settled historical ranks.
+
+Outcome labels distinguish no model entry, target-first, stop-first, unresolved
+path and still-open horizon. Same-minute stop/target ambiguity is stop-first;
+gap stops use the first open beyond the stop. Post-stop later rallies do not turn
+losses into winners. Checkpoints are observations, not new forced exits. The
+counterfactual cost model includes fixed fees/slippage and a 1.5x stress on the
+same path. Actual Bybit funding rates are fetched for closed observations using
+the existing scanner gate, at most once per five minutes, outside the signal
+window with a 30-second guard. Retries are bounded per candidate so a bad symbol
+cannot starve the rest. Missing settlement marks or ambiguous settlement timing
+leave model net R unresolved. Marks are preceding samples up to 90 seconds old,
+not a claim to know the exact exchange settlement mark.
+
+**Technical barriers and model net R are not executed fills.** Historical depth
+for a defined order size remains unverified; `net_r` and verified profitability
+remain unset. Best quotes are evidence, not a guarantee that size could fill.
+The existing Binance paper portfolio and its own execution model remain separate.
+Rejected peers are descriptive observations, not already validated randomized
+controls. The raw evidence is retained; the sidecar pauses below 512 MiB free
+space and has a 512 MiB address-space cap. Its heartbeat exposes memory, disk,
+coverage and counts. If it fails, the candidate scanner continues and reports the
+observer process state. Review `TA_EVIDENCE_*` logs and the durable database.
+
+Bybit scan summaries now notify only coverage-health changes; all scans remain
+logged. Candidate notifications are unchanged. Binance WAITING deduplication is
+preserved. No new scheduled automation is created.
+
+Validation command: `PYTHONPATH=. python tests/run_ta_paper_offline.py`.
+External sockets are blocked during tests; real local WebSocket handshakes are
+allowed. Tests cover frozen source/config identity, notification-anchored results,
+stop-first/gap/missing-path behavior, delivery deduplication, flow coverage and
+trade-ID deduplication, causal as-of reads, funding uncertainty, archive checksums,
+passive Binance capture and completed-research reuse.

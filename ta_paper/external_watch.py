@@ -10,6 +10,8 @@ from email.utils import parsedate_to_datetime
 import json
 from pathlib import Path
 import sqlite3
+import subprocess
+import sys
 import threading
 import time
 import urllib.error
@@ -27,7 +29,7 @@ REVISION = 'EXTERNAL_BYBIT_WATCH_20261026_1'
 PERIODS = {'30m': CFG.entry_ms, '4h': CFG.context_ms}
 HOST = 'https://api.bybit.com'
 ALLOWED = frozenset(('/v5/market/time', '/v5/market/instruments-info',
-                     '/v5/market/tickers', '/v5/market/kline'))
+                     '/v5/market/tickers', '/v5/market/kline', '/v5/market/funding/history'))
 
 
 def log(kind, **fields):
@@ -262,7 +264,11 @@ class WatchScanner:
                f'Geçmiş veri hazırlanıyor; sonraki kapanış: {next_time} TSİ.\n' if state['status']!='COMPLETE' else '')+
               'Kaynak: Bybit USDT vadeli. Binance girişi doğrulanmadı.\n'
               'Binance eşlemesi son kayıtlı listeye dayanır. Gerçek emir yok.')
-        self.store.queue('system:bybit:scan:'+str(state['slot']),text,self.client.now())
+        # Keep every scan in evidence; notify only when coverage health changes.
+        health='READY' if state['status']=='COMPLETE' else 'INCOMPLETE'
+        if self.store.setting('bybit_notification_health_v2')!=health:
+            self.store.queue('system:bybit:scan:'+str(state['slot']),text,self.client.now())
+            self.store.setting('bybit_notification_health_v2',health)
         state['reported']=True;self.save()
 
 
@@ -273,11 +279,22 @@ class ExternalWatch:
         self.path=self.directory/'research.sqlite3';self.reference_path=reference_path
         self.delivery=Store(self.path);self.stop=threading.Event();self.offset_ms=0
         self.thread=threading.Thread(target=self._run,name='bybit-watch',daemon=True)
+        self.observer=None
 
-    def start(self):self.thread.start();return self
+    def start(self):
+        self.thread.start()
+        try:
+            self.observer=subprocess.Popen([sys.executable,'-u','-m','ta_paper.evidence_worker',
+                                             '--root',str(self.directory)],start_new_session=True)
+        except OSError as exc:log('TA_EVIDENCE_START_ERROR',reason=type(exc).__name__)
+        return self
     def now(self):return int(time.time()*1000)+self.offset_ms
     def close(self):
         self.stop.set();self.thread.join(timeout=12);self.delivery.db.close()
+        if self.observer and self.observer.poll() is None:
+            self.observer.terminate()
+            try:self.observer.wait(timeout=5)
+            except subprocess.TimeoutExpired:self.observer.kill();self.observer.wait(timeout=2)
 
     def _run(self):
         store=Store(self.path);client=BybitPublic(store,self.stop)
@@ -296,11 +313,21 @@ class ExternalWatch:
                         last_error=reason
                     self.stop.wait(15)
                 self.offset_ms=client.offset_ms
+                # Enrichment yields the whole entry window and its guard band.
+                phase=client.now()%CFG.entry_ms
+                if (scanner.state.get('status')=='COMPLETE' and CFG.max_scan_delay_ms<phase<CFG.entry_ms-30_000
+                        and not client.gate.state()['remaining_seconds']):
+                    try:
+                        from .evidence import collect_funding
+                        collect_funding(self.directory/'observations.sqlite3',client)
+                    except Exception as exc:
+                        log('TA_EVIDENCE_FUNDING_WAIT',reason=type(exc).__name__)
                 if client.now()-heartbeat>=5*MINUTE:
                     log('TA_EXTERNAL_HEARTBEAT',requests=client.requests,cache_hits=client.cache_hits,
                         status=scanner.state.get('status','PREPARING'),
                         assessed=len(scanner.state.get('done',{})),universe=len(scanner.state.get('markets',{})),
-                        cooldown=client.gate.state())
+                        cooldown=client.gate.state(),
+                        observer_running=self.observer is not None and self.observer.poll() is None)
                     heartbeat=client.now()
                 self.stop.wait(1 if scanner.state.get('status')=='PENDING' else 5)
         finally:store.db.close()

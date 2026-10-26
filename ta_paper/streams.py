@@ -57,6 +57,8 @@ class LiveFeed:
             PRIMARY KEY(symbol,tf,ms));
           CREATE TABLE IF NOT EXISTS issues(symbol TEXT,tf TEXT,ms INTEGER,reason TEXT);
           CREATE TABLE IF NOT EXISTS state(key TEXT PRIMARY KEY,payload TEXT);
+          CREATE TABLE IF NOT EXISTS passive_kline_features(symbol TEXT,tf TEXT,ms INTEGER,payload TEXT,
+            PRIMARY KEY(symbol,tf,ms));
         ''')
         row = self.db.execute("SELECT payload FROM state WHERE key='invalid_contracts'").fetchone()
         if row: self.invalid_contracts = json.loads(row[0])
@@ -188,6 +190,15 @@ class LiveFeed:
                     # Save final exchange bars immediately; readers still enforce
                     # the frozen 2s publication delay before using them.
                     self.put_bars(symbol,tf,[row],'BINANCE_WS',max(now,end+CFG.publication_delay_ms+1))
+                    if all(key in bar for key in ('q','V','Q','n')):
+                        try:
+                            from .feature_archive import candle_features
+                            fields=candle_features([*row,bar['q'],bar['n'],bar['V'],bar['Q']])
+                            self.db.execute('INSERT OR IGNORE INTO passive_kline_features VALUES(?,?,?,?)',
+                                            (symbol,tf,start,json.dumps(fields,allow_nan=False)))
+                            self.db.commit()
+                        except (ValueError,TypeError,sqlite3.Error):
+                            self.db.rollback()  # Observation failure never rejects the closed candle.
                     self.closed_count += 1
             if good: self.groups[group]['last_event'] = now
 

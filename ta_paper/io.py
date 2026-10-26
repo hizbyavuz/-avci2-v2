@@ -229,6 +229,8 @@ class Binance:
             if use_cache:self.full_fetches += 1
         if not isinstance(data, list):
             raise DataUnavailable("INVALID_KLINES_RESPONSE")
+        if self.candle_store and interval in ('30m','4h'):
+            self.candle_store.passive_kline_features(symbol,interval,data,now)
         if use_cache:
             if incremental:
                 incoming = closed_bars(data,period,now,minimum=1)
@@ -371,6 +373,8 @@ class Store:
             repairs INTEGER,payload TEXT);
           CREATE TABLE IF NOT EXISTS watch_candidates(id TEXT PRIMARY KEY,symbol TEXT,
             created_ms INTEGER,valid_until_ms INTEGER,status TEXT,payload TEXT);
+          CREATE TABLE IF NOT EXISTS passive_kline_features(symbol TEXT,tf TEXT,open_ms INTEGER,payload TEXT,
+            PRIMARY KEY(symbol,tf,open_ms));
           CREATE INDEX IF NOT EXISTS events_kind ON events(kind);
           CREATE INDEX IF NOT EXISTS observation_fetch ON observations(status,next_fetch_ms);
         ''')
@@ -379,6 +383,8 @@ class Store:
             self.db.execute('ALTER TABLE outbox ADD COLUMN photo BLOB')
         if 'retry_at_ms' not in columns:
             self.db.execute('ALTER TABLE outbox ADD COLUMN retry_at_ms INTEGER NOT NULL DEFAULT 0')
+        if 'delivered_at_ms' not in columns:
+            self.db.execute('ALTER TABLE outbox ADD COLUMN delivered_at_ms INTEGER')
         from dataclasses import asdict
         self.db.execute('INSERT OR IGNORE INTO manifests VALUES(?,?)', (cfg.fingerprint, encode(asdict(cfg))))
         hashes = [r[0] for r in self.db.execute('SELECT hash FROM manifests')]
@@ -415,6 +421,21 @@ class Store:
                               (key, p['observed_ms'], p['symbol'], encode(p)))
         self.db.commit()
         return cur.rowcount == 1
+
+    def passive_kline_features(self,symbol,tf,rows,now):
+        """Keep already-received taker columns; never another network request."""
+        try:
+            from .feature_archive import candle_features
+            values=[]
+            for row in rows:
+                if len(row)>=11 and int(row[6])+CFG.publication_delay_ms<now:
+                    item=candle_features(row)
+                    values.append((symbol,tf,item['open_ms'],encode(item)))
+            self.db.executemany('INSERT OR IGNORE INTO passive_kline_features VALUES(?,?,?,?)',values)
+            self.db.commit()
+        except (ValueError,TypeError,KeyError,sqlite3.Error) as exc:
+            self.db.rollback()
+            print('TA_EVIDENCE_CAPTURE_ERROR '+encode({'type':type(exc).__name__}),flush=True)
 
     def save(self, p):
         for k,v in self.provenance.items():
@@ -514,6 +535,7 @@ class Telegram:
             # expired while waiting behind another notification.
             if clock is not None:
                 now = clock()
+            clock_sample = time.monotonic()
             if row['key'].startswith('watch:'):
                 candidate=store.db.execute('SELECT * FROM watch_candidates WHERE id=?',(row['key'][6:],)).fetchone()
                 has_plan=store.db.execute('SELECT 1 FROM plans WHERE id=?',(row['key'][6:],)).fetchone()
@@ -556,8 +578,9 @@ class Telegram:
                 with urllib.request.build_opener(NoRedirect).open(req, timeout=25) as response:
                     result = json.load(response)
                 if result.get('ok') and str(result['result']['chat']['id']) == self.chat:
-                    store.db.execute("UPDATE outbox SET state='DELIVERED',message_id=? WHERE key=?",
-                                     (str(result['result']['message_id']), row['key']))
+                    store.db.execute("UPDATE outbox SET state='DELIVERED',message_id=?,delivered_at_ms=? WHERE key=?",
+                                     (str(result['result']['message_id']),
+                                      now+int((time.monotonic()-clock_sample)*1000) if clock else int(time.time()*1000), row['key']))
                     store.db.commit()
                     store.event('TELEGRAM_ACK', row['key'], {'delivered': True})
                     print('TA_PAPER_TELEGRAM_ACK '+encode({'key': row['key'], 'method': method, 'delivered': True}), flush=True)
