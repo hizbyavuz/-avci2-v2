@@ -14,7 +14,7 @@ from ta_paper.archive import Archive
 from ta_paper.core import CFG, MINUTE, assess, closed_bars
 from ta_paper.io import Binance, DataUnavailable, Store
 from ta_paper.runner import STOP, scan, run, SCAN_STATE_KEY
-from ta_paper.streams import LiveFeed, StreamMissing, METADATA_TTL, daily_rows
+from ta_paper.streams import LiveFeed, StreamMissing, METADATA_TTL, daily_rows, CONTROL_GROUP, SYMBOLS_PER_CONNECTION
 from test_ta_paper import NOW, MARKET, series
 from test_ta_paper_scan_recovery import FakeClient
 
@@ -29,6 +29,7 @@ class StreamTests(unittest.TestCase):
         self.feed = LiveFeed(self.root/'streams',self.client.gate,self.store)
         self.client.streams = self.feed
         self.feed.groups['market-0'] = dict(connected=True,acked=True,last_event=NOW)
+        self.feed.groups[CONTROL_GROUP] = dict(connected=True,acked=True,last_event=NOW)
         self.feed.symbol_groups['TESTUSDT'] = 'market-0'
         self.feed.set_metadata({'symbols':[MARKET]},NOW)
         self.feed.tickers['TESTUSDT'] = dict(symbol='TESTUSDT',quoteVolume=3_000_000,closeTime=NOW)
@@ -93,7 +94,7 @@ class StreamTests(unittest.TestCase):
         for state in (dict(connected=False,acked=True,last_event=NOW),
                       dict(connected=True,acked=True,last_event=NOW-31000),
                       dict(connected=True,acked=False,last_event=NOW)):
-            self.feed.groups['market-0'] = state
+            self.feed.groups[CONTROL_GROUP] = state
             with patch('urllib.request.build_opener') as net:
                 self.assertEqual(scan(self.store,self.client)['assessed'],0)
                 net.assert_not_called()
@@ -105,6 +106,23 @@ class StreamTests(unittest.TestCase):
         self.feed = LiveFeed(self.root/'streams',self.client.gate,self.store)
         self.assertEqual(self.feed.metadata_ms,NOW-METADATA_TTL-1)
         self.assertEqual(self.feed.groups,{})
+
+    def test_failed_candle_shard_does_not_force_ticker_or_metadata_rest_requests(self):
+        self.feed.groups['market-0'].update(connected=False,acked=False)
+        with patch('urllib.request.build_opener') as net:
+            self.assertEqual(self.client.get('/fapi/v1/ticker/24hr')[0]['symbol'],'TESTUSDT')
+            self.assertEqual(self.client.get('/fapi/v1/exchangeInfo')['symbols'],[MARKET])
+            self.client.sync_time()
+            net.assert_not_called()
+
+    def test_only_matching_numeric_subscription_ack_is_accepted(self):
+        self.feed.groups['market-0']['acked']=False
+        for value in ('subscribe',True,2,None):
+            with self.assertRaisesRegex(StreamMissing,'ACK_MISMATCH'):
+                self.feed.ingest('market-0',{'result':None,'id':value},NOW)
+            self.assertFalse(self.feed.groups['market-0']['acked'])
+        self.feed.ingest('market-0',{'result':None,'id':1},NOW)
+        self.assertTrue(self.feed.groups['market-0']['acked'])
 
     def test_paper_admission_rechecks_fresh_market_before_order_book(self):
         self.seed(True)
@@ -199,8 +217,10 @@ class StreamTests(unittest.TestCase):
         with patch.object(self.feed,'_spawn',side_effect=spawn),patch('ta_paper.streams.time.time',return_value=NOW/1000):
             with patch.object(self.feed.stop,'wait',side_effect=[False,True]):self.feed._manager()
         self.assertEqual(set(s for _,names in calls for s in names),set(symbols))
-        self.assertEqual(len(calls),3)
-        self.assertTrue(all(len(names)*3+2<=1024 for _,names in calls))
+        self.assertEqual(len(calls),13)  # 12 candle shards plus independent control.
+        self.assertEqual([names for group,names in calls if group==CONTROL_GROUP],[[]])
+        self.assertTrue(all(len(names)<=SYMBOLS_PER_CONNECTION for _,names in calls))
+        self.assertEqual(len(self.feed.symbol_groups),700)
 
     def test_daily_archive_verifies_checksum_date_and_cache(self):
         day = NOW//86400000-1
@@ -225,7 +245,7 @@ class StreamTests(unittest.TestCase):
         requests=[]
         def handler(ws):
             requests.append(json.loads(ws.recv()))
-            ws.send(json.dumps({'result':None,'id':'subscribe'}))
+            ws.send(json.dumps({'result':None,'id':requests[-1]['id']}))
             event=self.event(row);event['E']=int(time.time()*1000)
             # The fixture's old bar remains history, never a current signal.
             ws.send(json.dumps({'stream':'testusdt@kline_30m','data':event}))
@@ -241,11 +261,34 @@ class StreamTests(unittest.TestCase):
                 while time.monotonic()<deadline and not self.feed.closed_count:self.feed.stop.wait(.02)
                 self.assertEqual(self.feed.closed_count,1)
                 self.assertEqual(requests[0]['method'],'SUBSCRIBE')
-                self.assertIn('!ticker@arr',requests[0]['params'])
+                self.assertIs(type(requests[0]['id']),int)
+                self.assertNotIn('!ticker@arr',requests[0]['params'])
                 self.assertIn('testusdt@kline_4h',requests[0]['params'])
                 self.feed.stop.set();worker.join(timeout=3)
         finally:
             server.shutdown();thread.join(timeout=2)
+
+    def test_control_socket_subscribes_only_to_tickers_and_contracts(self):
+        from unittest.mock import MagicMock
+        ws=MagicMock()
+        ws.recv.side_effect=lambda **kw: (self.feed.stop.set() or json.dumps({'result':None,'id':1}))
+        with patch('websockets.sync.client.connect') as connect:
+            connect.return_value.__enter__.return_value=ws
+            self.feed._connection(CONTROL_GROUP,[])
+        request=json.loads(ws.send.call_args.args[0])
+        self.assertEqual(request['params'],['!ticker@arr','!contractInfo'])
+
+    def test_full_shard_subscription_stays_under_small_frame_budget(self):
+        from unittest.mock import MagicMock
+        names=[f'LONGSYMBOL{i:03d}USDT' for i in range(SYMBOLS_PER_CONNECTION)]
+        ws=MagicMock()
+        ws.recv.side_effect=lambda **kw: (self.feed.stop.set() or json.dumps({'result':None,'id':1}))
+        with patch('websockets.sync.client.connect') as connect:
+            connect.return_value.__enter__.return_value=ws
+            self.feed._connection('market-0',names)
+        raw=ws.send.call_args.args[0]
+        self.assertLess(len(raw.encode()),8192)
+        self.assertEqual(len(json.loads(raw)['params']),len(names)*3)
 
 
 if __name__ == '__main__':unittest.main()

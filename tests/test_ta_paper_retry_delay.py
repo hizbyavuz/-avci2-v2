@@ -142,9 +142,12 @@ class RetryDelayTests(unittest.TestCase):
                 bybit_gate = RequestGate(folder/'external_bybit_v1'/'bybit_cooldown.json')
                 self.assertEqual(bybit_gate.state()['remaining_seconds'], 0)
                 bybit_gate.acquire(3)
-                state = RequestGate(folder/'binance_cooldown.json').state()
-                self.assertIn('27.10.2026 20:24:00', health_message('Bekleniyor',state))
-                self.assertIn('ek bekleme', health_message('Bekleniyor',state))
+                # Keep the display assertion inside the historical fixture's
+                # clock too; it must not expire as the real calendar advances.
+                with patch('time.time', return_value=(EXCHANGE+1000)/1000):
+                    state = RequestGate(folder/'binance_cooldown.json').state()
+                    self.assertIn('27.10.2026 20:24:00', health_message('Bekleniyor',state))
+                    self.assertIn('ek bekleme', health_message('Bekleniyor',state))
             finally:
                 external_store.db.close()
                 STOP.clear()

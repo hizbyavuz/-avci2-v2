@@ -17,6 +17,11 @@ from .core import CFG, MINUTE, closed_bars, finite
 PERIODS = {'1m': MINUTE, '30m': 30*MINUTE, '4h': 240*MINUTE}
 METADATA_TTL = 6*3600*1000
 URL = 'wss://fstream.binance.com/market/stream'
+# Keep subscription frames and per-socket traffic small. The exchange's 1024
+# stream ceiling is not a target batch size for one SUBSCRIBE frame.
+SYMBOLS_PER_CONNECTION = 60
+CONTROL_GROUP = 'market-control'
+SUBSCRIPTION_ID = 1
 
 
 def log(kind, **data):
@@ -107,7 +112,7 @@ class LiveFeed:
 
     def ready(self, now):
         with self.lock:
-            return self._fresh('market-0', now) and bool(self.metadata) and 0 <= now-self.metadata_ms <= METADATA_TTL
+            return self._fresh(CONTROL_GROUP, now) and bool(self.metadata) and 0 <= now-self.metadata_ms <= METADATA_TTL
 
     def cached_metadata(self, now):
         if not self.ready(now): raise StreamMissing('STREAM_METADATA_NOT_READY')
@@ -128,6 +133,7 @@ class LiveFeed:
             return dict(mode='BINANCE_MARKET_STREAM', ready=self.ready(now),
                         connections=len(self.groups), healthy_connections=sum(self._fresh(g,now) for g in self.groups),
                         subscribed_symbols=len(self.symbol_groups), metadata_age_seconds=max(0,(now-self.metadata_ms)//1000),
+                        control_healthy=self._fresh(CONTROL_GROUP,now), symbols_per_connection=SYMBOLS_PER_CONNECTION,
                         closed_bars_received=self.closed_count, cache_hits=self.cache_hits,
                         archive_pending=len(self.archive_requests), invalid_contracts=len(self.invalid_contracts))
 
@@ -174,7 +180,9 @@ class LiveFeed:
         with self.lock:
             for event in values:
                 if not isinstance(event, dict): raise StreamMissing('STREAM_MESSAGE_INVALID')
-                if 'result' in event and event.get('id') == 'subscribe':
+                if 'result' in event:
+                    if type(event.get('id')) is not int or event['id'] != SUBSCRIPTION_ID:
+                        raise StreamMissing('STREAM_SUBSCRIPTION_ACK_MISMATCH')
                     if event['result'] is not None: raise StreamMissing('STREAM_SUBSCRIPTION_REJECTED')
                     self.groups[group]['acked'] = True
                     continue
@@ -276,11 +284,16 @@ class LiveFeed:
                 # deadline prevents scanning. Current-day gaps remain explicit.
                 self._prime_archive(wanted,now)
                 new = [s for s in wanted if s not in self.symbol_groups]
+                # Ticker/contract updates must survive a failed candle shard;
+                # otherwise one busy socket forces the scanner back onto REST.
+                if CONTROL_GROUP not in self.groups:
+                    self.groups[CONTROL_GROUP] = dict(connected=False,acked=False,last_event=0)
+                    self._spawn(self._connection,CONTROL_GROUP,[])
                 # Append shards; never silently cap the universe or reconnect all
                 # healthy streams because a newly listed contract was added.
-                for offset in range(0,len(new),240):
-                    group = 'market-'+str(len(self.groups))
-                    symbols = new[offset:offset+240]
+                for offset in range(0,len(new),SYMBOLS_PER_CONNECTION):
+                    group = 'market-'+str(len(self.groups)-1)
+                    symbols = new[offset:offset+SYMBOLS_PER_CONNECTION]
                     self.symbol_groups.update({s:group for s in symbols})
                     self.groups[group] = dict(connected=False,acked=False,last_event=0)
                     self._spawn(self._connection,group,symbols)
@@ -288,7 +301,8 @@ class LiveFeed:
     def _connection(self, group, symbols):
         from websockets.sync.client import connect
         channels = [s.lower()+'@kline_'+tf for s in symbols for tf in PERIODS]
-        if group == 'market-0': channels += ['!ticker@arr','!contractInfo']
+        if group == CONTROL_GROUP: channels = ['!ticker@arr','!contractInfo']
+        subscription = json.dumps({'method':'SUBSCRIBE','params':channels,'id':SUBSCRIPTION_ID})
         backoff = 60
         while not self.stop.is_set():
             # New connections honor the existing server ban; an already-open
@@ -308,8 +322,9 @@ class LiveFeed:
                 with connect(URL, proxy=None, open_timeout=10, close_timeout=2,
                              ping_interval=None, max_size=2_000_000, max_queue=64) as ws:
                     with self.lock: self.groups[group].update(connected=True,acked=False,last_event=0)
-                    ws.send(json.dumps({'method':'SUBSCRIBE','params':channels,'id':'subscribe'}))
-                    log('TA_STREAM_CONNECTED',group=group,symbols=len(symbols),streams=len(channels))
+                    ws.send(subscription)
+                    log('TA_STREAM_CONNECTED',group=group,symbols=len(symbols),streams=len(channels),
+                        subscription_bytes=len(subscription.encode()),subscription_acked=False)
                     while not self.stop.is_set() and time.monotonic()-began < 23*3600+50*60:
                         try: raw = ws.recv(timeout=2)
                         except TimeoutError:
@@ -317,7 +332,15 @@ class LiveFeed:
                                 with self.lock:
                                     if not self._fresh(group,int(time.time()*1000)): raise StreamMissing('STREAM_STALE')
                             continue
+                        with self.lock: was_acked = self.groups[group]['acked']
                         self.ingest(group,json.loads(raw),int(time.time()*1000))
+                        with self.lock: acked = self.groups[group]['acked']
+                        if acked and not was_acked:
+                            log('TA_STREAM_SUBSCRIBED',group=group,streams=len(channels))
+                        # A stream that keeps sending events but never confirms
+                        # our subscription must not run forever as unready.
+                        if not acked and time.monotonic()-began > 30:
+                            raise StreamMissing('STREAM_SUBSCRIPTION_ACK_TIMEOUT')
             except Exception as exc:
                 # Never print response bodies/IP addresses. Keep handshake blocks
                 # durable just like REST and obey explicit Retry-After timing.
@@ -328,7 +351,15 @@ class LiveFeed:
                     until,source = retry_deadline(code,response.headers,
                         bytes(getattr(response,'body',b'')).decode(errors='replace'),int(time.time()*1000))
                     self.gate.block(until,'BINANCE_HTTP_'+str(code),source)
-                log('TA_STREAM_DISCONNECTED',group=group,reason=str(exc) if isinstance(exc,StreamMissing) else type(exc).__name__)
+                # Close codes distinguish oversized frames, policy failures and
+                # network loss without exposing exchange response text/IPs.
+                received, sent = getattr(exc,'rcvd',None), getattr(exc,'sent',None)
+                log('TA_STREAM_DISCONNECTED',group=group,
+                    reason=str(exc) if isinstance(exc,StreamMissing) else type(exc).__name__,
+                    http_status=code,close_received=getattr(received,'code',None),
+                    close_sent=getattr(sent,'code',None),
+                    subscription_acked=self.groups[group].get('acked',False),
+                    streams=len(channels),uptime_seconds=round(time.monotonic()-began,1))
             finally:
                 with self.lock: self.groups[group].update(connected=False,acked=False)
             backoff = 60 if time.monotonic()-began > 300 else min(backoff*2,900)
