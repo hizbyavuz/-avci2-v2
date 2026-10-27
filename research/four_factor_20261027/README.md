@@ -1,5 +1,10 @@
 # Four fixed hypotheses: offline archive study
 
+The full study is complete: none of the eight filter/direction arms passed.
+See [the Turkish results report](results/RESULTS_TR.md),
+[full machine-readable results](results/report.json) and
+[independent integrity verification](results/integrity_verification.json).
+
 This is an isolated research runner based on deployed commit
 `7f80c3d7189a8c4e100314a814533900b78626c0`. It does not change the production
 worker, its strategy, exchange retry floor, Telegram delivery or order policy.

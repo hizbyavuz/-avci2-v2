@@ -1,0 +1,16 @@
+{
+  "status": "PASSED",
+  "outcome_files": 650,
+  "unique_events": 281405,
+  "strategy_candidates": 94395,
+  "closed_strategy": 72078,
+  "checks": [
+    "All period-active symbols have checkpoints",
+    "All event IDs unique",
+    "Every closed stress return <= baseline return",
+    "Independent math.fsum equal-day recomputation of all baseline and filter-side means agrees within 1e-12",
+    "Recorded source hashes equal disk and frozen GitHub calculation commit"
+  ],
+  "report_sha256": "1084868b45c9b77f507feadf0fb40537b1db61ed358f7957f6b51f64089b3a34",
+  "calculation_commit": "c59fff9bd9a7bb9e57b18b0faed0fdaed934222e"
+}
