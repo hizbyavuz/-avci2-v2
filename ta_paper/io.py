@@ -49,6 +49,8 @@ class Binance:
         self.offset_ms = 0
         self.observed_weight = 0
         self.observed_weight_window = None
+        self.ip_weight_estimate = 0
+        self.ip_weight_estimate_window = None
         self.local_requests = 0
         self.local_estimated_weight = 0
         self.local_minute = None
@@ -67,6 +69,8 @@ class Binance:
         return dict(stream=self.streams.status(self.now()) if self.streams else None,
                     reported_ip_weight_1m=self.observed_weight,
                     reported_minute=self.observed_weight_window,
+                    guarded_ip_weight_1m=self.ip_weight_estimate,
+                    guarded_ip_weight_minute=self.ip_weight_estimate_window,
                     local_requests_since_start=self.local_requests,
                     local_estimated_weight_since_start=self.local_estimated_weight,
                     local_request_minute=self.local_minute,
@@ -76,6 +80,24 @@ class Binance:
                     protective_threshold=1000, candle_cache_hits=self.cache_hits,
                     incremental_candle_fetches=self.incremental_fetches,
                     full_candle_fetches=self.full_fetches)
+
+    def _observe_weight(self, headers):
+        # Missing/malformed headers are unknown, never evidence of zero use.
+        value = headers.get('X-MBX-USED-WEIGHT-1M')
+        try:
+            used = int(value)
+            if used < 0: return
+        except (TypeError, ValueError):
+            return
+        minute = self.now()//MINUTE
+        self.observed_weight = max(self.observed_weight,used) if self.observed_weight_window == minute else used
+        self.observed_weight_window = minute
+        self.ip_weight_estimate = max(self.ip_weight_estimate,used) if self.ip_weight_estimate_window == minute else used
+        self.ip_weight_estimate_window = minute
+        if self.ip_weight_estimate >= 1000:
+            self.gate.block((minute+1)*MINUTE+2000-self.offset_ms,
+                            'SHARED_IP_WEIGHT_HIGH','WEIGHT_HEADER')
+            print('TA_PAPER_REQUEST_USAGE '+encode(self.usage()),flush=True)
 
     def get(self, endpoint, *, _unknown_recheck=False, _fresh=False, **params):
         if endpoint not in self.ALLOWED:
@@ -92,8 +114,11 @@ class Binance:
         if _unknown_recheck and (endpoint != '/fapi/v1/time' or params):
             raise ValueError('RECHECK_TIME_ENDPOINT_ONLY')
         weight=request_weight(endpoint,params)
-        if (not _unknown_recheck and self.observed_weight_window==self.now()//MINUTE and
-                self.observed_weight+weight>1000):
+        minute = self.now()//MINUTE
+        guarded = max(self.observed_weight if self.observed_weight_window == minute else 0,
+                      self.ip_weight_estimate if self.ip_weight_estimate_window == minute else 0,
+                      self.local_minute_weight if self.local_minute == minute else 0)
+        if not _unknown_recheck and guarded+weight>1000:
             self.gate.block((self.now()//MINUTE+1)*MINUTE+2000-self.offset_ms,
                             'SHARED_IP_WEIGHT_HIGH','WEIGHT_HEADER')
         try:
@@ -110,28 +135,25 @@ class Binance:
             self.local_minute_requests = self.local_minute_weight = 0
         self.local_minute_requests += 1
         self.local_minute_weight += weight
+        self.ip_weight_estimate = (self.ip_weight_estimate if self.ip_weight_estimate_window == minute else 0)+weight
+        self.ip_weight_estimate_window = minute
         self.endpoint_usage[endpoint] = self.endpoint_usage.get(endpoint, 0)+weight
         req = urllib.request.Request(url, headers={'User-Agent': 'TA-Paper-Research/1',
                                                   'Accept-Encoding': 'gzip'}, method='GET')
         try:
             with urllib.request.build_opener(NoRedirect).open(req, timeout=12) as resp:
+                self._observe_weight(resp.headers)
                 raw = resp.read(8_000_001)
                 if len(raw) > 8_000_000:
                     raise DataUnavailable("OVERSIZED_RESPONSE")
                 if resp.headers.get('Content-Encoding') == 'gzip':
                     raw = gzip.decompress(raw)
-                used = int(resp.headers.get('X-MBX-USED-WEIGHT-1M', 0))
-                self.observed_weight = used
-                self.observed_weight_window = self.now()//MINUTE
-                if used >= 1000:
-                    self.gate.block((self.now()//MINUTE+1)*MINUTE+2000-self.offset_ms,
-                                    'SHARED_IP_WEIGHT_HIGH', 'WEIGHT_HEADER')
-                    print('TA_PAPER_REQUEST_USAGE '+encode(self.usage()),flush=True)
                 data = json.loads(raw)
                 if self.streams and endpoint == '/fapi/v1/exchangeInfo':
                     self.streams.set_metadata(data,self.now())
                 return data
         except urllib.error.HTTPError as exc:
+            self._observe_weight(exc.headers)
             if exc.code in (418, 429, 451, 403):
                 raw = exc.read(8192)
                 if exc.headers.get('Content-Encoding') == 'gzip':
@@ -142,7 +164,8 @@ class Binance:
                 body = raw.decode('utf-8', errors='replace')
                 until, source = retry_deadline(exc.code, exc.headers, body, int(time.time()*1000))
                 self.gate.block(until, 'BINANCE_HTTP_'+str(exc.code), source)
-                print('TA_PAPER_COOLDOWN '+encode(self.gate.state()), flush=True)
+                print('TA_PAPER_COOLDOWN '+encode(dict(self.gate.state(),endpoint=endpoint,
+                    http_status=exc.code,request_usage=self.usage())), flush=True)
             raise DataUnavailable('BINANCE_HTTP_'+str(exc.code)) from None
         except (OSError, ValueError) as exc:
             raise DataUnavailable(type(exc).__name__) from None

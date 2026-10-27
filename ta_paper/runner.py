@@ -25,7 +25,7 @@ from .observations import (collect, context_fields, funnel_report, record_setup,
 from .watch import publish_watches
 
 STOP = threading.Event()
-OPERATIONS_REVISION = 'FINAL_OBSERVATION_FREEZE_20261027_10'
+OPERATIONS_REVISION = 'BINANCE_TRANSPORT_20261028_01'
 CHART_REVISION = 'CHARTS_20261026_1'
 SCAN_STATE_KEY = 'scan_progress_v2'
 SCAN_BATCH_SECONDS = 15
@@ -695,7 +695,7 @@ def run(args):
         if previous_ops!=OPERATIONS_REVISION:
             store.event('OPERATIONS_REVISION',OPERATIONS_REVISION,
                         dict(previous=previous_ops,config_hash=CFG.fingerprint,
-                             provenance=store.provenance,change='observation_only_features_and_bybit_outcomes_core_and_retry_floor_unchanged'))
+                             provenance=store.provenance,change='isolated_ticker_stream_smaller_candle_shards_numeric_ack_monotonic_weight_guard_core_and_retry_floor_unchanged'))
             store.setting('operations_revision',OPERATIONS_REVISION)
         boot_key='system:charts:'+CHART_REVISION
         if not store.setting(boot_key):
