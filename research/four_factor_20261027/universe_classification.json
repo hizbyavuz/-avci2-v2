@@ -1,0 +1,403 @@
+{
+  "scope": "Research-only exclusion taxonomy, frozen before any outcome calculation. Official 2026 launch announcements distinguish non-crypto contracts. This is not historical exchangeInfo.",
+  "source_index_used_only_to_discover_primary_urls": "https://vozeso.com/data/contracts.json",
+  "verified_noncrypto": [
+    {
+      "source": "https://www.binance.com/en/support/announcement/detail/ecf7318c0d434c339e80878588e700d0",
+      "date": "2026-01-05",
+      "symbols": [
+        "XAUUSDT",
+        "XAGUSDT"
+      ]
+    },
+    {
+      "source": "https://www.binance.com/en/support/announcement/detail/40c76b4deaa247f09774e5d1ee747cb8",
+      "date": "2026-01-28",
+      "symbols": [
+        "TSLAUSDT"
+      ]
+    },
+    {
+      "source": "https://www.binance.com/en/support/announcement/detail/0217a404bf984c028ebf9f92e083052c",
+      "date": "2026-01-30",
+      "symbols": [
+        "XPTUSDT",
+        "XPDUSDT"
+      ]
+    },
+    {
+      "source": "https://www.binance.com/en/support/announcement/detail/d592f6ba938746cbadaaf5a8a714abd6",
+      "date": "2026-02-02",
+      "symbols": [
+        "INTCUSDT",
+        "HOODUSDT"
+      ]
+    },
+    {
+      "source": "https://www.binance.com/en/support/announcement/detail/f083bdc8f37d4d45a0e0ec6fd5cd4086",
+      "date": "2026-02-09",
+      "symbols": [
+        "MSTRUSDT",
+        "AMZNUSDT",
+        "CRCLUSDT",
+        "COINUSDT",
+        "PLTRUSDT"
+      ]
+    },
+    {
+      "source": "https://www.binance.com/en/support/announcement/detail/44a37bb537b3460aafed58b8d68f5313",
+      "date": "2026-03-06",
+      "symbols": [
+        "COPPERUSDT"
+      ]
+    },
+    {
+      "source": "https://www.binance.com/en/support/announcement/detail/ce8f84ad8b6e4307becb06758017cb02",
+      "date": "2026-03-16",
+      "symbols": [
+        "EWYUSDT"
+      ]
+    },
+    {
+      "source": "https://www.binance.com/en/support/announcement/detail/521c39a39f3d4910af0835d477277299",
+      "date": "2026-03-19",
+      "symbols": [
+        "EWJUSDT"
+      ]
+    },
+    {
+      "source": "https://www.binance.com/en/support/announcement/detail/eb32c90a26fd405d97ea0c4174d41d74",
+      "date": "2026-03-23",
+      "symbols": [
+        "PAYPUSDT"
+      ]
+    },
+    {
+      "source": "https://www.binance.com/en/support/announcement/detail/1aa8f5f80e4a4afcab149e653fd3113d",
+      "date": "2026-03-26",
+      "symbols": [
+        "METAUSDT",
+        "NVDAUSDT",
+        "GOOGLUSDT"
+      ]
+    },
+    {
+      "source": "https://www.binance.com/en/support/announcement/detail/e7a10ca855524655ab3dea73add40ef4",
+      "date": "2026-04-01",
+      "symbols": [
+        "CLUSDT",
+        "BZUSDT",
+        "NATGASUSDT"
+      ]
+    },
+    {
+      "source": "https://www.binance.com/en/support/announcement/detail/4cde981dc32d4268b7645e9d16e8d63a",
+      "date": "2026-04-06",
+      "symbols": [
+        "QQQUSDT",
+        "SPYUSDT",
+        "AAPLUSDT",
+        "TSMUSDT"
+      ]
+    },
+    {
+      "source": "https://www.binance.com/en/support/announcement/detail/80549fadb3e447d1a859b8cedd0ccd69",
+      "date": "2026-04-07",
+      "symbols": [
+        "MUUSDT",
+        "SNDKUSDT"
+      ]
+    },
+    {
+      "source": "https://www.binance.com/en/support/announcement/detail/16fe15060947481ab240fb398230a3ee",
+      "date": "2026-04-20",
+      "symbols": [
+        "MSFTUSDT",
+        "AVGOUSDT",
+        "BABAUSDT"
+      ]
+    },
+    {
+      "source": "https://www.binance.com/en/support/announcement/detail/9f61baed332542118387bb161030df01",
+      "date": "2026-05-06",
+      "symbols": [
+        "AMDUSDT",
+        "QCOMUSDT",
+        "USARUSDT"
+      ]
+    },
+    {
+      "source": "https://www.binance.com/en/support/announcement/detail/3c04310db1ad4e0fbe234d2c00d0c785",
+      "date": "2026-05-15",
+      "symbols": [
+        "LITEUSDT",
+        "ORCLUSDT",
+        "DISUSDT",
+        "UBERUSDT",
+        "CSCOUSDT",
+        "HDUSDT"
+      ]
+    },
+    {
+      "source": "https://www.binance.com/en/support/announcement/detail/a2bce2686fc64a61b44c4335facafe7f",
+      "date": "2026-05-15",
+      "symbols": [
+        "SOXLUSDT",
+        "MRVLUSDT",
+        "CRWVUSDT",
+        "WMTUSDT",
+        "JPMUSDT",
+        "VUSDT",
+        "BRKBUSDT"
+      ]
+    },
+    {
+      "source": "https://www.binance.com/en/support/announcement/detail/6253a74ac0734740bdf36864584d1bd1",
+      "date": "2026-05-18",
+      "symbols": [
+        "FLNCUSDT",
+        "DRAMUSDT",
+        "RKLBUSDT"
+      ]
+    },
+    {
+      "source": "https://www.binance.com/en/support/announcement/detail/3544b8dab5e64f839316a360495a6387",
+      "date": "2026-05-19",
+      "symbols": [
+        "CBRSUSDT"
+      ]
+    },
+    {
+      "source": "https://www.binance.com/en/support/announcement/detail/f3a598a5ab4344af993f67a9c3f4544a",
+      "date": "2026-05-26",
+      "symbols": [
+        "NBISUSDT",
+        "WDCUSDT",
+        "ARMUSDT",
+        "BEUSDT",
+        "COHRUSDT"
+      ]
+    },
+    {
+      "source": "https://www.binance.com/en/support/announcement/detail/73769d872a644d7082bc79cde6c12d98",
+      "date": "2026-06-01",
+      "symbols": [
+        "LLYUSDT",
+        "NVOUSDT",
+        "BBXUSDT",
+        "NOKUSDT",
+        "EWTUSDT",
+        "ASTSUSDT"
+      ]
+    },
+    {
+      "source": "https://www.binance.com/en/support/announcement/detail/ed2c6a6160c64eb397b534af90b9d66a",
+      "date": "2026-06-02",
+      "symbols": [
+        "SKHYNIXUSDT",
+        "SAMSUNGUSDT",
+        "HYUNDAIUSDT"
+      ]
+    },
+    {
+      "source": "https://www.binance.com/en/support/announcement/detail/d77e2d77ea21405d9ef2cd7c6974ea5f",
+      "date": "2026-06-03",
+      "symbols": [
+        "DELLUSDT",
+        "IBMUSDT",
+        "NOWUSDT",
+        "CRMUSDT",
+        "IRENUSDT",
+        "ONDSUSDT"
+      ]
+    },
+    {
+      "source": "https://www.binance.com/en/support/announcement/detail/9595cb2560cc4f4b9906dca1d4cbd6d1",
+      "date": "2026-06-08",
+      "symbols": [
+        "BXUSDT",
+        "HPEUSDT",
+        "AMATUSDT",
+        "CRWDUSDT",
+        "CRDOUSDT",
+        "AAOIUSDT",
+        "IWMUSDT",
+        "AXTIUSDT"
+      ]
+    },
+    {
+      "source": "https://www.binance.com/en/support/announcement/detail/f598c7bb87d74b8c995b9f67bf210be1",
+      "date": "2026-06-09",
+      "symbols": [
+        "NFLXUSDT",
+        "COSTUSDT",
+        "URNMUSDT",
+        "HIMSUSDT",
+        "EBAYUSDT"
+      ]
+    },
+    {
+      "source": "https://www.binance.com/en/support/announcement/detail/b893d3539ae34c47856013b1f3cc94fb",
+      "date": "2026-06-10",
+      "symbols": [
+        "ZMUSDT",
+        "DKNGUSDT",
+        "RIVNUSDT",
+        "GMEUSDT",
+        "XLEUSDT",
+        "EWZUSDT"
+      ]
+    },
+    {
+      "source": "https://www.binance.com/en/support/announcement/detail/f622c1f2a1a94ba1894d9a9e265fb4b9",
+      "date": "2026-06-11",
+      "symbols": [
+        "BMNRUSDT",
+        "UVXYUSDT",
+        "ADBEUSDT",
+        "GLWUSDT",
+        "STXXUSDT",
+        "ASMLUSDT"
+      ]
+    },
+    {
+      "source": "https://www.binance.com/en/support/announcement/detail/88ea4a4f9f0b4ad4b7b308195c026fe4",
+      "date": "2026-06-22",
+      "symbols": [
+        "LRCXUSDT",
+        "KLACUSDT",
+        "ALABUSDT",
+        "SMCIUSDT",
+        "CIENUSDT",
+        "KORUUSDT",
+        "SONYUSDT"
+      ]
+    },
+    {
+      "source": "https://www.binance.com/en/support/announcement/detail/ba04ce1272df4bdf8d2595ccb0e1954b",
+      "date": "2026-06-29",
+      "symbols": [
+        "MVLLUSDT",
+        "TQQQUSDT",
+        "SQQQUSDT"
+      ]
+    },
+    {
+      "source": "https://www.binance.com/en/support/announcement/detail/d2acaa91c14e4cc598aaee1017efc1ac",
+      "date": "2026-07-02",
+      "symbols": [
+        "STRCUSDT",
+        "CATUSDT",
+        "TXNUSDT",
+        "FLEXUSDT",
+        "TERUSDT",
+        "TTWOUSDT",
+        "KSTRUSDT",
+        "BSPUSDT"
+      ]
+    },
+    {
+      "source": "https://www.binance.com/en/support/announcement/detail/84ad610bdd284699bc451b7baaa0ff7d",
+      "date": "2026-07-09",
+      "symbols": [
+        "BOTUSDT",
+        "WENUSDT",
+        "INTWUSDT",
+        "SNXXUSDT",
+        "XBIUSDT",
+        "BNCUSDT",
+        "FWDIUSDT"
+      ]
+    },
+    {
+      "source": "https://www.binance.com/en/support/announcement/detail/d0833e4ae9b542be90dbf3fe1c960c53",
+      "date": "2026-07-10",
+      "symbols": [
+        "GEVUSDT",
+        "VRTUSDT",
+        "SNOWUSDT",
+        "APPUSDT"
+      ]
+    },
+    {
+      "source": "https://www.binance.com/en/support/announcement/detail/6fe9f6dc91544df88dc24ad41211feff",
+      "date": "2026-07-10",
+      "symbols": [
+        "SKHYUSDT"
+      ]
+    },
+    {
+      "source": "https://www.binance.com/en/support/announcement/detail/0a613aed15cc4cf78898594d7c767661",
+      "date": "2026-07-16",
+      "symbols": [
+        "MUUUSDT",
+        "SOXSUSDT",
+        "TZAUSDT"
+      ]
+    },
+    {
+      "source": "https://www.binance.com/en/support/announcement/detail/18724cba64a048938986a98bbb257258",
+      "date": "2026-07-17",
+      "symbols": [
+        "MINIMAXUSDT",
+        "ZHIPUUSDT",
+        "HK0700USDT",
+        "HK1810USDT",
+        "TENCENTUSDT"
+      ]
+    },
+    {
+      "source": "https://www.binance.com/en/support/announcement/detail/f43403ef11974998bc0f46420826577a",
+      "date": "2026-07-21",
+      "symbols": [
+        "SHAZUSDT",
+        "SOFIUSDT",
+        "PANWUSDT",
+        "PENGUSDT"
+      ]
+    },
+    {
+      "source": "https://www.binance.com/en/support/announcement/detail/fcdc949b45a644c78e341c88331a35ef",
+      "date": "2026-07-23",
+      "symbols": [
+        "POPMARTUSDT"
+      ]
+    },
+    {
+      "source": "https://www.binance.com/en/support/announcement/detail/a827177a387e4ebea830110ba222ca48",
+      "date": "2026-07-27",
+      "symbols": [
+        "TMFUSDT",
+        "TBTUSDT",
+        "BITOUSDT"
+      ]
+    },
+    {
+      "source": "https://www.binance.com/en/support/announcement/detail/93b5cd2280874d9cb4303827374b940d",
+      "date": "2026-07-29",
+      "symbols": [
+        "PYPLUSDT",
+        "GSUSDT",
+        "SMHUSDT"
+      ]
+    }
+  ],
+  "include_override": {
+    "SPXUSDT": {
+      "reason": "SPX6900 crypto token, not S&P 500 index",
+      "source": "https://www.binance.com/en/support/announcement/detail/43f5771df16344a8b5ce26f67d21fc0d"
+    }
+  },
+  "uncertain_excluded": [
+    "ANTHROPICUSDT",
+    "BILLUSDT",
+    "OPENAIUSDT",
+    "QNTXUSDT",
+    "SPCXUSDT"
+  ],
+  "index_excluded": [
+    "BTCDOMUSDT",
+    "DEFIUSDT"
+  ],
+  "uncertain_policy": "Unverified suspected stock, security-token, or premarket names are excluded explicitly and listed, not silently treated as crypto. Do not claim a fully verified historical universe."
+}

@@ -1,0 +1,114 @@
+{
+  "version": "FOUR_FACTOR_RESEARCH_20261027_2",
+  "parent_live_commit": "7f80c3d7189a8c4e100314a814533900b78626c0",
+  "strategy_hash": "f4485acc0340fb6352cde17558ada6f53459bafa486793423792c3b4e2ccdedd",
+  "signal_window_utc": [
+    "2025-10-01",
+    "2026-08-01"
+  ],
+  "warmup_start_utc": "2025-09-01",
+  "outcome_buffer_end_utc": "2026-09-01",
+  "holdout_status": "PRIOR_EXPOSURE_NOT_VERIFIED; exploratory validation only",
+  "universe": "All archived Binance UM USDT perpetual symbol folders including inactive/delisted symbols, minus frozen non-crypto/stable exclusions in universe_classification.json. SPX6900 is included. Verified equities, ETFs, commodities and indices are excluded; five suspected non-crypto symbols excluded explicitly. No performance ranking/top-N selection. Historical metadata is not fully verified.",
+  "age_proxy": "At least 30 days since first available warmup/data bar; conservative, not a verified exchange listing date",
+  "live_policy": "No production code, thresholds, notifications, orders, deployment or live REST changes",
+  "history_closed_bars": 119,
+  "decision_latency_ms": 60000,
+  "entry": "Existing core entry rule: next minute opening after decision plus configured 2 seconds. Fixed 60-second scan latency is an assumption, not a reconstruction of Telegram delivery.",
+  "execution": "Existing sizing/exit rules, 72-hour observation censoring, stop first inside ambiguous 1m bar, gap stop at opening price; exchange tick/lot/depth are historical approximations",
+  "spread_fraction": 0.001,
+  "cost_stress": "1.5x fee, assumed spread and slippage on the exact same base-admitted quantity, entry/exit event and baseline risk denominator; funding unchanged; no rejection or re-selection under stress",
+  "seed": "ta-paper-final-20261027-fixed",
+  "hypotheses": {
+    "taker": {
+      "long_gt": 0.55,
+      "short_lt": 0.45
+    },
+    "oi": {
+      "lag_minutes": 5,
+      "lookback_hours": 4,
+      "oi_change_gt": 0,
+      "directional_price_change_gt": 0,
+      "unit": "base asset",
+      "require_continuous_5m": true
+    },
+    "funding": {
+      "lag_minutes": 5,
+      "history_days": 30,
+      "long_percentile_lt": 0.9,
+      "short_percentile_gt": 0.1,
+      "ties": "midrank",
+      "allowed_constant_cadence_hours": [
+        1,
+        4,
+        8
+      ],
+      "archive_timestamp_tolerance_ms": 1000
+    },
+    "relative": {
+      "history_days": 3,
+      "long_excess_return_gt": 0,
+      "short_excess_return_lt": 0,
+      "same_closed_4h_grid": true
+    }
+  },
+  "publication_warning": "OI/funding archive publication timestamps are unknown. Five-minute lag is a modelling assumption. No claim of exact historical real-time availability.",
+  "arms": [
+    "baseline",
+    "taker_only",
+    "oi_only",
+    "funding_only",
+    "relative_only"
+  ],
+  "no_stacked_filters": true,
+  "controls": {
+    "random_direction": "One deterministic hash-selected direction per original strategy event, same signal time and initial stop distance. Group comparison by original candidate direction; do not filter control direction again.",
+    "random_timing": "One deterministic uniformly ranked eligible time on the same symbol, UTC decision day and 4h trend direction, excluding the original time; same volume, age, geometry and trigger-range eligibility, without EMA reclaim. Choose before seeing outcomes; share repeated control events explicitly.",
+    "missing_policy": "Keep missing controls explicit. Primary comparison uses paired common UTC entry days with resolved outcomes and the relevant feature available in each arm. Also report exact matched-event comparisons and unmatched/native coverage. No renormalized zero returns for missing data."
+  },
+  "primary_unit": "Equal-weight UTC entry-day mean net R, not trade-weighted mean",
+  "descriptive_modes": [
+    "all individually simulated setups (overlapping and dependent)",
+    "chronological core risk/capacity portfolio approximation per arm"
+  ],
+  "pass_requirements": {
+    "minimum_closed_per_side": 100,
+    "minimum_entry_days_per_side": 60,
+    "positive_day_mean_at_cost_1_5": true,
+    "positive_after_removing_top3_symbols_at_cost_1_5": true,
+    "top3_rule": "symbols with greatest total base net R within that hypothesis/side",
+    "comparators": [
+      "baseline",
+      "random_direction",
+      "random_timing"
+    ],
+    "family_comparisons": 24,
+    "family_alpha": 0.05,
+    "bootstrap_iterations": 20000,
+    "bootstrap": "Fixed-seed paired calendar-week block resamples; preserve the complete calendar grid and missing/empty days; each supported day receives equal weight",
+    "lower_bound": "One-sided Bonferroni alpha=0.05/24 improvement bound must be above zero for all three comparisons at 1.5x cost",
+    "unknown_outcomes": "Report separately and pessimistically as -1R sensitivity, never count cancellations as losses; -1R is only sensitivity and is not a guaranteed worst case",
+    "insufficient_sample_or_coverage": "INCONCLUSIVE",
+    "promotion": "None automatic; even a passing result is a research candidate because holdout exposure, archived publication times and execution depth are unverified"
+  },
+  "regimes": "Closed BTC 4h EMA20/EMA50 plus 3-bar EMA20 slope, same rule as frozen core; UP/DOWN/SIDEWAYS observational reporting only",
+  "known_previous_test": "August 2026 exploration is excluded from this signal window. Old 120-bar -0.132141 result is retained and never pooled with this study.",
+  "changes_frozen_before_outcomes": [
+    "119-bar live window parity",
+    "equal-weight day summaries",
+    "same-event cost stress",
+    "10-month dates",
+    "four individual hypotheses and fixed thresholds",
+    "matched timing control",
+    "calendar block inference",
+    "Research-only instrument taxonomy correction from official launch announcements; live universe unchanged"
+  ],
+  "interventions": [
+    {
+      "type": "DATA_ADAPTER_BUGFIX",
+      "frozen_v1_commit": "58398c4ff9bfdc286e4516832d30453318975427",
+      "finding": "Initial coverage audit: all funding ranks unknown because raw settlement timestamps vary by milliseconds. Observed 39875 raw records had 0\u201326ms offset. No aggregate returns inspected or thresholds tuned.",
+      "correction": "Exclude raw timestamps after cutoff first; normalize funding-feature slots only when offset is <=1000ms and declared cadence agrees. Preserve raw timestamps for execution costs. Discard and retain separate v1 outcomes; rerun all symbols in new directory."
+    }
+  ]
+}

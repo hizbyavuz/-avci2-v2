@@ -1,0 +1,12 @@
+{
+  "completed_at_utc": "2026-10-27T00:26:07.453451+00:00",
+  "process_exit_code": 0,
+  "symbol_checkpoints": 650,
+  "run_status": "COMPLETE_WITH_GAPS",
+  "all_eight_directional_hypotheses": "DID_NOT_PASS",
+  "calculation_commit": "c59fff9bd9a7bb9e57b18b0faed0fdaed934222e",
+  "live_commit_preserved": "7f80c3d7189a8c4e100314a814533900b78626c0",
+  "core_strategy_unchanged": true,
+  "production_deployments_requested": 0,
+  "data_limits_documented": true
+}
