@@ -9,6 +9,7 @@ from pathlib import Path
 import sqlite3
 import threading
 import time
+from urllib.parse import quote
 import zipfile
 
 from .archive import Archive
@@ -399,8 +400,9 @@ def daily_rows(archive, symbol, tf, day):
         raw = path.read_bytes(); expected = checksum.read_text().strip()
     else:
         from .archive import BASE
-        expected = archive.request(BASE+key+'.CHECKSUM').decode().split()[0].lower()
-        raw = archive.request(BASE+key)
+        url = BASE+quote(key,safe='/')
+        expected = archive.request(url+'.CHECKSUM').decode().split()[0].lower()
+        raw = archive.request(url)
     if hashlib.sha256(raw).hexdigest() != expected: raise ValueError('ARCHIVE_CHECKSUM_MISMATCH')
     path.parent.mkdir(parents=True,exist_ok=True)
     if not path.exists():
