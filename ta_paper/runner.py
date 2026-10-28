@@ -25,7 +25,7 @@ from .observations import (collect, context_fields, funnel_report, record_setup,
 from .watch import publish_watches
 
 STOP = threading.Event()
-OPERATIONS_REVISION = 'BINANCE_TRANSPORT_20261028_01'
+OPERATIONS_REVISION = 'BINANCE_RECOVERY_20261029_01'
 CHART_REVISION = 'CHARTS_20261026_1'
 SCAN_STATE_KEY = 'scan_progress_v2'
 SCAN_BATCH_SECONDS = 15
@@ -110,9 +110,12 @@ def update_health(store, reason, cooldown, now, progress=None):
     progress=progress or {}
     expired=progress.get('status')=='EXPIRED'
     completed=progress.get('status')=='COMPLETE'
+    access_wait = bool(cooldown.get('remaining_seconds',0) and (
+        cooldown.get('reason') in ('BINANCE_HTTP_418','BINANCE_HTTP_429','BINANCE_HTTP_403','BINANCE_HTTP_451')
+        or cooldown.get('user_not_before_ms',0)>now))
     # Background evidence collection can hit the REST guard after the scan has
     # finished. It cannot undo that result or turn it into a new failed scan.
-    status=('EXPIRED' if expired else 'READY' if reason=='READY' or
+    status=('WAITING' if access_wait else 'EXPIRED' if expired else 'READY' if reason=='READY' or
             (completed and reason=='SHARED_IP_WEIGHT_HIGH') else 'WAITING')
     universe=progress.get('universe',len(progress.get('markets',{})))
     assessed=progress.get('assessed',len(progress.get('done',{})))
@@ -147,7 +150,7 @@ def update_health(store, reason, cooldown, now, progress=None):
               +('Eleme: '+'; '.join(rejects)+'.\n' if rejects else '')+
               ('Teknik giriş koşulu oluşmadı.\n' if not setups else '')+
               'Gerçek emir yok; başarı DOĞRULANMADI.')
-    elif expired:
+    elif status=='EXPIRED':
         next_slot=(progress.get('scan_slot',progress.get('slot',now//CFG.entry_ms))+1)*CFG.entry_ms
         at=datetime.fromtimestamp(next_slot/1000,timezone.utc).astimezone(
             __import__('zoneinfo').ZoneInfo('Europe/Istanbul')).strftime('%d.%m.%Y %H:%M')
@@ -157,6 +160,9 @@ def update_health(store, reason, cooldown, now, progress=None):
               'Önceden doğrulanmış sanal planların takibi sürer.\n'
               'Eksik veri, fırsat yok anlamına gelmez. Gerçek emir yok; başarı DOĞRULANMADI.')
     else:
+        if access_wait:
+            reason=('USER_REQUESTED_RETRY_DELAY' if cooldown.get('user_not_before_ms',0)>
+                    max(now,cooldown.get('exchange_until_ms',0)) else cooldown.get('reason',reason))
         explanations={
             'USER_REQUESTED_RETRY_DELAY':'Binance yeniden denemesi isteğin üzerine ertelendi.',
             'SHARED_IP_WEIGHT_HIGH':'IP istek yükü yüksek; koruma beklemesi uygulanıyor.',
@@ -165,8 +171,10 @@ def update_health(store, reason, cooldown, now, progress=None):
             'SCAN_INCOMPLETE':'Tarama tamamlanmadı; kalan coinlerden devam edilecek.',
             'SCAN_EXPIRED':'Tarama giriş süresi içinde tamamlanamadı; bu dönem eksik kaydedildi.'}
         text=health_message(explanations.get(reason,reason),cooldown)
-        if reason=='SCAN_INCOMPLETE':
-            text=text.replace('Yeni işlem planı üretilmiyor.',
+        if access_wait:
+            text+='\nMevcut veri akışından doğrulanabilen teknik adayların izlenmesi sürer.'
+        elif reason=='SCAN_INCOMPLETE':
+            text=text.replace('Yeni Binance işlem planı üretilmiyor.',
                 'Yalnız kendi veri ve risk kontrolleri tamamlanan coinlerden test planı üretilebilir.')
         text+=f'\nDeğerlendirilen: {assessed}/{universe if universe else "henüz belirlenmedi"} coin.'
         text+='\nEksik veri, fırsat yok anlamına gelmez.'
@@ -332,7 +340,25 @@ def _scan_blocked(client):
 
 
 def _save_scan(store,state):
-    store.setting(SCAN_STATE_KEY,json.dumps(state,sort_keys=True,allow_nan=False))
+    payload=json.dumps(state,sort_keys=True,allow_nan=False)
+    if store.setting(SCAN_STATE_KEY)!=payload:
+        store.setting(SCAN_STATE_KEY,payload)
+
+
+def scan_poll_seconds(state, client):
+    """Keep active batches quick; don't busy-poll when every item is waiting."""
+    if state.get('status')!='PENDING' or _scan_blocked(client):
+        return 15
+    now=client.now()
+    if not state.get('initialized'):
+        return 1
+    due=[state.get('retry_at',{}).get(s,0) for s in state['markets'] if s not in state['done']]
+    gate=_cooldown(client)
+    admission_after=gate.get('until_ms',0) if gate['remaining_seconds'] else 0
+    due += [max(admission_after,state.get('retry_at',{}).get(s,0))
+            for s,p in state['done'].items() if p['status']=='SETUP' and s not in state['handled']]
+    next_due=min([state['deadline_ms']+1,*due])
+    return max(1,min(15,(next_due-now)/1000))
 
 
 def _scan_health(store,client,state,started,admitted=0):
@@ -360,12 +386,17 @@ def _scan_health(store,client,state,started,admitted=0):
                 rest_cooldown=_cooldown(client),
                 operations_revision=OPERATIONS_REVISION)
     terminal=state['status'] in ('COMPLETE','EXPIRED')
-    if not terminal or not state.get('terminal_logged'):
+    evidence={k:v for k,v in health.items() if k not in ('elapsed_seconds','admitted','rest_cooldown')}
+    evidence['rest_cooldown']={k:v for k,v in health['rest_cooldown'].items() if k!='remaining_seconds'}
+    progress_identity=json.dumps(evidence,sort_keys=True,allow_nan=False)
+    changed=state.get('progress_identity')!=progress_identity
+    if (terminal and not state.get('terminal_logged')) or (not terminal and changed):
         # Progress updates are not extra independent scans in evaluation reports.
         store.event('SCAN_HEALTH' if terminal else 'SCAN_PROGRESS',str(state['slot']),health,client.now())
         log('TA_PAPER_SCAN',**health)
         if terminal:
             state['terminal_logged']=True
+        state['progress_identity']=progress_identity
     if state['status']=='COMPLETE':
         store.setting('last_complete_scan_slot_v2',state['slot'])
     _save_scan(store,state)
@@ -553,7 +584,12 @@ def scan(store, client, cfg=CFG, on_plan=None):
         except (DataUnavailable,ValueError,KeyError,TypeError) as exc:
             reason=str(exc)[:120] if isinstance(exc,(DataUnavailable,ValueError)) else type(exc).__name__
             state['errors'][reason]=state['errors'].get(reason,0)+1
-            state['retry_at'][symbol]=max(client.now()+MINUTE,_cooldown(client).get('until_ms',0))
+            # A healthy stream/archive can repair history during a REST ban.
+            # Recheck that local evidence once a minute; get() still gates REST.
+            retry=client.now()+MINUTE
+            if not getattr(client,'stream_ready',lambda:False)():
+                retry=max(retry,_cooldown(client).get('until_ms',0))
+            state['retry_at'][symbol]=retry
             store.event('DATA_ISSUE',symbol,{'reason':reason,'scan_slot':slot},client.now())
         _save_scan(store,state)
         if state['done'].get(symbol,{}).get('status')=='SETUP':
@@ -695,7 +731,7 @@ def run(args):
         if previous_ops!=OPERATIONS_REVISION:
             store.event('OPERATIONS_REVISION',OPERATIONS_REVISION,
                         dict(previous=previous_ops,config_hash=CFG.fingerprint,
-                             provenance=store.provenance,change='isolated_ticker_stream_smaller_candle_shards_numeric_ack_monotonic_weight_guard_core_and_retry_floor_unchanged'))
+                             provenance=store.provenance,change='retry_repaired_stream_history_during_rest_bans_deduplicate_waiting_progress_and_health_encode_archive_paths_core_and_retry_floor_unchanged'))
             store.setting('operations_revision',OPERATIONS_REVISION)
         boot_key='system:charts:'+CHART_REVISION
         if not store.setting(boot_key):
@@ -820,7 +856,7 @@ def run(args):
             if args.once:
                 return 0 if iteration_valid else 2
             active_progress=json.loads(store.setting(SCAN_STATE_KEY) or '{}')
-            STOP.wait(1 if active_progress.get('status')=='PENDING' and not _scan_blocked(client) else 15)
+            STOP.wait(scan_poll_seconds(active_progress,client))
         return 0
 
 

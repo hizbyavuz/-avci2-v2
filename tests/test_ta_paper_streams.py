@@ -99,6 +99,23 @@ class StreamTests(unittest.TestCase):
                 self.assertEqual(scan(self.store,self.client)['assessed'],0)
                 net.assert_not_called()
 
+    def test_history_repaired_during_ban_is_used_before_scan_deadline(self):
+        until=int(time.time()*1000)+86400000
+        self.client.gate.block(until,'BINANCE_HTTP_418','EXCHANGE_RETRY_TIME')
+        with patch('urllib.request.build_opener') as net:
+            first=scan(self.store,self.client)
+            self.assertEqual(first['assessed'],0)
+            self.seed(True)
+            self.client.now=lambda:NOW+MINUTE
+            for group in self.feed.groups.values():group['last_event']=NOW+MINUTE
+            second=scan(self.store,self.client)
+            net.assert_not_called()
+        self.assertTrue(second['complete'])
+        self.assertEqual((second['assessed'],second['setups'],second['admitted']),(1,1,0))
+        self.assertEqual(self.client.gate.state()['until_ms'],until)
+        self.assertEqual(self.store.plans(),[])
+        self.assertEqual(self.store.db.execute('SELECT COUNT(*) FROM watch_candidates').fetchone()[0],1)
+
     def test_expired_metadata_is_not_made_new_by_restart_or_snapshot(self):
         self.feed.set_metadata({'symbols':[MARKET]},NOW-METADATA_TTL-1)
         self.assertFalse(self.feed.ready(NOW))
