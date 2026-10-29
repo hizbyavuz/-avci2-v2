@@ -696,6 +696,14 @@ def run(args):
             lock=locks.enter_context(open(path,'a'))
             fcntl.flock(lock,fcntl.LOCK_EX | fcntl.LOCK_NB)
         if not args.report:previous_version_safe(root.resolve())
+        if getattr(args, 'archive_retired_replays', False) and not args.report:
+            try:
+                if getattr(args, 'historical_research', False):
+                    raise ValueError('ARCHIVAL_NOT_ALLOWED_WITH_HISTORICAL_JOB')
+                from .storage import archive_retired_replays
+                archive_retired_replays(folder/'research')
+            except Exception as exc:
+                log('TA_STORAGE_DEFERRED', reason=str(exc), live_worker_continues=True)
         store = Store(folder/'research.sqlite3')
         telegram = Telegram(root, enabled=args.telegram)
         if args.report:
@@ -867,6 +875,7 @@ def main():
     parser.add_argument('--telegram', action='store_true', help='Use only the existing configured destination')
     parser.add_argument('--state-root')
     parser.add_argument('--historical-research',action='store_true',help='Run resumable, bounded archive validation alongside paper observation')
+    parser.add_argument('--archive-retired-replays',action='store_true',help='Losslessly archive only the eight inventoried retired replay databases at boot')
     parser.add_argument('--market-streams',action='store_true',help='Official Binance market streams and durable archive/cache before guarded REST')
     parser.add_argument('--external-watch',choices=['bybit'],help='Independent Bybit WATCH observations; no Binance verification or paper trades')
     parser.add_argument('--binance-not-before-ms',type=int,default=0,
